@@ -100,14 +100,14 @@ export default function Hospital_BirthCertificateList(){
 
       <div className="overflow-auto border rounded-md">
         <table className="min-w-[800px] w-full">
-          <thead>
-            <tr className="bg-slate-100 text-left text-sm text-slate-700">
-              <th className="px-3 py-2">Sr No</th>
-              <th className="px-3 py-2">Date Time</th>
-              <th className="px-3 py-2">Mother Name</th>
-              <th className="px-3 py-2">MR Number</th>
-              <th className="px-3 py-2">Phone Number</th>
-              <th className="px-3 py-2">Actions</th>
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+            <tr className="text-left">
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Sr No</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Mother Name</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">MR Number</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Phone Number</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="text-sm">

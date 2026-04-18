@@ -21,12 +21,13 @@ type Order = {
   id: string
   createdAt: string
   patient: { fullName: string; phone: string; cnic?: string; guardianName?: string; age?: string; gender?: string; mrn?: string; address?: string }
-  tests: string[]
-  status: 'received'|'completed'
+  tests: Array<string | { testId: string; testName: string; price: number }>
+  testStatuses?: Array<{ testId: string; testName: string; status: 'pending' | 'sample_collected' | 'in_progress' | 'result_entered' | 'approved' | 'completed' | 'returned'; resultId?: string }>
+  status: 'received' | 'result_entered' | 'approved' | 'completed' | 'cancelled'
   tokenNo?: string
   sampleTime?: string
   reportingTime?: string
-  returnedTests?: string[]
+  returnedTests?: Array<string | { testId: string; testName: string; price: number }>
   referringConsultant?: string
   barcode?: string
   corporateId?: string
@@ -35,9 +36,17 @@ type Order = {
   billingType?: 'cash' | 'corporate'
 }
 
-type Track = { status: 'received' | 'completed'; sampleTime?: string; reportingTime?: string; tokenNo: string }
+type Track = { status: 'received' | 'result_entered' | 'approved' | 'completed' | 'cancelled'; sampleTime?: string; reportingTime?: string; tokenNo: string }
 
 type ResultRow = { id: string; test: string; normal?: string; unit?: string; prevValue?: string; value?: string; flag?: 'normal'|'abnormal'|'critical'; comment?: string }
+
+function genId() {
+  // Cross-browser compatible UUID generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
 
 function formatDateTime(iso: string) { const d = new Date(iso); return d.toLocaleDateString() + ', ' + d.toLocaleTimeString() }
 
@@ -96,7 +105,7 @@ export default function Lab_Results() {
     ;(async()=>{
       try {
         const [ordersRes, testsRes] = await Promise.all([
-          labApi.listOrders({ q: q || undefined, limit: rowsPer, page, status: 'received' }),
+          labApi.listOrders({ q: q || undefined, limit: rowsPer, page }),
           labApi.listTests({ limit: 1000 }),
         ])
         if (!mounted) return
@@ -106,6 +115,7 @@ export default function Lab_Results() {
             createdAt: x.createdAt || new Date().toISOString(), 
             patient: x.patient || { fullName: '-', phone: '' }, 
             tests: x.tests||[], 
+            testStatuses: x.testStatuses||[],
             status: x.status || 'received', 
             tokenNo: x.tokenNo, 
             barcode: x.barcode, 
@@ -119,6 +129,7 @@ export default function Lab_Results() {
             billingType: x.billingType || (x.corporateId ? 'corporate' : 'cash')
           }))
           .filter((x: any)=> String((x as any)?.barcode || '').trim().length > 0)
+          .filter((x: any) => String((x as any)?.status || '') !== 'completed')
         setOrders(o)
         setTotal(Number(ordersRes.total || o.length || 0))
         setTotalPages(Number(ordersRes.totalPages || 1))
@@ -140,6 +151,7 @@ export default function Lab_Results() {
 
   const [selected, setSelected] = useState<Order | null>(null)
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null)
+  const [selectedOrderTestId, setSelectedOrderTestId] = useState<string | null>(null)
   const [existingResultId, setExistingResultId] = useState<string | null>(null)
 
   // Step 2: Entry form
@@ -150,9 +162,10 @@ export default function Lab_Results() {
   const [prior, setPrior] = useState<Array<{ order: Order; result: { id: string; orderId: string; rows: any[]; interpretation?: string; createdAt: string } }>>([])
  
 
-  const onSelect = (o: Order, testId: string) => {
+  const onSelect = (o: Order, testId: string, orderTestId: string | null = null) => {
     setSelected(o)
     setSelectedTestId(testId)
+    setSelectedOrderTestId(orderTestId)
     setReferring(o.referringConsultant || '')
     // bootstrap rows from catalog only for the selected test
     const initial: ResultRow[] = []
@@ -163,7 +176,7 @@ export default function Lab_Results() {
         const names = new Set<string>()
         for (const p of params){
           initial.push({
-            id: crypto.randomUUID(),
+            id: genId(),
             test: p.name || t.name,
             normal: p.normalRangeMale || p.normalRangeFemale || p.normalRangePediatric || undefined,
             unit: p.unit || undefined,
@@ -172,7 +185,7 @@ export default function Lab_Results() {
         }
         if ((t.parameter || '').trim() && !names.has(String(t.parameter).trim())){
           initial.push({
-            id: crypto.randomUUID(),
+            id: genId(),
             test: String(t.parameter).trim(),
             normal: t.normalRangeMale || t.normalRangeFemale || t.normalRangePediatric || undefined,
             unit: t.unit,
@@ -180,7 +193,7 @@ export default function Lab_Results() {
         }
       } else {
         initial.push({
-          id: crypto.randomUUID(),
+          id: genId(),
           test: t.parameter || t.name,
           normal: t.normalRangeMale || t.normalRangeFemale || t.normalRangePediatric || undefined,
           unit: t.unit,
@@ -192,11 +205,8 @@ export default function Lab_Results() {
     loadPreviousResults(o, testId)
   }
 
-  const addRow = () => setRows(prev => [...prev, { id: crypto.randomUUID(), test: '', normal: '', unit: '', value: '', comment: '' }])
+  const addRow = () => setRows(prev => [...prev, { id: genId(), test: '', normal: '', unit: '', value: '', comment: '' }])
   const removeRow = (id: string) => setRows(prev => prev.filter(r => r.id !== id))
-
-  const showNormal = useMemo(() => rows.some(r => String(r.normal || '').trim().length > 0), [rows])
-  const showUnit = useMemo(() => rows.some(r => String(r.unit || '').trim().length > 0), [rows])
 
   const save = async () => {
     if (!selected) return false
@@ -207,13 +217,14 @@ export default function Lab_Results() {
         const session = raw ? JSON.parse(raw) : null
         submittedBy = String(session?.username || session?.user?.username || session?.name || '').trim() || undefined
       } catch {}
+      const testName = selectedTestId ? (testsMap[selectedTestId]?.name || '') : ''
       if (existingResultId){
-        await labApi.updateResult(existingResultId, { rows, interpretation: interpretation.trim() || undefined })
-        await labApi.updateOrderTrack(selected.id, { referringConsultant: (referring.trim() || undefined) as any })
+        await labApi.updateResult(existingResultId, { rows, interpretation: interpretation.trim() || undefined, testId: selectedTestId || undefined, testName: testName || undefined })
+        await labApi.updateOrderTrack(selected.id, { testId: selectedTestId || undefined, orderTestId: selectedOrderTestId || undefined, referringConsultant: (referring.trim() || undefined) as any })
       } else {
-        await labApi.createResult({ orderId: selected.id, rows, interpretation: interpretation.trim() || undefined, submittedBy })
+        await labApi.createResult({ orderId: selected.id, orderTestId: selectedOrderTestId || undefined, testId: selectedTestId || undefined, testName: testName || undefined, rows, interpretation: interpretation.trim() || undefined, submittedBy })
         const rep = new Date().toTimeString().slice(0,5)
-        await labApi.updateOrderTrack(selected.id, { status: 'completed', reportingTime: rep, referringConsultant: (referring.trim() || undefined) as any })
+        await labApi.updateOrderTrack(selected.id, { testId: selectedTestId || undefined, orderTestId: selectedOrderTestId || undefined, status: 'result_entered', reportingTime: rep, referringConsultant: (referring.trim() || undefined) as any })
       }
       setTick(t=>t+1)
       if (returnTo === 'report-approval') {
@@ -254,7 +265,10 @@ export default function Lab_Results() {
         if (a.phone && b.phone) return String(a.phone) === String(b.phone)
         return String(a.fullName||'').trim().toLowerCase() === String(b.fullName||'').trim().toLowerCase()
       })
-      const sameTest = samePatient.filter(or => or.id !== o.id && Array.isArray(or.tests) && or.tests.map(String).includes(String(testId)))
+      const sameTest = samePatient.filter(or => or.id !== o.id && Array.isArray(or.tests) && or.tests.some((t: any) => {
+        const tid = typeof t === 'object' && t?.testId ? t.testId : String(t)
+        return tid === testId
+      }))
       sameTest.sort((a,b)=> new Date(b.createdAt||0).getTime() - new Date(a.createdAt||0).getTime())
       const top = sameTest.slice(0, 5)
       const resPairs = await Promise.all(top.map(async (ord)=>{
@@ -318,10 +332,11 @@ export default function Lab_Results() {
           billingType: ord.billingType || (ord.corporateId ? 'corporate' : 'cash')
         }
         setSelected(o)
-        const tid = o.tests?.[0] ? String(o.tests[0]) : null
+        const firstTest = o.tests?.[0]
+        const tid = firstTest ? (typeof firstTest === 'object' && firstTest?.testId ? firstTest.testId : String(firstTest)) : null
         setSelectedTestId(tid)
         if (rec){
-          setRows((rec.rows||[]).map((r:any)=>({ id: r.id || crypto.randomUUID(), test: r.test, normal: r.normal, unit: r.unit, prevValue: r.prevValue, value: r.value, flag: r.flag, comment: r.comment })))
+          setRows((rec.rows||[]).map((r:any)=>({ id: r.id || genId(), test: r.test, normal: r.normal, unit: r.unit, prevValue: r.prevValue, value: r.value, flag: r.flag, comment: r.comment })))
           setInterpretation(rec.interpretation || '')
           setExistingResultId(String(rec._id || rec.id))
         } else {
@@ -387,12 +402,27 @@ export default function Lab_Results() {
               <tbody>
                 {items.filter(o => !selectedCompany || o.corporateId === selectedCompany).reduce((acc: any[], o) => {
                   const token = (track[o.id]?.tokenNo || genToken(o.createdAt, o.id))
-                  const returned = new Set((o.returnedTests||[]).map(String))
-                  o.tests.forEach((tid, idx) => {
-                    if (returned.has(String(tid))) return
-                    const tname = testsMap[tid]?.name || '—'
+                  
+                  // Use either o.testStatuses (new) or o.tests (old/fallback)
+                  const testsToProcess = (o.testStatuses && o.testStatuses.length > 0) ? o.testStatuses : o.tests;
+                  
+                  testsToProcess.forEach((t: any, idx) => {
+                    const tid = typeof t === 'object' && t?.testId ? t.testId : String(t)
+                    const otid = typeof t === 'object' && t?.orderTestId ? t.orderTestId : null
+                    
+                    // Get status from testStatuses if available
+                    let testStatus = 'pending'
+                    if (o.testStatuses && o.testStatuses.length > 0) {
+                      const ts = o.testStatuses.find(s => String(s.testId) === String(tid))
+                      testStatus = ts?.status || 'pending'
+                    }
+                    
+                    // Skip if returned or result already entered or approved
+                    if (testStatus === 'returned' || testStatus === 'result_entered' || testStatus === 'approved') return
+                    
+                    const tname = (typeof t === 'object' && t?.testName) ? t.testName : (testsMap[tid]?.name || '—')
                     acc.push(
-                      <tr key={`${o.id}-${tid}-${idx}`} className="border-b border-slate-100">
+                      <tr key={`${o.id}-${tid}-${idx}-${otid||idx}`} className="border-b border-slate-100">
                         <td className="px-3 py-2">{start + acc.length}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(o.createdAt)}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{o.patient.fullName}</td>
@@ -416,11 +446,16 @@ export default function Lab_Results() {
                           )}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${(track[o.id]?.status || 'received')==='completed'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-700'}`}>{track[o.id]?.status || 'received'}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs ${
+                            testStatus==='approved' || testStatus==='completed' ? 'bg-emerald-100 text-emerald-700' :
+                            testStatus==='result_entered' ? 'bg-orange-100 text-orange-700' :
+                            testStatus==='sample_collected' ? 'bg-blue-100 text-blue-700' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>{testStatus}</span>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="flex items-center gap-1">
-                            <button onClick={()=>onSelect(o, String(tid))} className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white">Select</button>
+                            <button onClick={()=>onSelect(o, String(tid), otid)} className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white">Select</button>
                             <button
                               type="button"
                               onClick={() => { setTrackTokenNo(token); setTrackOpen(true) }}
@@ -487,25 +522,30 @@ export default function Lab_Results() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[800px] text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
               <tr>
-                <th className="px-3 py-2">Test</th>
-                {showNormal ? <th className="px-3 py-2">Normal Value</th> : null}
-                {showUnit ? <th className="px-3 py-2">Unit</th> : null}
-                <th className="px-3 py-2">Previous Result</th>
-                <th className="px-3 py-2">Result</th>
-                <th className="px-3 py-2">Flag</th>
-                <th className="px-3 py-2">Comment</th>
-                <th className="px-3 py-2"></th>
+                <th className="px-3 py-2 w-1/4">Test</th>
+                <th className="px-3 py-2 w-1/6">Normal Value</th>
+                <th className="px-3 py-2 w-1/12">Unit</th>
+                <th className="px-3 py-2 w-1/6">Previous Result</th>
+                <th className="px-3 py-2 w-1/6">Result</th>
+                <th className="px-3 py-2 w-1/12">Flag</th>
+                <th className="px-3 py-2 w-1/6">Comment</th>
+                <th className="px-3 py-2 w-16"></th>
               </tr>
             </thead>
             <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-3 py-4 text-center text-slate-500">No parameters loaded. Click "Add Row" to add a test parameter.</td>
+                </tr>
+              )}
               {rows.map((r, i) => (
                 <tr key={r.id} className="border-b border-slate-100">
                   <td className="px-3 py-2"><input value={r.test} onChange={e=>setRows(rows=>rows.map((x,idx)=>idx===i?{...x,test:e.target.value}:x))} className="w-full rounded-md border border-slate-300 px-2 py-1.5" /></td>
-                  {showNormal ? <td className="px-3 py-2"><input value={r.normal || ''} onChange={e=>setRows(rows=>rows.map((x,idx)=>idx===i?{...x,normal:e.target.value}:x))} className="w-full rounded-md border border-slate-300 px-2 py-1.5" /></td> : null}
-                  {showUnit ? <td className="px-3 py-2"><input value={r.unit || ''} onChange={e=>setRows(rows=>rows.map((x,idx)=>idx===i?{...x,unit:e.target.value}:x))} className="w-full rounded-md border border-slate-300 px-2 py-1.5" /></td> : null}
+                  <td className="px-3 py-2"><input value={r.normal || ''} onChange={e=>setRows(rows=>rows.map((x,idx)=>idx===i?{...x,normal:e.target.value}:x))} className="w-full rounded-md border border-slate-300 px-2 py-1.5" placeholder="-" /></td>
+                  <td className="px-3 py-2"><input value={r.unit || ''} onChange={e=>setRows(rows=>rows.map((x,idx)=>idx===i?{...x,unit:e.target.value}:x))} className="w-full rounded-md border border-slate-300 px-2 py-1.5" placeholder="-" /></td>
                   <td className="px-3 py-2"><input value={r.prevValue || ''} onChange={e=>setRows(rows=>rows.map((x,idx)=>idx===i?{...x,prevValue:e.target.value}:x))} className="w-full rounded-md border border-slate-300 px-2 py-1.5 font-semibold" placeholder="Optional" /></td>
                   <td className="px-3 py-2"><input value={r.value || ''} onChange={e=>setRows(rows=>rows.map((x,idx)=>idx===i?{...x,value:e.target.value}:x))} className="w-full rounded-md border border-slate-300 px-2 py-1.5" /></td>
                   <td className="px-3 py-2">
@@ -555,7 +595,13 @@ export default function Lab_Results() {
                           rows: (p.result.rows||[]).map((r:any)=>({ test: r.test, normal: r.normal, unit: r.unit, value: r.value, prevValue: r.prevValue, flag: r.flag, comment: r.comment })),
                           interpretation: p.result.interpretation,
                           referringConsultant: p.order.referringConsultant,
-                          profileLabel: (()=>{ const first = p.order.tests?.[0] ? String(p.order.tests[0]) : ''; return first ? (testsMap[first]?.name || '') : '' })(),
+                          profileLabel: (()=>{
+                            const first = p.order.tests?.[0];
+                            if (!first) return '';
+                            const firstId = typeof first === 'object' && first?.testId ? first.testId : String(first);
+                            const firstName = typeof first === 'object' && first?.testName ? first.testName : (testsMap[firstId]?.name || '');
+                            return firstName;
+                          })(),
                         })
                       }} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">Reprint</button>
                     </div>

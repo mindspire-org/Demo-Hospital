@@ -7,7 +7,6 @@ import Medication from '../../components/hospital/Hospital_IpdMedication.tsx'
 import LabTests from '../../components/hospital/Hospital_IpdLabTests'
 import DiagnosticTests from '../../components/hospital/Hospital_IpdDiagnosticTests'
 import DoctorVisits from '../../components/hospital/Hospital_IpdDoctorVisits'
-import Billing from '../../components/hospital/Hospital_IpdBilling'
 import ConsultantNotes from '../../components/hospital/Hospital_IpdConsultantNotes'
 import Anesthesia from '../../components/hospital/Hospital_IpdAnesthesia'
 import Surgery from '../../components/hospital/Hospital_IpdSurgery'
@@ -44,7 +43,6 @@ export default function Hospital_PatientProfile() {
     | 'lab'
     | 'diagnostic'
     | 'visits'
-    | 'billing'
     | 'history'
     | 'consent'
     | 'infection'
@@ -105,7 +103,6 @@ export default function Hospital_PatientProfile() {
           <Tab label="Lab Tests" active={tab==='lab'} onClick={()=>setTab('lab')} />
           <Tab label="Diagnostic Tests" active={tab==='diagnostic'} onClick={()=>setTab('diagnostic')} />
           <Tab label="Doctor Visits" active={tab==='visits'} onClick={()=>setTab('visits')} />
-          <Tab label="Billing" active={tab==='billing'} onClick={()=>setTab('billing')} />
         </div>
       </div>
 
@@ -125,7 +122,6 @@ export default function Hospital_PatientProfile() {
       {tab==='lab' && (<LabTests encounterId={encounterId} />)}
       {tab==='diagnostic' && (<DiagnosticTests encounterId={encounterId} />)}
       {tab==='visits' && (<DoctorVisits encounterId={encounterId} />)}
-      {tab==='billing' && (<Billing encounterId={encounterId} />)}
 
       {/* Modals moved to child components */}
     </div>

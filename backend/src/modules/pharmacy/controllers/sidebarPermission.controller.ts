@@ -39,7 +39,7 @@ const defaultVisibility = {
   }))
 }
 
-const defaultAllVisible = defaultSidebarItems.map(item => ({ ...item, visible: true }))
+const defaultAllVisible = defaultSidebarItems.map(item => ({ ...item, visible: false }))
 
 const normalizeRole = (role: string) => String(role || '').trim().toLowerCase()
 

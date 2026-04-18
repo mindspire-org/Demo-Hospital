@@ -103,6 +103,7 @@ export const updateIpdBillingItemSchema = z.object({
 
 export const createIpdPaymentSchema = z.object({
   amount: z.coerce.number().min(0.01),
+  type: z.enum(['payment', 'refund', 'adjustment']).optional().default('payment'),
   method: z.string().optional(),
   refNo: z.string().optional(),
   receivedBy: z.string().optional(),
@@ -115,6 +116,7 @@ export const createIpdPaymentSchema = z.object({
 })
 export const updateIpdPaymentSchema = z.object({
   amount: z.coerce.number().min(0.01).optional(),
+  type: z.enum(['payment', 'refund', 'adjustment']).optional(),
   method: z.string().optional(),
   refNo: z.string().optional(),
   receivedBy: z.string().optional(),

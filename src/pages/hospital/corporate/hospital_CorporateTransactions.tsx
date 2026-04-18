@@ -17,7 +17,7 @@ export default function Hospital_CorporateTransactions(){
   async function load(){
     setLoading(true)
     try {
-      const res = await corporateApi.listTransactions({ companyId: filters.companyId || undefined, serviceType: filters.serviceType || undefined, status: filters.status || undefined, refType: filters.refType || undefined, from: filters.from || undefined, to: filters.to || undefined, patientMrn: filters.patientMrn || undefined, sort, order, page, limit }) as any
+      const res = await corporateApi.listTransactions({ companyId: filters.companyId || undefined, serviceType: filters.serviceType || undefined, status: filters.status || undefined, refType: filters.refType || undefined, from: filters.from || undefined, to: filters.to || undefined, patientMrn: filters.patientMrn || undefined, page, limit }) as any
       setRows(res?.transactions || res?.items || [])
       const t = (res?.total ?? res?.count ?? res?.totalCount)
       setTotal(typeof t === 'number' ? t : null)
@@ -163,19 +163,19 @@ export default function Hospital_CorporateTransactions(){
         {!loading && rows.length > 0 && (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-600">
-                  <SortHeader field="dateIso">Date</SortHeader>
-                  <SortHeader field="patientMrn">MRN</SortHeader>
-                  <SortHeader field="patientName">Patient</SortHeader>
-                  <SortHeader field="companyId">Panel</SortHeader>
-                  <SortHeader field="serviceType">Service</SortHeader>
-                  <SortHeader field="description">Description</SortHeader>
-                  <SortHeader field="qty" align="right">Qty</SortHeader>
-                  <SortHeader field="unitPrice" align="right">UnitPrice</SortHeader>
-                  <SortHeader field="coPay" align="right">CoPay</SortHeader>
-                  <SortHeader field="netToCorporate" align="right">Net To Corp</SortHeader>
-                  <SortHeader field="status">Status</SortHeader>
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+                <tr className="text-left">
+                  <SortHeader field="dateIso"><span className="text-[13px] font-extrabold uppercase tracking-wider">Date</span></SortHeader>
+                  <SortHeader field="patientMrn"><span className="text-[13px] font-extrabold uppercase tracking-wider">MRN</span></SortHeader>
+                  <SortHeader field="patientName"><span className="text-[13px] font-extrabold uppercase tracking-wider">Patient</span></SortHeader>
+                  <SortHeader field="companyId"><span className="text-[13px] font-extrabold uppercase tracking-wider">Panel</span></SortHeader>
+                  <SortHeader field="serviceType"><span className="text-[13px] font-extrabold uppercase tracking-wider">Service</span></SortHeader>
+                  <SortHeader field="description"><span className="text-[13px] font-extrabold uppercase tracking-wider">Description</span></SortHeader>
+                  <SortHeader field="qty" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Qty</span></SortHeader>
+                  <SortHeader field="unitPrice" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">UnitPrice</span></SortHeader>
+                  <SortHeader field="coPay" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">CoPay</span></SortHeader>
+                  <SortHeader field="netToCorporate" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Net To Corp</span></SortHeader>
+                  <SortHeader field="status"><span className="text-[13px] font-extrabold uppercase tracking-wider">Status</span></SortHeader>
                 </tr>
               </thead>
               <tbody>

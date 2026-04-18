@@ -11,8 +11,8 @@ import { LabPatient } from '../../lab/models/Patient'
 import { CorporateCompany } from '../../corporate/models/Company'
 import { nextGlobalMrn } from '../../../common/mrn'
 import { HospitalAuditLog } from '../models/AuditLog'
-import { postOpdTokenJournal, reverseOpdTokenJournal, reverseJournalById, reverseJournalByRef } from './finance_ledger'
-import { FinanceJournal } from '../models/FinanceJournal'
+import { postOpdTokenJournal, reverseOpdTokenJournal, reverseJournalById, reverseJournalByRef } from '../../finance/controllers/finance_ledger'
+import { FinanceJournal, JournalLine } from '../../finance/models/FinanceJournal'
 import { HospitalCashSession } from '../models/CashSession'
 import { resolveOPDPrice } from '../../corporate/utils/price'
 import { CorporateTransaction } from '../../corporate/models/Transaction'
@@ -25,7 +25,7 @@ function resolveOPDFee({ department, doctor, visitType, visitCategory }: any){
     if (match && match.price != null) return { fee: match.price, source: 'department-mapping' }
   }
   if (doctor){
-    if (!isFollowup && visitCategory === 'public' && (doctor as any).opdPublicFee != null) return { fee: (doctor as any).opdPublicFee, source: 'doctor-public' }
+    if (!isFollowup && visitCategory === 'general' && (doctor as any).opdPublicFee != null) return { fee: (doctor as any).opdPublicFee, source: 'doctor-general' }
     if (!isFollowup && visitCategory === 'private' && (doctor as any).opdPrivateFee != null) return { fee: (doctor as any).opdPrivateFee, source: 'doctor-private' }
     if (isFollowup && doctor.opdFollowupFee != null) return { fee: doctor.opdFollowupFee, source: 'followup-doctor' }
     if (doctor.opdBaseFee != null) return { fee: doctor.opdBaseFee, source: 'doctor' }
@@ -34,10 +34,25 @@ function resolveOPDFee({ department, doctor, visitType, visitCategory }: any){
   return { fee: department.opdBaseFee, source: 'department' }
 }
 
-async function nextTokenNo(doctorId?: string){
-  const dateIso = new Date().toISOString().slice(0,10)
-  // Use per-doctor counter if doctor selected, otherwise global counter
-  const key = doctorId ? `opd_token_doc_${doctorId}_${dateIso}` : `opd_token_${dateIso}`
+function getPakistanDate(): string {
+  // Pakistan Standard Time is UTC+5
+  const now = new Date()
+  const pakistanOffset = 5 * 60 * 60 * 1000 // 5 hours in milliseconds
+  const pakistanTime = new Date(now.getTime() + pakistanOffset)
+  return pakistanTime.toISOString().slice(0, 10)
+}
+
+async function nextTokenNo(doctorId?: string, visitCategory?: string){
+  const dateIso = getPakistanDate()
+  // Use per-doctor, per-category counter if both provided; otherwise per-doctor or global
+  let key: string
+  if (doctorId && visitCategory) {
+    key = `opd_token_doc_${doctorId}_${visitCategory}_${dateIso}`
+  } else if (doctorId) {
+    key = `opd_token_doc_${doctorId}_${dateIso}`
+  } else {
+    key = `opd_token_${dateIso}`
+  }
   const c = await HospitalCounter.findByIdAndUpdate(key, { $inc: { seq: 1 } }, { upsert: true, new: true, setDefaultsOnInsert: true })
   const seq = String(c.seq || 1).padStart(3,'0')
   return { tokenNo: seq, dateIso }
@@ -87,7 +102,8 @@ async function findMatchingScheduleForNow({ doctorId, dateIso, departmentId }: {
   return null
 }
 
-export async function createOpd(req: Request, res: Response){
+export async function createOpd(req: Request, res: Response, next: import('express').NextFunction){
+  try {
   const data = createOpdTokenSchema.parse(req.body)
   if ((data as any).corporateId){
     const comp = await CorporateCompany.findById(String((data as any).corporateId)).lean()
@@ -163,7 +179,7 @@ export async function createOpd(req: Request, res: Response){
   let resolvedFee = baseFeeInfo.fee
 
   // Create Encounter
-  const enc = await HospitalEncounter.create({
+  const encData: any = {
     patientId: patient._id,
     type: encounterType,
     status: 'in-progress',
@@ -178,7 +194,14 @@ export async function createOpd(req: Request, res: Response){
     consultationFeeResolved: 0, // placeholder, set below once fee finalized
     feeSource: '',
     paymentRef: data.paymentRef,
-  })
+  }
+  // Add ER-specific fields if creating ER encounter
+  if (encounterType === 'ER') {
+    if ((data as any).triage) encData.triage = (data as any).triage
+    if ((data as any).arrivalMode) encData.arrivalMode = (data as any).arrivalMode
+    if ((data as any).chiefComplaint) encData.chiefComplaint = (data as any).chiefComplaint
+  }
+  const enc = await HospitalEncounter.create(encData)
 
   // Determine scheduling and token numbering
   let dateIso = new Date().toISOString().slice(0,10)
@@ -254,7 +277,8 @@ export async function createOpd(req: Request, res: Response){
       tokenNo = String(slotNo)
     } else {
       // No matching schedule: fallback to per-doctor (or global if no doctor) sequential token and default fee.
-      const next = await nextTokenNo(data.doctorId || undefined)
+      const visitCat = (data as any).visitCategory || 'general'
+      const next = await nextTokenNo(data.doctorId || undefined, visitCat)
       tokenNo = next.tokenNo
       dateIso = next.dateIso
     }
@@ -420,6 +444,9 @@ export async function createOpd(req: Request, res: Response){
   }
 
   res.status(201).json({ token: tok, encounter: enc, pricing: { feeResolved: hasOverride ? finalFee : resolvedFee, discount: data.discount || 0, finalFee, feeSource: hasOverride ? 'override' : feeSource }, corporate: corporatePricing || undefined })
+  } catch (err) {
+    next(err)
+  }
 }
 
 export async function list(req: Request, res: Response){
@@ -444,13 +471,26 @@ export async function list(req: Request, res: Response){
   if (doctorId) crit.doctorId = doctorId
   if (departmentId) crit.departmentId = departmentId
   if (scheduleId) crit.scheduleId = scheduleId
-  const rows = await HospitalToken.find(crit)
-    .sort({ createdAt: 1 })
-    .populate('doctorId', 'name')
-    .populate('departmentId', 'name')
-    .populate('patientId', 'mrn fullName fatherName gender age guardianRel phoneNormalized cnicNormalized address')
-    .lean()
-  res.json({ tokens: rows })
+
+  // Pagination
+  const page = Math.max(1, parseInt(String(q.page || '1')))
+  const limit = Math.min(200, Math.max(1, parseInt(String(q.limit || '50'))))
+  const skip = (page - 1) * limit
+
+  const [rows, total] = await Promise.all([
+    HospitalToken.find(crit)
+      .sort({ createdAt: 1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('doctorId', 'name')
+      .populate('departmentId', 'name')
+      .populate('patientId', 'mrn fullName fatherName gender age guardianRel phoneNormalized cnicNormalized address')
+      .populate('encounterId', 'triage arrivalMode chiefComplaint')
+      .lean(),
+    HospitalToken.countDocuments(crit)
+  ])
+
+  res.json({ tokens: rows, total, page, limit, pages: Math.ceil(total / limit) })
 }
 
 export async function getById(req: Request, res: Response){

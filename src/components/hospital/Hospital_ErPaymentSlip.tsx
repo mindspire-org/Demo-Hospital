@@ -6,8 +6,17 @@ export type ErPaymentSlipData = {
   patientName: string
   mrn?: string
   phone?: string
+  cnic?: string
+  address?: string
+  age?: string | number
+  gender?: string
+  guardian?: string
+  department?: string
+  tokenNo?: string
   payment: { amount: number; method?: string; refNo?: string; receivedAt?: string }
-  totals: { total: number; paid: number; pending: number }
+  totals: { total: number; paid: number; pending: number; unallocatedAdvance?: number }
+  isAdvance?: boolean
+  isAdvanceReturn?: boolean
 }
 
 let settingsCache: any | null = null
@@ -72,7 +81,9 @@ export default function Hospital_ErPaymentSlip({ open, onClose, data, autoPrint 
         </div>
 
         <hr className="my-2 border-dashed" />
-        <div className="text-center text-sm font-semibold underline">ER Payment Slip</div>
+        <div className="text-center text-sm font-semibold underline">
+          {data.isAdvanceReturn ? 'ER Advance Return Receipt' : data.isAdvance ? 'ER Advance Receipt' : 'ER Payment Slip'}
+        </div>
 
         <div className="mt-2 flex flex-wrap justify-between gap-1 text-xs text-slate-700">
           <div>User: {user || getReceptionUser()}</div>
@@ -81,20 +92,36 @@ export default function Hospital_ErPaymentSlip({ open, onClose, data, autoPrint 
 
         <hr className="my-2 border-dashed" />
 
-        <div className="space-y-1 text-sm text-slate-800">
+        <div className="space-y-1 text-[11px] text-slate-800">
           <Row label="Patient:" value={data.patientName || '-'} />
-          {data.mrn ? <Row label="MR #:" value={data.mrn} /> : null}
-          <Row label="Encounter:" value={data.encounterId || '-'} />
+          <Row label="Phone:" value={data.phone || '-'} />
+          <Row label="MR #:" value={data.mrn || '-'} />
+          <Row label="CNIC:" value={data.cnic || '-'} />
+          <Row label="Token:" value={data.tokenNo || '-'} />
+          <Row label="Age/Sex:" value={`${data.age || '-'}/${data.gender || '-'}`} />
+          <Row label="Guardian:" value={data.guardian || '-'} />
+          <Row label="Dept:" value={data.department || 'Emergency'} />
+          <Row label="Address:" value={data.address || '-'} />
+          <hr className="my-1 border-slate-200" />
           <Row label="Method:" value={data.payment.method || '-'} />
           {data.payment.refNo ? <Row label="Ref:" value={data.payment.refNo} /> : null}
         </div>
 
-        <div className="my-3 rounded border border-slate-800 p-3 text-center text-xl font-extrabold tracking-widest">Rs {Number(data.payment.amount || 0).toFixed(0)}</div>
+        <div className="my-3 rounded border border-slate-800 p-3 text-center">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            {data.isAdvanceReturn ? 'Returned Amount' : data.isAdvance ? 'Advance Amount' : 'Paid Amount'}
+          </div>
+          <div className={`text-2xl font-extrabold tracking-widest ${data.isAdvanceReturn ? 'text-rose-600' : ''}`}>
+            Rs {Number(data.payment.amount || 0).toFixed(0)}
+          </div>
+        </div>
 
-        <div className="space-y-1 text-sm text-slate-800">
-          <Row label="Total Bill:" value={`Rs ${total.toFixed(0)}`} />
-          <Row label="Paid:" value={`Rs ${paid.toFixed(0)}`} />
-          <Row label="Pending:" value={pending <= 0 ? `Rs 0` : `Rs ${pending.toFixed(0)}`} boldValue />
+        <div className="mt-4 space-y-1 rounded-md bg-slate-50 p-2 text-sm text-slate-800">
+          <div className="mb-1 border-b border-slate-200 pb-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">Ledger Summary</div>
+          <LedgerRow label="Total Billing:" value={`Rs ${total.toFixed(0)}`} />
+          <LedgerRow label="Total Paid:" value={`Rs ${paid.toFixed(0)}`} />
+          {data.totals.unallocatedAdvance ? <LedgerRow label="Advance Bal:" value={`Rs ${Number(data.totals.unallocatedAdvance).toFixed(0)}`} /> : null}
+          <LedgerRow label="Net Due:" value={pending <= 0 ? `Rs 0` : `Rs ${pending.toFixed(0)}`} boldValue />
         </div>
 
         <hr className="my-2 border-dashed" />
@@ -121,8 +148,10 @@ export default function Hospital_ErPaymentSlip({ open, onClose, data, autoPrint 
           #hospital-er-payment-receipt .text-sm{ font-size: 14px !important }
           #hospital-er-payment-receipt .text-lg{ font-size: 18px !important }
           #hospital-er-payment-receipt .text-xl{ font-size: 20px !important }
-          #hospital-er-payment-receipt .row-value{ max-width: 62% !important; word-break: break-word !important; white-space: normal !important; text-align: right !important }
+          #hospital-er-payment-receipt .row-value{ max-width: none !important; word-break: normal !important; white-space: nowrap !important; text-align: left !important; overflow: hidden !important; text-overflow: ellipsis !important; }
           hr { border-color: #000 !important }
+          #hospital-er-payment-receipt .grid-cols-\[100px_1fr\] { grid-template-columns: 100px 1fr !important; }
+          #hospital-er-payment-receipt .grid-cols-\[70px_1fr\] { grid-template-columns: 70px 1fr !important; }
         }
       `}</style>
     </div>
@@ -131,9 +160,18 @@ export default function Hospital_ErPaymentSlip({ open, onClose, data, autoPrint 
 
 function Row({ label, value, boldValue }: { label: string; value: string; boldValue?: boolean }){
   return (
-    <div className="grid grid-cols-[110px_1fr] gap-2">
-      <div className="text-slate-700">{label}</div>
-      <div className={`${boldValue ? 'font-semibold ' : ''}row-value min-w-0 break-words text-right`}>{value}</div>
+    <div className="grid grid-cols-[70px_1fr] gap-1">
+      <div className="text-slate-700 whitespace-nowrap">{label}</div>
+      <div className={`${boldValue ? 'font-semibold ' : ''}row-value min-w-0 whitespace-nowrap text-left overflow-hidden text-ellipsis`}>{value}</div>
+    </div>
+  )
+}
+
+function LedgerRow({ label, value, boldValue }: { label: string; value: string; boldValue?: boolean }){
+  return (
+    <div className="grid grid-cols-[100px_1fr] gap-1">
+      <div className="text-slate-700 whitespace-nowrap">{label}</div>
+      <div className={`${boldValue ? 'font-semibold ' : ''}row-value min-w-0 whitespace-nowrap text-left overflow-hidden text-ellipsis`}>{value}</div>
     </div>
   )
 }

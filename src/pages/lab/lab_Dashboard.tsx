@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react'
 import { TrendingUp, DollarSign, ShoppingCart, AlertTriangle, Ban, RefreshCw, Clock, Bell } from 'lucide-react'
 import { labApi } from '../../utils/api'
 
+type ActivityItem = {
+  type: 'token' | 'order' | 'result'
+  title: string
+  patient: string
+  at: string
+  status: string
+  by: string
+}
+
 type Summary = {
   todaysTests: number
   pendingReports: number
@@ -10,6 +19,7 @@ type Summary = {
   lowReagents: number
   outOfStock: number
   at: string
+  recentActivity?: ActivityItem[]
 }
 
 export default function Lab_Dashboard() {
@@ -32,6 +42,7 @@ export default function Lab_Dashboard() {
           lowReagents: Number(s.lowReagents||0),
           outOfStock: Number(s.outOfStock||0),
           at: String(s.at || new Date().toISOString()),
+          recentActivity: Array.isArray(s.recentActivity) ? s.recentActivity : [],
         })
       } catch (e){ console.error(e); setData(null) }
       finally { setLoading(false) }
@@ -76,7 +87,35 @@ export default function Lab_Dashboard() {
               <div className="text-sm font-medium text-slate-700">Recent Lab Activity</div>
             </div>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">No recent activity</div>
+          <div className="max-h-64 overflow-y-auto">
+            {!data?.recentActivity || data.recentActivity.length === 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">No recent activity</div>
+            ) : (
+              <div className="space-y-2">
+                {data.recentActivity.map((item, idx) => (
+                  <div key={idx} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-sm text-slate-800">{item.title}</div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        item.type === 'token' ? 'bg-blue-100 text-blue-700' :
+                        item.type === 'order' ? 'bg-green-100 text-green-700' :
+                        'bg-purple-100 text-purple-700'
+                      }`}>
+                        {item.type === 'token' ? 'Token' : item.type === 'order' ? 'Sample' : 'Result'}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      <span className="font-medium">Patient:</span> {item.patient}
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+                      <span>{new Date(item.at).toLocaleString()}</span>
+                      {item.by !== '-' && <span>By: {item.by}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">

@@ -160,16 +160,16 @@ export default function Store_Suppliers() {
       <div className="mt-5 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left">
-              <th className="px-3 py-2 font-medium text-slate-600">Name</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Company</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Phone</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Status</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Total Purchases</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Paid</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Outstanding</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Last Order</th>
-              <th className="px-3 py-2 font-medium text-slate-600"></th>
+            <tr className="border-b-2 border-slate-300 bg-slate-100/50 text-left">
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Name</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Company</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Phone</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Status</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider text-right">Total Purchases</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider text-right">Paid</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider text-right">Outstanding</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Last Order</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider"></th>
             </tr>
           </thead>
           <tbody>

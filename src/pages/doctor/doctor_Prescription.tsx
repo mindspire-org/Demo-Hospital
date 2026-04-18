@@ -24,6 +24,7 @@ type Token = {
   doctorId?: string
   doctorName?: string
   status?: 'queued'|'in-progress'|'completed'|'returned'|'cancelled'
+  tokenNo?: string
 }
 
 type MedicineRow = {
@@ -48,8 +49,10 @@ export default function Doctor_Prescription() {
   const [doc, setDoc] = useState<DoctorSession | null>(null)
   const [tokens, setTokens] = useState<Token[]>([])
   const [presEncounterIds, setPresEncounterIds] = useState<string[]>([])
-  const [from, setFrom] = useState<string>('')
-  const [to, setTo] = useState<string>('')
+  const [presMrns, setPresMrns] = useState<string[]>([])
+  const today = new Date().toISOString().slice(0, 10)
+  const [from, setFrom] = useState<string>(today)
+  const [to, setTo] = useState<string>(today)
   const [rxMode, setRxMode] = useState<'electronic'|'manual'>('electronic')
   const [manualAttachment, setManualAttachment] = useState<{ mimeType?: string; fileName?: string; dataUrl?: string } | null>(null)
   const [manualAttachmentError, setManualAttachmentError] = useState<string>('')
@@ -81,12 +84,69 @@ export default function Doctor_Prescription() {
   const vitalsRef = useRef<any>(null)
   const diagRef = useRef<any>(null)
   const medsRef = useRef<any>(null)
-  const [sugVersion, setSugVersion] = useState(0)
   const [medNameSuggestions, setMedNameSuggestions] = useState<string[]>([])
   const [labTestSuggestions, setLabTestSuggestions] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'medication'>('details')
-  const lastAutoPrefillMrnRef = useRef<string | null>(null)
+  const [showLoadPrevButton, setShowLoadPrevButton] = useState(false)
+  const [lastPrescription, setLastPrescription] = useState<any>(null)
   const [templates, setTemplates] = useState<any[]>([])
+  const [dbSuggestions, setDbSuggestions] = useState<{
+    primaryComplaint: string[]
+    history: string[]
+    primaryComplaintHistory: string[]
+    familyHistory: string[]
+    allergyHistory: string[]
+    treatmentHistory: string[]
+    examFindings: string[]
+    diagnosis: string[]
+    advice: string[]
+    labTest: string[]
+    diagTest: string[]
+    dose: string[]
+    route: string[]
+    instruction: string[]
+    frequencyTag: string[]
+    durationTag: string[]
+    vitals: {
+      pulse: string[]
+      temperature: string[]
+      sys: string[]
+      dia: string[]
+      resp: string[]
+      sugar: string[]
+      weight: string[]
+      height: string[]
+      spo2: string[]
+    }
+  }>({
+    primaryComplaint: [],
+    history: [],
+    primaryComplaintHistory: [],
+    familyHistory: [],
+    allergyHistory: [],
+    treatmentHistory: [],
+    examFindings: [],
+    diagnosis: [],
+    advice: [],
+    labTest: [],
+    diagTest: [],
+    dose: [],
+    route: [],
+    instruction: [],
+    frequencyTag: [],
+    durationTag: [],
+    vitals: {
+      pulse: [],
+      temperature: [],
+      sys: [],
+      dia: [],
+      resp: [],
+      sugar: [],
+      weight: [],
+      height: [],
+      spo2: [],
+    }
+  })
   useEffect(() => {
     try {
       const raw = localStorage.getItem('doctor.session')
@@ -192,6 +252,7 @@ export default function Doctor_Prescription() {
         if (!doc?.id) return
         const res = await hospitalApi.listPrescriptions({ doctorId: doc.id, page: 1, limit: 200 }) as any
         const rows: any[] = res?.prescriptions || []
+        // Store suggestions in memory only (not localStorage) to reflect actual DB state
         const primaries: string[] = []
         const histories: string[] = []
         const primHist: string[] = []
@@ -258,33 +319,36 @@ export default function Doctor_Prescription() {
             }
           } catch {}
         }
-        addMany('primaryComplaint', primaries)
-        addMany('history', histories)
-        addMany('primaryComplaintHistory', primHist)
-        addMany('familyHistory', family)
-        addMany('allergyHistory', allergy)
-        addMany('treatmentHistory', treatment)
-        addMany('examFindings', exams)
-        addMany('diagnosis', diagnosis)
-        addMany('advice', advice)
-        addMany('labTest', labTestsAll)
-        addMany('diagTest', diagTestsAll)
-        addMany('dose', doses)
-        addMany('route', routes)
-        addMany('instruction', instrs)
-        // frequency choices in UI are normalized; still store historical labels
-        addMany('frequencyTag', freqs)
-        addMany('durationTag', durs)
-        // vitals suggestions
-        addMany('vitals.pulse', vPulse)
-        addMany('vitals.temperature', vTemp)
-        addMany('vitals.sys', vSys)
-        addMany('vitals.dia', vDia)
-        addMany('vitals.resp', vResp)
-        addMany('vitals.sugar', vSugar)
-        addMany('vitals.weight', vWeight)
-        addMany('vitals.height', vHeight)
-        addMany('vitals.spo2', vSpo2)
+        // Store in component state instead of localStorage to reflect actual DB state
+        setDbSuggestions({
+          primaryComplaint: Array.from(new Set(primaries)),
+          history: Array.from(new Set(histories)),
+          primaryComplaintHistory: Array.from(new Set(primHist)),
+          familyHistory: Array.from(new Set(family)),
+          allergyHistory: Array.from(new Set(allergy)),
+          treatmentHistory: Array.from(new Set(treatment)),
+          examFindings: Array.from(new Set(exams)),
+          diagnosis: Array.from(new Set(diagnosis)),
+          advice: Array.from(new Set(advice)),
+          labTest: Array.from(new Set(labTestsAll)),
+          diagTest: Array.from(new Set(diagTestsAll)),
+          dose: Array.from(new Set(doses)),
+          route: Array.from(new Set(routes)),
+          instruction: Array.from(new Set(instrs)),
+          frequencyTag: Array.from(new Set(freqs)),
+          durationTag: Array.from(new Set(durs)),
+          vitals: {
+            pulse: Array.from(new Set(vPulse)),
+            temperature: Array.from(new Set(vTemp)),
+            sys: Array.from(new Set(vSys)),
+            dia: Array.from(new Set(vDia)),
+            resp: Array.from(new Set(vResp)),
+            sugar: Array.from(new Set(vSugar)),
+            weight: Array.from(new Set(vWeight)),
+            height: Array.from(new Set(vHeight)),
+            spo2: Array.from(new Set(vSpo2)),
+          }
+        })
       } catch {}
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -313,7 +377,9 @@ export default function Doctor_Prescription() {
       const params: any = { doctorId: doc.id }
       if (from) params.from = from
       if (to) params.to = to
+      console.log('loadTokens - fetching with params:', params)
       const res = await hospitalApi.listTokens(params) as any
+      console.log('loadTokens - API response:', res)
       const items: Token[] = (res.tokens || []).map((t: any) => ({
         id: t._id,
         createdAt: t.createdAt,
@@ -323,36 +389,69 @@ export default function Doctor_Prescription() {
         doctorId: t.doctorId?._id || String(t.doctorId || ''),
         doctorName: t.doctorId?.name || '',
         status: t.status,
+        tokenNo: t.tokenNo || t.tokenNumber || '',
       }))
+      console.log('loadTokens - mapped items:', items)
       setTokens(items)
-    } catch {
+    } catch (err) {
+      console.error('loadTokens - error:', err)
       setTokens([])
     }
   }
 
   async function loadPresIds(){
     try {
-      if (!doc?.id) { setPresEncounterIds([]); return }
+      if (!doc?.id) { setPresEncounterIds([]); setPresMrns([]); return }
       const params: any = { doctorId: doc.id }
       if (from) params.from = from
       if (to) params.to = to
       const res = await hospitalApi.listPrescriptions(params) as any
-      const ids: string[] = (res.prescriptions || []).map((p: any) => String(p.encounterId?._id || p.encounterId || ''))
+      const prescriptions = res.prescriptions || []
+      // Track encounterIds and MRNs of COMPLETED prescriptions (have items/medicines)
+      // Patients with only vitals should still appear in dropdown
+      const completedPrescriptions = prescriptions.filter((p: any) => Array.isArray(p.items) && p.items.length > 0)
+      const ids: string[] = completedPrescriptions.map((p: any) => String(p.encounterId?._id || p.encounterId || ''))
+      const mrns: string[] = completedPrescriptions
+        .map((p: any) => String(p.patientId?.mrn || p.mrn || ''))
+        .filter(Boolean)
       setPresEncounterIds(ids)
+      setPresMrns(mrns)
     } catch {
       setPresEncounterIds([])
+      setPresMrns([])
     }
   }
 
   const myPatients = useMemo(() => {
-    const presSet = new Set(presEncounterIds.filter(Boolean))
-    return tokens
-      .filter(t => t.doctorId === doc?.id)
+    const completedEncounterSet = new Set(presEncounterIds.filter(Boolean))
+    const completedMrnSet = new Set(presMrns.filter(Boolean))
+    console.log('myPatients - tokens:', tokens.length, tokens.map(t => ({ id: t.id, encounterId: t.encounterId, mrNo: t.mrNo, status: t.status })))
+    console.log('myPatients - completedEncounterSet:', Array.from(completedEncounterSet))
+    console.log('myPatients - completedMrnSet:', Array.from(completedMrnSet))
+    console.log('myPatients - doc?.id:', doc?.id)
+    const result = tokens
+      .filter(t => {
+        const doctorMatch = t.doctorId === doc?.id
+        console.log(`myPatients - token ${t.id} doctorMatch:`, doctorMatch, 't.doctorId:', t.doctorId)
+        return doctorMatch
+      })
       // treat default as pending if not returned/completed/cancelled
-      .filter(t => !t.status || (t.status !== 'returned' && t.status !== 'completed' && t.status !== 'cancelled'))
-      // exclude encounters with a saved prescription
-      .filter(t => !t.encounterId || !presSet.has(String(t.encounterId)))
-  }, [tokens, doc, presEncounterIds])
+      .filter(t => {
+        const statusOk = !t.status || (t.status !== 'returned' && t.status !== 'completed' && t.status !== 'cancelled')
+        console.log(`myPatients - token ${t.id} statusOk:`, statusOk, 'status:', t.status)
+        return statusOk
+      })
+      // exclude encounters with a COMPLETED prescription (has items/medicines)
+      // Patients with only vitals (no items) should still appear
+      .filter(t => {
+        const encounterExcluded = t.encounterId && completedEncounterSet.has(String(t.encounterId))
+        const mrnExcluded = t.mrNo && completedMrnSet.has(String(t.mrNo))
+        console.log(`myPatients - token ${t.id} encounterExcluded:`, encounterExcluded, 'mrnExcluded:', mrnExcluded)
+        return !encounterExcluded && !mrnExcluded
+      })
+    console.log('myPatients - result:', result.length, result.map(t => t.id))
+    return result
+  }, [tokens, doc, presEncounterIds, presMrns])
 
   // If opened from queue with tokenId, preselect that patient.
   useEffect(() => {
@@ -364,67 +463,104 @@ export default function Doctor_Prescription() {
     setForm(f => ({ ...f, patientKey: String(t.id) }))
   }, [location.search, myPatients])
 
-  // Auto-prefill from latest previous prescription (by MRN) when patient changes
+  // Check if patient has previous prescription when selection changes (show button only, don't auto-load)
   useEffect(() => {
-    const sel = myPatients.find(t => `${t.id}` === form.patientKey)
+    const sel = tokens.find(t => `${t.id}` === form.patientKey)
     const mrn = String(sel?.mrNo || '').trim()
-    if (!mrn) return
-    if (lastAutoPrefillMrnRef.current === mrn) return
-    lastAutoPrefillMrnRef.current = mrn
+    if (!mrn) {
+      setShowLoadPrevButton(false)
+      setLastPrescription(null)
+      return
+    }
 
     ;(async () => {
       try {
         const res: any = await hospitalApi.listPrescriptions({ patientMrn: mrn, page: 1, limit: 1 })
         const pres = (res?.prescriptions || [])[0]
-        if (!pres) return
-
-        // meds mapping
-        const meds: MedicineRow[] = (pres.items || []).map((it: any) => {
-          const notes = String(it?.notes || '').trim()
-          let instruction = ''
-          let route = ''
-          try { const mi = notes.match(/Instruction:\s*([^;]+)/i); if (mi && mi[1]) instruction = mi[1].trim() } catch {}
-          try { const mr = notes.match(/Route:\s*([^;]+)/i); if (mr && mr[1]) route = mr[1].trim() } catch {}
-          return {
-            name: String(it?.name || '').trim(),
-            qty: it?.dose != null ? String(it.dose) : '',
-            freqText: String(it?.frequency || '').trim(),
-            durationText: String(it?.duration || '').trim(),
-            instruction: String(it?.instruction || instruction || '').trim(),
-            route: String(it?.route || route || '').trim(),
-            durationUnit: 'day(s)',
-          }
-        }).filter((m: any) => m.name)
-
-        const labTestsText = Array.isArray(pres.labTests) ? pres.labTests.map((x: any) => String(x||'').trim()).filter(Boolean).join('\n') : ''
-        const diagTestsText = Array.isArray(pres.diagnosticTests) ? pres.diagnosticTests.map((x: any) => String(x||'').trim()).filter(Boolean).join('\n') : ''
-
-        setForm(f => ({
-          ...f,
-          primaryComplaint: String(pres.primaryComplaint || pres.complaints || ''),
-          primaryComplaintHistory: String(pres.primaryComplaintHistory || ''),
-          familyHistory: String(pres.familyHistory || ''),
-          allergyHistory: String(pres.allergyHistory || ''),
-          treatmentHistory: String(pres.treatmentHistory || ''),
-          history: String(pres.history || ''),
-          examFindings: String(pres.examFindings || ''),
-          diagnosis: String(pres.diagnosis || ''),
-          advice: String(pres.advice || ''),
-          labTestsText,
-          vitalsDisplay: pres.vitals || f.vitalsDisplay,
-          vitalsNormalized: pres.vitals || f.vitalsNormalized,
-          diagDisplay: { testsText: diagTestsText },
-          meds: meds.length ? meds : f.meds,
-        }))
-
-        // Also update child widgets if they expose setters
-        try { vitalsRef.current?.setDisplay?.(pres.vitals || {}) } catch {}
-        try { diagRef.current?.setDisplay?.({ testsText: diagTestsText }) } catch {}
+        if (pres) {
+          setLastPrescription(pres)
+          setShowLoadPrevButton(true)
+        } else {
+          setShowLoadPrevButton(false)
+          setLastPrescription(null)
+        }
       } catch {
-        // ignore
+        setShowLoadPrevButton(false)
+        setLastPrescription(null)
       }
     })()
-  }, [form.patientKey, myPatients])
+  }, [form.patientKey, tokens])
+
+  // Manual function to load previous prescription data
+  const loadPreviousPrescription = () => {
+    if (!lastPrescription) return
+
+    const pres = lastPrescription
+    // meds mapping
+    const meds: MedicineRow[] = (pres.items || []).map((it: any) => {
+      const notes = String(it?.notes || '').trim()
+      let instruction = ''
+      let route = ''
+      try { const mi = notes.match(/Instruction:\s*([^;]+)/i); if (mi && mi[1]) instruction = mi[1].trim() } catch {}
+      try { const mr = notes.match(/Route:\s*([^;]+)/i); if (mr && mr[1]) route = mr[1].trim() } catch {}
+      return {
+        name: String(it?.name || '').trim(),
+        qty: it?.dose != null ? String(it.dose) : '',
+        freqText: String(it?.frequency || '').trim(),
+        durationText: String(it?.duration || '').trim(),
+        instruction: String(it?.instruction || instruction || '').trim(),
+        route: String(it?.route || route || '').trim(),
+        durationUnit: 'day(s)',
+      }
+    }).filter((m: any) => m.name)
+
+    const labTestsText = Array.isArray(pres.labTests) ? pres.labTests.map((x: any) => String(x||'').trim()).filter(Boolean).join('\n') : ''
+    const diagTestsText = Array.isArray(pres.diagnosticTests) ? pres.diagnosticTests.map((x: any) => String(x||'').trim()).filter(Boolean).join('\n') : ''
+
+    // Convert normalized vitals to display format
+    const v: any = pres.vitals || {}
+    const vitalsDisplay: any = {
+      pulse: v.pulse != null ? String(v.pulse) : '',
+      temperature: v.temperatureC != null ? String(v.temperatureC) : '',
+      bloodPressureSys: v.bloodPressureSys != null ? String(v.bloodPressureSys) : '',
+      bloodPressureDia: v.bloodPressureDia != null ? String(v.bloodPressureDia) : '',
+      respiratoryRate: v.respiratoryRate != null ? String(v.respiratoryRate) : '',
+      bloodSugar: v.bloodSugar != null ? String(v.bloodSugar) : '',
+      weightKg: v.weightKg != null ? String(v.weightKg) : '',
+      height: v.heightCm != null ? String(v.heightCm) : '',
+      spo2: v.spo2 != null ? String(v.spo2) : '',
+    }
+
+    setForm(f => ({
+      ...f,
+      primaryComplaint: String(pres.primaryComplaint || pres.complaints || ''),
+      primaryComplaintHistory: String(pres.primaryComplaintHistory || ''),
+      familyHistory: String(pres.familyHistory || ''),
+      allergyHistory: String(pres.allergyHistory || ''),
+      treatmentHistory: String(pres.treatmentHistory || ''),
+      history: String(pres.history || ''),
+      examFindings: String(pres.examFindings || ''),
+      diagnosis: String(pres.diagnosis || ''),
+      advice: String(pres.advice || ''),
+      labTestsText,
+      vitalsDisplay: vitalsDisplay,
+      vitalsNormalized: pres.vitals || f.vitalsNormalized,
+      diagDisplay: { testsText: diagTestsText },
+      meds: meds.length ? meds : f.meds,
+    }))
+
+    // Also update child widgets if they expose setters
+    try {
+      // Delay to ensure vitalsRef is mounted
+      setTimeout(() => {
+        try { vitalsRef.current?.setDisplay?.(vitalsDisplay) } catch {}
+      }, 50)
+    } catch {}
+    try { diagRef.current?.setDisplay?.({ testsText: diagTestsText }) } catch {}
+
+    setToast({ type: 'success', message: 'Previous prescription loaded' })
+    setShowLoadPrevButton(false)
+  }
 
   async function searchLabTests(q: string){
     try {
@@ -509,9 +645,20 @@ export default function Doctor_Prescription() {
       }
       const dRaw = diagRef.current?.getData?.()
       const diagnosticTests = Array.isArray(dRaw?.tests) && dRaw?.tests?.length ? dRaw?.tests : undefined
-      await hospitalApi.createPrescription({
-        encounterId: sel.encounterId,
+      
+      // Only check for existing prescription by encounterId (current token's encounter)
+      // Do NOT check by MRN - each new token should get a new prescription
+      let existingPresId: string | null = null
+      try {
+        const existingRes: any = await hospitalApi.getPrescriptionByEncounterId(sel.encounterId)
+        if (existingRes?.prescription?._id || existingRes?.prescription?.id) {
+          existingPresId = String(existingRes.prescription._id || existingRes.prescription.id)
+        }
+      } catch {}
+      
+      const prescriptionData = {
         prescriptionMode: rxMode,
+        tokenNo: (sel as any)?.tokenNo,
         manualAttachment: rxMode === 'manual' ? manualAttachment || undefined : undefined,
         items: rxMode === 'manual' ? (items.length ? items : undefined) : items,
         labTests: labTests.length ? labTests : undefined,
@@ -525,35 +672,32 @@ export default function Doctor_Prescription() {
         examFindings: form.examFindings || undefined,
         diagnosis: form.diagnosis || undefined,
         advice: form.advice || undefined,
-        createdBy: doc.name,
         vitals,
-      })
-      // Save new suggestions locally
-      addOne('primaryComplaint', form.primaryComplaint)
-      addOne('history', form.history)
-      addOne('primaryComplaintHistory', form.primaryComplaintHistory)
-      addOne('familyHistory', form.familyHistory)
-      addOne('allergyHistory', form.allergyHistory)
-      addOne('treatmentHistory', form.treatmentHistory)
-      addOne('examFindings', form.examFindings)
-      addOne('diagnosis', form.diagnosis)
-      addOne('advice', form.advice)
-      addMany('labTest', labTests)
-      try {
-        for (const m of form.meds || []){
-          if (m.qty) addOne('dose', m.qty)
-          if (m.instruction) addOne('instruction', m.instruction)
-          if (m.route) addOne('route', m.route)
-        }
-      } catch {}
+      }
+      
+      if (existingPresId) {
+        // Update existing prescription for this encounter (same token)
+        await hospitalApi.updatePrescription(existingPresId, prescriptionData)
+      } else {
+        // Create new prescription for this token/encounter
+        await hospitalApi.createPrescription({
+          encounterId: sel.encounterId,
+          createdBy: doc.name,
+          ...prescriptionData,
+        })
+      }
       try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
       setSaved(true)
+      setToast({ type: 'success', message: 'Prescription saved successfully' })
       setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: [{ name: '', morning: '', noon: '', evening: '', night: '', qty: '', route: '', instruction: '', durationText: '', freqText: '' }] })
       setManualAttachment(null)
       setManualAttachmentError('')
       try { vitalsRef.current?.setDisplay?.({}) } catch {}
       try { diagRef.current?.setDisplay?.({ testsText: '' }) } catch {}
       setTimeout(()=>setSaved(false), 2000)
+      // Refresh patient lists to remove the saved patient from dropdown
+      loadTokens()
+      loadPresIds()
     } catch (err: any) {
       setToast({ type: 'error', message: err?.message || 'Failed to save prescription' })
     }
@@ -650,7 +794,9 @@ export default function Doctor_Prescription() {
       dPrint = { tests }
     }
     const tpl: PrescriptionPdfTemplate = prescriptionTemplate
-    await previewPrescriptionPdf({ doctor, settings: settingsNorm, patient, items, primaryComplaint: form.primaryComplaint, primaryComplaintHistory: form.primaryComplaintHistory, familyHistory: form.familyHistory, allergyHistory: form.allergyHistory, treatmentHistory: form.treatmentHistory, history: form.history, examFindings: form.examFindings, diagnosis: form.diagnosis, advice: form.advice, vitals, labTests: form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean), diagnosticTests: Array.isArray(dPrint.tests)?dPrint.tests:[], createdAt: new Date() }, tpl)
+    console.log('openPrint - sel:', sel)
+    console.log('openPrint - tokenNo being passed:', (sel as any)?.tokenNo)
+    await previewPrescriptionPdf({ doctor, settings: settingsNorm, patient, items, primaryComplaint: form.primaryComplaint, primaryComplaintHistory: form.primaryComplaintHistory, familyHistory: form.familyHistory, allergyHistory: form.allergyHistory, treatmentHistory: form.treatmentHistory, history: form.history, examFindings: form.examFindings, diagnosis: form.diagnosis, advice: form.advice, vitals, labTests: form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean), diagnosticTests: Array.isArray(dPrint.tests)?dPrint.tests:[], tokenNo: (sel as any)?.tokenNo, createdAt: new Date() }, tpl)
   }
 
   const goTab = (tab: 'details'|'vitals'|'labs'|'diagnostics'|'medication') => {
@@ -716,44 +862,18 @@ export default function Doctor_Prescription() {
 
   const sel = myPatients.find(t => `${t.id}` === form.patientKey)
 
-  // Suggestions: store per-doctor in localStorage
-  const keyFor = (name: string) => `doctor.suggest.${doc?.id || 'anon'}.${name}`
-  const loadList = (name: string): string[] => {
-    try {
-      const raw = localStorage.getItem(keyFor(name))
-      const arr = raw ? JSON.parse(raw) : []
-      if (Array.isArray(arr)) return Array.from(new Set(arr.map((s: any)=>String(s||'').trim()).filter(Boolean)))
-      return []
-    } catch { return [] }
-  }
-  const saveList = (name: string, values: string[]) => {
-    const uniq = Array.from(new Set(values.map(v=>String(v||'').trim()).filter(Boolean)))
-    try { localStorage.setItem(keyFor(name), JSON.stringify(uniq.slice(0, 200))) } catch {}
-  }
-  const addOne = (name: string, value?: string) => {
-    const v = String(value||'').trim(); if (!v) return
-    const arr = loadList(name)
-    if (!arr.includes(v)) { saveList(name, [v, ...arr]); setSugVersion(x=>x+1) }
-  }
-  const addMany = (name: string, values: string[]) => {
-    const arr = loadList(name)
-    const next = [...values.map(s=>String(s||'').trim()).filter(Boolean), ...arr]
-    saveList(name, Array.from(new Set(next)))
-    setSugVersion(x=>x+1)
-  }
-
-  // Suggestions loaded from localStorage only
-  const sugPrimary = useMemo(()=>loadList('primaryComplaint'), [doc?.id, sugVersion])
-  const sugHistory = useMemo(()=>loadList('history'), [doc?.id, sugVersion])
-  const sugPrimHist = useMemo(()=>loadList('primaryComplaintHistory'), [doc?.id, sugVersion])
-  const sugFamily = useMemo(()=>loadList('familyHistory'), [doc?.id, sugVersion])
-  const sugAllergy = useMemo(()=>loadList('allergyHistory'), [doc?.id, sugVersion])
-  const sugTreatment = useMemo(()=>loadList('treatmentHistory'), [doc?.id, sugVersion])
-  const sugExam = useMemo(()=>loadList('examFindings'), [doc?.id, sugVersion])
-  const sugDiagnosis = useMemo(()=>loadList('diagnosis'), [doc?.id, sugVersion])
-  const sugAdvice = useMemo(()=>loadList('advice'), [doc?.id, sugVersion])
-  const sugLabTests = useMemo(()=>labTestSuggestions.length ? labTestSuggestions : loadList('labTest'), [doc?.id, sugVersion, labTestSuggestions])
-  const sugDiagTests = useMemo(()=>loadList('diagTest'), [doc?.id, sugVersion])
+  // Suggestions loaded from database (via dbSuggestions state)
+  const sugPrimary = useMemo(() => dbSuggestions.primaryComplaint, [dbSuggestions.primaryComplaint])
+  const sugHistory = useMemo(() => dbSuggestions.history, [dbSuggestions.history])
+  const sugPrimHist = useMemo(() => dbSuggestions.primaryComplaintHistory, [dbSuggestions.primaryComplaintHistory])
+  const sugFamily = useMemo(() => dbSuggestions.familyHistory, [dbSuggestions.familyHistory])
+  const sugAllergy = useMemo(() => dbSuggestions.allergyHistory, [dbSuggestions.allergyHistory])
+  const sugTreatment = useMemo(() => dbSuggestions.treatmentHistory, [dbSuggestions.treatmentHistory])
+  const sugExam = useMemo(() => dbSuggestions.examFindings, [dbSuggestions.examFindings])
+  const sugDiagnosis = useMemo(() => dbSuggestions.diagnosis, [dbSuggestions.diagnosis])
+  const sugAdvice = useMemo(() => dbSuggestions.advice, [dbSuggestions.advice])
+  const sugLabTests = useMemo(() => labTestSuggestions.length ? labTestSuggestions : dbSuggestions.labTest, [labTestSuggestions, dbSuggestions.labTest])
+  const sugDiagTests = useMemo(() => dbSuggestions.diagTest, [dbSuggestions.diagTest])
   // Default suggestions for medication fields
   const defaultDoses = ['1 mg', '2 mg', '5 mg', '10 mg', '20 mg', '25 mg', '50 mg', '100 mg', '200 mg', '250 mg', '500 mg', '1 g', '1 ml', '2 ml', '5 ml', '10 ml', '1 tsp', '1 tbsp', '1 drop', '2 drops', '1 puff', '1 tablet', '2 tablets', '1 capsule', '1 sachet']
   const defaultRoutes = ['Oral', 'IV', 'IM', 'SC', 'Topical', 'Sublingual', 'Rectal', 'Vaginal', 'Inhalation', 'Nasal', 'Ocular', 'Ear drops', 'Local application']
@@ -761,37 +881,37 @@ export default function Doctor_Prescription() {
   const defaultDurations = ['1 day', '2 days', '3 days', '5 days', '7 days', '10 days', '14 days', '1 week', '2 weeks', '3 weeks', '4 weeks', '1 month', '2 months', '3 months', '6 months']
   const defaultFrequencies = ['Once daily (OD)', 'Twice daily (BD)', 'Thrice daily (TID)', 'Four times daily (QID)', 'Every morning', 'Every night', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'SOS', 'Stat', 'Alternate days', 'Weekly', 'Monthly']
 
-  // Suggestions loaded from localStorage + defaults
+  // Suggestions loaded from database (via dbSuggestions state) + defaults for medication
   const sugDose = useMemo(() => {
-    const stored = loadList('dose')
+    const stored = dbSuggestions.dose
     return stored.length ? stored : defaultDoses
-  }, [doc?.id, sugVersion])
+  }, [dbSuggestions.dose])
   const sugInstr = useMemo(() => {
-    const stored = loadList('instruction')
+    const stored = dbSuggestions.instruction
     return stored.length ? stored : defaultInstructions
-  }, [doc?.id, sugVersion])
+  }, [dbSuggestions.instruction])
   const sugRoute = useMemo(() => {
-    const stored = loadList('route')
+    const stored = dbSuggestions.route
     return stored.length ? stored : defaultRoutes
-  }, [doc?.id, sugVersion])
+  }, [dbSuggestions.route])
   const sugDuration = useMemo(() => {
-    const stored = loadList('durationTag')
+    const stored = dbSuggestions.durationTag
     return stored.length ? stored : defaultDurations
-  }, [doc?.id, sugVersion])
+  }, [dbSuggestions.durationTag])
   const sugFreq = useMemo(() => {
-    const stored = loadList('frequencyTag')
+    const stored = dbSuggestions.frequencyTag
     return stored.length ? stored : defaultFrequencies
-  }, [doc?.id, sugVersion])
-  // Vitals suggestions
-  const sugVPulse = useMemo(()=>loadList('vitals.pulse'), [doc?.id, sugVersion])
-  const sugVTemp = useMemo(()=>loadList('vitals.temperature'), [doc?.id, sugVersion])
-  const sugVSys = useMemo(()=>loadList('vitals.sys'), [doc?.id, sugVersion])
-  const sugVDia = useMemo(()=>loadList('vitals.dia'), [doc?.id, sugVersion])
-  const sugVResp = useMemo(()=>loadList('vitals.resp'), [doc?.id, sugVersion])
-  const sugVSugar = useMemo(()=>loadList('vitals.sugar'), [doc?.id, sugVersion])
-  const sugVWeight = useMemo(()=>loadList('vitals.weight'), [doc?.id, sugVersion])
-  const sugVHeight = useMemo(()=>loadList('vitals.height'), [doc?.id, sugVersion])
-  const sugVSpo2 = useMemo(()=>loadList('vitals.spo2'), [doc?.id, sugVersion])
+  }, [dbSuggestions.frequencyTag])
+  // Vitals suggestions from database
+  const sugVPulse = useMemo(() => dbSuggestions.vitals.pulse, [dbSuggestions.vitals.pulse])
+  const sugVTemp = useMemo(() => dbSuggestions.vitals.temperature, [dbSuggestions.vitals.temperature])
+  const sugVSys = useMemo(() => dbSuggestions.vitals.sys, [dbSuggestions.vitals.sys])
+  const sugVDia = useMemo(() => dbSuggestions.vitals.dia, [dbSuggestions.vitals.dia])
+  const sugVResp = useMemo(() => dbSuggestions.vitals.resp, [dbSuggestions.vitals.resp])
+  const sugVSugar = useMemo(() => dbSuggestions.vitals.sugar, [dbSuggestions.vitals.sugar])
+  const sugVWeight = useMemo(() => dbSuggestions.vitals.weight, [dbSuggestions.vitals.weight])
+  const sugVHeight = useMemo(() => dbSuggestions.vitals.height, [dbSuggestions.vitals.height])
+  const sugVSpo2 = useMemo(() => dbSuggestions.vitals.spo2, [dbSuggestions.vitals.spo2])
 
   async function printReferral(){
     try {
@@ -826,6 +946,15 @@ export default function Doctor_Prescription() {
                 <option key={p.id} value={p.id}>{p.patientName} • {p.mrNo}</option>
               ))}
             </select>
+            {showLoadPrevButton && (
+              <button
+                type="button"
+                onClick={loadPreviousPrescription}
+                className="mt-2 rounded-md border border-amber-600 bg-amber-50 px-3 py-1 text-xs text-amber-700 hover:bg-amber-100"
+              >
+                Load Previous Prescription
+              </button>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-700">Apply Template</label>
@@ -952,7 +1081,6 @@ export default function Doctor_Prescription() {
                 height: sugVHeight,
                 spo2: sugVSpo2,
               }}
-              onBlurStore={(field: any, value: string)=> addOne(`vitals.${String(field)}`, value)}
             />
           </div>
         )}

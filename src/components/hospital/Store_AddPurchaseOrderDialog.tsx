@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { hospitalStoreApi, hospitalApi } from '../../utils/api';
+import { hospitalApi } from '../../utils/api';
 import { Plus, Trash2, X } from 'lucide-react';
 
 interface Item {
@@ -8,6 +8,7 @@ interface Item {
   category: string;
   qty: number;
   unit: string;
+  avgCost?: number;
 }
 
 interface Props {
@@ -96,7 +97,7 @@ const Store_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSave, 
 
   const loadSuppliers = async () => {
     try {
-      const res: any = await hospitalStoreApi.listAllSuppliers();
+      const res: any = await hospitalApi.listAllStoreSuppliers();
       setSuppliers(res.suppliers || res.items || []);
     } catch (error) {
       console.error('Failed to load suppliers', error);
@@ -104,7 +105,7 @@ const Store_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSave, 
   };
 
   const addItem = () => {
-    setItems([...items, { name: '', category: '', qty: 1, unit: 'packs' }]);
+    setItems([...items, { name: '', category: '', qty: 1, unit: 'packs', avgCost: 0 }]);
   };
 
   const removeItem = (index: number) => {
@@ -113,7 +114,7 @@ const Store_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSave, 
 
   const loadInventory = async () => {
     try {
-      const res: any = await hospitalStoreApi.listInventory({ limit: 1000 });
+      const res: any = await hospitalApi.listStoreInventory({ limit: 1000 });
       setInventory(res.items || []);
     } catch (error) {
       console.error('Failed to load inventory', error);
@@ -127,7 +128,8 @@ const Store_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSave, 
       itemId: item._id,
       name: item.name,
       category: item.category || '',
-      unit: item.unit || 'pcs'
+      unit: item.unit || 'pcs',
+      avgCost: item.avgCost || 0
     };
     setItems(newItems);
     setActiveItemIndex(null);

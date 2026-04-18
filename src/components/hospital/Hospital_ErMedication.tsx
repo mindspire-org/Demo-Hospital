@@ -1,5 +1,54 @@
-import React, { useEffect, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { hospitalApi, pharmacyApi } from '../../utils/api'
+
+type SearchOption = { value: string; label: string }
+function SearchSelect({ options, value, onChange, placeholder }: { options: SearchOption[]; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current) return
+      if (!ref.current.contains(e.target as any)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+  const selectedLabel = useMemo(() => (options.find(o => String(o.value) === String(value))?.label || ''), [options, value])
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return options.filter(o => !q || o.label.toLowerCase().includes(q)).slice(0, 100)
+  }, [options, query])
+  return (
+    <div ref={ref} className="relative">
+      <input
+        value={open ? query : selectedLabel}
+        onFocus={() => { setOpen(true); setQuery('') }}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+      />
+      <button type="button" onClick={() => setOpen(o => !o)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500">▾</button>
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-slate-500">No results</div>
+          ) : filtered.map(opt => (
+            <button
+              type="button"
+              key={String(opt.value)}
+              onClick={() => { onChange(String(opt.value)); setOpen(false) }}
+              className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
+            >
+              <div className="text-sm text-slate-800">{opt.label}</div>
+              {String(opt.value) === String(value) ? <span className="text-xs text-violet-600">✓</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Hospital_ErMedication({ encounterId }: { encounterId: string }){
   const [rows, setRows] = useState<Array<{ id: string; name: string; dose: string; freq: string; start: string }>>([])
@@ -85,12 +134,32 @@ function MedicationDialog({
   const [items, setItems] = useState<Array<{ name: string; dose: string; freq: string; start: string }>>([
     { name: '', dose: '', freq: '', start: '' },
   ])
+  const [medicineOptions, setMedicineOptions] = useState<Array<{ id: string; name: string }>>([])
+  const [loadingMedicines, setLoadingMedicines] = useState(false)
 
+  // Load all medicines from pharmacy inventory on open
   useEffect(() => {
     if (open) {
       setItems([{ name: '', dose: '', freq: '', start: '' }])
+      loadMedicines()
     }
   }, [open])
+
+  const loadMedicines = async () => {
+    setLoadingMedicines(true)
+    try {
+      const res = await pharmacyApi.listInventory({ limit: 500 })
+      const meds = (res?.items || []).map((it: any) => ({
+        id: String(it._id || it.id || ''),
+        name: String(it.name || '')
+      })).filter((m: any) => m.name)
+      setMedicineOptions(meds)
+    } catch {
+      setMedicineOptions([])
+    } finally {
+      setLoadingMedicines(false)
+    }
+  }
 
   if(!open) return null
 
@@ -121,12 +190,16 @@ function MedicationDialog({
               <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600">Name</label>
-                  <input
-                    value={row.name}
-                    onChange={(e) => updateRow(idx, { name: e.target.value })}
-                    placeholder="Medicine name"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2"
-                  />
+                  {loadingMedicines ? (
+                    <div className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-400">Loading medicines...</div>
+                  ) : (
+                    <SearchSelect
+                      options={medicineOptions.map(m => ({ value: m.name, label: m.name }))}
+                      value={row.name}
+                      onChange={(v) => updateRow(idx, { name: v })}
+                      placeholder="Search medicine..."
+                    />
+                  )}
                 </div>
 
                 <div>

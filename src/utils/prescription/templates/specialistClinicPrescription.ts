@@ -234,7 +234,7 @@ export async function previewSpecialistClinicPdf(data: SpecialistClinicPdfData) 
   ptCell('Age/Gender', `${patient.age || '-'} / ${patient.gender || '-'}`,   marginX + col3W * 2,  y)
   ptCell('Patient Name', String(patient.name || '-'),                         marginX,              y + rowH)
   ptCell('Contact No',   String(patient.phone || '-'),                        marginX + col3W,      y + rowH)
-  ptCell('Created On',   dt.toLocaleString(),                                 marginX + col3W * 2,  y + rowH)
+  ptCell('Token No',     String((data as any).tokenNo || '-'),                marginX + col3W * 2,  y + rowH)
 
   y += rowH * 2 + 5
 
@@ -510,25 +510,25 @@ export async function previewSpecialistClinicPdf(data: SpecialistClinicPdfData) 
   // ══════════════════════════════════════════════════════════════════════════
   // 6.  FOOTER
   // ══════════════════════════════════════════════════════════════════════════
-  const nvY = H - 22
+  const nvY = H - 14
   pdf.setFillColor(softRed.r, softRed.g, softRed.b)
   pdf.setDrawColor(254, 202, 202)
   pdf.setLineWidth(0.3)
-  pdf.roundedRect(marginX, nvY, W - 2 * marginX, 7.5, 1.5, 1.5, 'FD')
+  pdf.roundedRect(marginX, nvY, W - 2 * marginX, 6, 1.5, 1.5, 'FD')
   pdf.setTextColor(red.r, red.g, red.b)
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(8.5)
-  pdf.text('\u26A0 NOT VALID FOR COURT \u26A0', W / 2, nvY + 5.3, { align: 'center' })
+  pdf.setFontSize(8)
+  pdf.text('\u26A0 NOT VALID FOR COURT \u26A0', W / 2, nvY + 4, { align: 'center' })
 
-  const cbY = H - 12
+  const cbY = H - 6
   pdf.setFillColor(softBlue.r, softBlue.g, softBlue.b)
   pdf.setDrawColor(186, 230, 253)
-  pdf.roundedRect(marginX, cbY, W - 2 * marginX, 10, 2.5, 2.5, 'FD')
+  pdf.roundedRect(marginX, cbY, W - 2 * marginX, 5, 1.5, 1.5, 'FD')
   pdf.setTextColor(slate.r, slate.g, slate.b)
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(7.5)
-  pdf.text(`Phone: ${String(settings.phone || '-')}`,     W / 2, cbY + 4,   { align: 'center' })
-  pdf.text(`Address: ${String(settings.address || '-')}`, W / 2, cbY + 8.5, { align: 'center' })
+  pdf.setFontSize(7)
+  pdf.text(`Phone: ${String(settings.phone || '-')}`,     W / 2, cbY + 2.5,   { align: 'center' })
+  pdf.text(`Address: ${String(settings.address || '-')}`, W / 2, cbY + 5, { align: 'center' })
 
   // ══════════════════════════════════════════════════════════════════════════
   // 7.  OUTPUT

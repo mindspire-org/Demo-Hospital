@@ -23,6 +23,11 @@ const EncounterSchema = new Schema({
   bedId: { type: String },
   deposit: { type: Number },
   tokenId: { type: Schema.Types.ObjectId, ref: 'Hospital_Token' },
+  // ER-specific fields
+  triage: { type: String, enum: ['red', 'yellow', 'green'], index: true },
+  arrivalMode: { type: String, enum: ['walk-in', 'ambulance', 'referral'] },
+  chiefComplaint: { type: String },
+  disposition: { type: String, enum: ['discharged', 'admitted', 'transferred', 'left-against-advice', 'expired'] },
 }, { timestamps: true })
 
 EncounterSchema.index({ patientId: 1, startAt: -1 })
@@ -50,6 +55,11 @@ export type HospitalEncounterDoc = {
   bedId?: string
   deposit?: number
   tokenId?: string
+  // ER-specific fields
+  triage?: 'red'|'yellow'|'green'
+  arrivalMode?: 'walk-in'|'ambulance'|'referral'
+  chiefComplaint?: string
+  disposition?: 'discharged'|'admitted'|'transferred'|'left-against-advice'|'expired'
 }
 
 export const HospitalEncounter = models.Hospital_Encounter || model('Hospital_Encounter', EncounterSchema)

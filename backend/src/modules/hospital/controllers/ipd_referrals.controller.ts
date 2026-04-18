@@ -75,6 +75,8 @@ export async function create(req: Request, res: Response){
       phone: (patient as any).phoneNormalized,
       gender: (patient as any).gender,
       address: (patient as any).address,
+      age: (patient as any).age,
+      dob: (patient as any).dob,
     },
     referredBy,
     referredTo: {
@@ -102,6 +104,7 @@ export async function list(req: Request, res: Response){
   if (q.status) crit.status = String(q.status)
   if (q.departmentId) crit['referredTo.departmentId'] = String(q.departmentId)
   if (q.doctorId) crit['referredTo.doctorId'] = String(q.doctorId)
+  if (q.referredByDoctorId) crit['referredBy.doctorId'] = String(q.referredByDoctorId)
   const from = q.from ? new Date(String(q.from)) : null
   const to = q.to ? new Date(String(q.to)) : null
   if (to) to.setHours(23,59,59,999)

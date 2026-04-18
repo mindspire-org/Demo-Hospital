@@ -284,15 +284,18 @@ export default function Hospital_TokenHistory() {
       patientName: r.patient || '-',
       phone: r.phone || '',
       mrn: r.mrNo || '',
-      age: undefined,
+      age: r.age,
       gender: r.gender,
       guardianRel: r.guardianRel,
       guardianName: r.guardianName,
       cnic: r.cnic,
+      address: r.address,
       amount: r.fee + (r.discount || 0),
       discount: r.discount || 0,
       payable: r.fee,
       createdAt: r.createdAt,
+      tokenType: r.visitCategory?.toLowerCase() === 'private' ? 'Private' : 'General',
+      isReprint: true,
       ...(panelName ? { corporateCompanyName: panelName } : {}),
     }
     setSlipData(slip)
@@ -428,7 +431,7 @@ export default function Hospital_TokenHistory() {
           </select>
           <select value={visitCategory} onChange={e=>{setVisitCategory(e.target.value as any); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1">
             <option value="All">All Categories</option>
-            <option value="Public">Public</option>
+            <option value="Public">General</option>
             <option value="Private">Private</option>
           </select>
           <button className="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-50">Export CSV</button>
@@ -445,7 +448,7 @@ export default function Hospital_TokenHistory() {
         />
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Date" value={from === to ? from : `${from} → ${to}`} tone="amber" />
         <StatCard title="Total Tokens" value={totalTokens} tone="green" />
         <StatCard title="Cash Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} tone="violet" />
@@ -458,25 +461,20 @@ export default function Hospital_TokenHistory() {
 
       <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr className="text-left text-slate-600">
-              <Th>Date</Th>
-              <Th>Time</Th>
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+            <tr className="text-left">
+              <Th>Date/Time</Th>
               <Th>Type</Th>
               <Th>Token #</Th>
               <Th>MR #</Th>
               <Th>Patient</Th>
               <Th>Performed By</Th>
-              <Th>Guardian</Th>
-              <Th>CNIC</Th>
               <Th>Token Type</Th>
-              <Th>Gender</Th>
               <Th>Phone</Th>
               <Th>Doctor</Th>
               <Th>Department</Th>
               <Th>Fee</Th>
               <Th>Discount</Th>
-              <Th>Status</Th>
               <Th>Print</Th>
               <Th>Actions</Th>
             </tr>
@@ -484,8 +482,7 @@ export default function Hospital_TokenHistory() {
           <tbody className="divide-y divide-slate-200">
             {pageRows.map((r) => (
               <tr key={r._id} className={`text-slate-700 ${r.status === 'returned' ? 'bg-amber-50' : ''} ${r.isCorporate ? 'bg-violet-50/30' : ''}`}>
-                <Td>{r.date}</Td>
-                <Td>{r.time}</Td>
+                <Td>{r.date} {r.time}</Td>
                 <Td>
                   {r.isCorporate ? (
                     <span className="inline-flex rounded bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">Corporate</span>
@@ -501,22 +498,18 @@ export default function Hospital_TokenHistory() {
                 <Td>{r.mrNo}</Td>
                 <Td>{r.patient}</Td>
                 <Td>{r.performedBy || '-'}</Td>
-                <Td>{(r.guardianRel || r.guardianName) ? `${r.guardianRel ? r.guardianRel + ' ' : ''}${r.guardianName || ''}`.trim() : '-'}</Td>
-                <Td>{r.cnic || '-'}</Td>
                 <Td>
                   {r.visitCategory === 'private' ? (
                     <span className="inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Private</span>
                   ) : (
-                    <span className="inline-flex rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Public</span>
+                    <span className="inline-flex rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">General</span>
                   )}
                 </Td>
-                <Td>{r.gender || '-'}</Td>
                 <Td>{r.phone || '-'}</Td>
                 <Td>{r.doctor || '-'}</Td>
                 <Td>{r.department || '-'}</Td>
                 <Td>{r.fee.toFixed(0)}</Td>
                 <Td>{(r.discount || 0).toFixed(0)}</Td>
-                <Td>{r.status}</Td>
                 <Td>
                   <div className="flex flex-col gap-1">
                     <button onClick={() => printSlip(r)} className="text-sky-600 hover:underline text-left">Print Slip</button>
@@ -564,7 +557,7 @@ export default function Hospital_TokenHistory() {
 }
 
 function Th({ children }: { children: ReactNode }) {
-  return <th className="px-4 py-2 font-medium">{children}</th>
+  return <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">{children}</th>
 }
 function Td({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <td className={`px-4 py-2 ${className}`}>{children}</td>

@@ -12,6 +12,8 @@ type RxPdfExtras = {
   provisionalDiagnosis?: string
   corporatePanelName?: string
   corporatePreAuthNo?: string
+  visitCategory?: string
+  isReprint?: boolean
 }
 
 export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtras) {
@@ -23,6 +25,7 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
 
   const black = { r: 0, g: 0, b: 0 }
   const slate = { r: 15, g: 23, b: 42 }
+  const red = { r: 185, g: 28, b: 28 }
 
   const settings = data.settings || {}
   const patient = data.patient || {}
@@ -38,6 +41,21 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(20)
   pdf.text(String(settings.name || 'SIALKOT MEDICAL COMPLEX'), W / 2, y + 6, { align: 'center' })
+
+  // REPRINTED badge (top-right corner)
+  if (data.isReprint) {
+    const badgeW = 28
+    const badgeX = W - marginX - badgeW
+    pdf.setFillColor(red.r, red.g, red.b)
+    pdf.roundedRect(badgeX, y, badgeW, 6, 1.5, 1.5, 'F')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(7)
+    pdf.setTextColor(255, 255, 255)
+    pdf.text('REPRINTED', badgeX + badgeW / 2, y + 4.5, { align: 'center' })
+    // Reset text color to black for rest of document
+    pdf.setTextColor(black.r, black.g, black.b)
+  }
+
   y += 10
 
   // Doctor info row with logo
@@ -147,6 +165,17 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
       pdf.setFont('helvetica', 'bold')
       pdf.text(String(data.corporatePreAuthNo || ''), col3X + 22, y - 0.5)
     }
+    y += rowH
+  }
+
+  // Token Type (Public/Private)
+  if (data.visitCategory) {
+    pdf.setFont('helvetica', 'normal')
+    pdf.text('Token Type', col1X, y)
+    pdf.line(col1X + 20, y + 1, col3X - 10, y + 1)
+    pdf.setFont('helvetica', 'bold')
+    const cat = String(data.visitCategory).toLowerCase() === 'private' ? 'Private' : 'General'
+    pdf.text(cat, col1X + 22, y - 0.5)
     y += rowH
   }
 

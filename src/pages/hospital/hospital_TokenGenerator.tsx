@@ -90,7 +90,7 @@ export default function Hospital_TokenGenerator() {
     load()
     return () => { cancelled = true }
   }, [])
-  const [form, setForm] = useState<{ 
+  const [form, setForm] = useState<{
     phone: string
     mrNumber: string
     patientName: string
@@ -102,7 +102,7 @@ export default function Hospital_TokenGenerator() {
     address: string
     doctor: string
     departmentId: string
-    visitCategory: 'public' | 'private'
+    visitCategory: 'general' | 'private'
     billingType: string
     consultationFee: string
     discount: string
@@ -110,6 +110,10 @@ export default function Hospital_TokenGenerator() {
     corporatePreAuthNo: string
     corporateCoPayPercent: string
     corporateCoverageCap: string
+    // ER fields
+    triage: 'red' | 'yellow' | 'green'
+    arrivalMode: 'walk-in' | 'ambulance' | 'referral'
+    chiefComplaint: string
   }>({
     phone: '',
     mrNumber: '',
@@ -122,7 +126,7 @@ export default function Hospital_TokenGenerator() {
     address: '',
     doctor: '',
     departmentId: '',
-    visitCategory: 'public',
+    visitCategory: 'general',
     billingType: 'Cash',
     consultationFee: '',
     discount: '0',
@@ -130,6 +134,10 @@ export default function Hospital_TokenGenerator() {
     corporatePreAuthNo: '',
     corporateCoPayPercent: '',
     corporateCoverageCap: '',
+    // ER fields
+    triage: 'green',
+    arrivalMode: 'walk-in',
+    chiefComplaint: '',
   })
 
   const [loadingToken, setLoadingToken] = useState(false)
@@ -201,7 +209,7 @@ export default function Hospital_TokenGenerator() {
       address: '',
       doctor: '',
       departmentId: '',
-      visitCategory: 'public',
+      visitCategory: 'general',
       billingType: 'Cash',
       consultationFee: '',
       discount: '0',
@@ -209,6 +217,10 @@ export default function Hospital_TokenGenerator() {
       corporatePreAuthNo: '',
       corporateCoPayPercent: '',
       corporateCoverageCap: '',
+      // ER fields
+      triage: 'green',
+      arrivalMode: 'walk-in',
+      chiefComplaint: '',
     })
   }
 
@@ -219,6 +231,13 @@ export default function Hospital_TokenGenerator() {
   const isIPD = useMemo(() => {
     const dep = departments.find(d => String(d.id) === String(form.departmentId))
     return (dep?.name || '').trim().toLowerCase() === 'ipd'
+  }, [departments, form.departmentId])
+
+  // ER check
+  const isER = useMemo(() => {
+    const dep = departments.find(d => String(d.id) === String(form.departmentId))
+    const name = (dep?.name || '').trim().toLowerCase()
+    return name === 'emergency' || name === 'er'
   }, [departments, form.departmentId])
   const [ipdBeds, setIpdBeds] = useState<Array<{ _id: string; label: string; charges?: number; floorName?: string; locationType?: 'room'|'ward'; locationName?: string }>>([])
   const [ipdBedId, setIpdBedId] = useState('')
@@ -702,6 +721,7 @@ export default function Hospital_TokenGenerator() {
           discount: 0,
           payable: isNaN(depAmt) ? 0 : depAmt,
           createdAt: res?.token?.createdAt,
+          tokenType: form.visitCategory === 'private' ? 'Private' : 'General',
           ...(corpName ? { corporateCompanyName: corpName } : {}),
           ...(form.billingType === 'Corporate' && form.corporatePreAuthNo ? { corporatePreAuthNo: form.corporatePreAuthNo } : {}),
           ...(form.billingType === 'Corporate' && form.corporateCoPayPercent ? { corporateCoPayPercent: Number(form.corporateCoPayPercent) } : {}),
@@ -744,6 +764,12 @@ export default function Hospital_TokenGenerator() {
         const feeNum = Number(form.consultationFee)
         if (Number.isFinite(feeNum)) payload.overrideFee = feeNum
       }
+      // Add ER-specific fields if Emergency department
+      if (isER) {
+        payload.triage = form.triage
+        payload.arrivalMode = form.arrivalMode
+        payload.chiefComplaint = form.chiefComplaint
+      }
       payload.portal = window.location.pathname.startsWith('/reception') ? 'reception' : 'hospital'
       const res = await hospitalApi.createOpdToken(payload) as any
       const tokenNo = res?.token?.tokenNo || 'N/A'
@@ -767,6 +793,7 @@ export default function Hospital_TokenGenerator() {
         discount: Number((res?.pricing?.discount ?? form.discount) || 0),
         payable: Number((res?.pricing?.finalFee ?? finalFee)),
         createdAt: res?.token?.createdAt,
+        tokenType: form.visitCategory === 'private' ? 'Private' : 'General',
         fbr: {
           status: res?.token?.fbrStatus || res?.fbrStatus || res?.fbr?.status,
           qrCode: res?.token?.fbrQrCode || res?.fbrQrCode || res?.fbr?.qrCode,
@@ -919,25 +946,17 @@ export default function Hospital_TokenGenerator() {
                 />
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Doctor selection is optional for IPD.</p>
               </div>
-              {!isIPD && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
-                    <SearchSelect
-                      options={departments.map(d => ({ value: d.id, label: d.name }))}
-                      value={form.departmentId}
-                      onChange={(v) => update('departmentId', v)}
-                      placeholder="Select department"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Billing Type</label>
-                    <select className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white" value={form.billingType} onChange={e => update('billingType', e.target.value)}>
-                      <option className="dark:bg-slate-900">Cash</option>
-                      <option className="dark:bg-slate-900">Card</option>
-                      <option className="dark:bg-slate-900">Corporate</option>
-                    </select>
-                  </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
+                  <SearchSelect
+                    options={departments.map(d => ({ value: d.id, label: d.name }))}
+                    value={form.departmentId}
+                    onChange={(v) => update('departmentId', v)}
+                    placeholder="Select department"
+                  />
+                </div>
+                {!isIPD && (
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Token Type</label>
                     <select
@@ -949,41 +968,51 @@ export default function Hospital_TokenGenerator() {
                       }}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                     >
-                      <option className="dark:bg-slate-900" value="public">Public</option>
+                      <option className="dark:bg-slate-900" value="public">General</option>
                       <option className="dark:bg-slate-900" value="private">Private</option>
                     </select>
                   </div>
-                  {form.billingType === 'Corporate' && (
-                    <>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Corporate Company</label>
-                        <select value={form.corporateCompanyId} onChange={e => update('corporateCompanyId', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
-                          <option className="dark:bg-slate-900" value="">None</option>
-                          {companies.map(c => (
-                            <option className="dark:bg-slate-900" key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {form.corporateCompanyId && (
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:col-span-2">
-                          <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Pre-Auth No</label>
-                            <input value={form.corporatePreAuthNo} onChange={e => update('corporatePreAuthNo', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Optional" />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Co-Pay %</label>
-                            <input value={form.corporateCoPayPercent} onChange={e => update('corporateCoPayPercent', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="0-100" />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Coverage Cap</label>
-                            <input value={form.corporateCoverageCap} onChange={e => update('corporateCoverageCap', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="e.g., 5000" />
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Billing Type</label>
+                  <select className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white" value={form.billingType} onChange={e => update('billingType', e.target.value)}>
+                    <option className="dark:bg-slate-900">Cash</option>
+                    <option className="dark:bg-slate-900">Card</option>
+                    <option className="dark:bg-slate-900">Corporate</option>
+                  </select>
                 </div>
-              )}
+                {form.billingType === 'Corporate' && (
+                  <>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Corporate Company</label>
+                      <select value={form.corporateCompanyId} onChange={e => update('corporateCompanyId', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
+                        <option className="dark:bg-slate-900" value="">None</option>
+                        {companies.map(c => (
+                          <option className="dark:bg-slate-900" key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {form.corporateCompanyId && (
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:col-span-2">
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Pre-Auth No</label>
+                          <input value={form.corporatePreAuthNo} onChange={e => update('corporatePreAuthNo', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Optional" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Co-Pay %</label>
+                          <input value={form.corporateCoPayPercent} onChange={e => update('corporateCoPayPercent', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="0-100" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Coverage Cap</label>
+                          <input value={form.corporateCoverageCap} onChange={e => update('corporateCoverageCap', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="e.g., 5000" />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
               {isIPD && (
                 <>
                   <div>
@@ -1009,6 +1038,43 @@ export default function Hospital_TokenGenerator() {
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Bed Charges</label>
                     <input value={ipdDeposit} onChange={e => setIpdDeposit(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="e.g., Rs. 1000" />
+                  </div>
+                </>
+              )}
+              {isER && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Triage Level</label>
+                    <select
+                      value={form.triage}
+                      onChange={e => update('triage', e.target.value as any)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                    >
+                      <option className="dark:bg-slate-900" value="red">Red (Critical)</option>
+                      <option className="dark:bg-slate-900" value="yellow">Yellow (Urgent)</option>
+                      <option className="dark:bg-slate-900" value="green">Green (Minor)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Arrival Mode</label>
+                    <select
+                      value={form.arrivalMode}
+                      onChange={e => update('arrivalMode', e.target.value as any)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                    >
+                      <option className="dark:bg-slate-900" value="walk-in">Walk-in</option>
+                      <option className="dark:bg-slate-900" value="ambulance">Ambulance</option>
+                      <option className="dark:bg-slate-900" value="referral">Referral</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Chief Complaint</label>
+                    <input
+                      value={form.chiefComplaint}
+                      onChange={e => update('chiefComplaint', e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500"
+                      placeholder="Describe the patient's main complaint"
+                    />
                   </div>
                 </>
               )}
@@ -1052,7 +1118,7 @@ export default function Hospital_TokenGenerator() {
           </div>
       </form>
       {showSlip && slipData && (
-        <Hospital_TokenSlip open={showSlip} onClose={() => setShowSlip(false)} data={slipData} autoPrint={true} />
+        <Hospital_TokenSlip open={showSlip} onClose={() => setShowSlip(false)} data={slipData} autoPrint={false} />
       )}
 
 
@@ -1086,7 +1152,7 @@ export default function Hospital_TokenGenerator() {
       )}
       {showPhonePicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-          <div className="w-full max-lg rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-900 dark:ring-white/10">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-900 dark:ring-white/10">
             <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800 dark:border-slate-800 dark:text-slate-100">Select Patient (Phone: {form.phone})</div>
             <div className="max-h-96 overflow-y-auto p-2 dark:bg-slate-900">
               {phonePatients.map((p, idx) => (

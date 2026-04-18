@@ -75,6 +75,10 @@ function MultiSelect({ options, selectedIds, onToggle, placeholder }: { options:
 export default function Diagnostic_TokenGenerator() {
   const location = useLocation() as any
   const navState = (location && (location.state || null)) || null
+  // Edit mode from URL params or nav state
+  const urlParams = new URLSearchParams(location.search || '')
+  const editOrderId = urlParams.get('edit') || navState?.editOrderId || ''
+  const isEditMode = Boolean(editOrderId)
   // Patient details
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
@@ -105,11 +109,49 @@ export default function Diagnostic_TokenGenerator() {
       })()
     return () => { mounted = false }
   }, [])
+  // Load order data in edit mode
+  useEffect(() => {
+    if (!isEditMode || !editOrderId) return
+    let mounted = true
+    ;(async () => {
+      try {
+        const res: any = await diagnosticApi.getOrder(editOrderId)
+        const order = res?.order || res
+        if (!order || !mounted) return
+        // Populate form with order data
+        const p = order.patient || {}
+        if (p.fullName) setFullName(String(p.fullName))
+        if (p.phone) setPhone(String(p.phone))
+        if (p.mrn) setMrn(String(p.mrn))
+        if (p.age != null) setAge(String(p.age))
+        if (p.gender) setGender(String(p.gender))
+        if (p.address) setAddress(String(p.address))
+        if (p.guardianName || p.fatherName) setGuardianName(String(p.guardianName || p.fatherName))
+        if (p.guardianRelation) setGuardianRel(String(p.guardianRelation))
+        if (p.cnic) setCnic(String(p.cnic))
+        // Set tests
+        if (Array.isArray(order.tests)) setSelected(order.tests.map((t: any) => String(typeof t === 'string' ? t : t.testId || t._id)))
+        // Set billing
+        if (order.discount != null) setDiscount(String(order.discount))
+        if (order.receivedAmount != null) setReceivedAmount(String(order.receivedAmount))
+        if (order.referringConsultant) setReferringConsultant(String(order.referringConsultant))
+        // Corporate billing
+        if (order.corporateId) {
+          setBillingType('Corporate')
+          setCorpCompanyId(String(order.corporateId))
+        }
+        setToast({ type: 'info', message: `Loaded order ${order.tokenNo || editOrderId} for editing` })
+      } catch (e: any) {
+        if (mounted) setToast({ type: 'error', message: e?.message || 'Failed to load order' })
+      }
+    })()
+    return () => { mounted = false }
+  }, [isEditMode, editOrderId])
   // Apply navState patient autofill and requested tests
   useEffect(() => {
     try {
       const st = navState || {}
-      if (st?.patient) {
+      if (st?.patient && !isEditMode) {
         const p = st.patient
         if (p.fullName) setFullName(String(p.fullName))
         if (p.phone) setPhone(String(p.phone))
@@ -120,9 +162,9 @@ export default function Diagnostic_TokenGenerator() {
         if (p.guardianRelation) setGuardianRel(String(p.guardianRelation))
         if (p.cnic) setCnic(String(p.cnic))
       }
-      if (Array.isArray(st?.requestedTests)) setRequestedTests(st.requestedTests.map((x: any) => String(x)))
-      if (st?.fromReferralId) setFromReferralId(String(st.fromReferralId))
-      if (st?.referringConsultant) setReferringConsultant(String(st.referringConsultant))
+      if (Array.isArray(st?.requestedTests) && !isEditMode) setRequestedTests(st.requestedTests.map((x: any) => String(x)))
+      if (st?.fromReferralId && !isEditMode) setFromReferralId(String(st.fromReferralId))
+      if (st?.referringConsultant && !isEditMode) setReferringConsultant(String(st.referringConsultant))
     } catch { }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location?.key])
@@ -556,12 +598,23 @@ export default function Diagnostic_TokenGenerator() {
         portal: window.location.pathname.startsWith('/reception') ? 'reception' : 'diagnostic',
       } as any) as any
 
-      // If we are processing a referral, mark it completed
+      // If we are processing a referral, mark it completed and link the token/order
+      const tokenNo = created?.tokenNo || created?.order?.tokenNo || 'N/A'
+      const orderId = created?._id || created?.id || created?.order?._id || created?.order?.id
+      
       if (fromReferralId) {
-        try { await hospitalApi.updateReferralStatus(fromReferralId, 'completed') } catch { }
+        try { 
+          await hospitalApi.updateReferralStatus(fromReferralId, 'completed')
+          // Link referral with token and order for tracking
+          if (tokenNo || orderId) {
+            await hospitalApi.linkReferral(fromReferralId, { 
+              tokenNo: tokenNo !== 'N/A' ? tokenNo : undefined, 
+              linkedOrderId: orderId 
+            })
+          }
+        } catch { }
       }
 
-      const tokenNo = created?.tokenNo || created?.order?.tokenNo || 'N/A'
       const createdAt = created?.createdAt || created?.order?.createdAt || new Date().toISOString()
       const corpName = companies.find(c=> c.id === corpCompanyId)?.name
       const data: DiagnosticTokenSlipData = {
@@ -579,6 +632,8 @@ export default function Diagnostic_TokenGenerator() {
         subtotal,
         discount: Number(discount) || 0,
         payable: net,
+        received: receivedNum,
+        remaining: receivableNum,
         createdAt,
         corporateCompanyName: billingType === 'Corporate' && corpName ? corpName : undefined,
         corporatePreAuthNo: billingType === 'Corporate' && corpPreAuthNo ? corpPreAuthNo : undefined,
@@ -795,7 +850,7 @@ export default function Diagnostic_TokenGenerator() {
             <div className="text-sm text-slate-600 dark:text-slate-400">Pending: <span className="font-semibold text-slate-800 dark:text-slate-200">PKR {receivableNum.toLocaleString()}</span></div>
             <div className="flex items-center gap-3">
               <button type="button" onClick={() => { setFullName(''); setPhone(''); setMrn(''); setAge(''); setGender(''); setGuardianRel(''); setGuardianName(''); setCnic(''); setAddress(''); setSelected([]); setDiscount('0'); setReceivedAmount('0'); setCorpCompanyId(''); setSelectedPatient(null) }} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">Reset Form</button>
-              <button type="submit" disabled={!fullName || !phone || selectedTests.length === 0} className="rounded-md bg-violet-700 px-4 py-2 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-40 dark:bg-violet-600 dark:hover:bg-violet-700">Generate Token</button>
+              <button type="submit" disabled={!fullName || !phone || selectedTests.length === 0} className={`rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-40 ${isEditMode ? 'bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-700' : 'bg-violet-700 hover:bg-violet-800 dark:bg-violet-600 dark:hover:bg-violet-700'}`}>{isEditMode ? 'Update Token' : 'Generate Token'}</button>
             </div>
           </div>
         </section>

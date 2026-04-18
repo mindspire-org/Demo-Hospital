@@ -1,28 +1,35 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Search, Calendar, Printer, Trash2, Edit, RotateCcw, DollarSign, Barcode, Clock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Search, Calendar, Printer, RotateCcw, Barcode, Clock, DollarSign } from 'lucide-react'
 import { labApi } from '../../utils/api'
 import Lab_ReasonDialog from '../../components/lab/lab_ReasonDialog'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
 import { printLabTokenSlip } from '../../utils/printLabToken'
 
-type LabTest = { id: string; name: string; price?: number }
+type OrderTest = {
+  _id: string
+  testId: string
+  testName: string
+  price: number
+  status: 'pending' | 'sample_collected' | 'in_progress' | 'result_entered' | 'approved' | 'completed' | 'returned'
+  sampleTime?: string
+  isReturned: boolean
+  returnedAt?: string
+  resultId?: string
+}
 
 type Order = {
   id: string
   createdAt: string
   patient: { fullName: string; phone: string; cnic?: string; guardianName?: string; mrn?: string }
-  tests: string[]
-  status: 'received'|'completed'|'returned'
-  returnedTests?: string[]
+  tests: OrderTest[] // Now populated from LabOrderTest collection
+  status: 'received'|'in_progress'|'completed'|'cancelled'
   tokenNo?: string
-  sampleTime?: string
-  subtotal?: number
-  discount?: number
-  net?: number
+  barcode?: string
+  sampleCollectedAt?: string
+  referringConsultant?: string
+  collectionCenterName?: string
   receivedAmount?: number
   receivableAmount?: number
-  barcode?: string
-  createdByUsername?: string
 }
 
 
@@ -39,7 +46,6 @@ function genBarcode(order: Order) {
 
 export default function Lab_Tracking() {
   const [orders, setOrders] = useState<Order[]>([])
-  const [tests, setTests] = useState<LabTest[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   // no tick needed; backend drives pagination
@@ -47,46 +53,75 @@ export default function Lab_Tracking() {
   const [trackOpen, setTrackOpen] = useState(false)
   const [trackTokenNo, setTrackTokenNo] = useState<string | null>(null)
 
-  const testsMap = useMemo(() => Object.fromEntries(tests.map(t => [t.id, t.name])), [tests])
-  const testsPriceMap = useMemo(() => Object.fromEntries(tests.map(t => [t.id, Number(t.price||0)])), [tests])
-
   // Filters
   const [q, setQ] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [status, setStatus] = useState<'all' | 'received' | 'completed'>('all')
+  const [collectionCenters, setCollectionCenters] = useState<{_id: string, name: string}[]>([])
+  const [selectedCenterId, setSelectedCenterId] = useState('')
   const [rows, setRows] = useState(20)
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState<{ text: string; kind: 'success'|'error' } | null>(null)
+
+  // Reason dialog state
+  const [reasonOpen, setReasonOpen] = useState(false)
+  const [reasonMode, setReasonMode] = useState<'return'|'undo'>('return')
+  const [reasonCtx, setReasonCtx] = useState<{ id: string; testId: string } | null>(null)
+
+  // Patient info dialog
+  const [patientOpen, setPatientOpen] = useState(false)
+  const [patientCtx, setPatientCtx] = useState<null | { patient: Order['patient']; token: string; barcode: string }>(null)
+
   const [receiveOpen, setReceiveOpen] = useState(false)
   const [receiveToken, setReceiveToken] = useState<string>('')
   const [receiveAmount, setReceiveAmount] = useState<string>('')
 
-  const [editOpen, setEditOpen] = useState(false)
-  const [editToken, setEditToken] = useState('')
-  const [editTests, setEditTests] = useState<string[]>([])
-  const [editDiscount, setEditDiscount] = useState('0')
-  const [editReceived, setEditReceived] = useState('0')
-  const [editSearch, setEditSearch] = useState('')
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const res: any = await labApi.listActiveCollectionCenters()
+        if (!mounted) return
+        setCollectionCenters(res.items || [])
+      } catch {}
+    })()
+    return () => { mounted = false }
+  }, [])
 
   useEffect(()=>{
     let mounted = true
     ;(async()=>{
       try {
-        const [ordRes, tstRes] = await Promise.all([
-          labApi.listOrders({ q: q || undefined, from: from || undefined, to: to || undefined, status: status==='all'? undefined : status, page, limit: rows }),
-          labApi.listTests({ limit: 1000 }),
-        ])
+        const ordRes: any = await labApi.listOrders({ 
+          q: q || undefined, 
+          from: from || undefined, 
+          to: to || undefined, 
+          status: status==='all'? undefined : status, 
+          collectionCenterId: selectedCenterId || undefined,
+          page, 
+          limit: rows 
+        })
         if (!mounted) return
-        const items: Order[] = (ordRes.items||[]).map((x:any)=>({ id: x._id, createdAt: x.createdAt || new Date().toISOString(), patient: x.patient || { fullName: '-', phone: '' }, tests: x.tests || [], status: x.status || 'received', returnedTests: Array.isArray(x.returnedTests)? x.returnedTests : [], tokenNo: x.tokenNo, sampleTime: x.sampleTime, subtotal: Number(x.subtotal||0), discount: Number(x.discount||0), net: Number(x.net||0), receivedAmount: Number(x.receivedAmount||0), receivableAmount: Number(x.receivableAmount||0), barcode: x.barcode, createdByUsername: x.createdByUsername }))
+        const items: Order[] = (ordRes.items||[]).map((x:any)=>({
+          id: x._id,
+          createdAt: x.createdAt || new Date().toISOString(),
+          patient: x.patient || { fullName: '-', phone: '' },
+          tests: x.tests || [], // LabOrderTest documents from API
+          status: x.status || 'received',
+          tokenNo: x.tokenNo,
+          barcode: x.barcode,
+          sampleCollectedAt: x.sampleCollectedAt,
+          referringConsultant: x.referringConsultant,
+          collectionCenterName: x.collectionCenterName,
+        }))
         setOrders(items)
         setTotal(Number(ordRes.total||items.length||0))
         setTotalPages(Number(ordRes.totalPages||1))
-        setTests((tstRes.items||[]).map((t:any)=>({ id: t._id, name: t.name, price: Number(t.price||0) })))
-      } catch(e){ console.error(e); setOrders([]); setTests([]); setTotal(0); setTotalPages(1) }
+      } catch(e){ console.error(e); setOrders([]); setTotal(0); setTotalPages(1) }
     })()
     return ()=>{ mounted = false }
-  }, [q, from, to, status, page, rows])
+  }, [q, from, to, status, selectedCenterId, page, rows])
 
   const pageCount = totalPages
   const curPage = Math.min(page, pageCount)
@@ -98,19 +133,19 @@ export default function Lab_Tracking() {
     const win = window.open('', 'print', 'width=900,height=700')
     if (!win) return
     const rowsHtml = items.map(o => {
-      const token = o.tokenNo || genToken(o.createdAt, o.id)
-      return o.tests.map(tid => {
-        const tname = testsMap[tid] || '-'
+      const token = o.tokenNo || o.id
+      return o.tests.map(t => {
+        const tname = t.testName || t.testId || '-'
         return `<tr>
           <td>${formatDateTime(o.createdAt)}</td>
-          <td>${escapeHtml(o.patient.fullName)}</td>
+          <td>${o.patient.fullName}</td>
           <td>${token}</td>
-          <td>${escapeHtml(tname)}</td>
-          <td>${escapeHtml(o.patient.mrn || '-')}</td>
-          <td>${escapeHtml(o.patient.phone || '-')}</td>
-          <td>${o.sampleTime || '-'}</td>
-          <td>${o.status}</td>
-          <td>${escapeHtml(o.createdByUsername || '-')}</td>
+          <td>${tname}</td>
+          <td>${o.patient.mrn || '-'}</td>
+          <td>${o.patient.phone || '-'}</td>
+          <td>${t.sampleTime || '-'}</td>
+          <td>${t.status}</td>
+          <td>-</td>
         </tr>`
       }).join('')
     }).join('')
@@ -134,54 +169,6 @@ export default function Lab_Tracking() {
     win.document.close(); win.focus(); win.print();
   }
 
-  const openEdit = (tokenNo: string) => {
-    const same = orders.filter(o => (o.tokenNo || genToken(o.createdAt, o.id)) === tokenNo)
-    const testIds = Array.from(new Set(same.flatMap(o => o.tests || [])))
-    const any = same[0]
-    setEditToken(tokenNo)
-    setEditTests(testIds)
-    setEditDiscount(String(Math.max(0, Number(any?.discount || 0))))
-    setEditReceived(String(Math.max(0, Number(any?.receivedAmount || 0))))
-    setEditSearch('')
-    setEditOpen(true)
-  }
-
-  const submitEdit = async () => {
-    const tokenNo = String(editToken || '').trim()
-    if (!tokenNo) return
-    const discount = Math.max(0, Number(editDiscount) || 0)
-    const receivedAmount = Math.max(0, Number(editReceived) || 0)
-    const testsArr = Array.from(new Set((editTests || []).map(String))).filter(Boolean)
-    if (!testsArr.length) return
-    try {
-      const r: any = await labApi.updateOrderToken(tokenNo, { tests: testsArr, discount, receivedAmount })
-      const rec = Number(r?.receivedAmount || 0)
-      const recvbl = Number(r?.receivableAmount || 0)
-      // Refresh list after edit (simplest)
-      const ordRes: any = await labApi.listOrders({ q: q || undefined, from: from || undefined, to: to || undefined, status: status==='all'? undefined : status, page, limit: rows })
-      const items: Order[] = (ordRes.items||[]).map((x:any)=>({ id: x._id, createdAt: x.createdAt || new Date().toISOString(), patient: x.patient || { fullName: '-', phone: '' }, tests: x.tests || [], status: x.status || 'received', returnedTests: Array.isArray(x.returnedTests)? x.returnedTests : [], tokenNo: x.tokenNo, sampleTime: x.sampleTime, subtotal: Number(x.subtotal||0), discount: Number(x.discount||0), net: Number(x.net||0), receivedAmount: Number(x.receivedAmount||0), receivableAmount: Number(x.receivableAmount||0) }))
-      setOrders(items)
-      setTotal(Number(ordRes.total||items.length||0))
-      setTotalPages(Number(ordRes.totalPages||1))
-      setNotice({ text: `Token updated. Received ${rec}, Receivable ${recvbl}`, kind: 'success' })
-      setEditOpen(false)
-    } catch (e){
-      console.error(e)
-      setNotice({ text: 'Failed to update token', kind: 'error' })
-    }
-  }
-
-  const setSampleTimeFor = async (id: string, t: string) => {
-    try { await labApi.updateOrderTrack(id, { sampleTime: t }) } catch(e){ console.error(e) }
-    setOrders(prev => prev.map(o => o.id===id ? { ...o, sampleTime: t } : o))
-  }
-
-  const openReceive = (tokenNo: string) => {
-    setReceiveToken(tokenNo)
-    setReceiveAmount('')
-    setReceiveOpen(true)
-  }
-
   const submitReceive = async () => {
     const tokenNo = String(receiveToken || '').trim()
     const amount = Math.max(0, Number(receiveAmount) || 0)
@@ -190,7 +177,7 @@ export default function Lab_Tracking() {
       const r: any = await labApi.receiveTokenPayment(tokenNo, { amount })
       const rec = Number(r?.receivedAmount || 0)
       const recvbl = Number(r?.receivableAmount || 0)
-      setOrders(prev => prev.map(o => (o.tokenNo || genToken(o.createdAt, o.id)) === tokenNo ? { ...o, receivedAmount: rec, receivableAmount: recvbl } : o))
+      setOrders(prev => prev.map(o => (o.tokenNo || o.id) === tokenNo ? { ...o, receivedAmount: rec, receivableAmount: recvbl } : o))
       setNotice({ text: 'Payment received', kind: 'success' })
       setReceiveOpen(false)
     } catch (e){
@@ -199,18 +186,30 @@ export default function Lab_Tracking() {
     }
   }
 
-  // Reason dialog state
-  const [reasonOpen, setReasonOpen] = useState(false)
-  const [reasonMode, setReasonMode] = useState<'return'|'undo'>('return')
-  const [reasonCtx, setReasonCtx] = useState<{ id: string; testId: string } | null>(null)
+  const openReceive = (tokenNo: string) => {
+    // Compute receivable amount from local orders data for this token
+    const sameToken = orders.filter(x => (x.tokenNo || genBarcode(x)) === tokenNo)
+    const activeTests = sameToken.flatMap(x => (x.tests || []).filter((t: OrderTest) => !t.isReturned))
+    const tokenNet = activeTests.reduce((s, t) => s + Number(t.price || 0), 0)
+    const currentReceived = sameToken[0]?.receivedAmount || 0
+    const receivable = Math.max(0, tokenNet - Number(currentReceived || 0))
 
-  // Delete confirm state
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+    setReceiveToken(tokenNo)
+    setReceiveAmount(receivable > 0 ? String(receivable) : '')
+    setReceiveOpen(true)
+  }
 
-  // Patient info dialog
-  const [patientOpen, setPatientOpen] = useState(false)
-  const [patientCtx, setPatientCtx] = useState<null | { patient: Order['patient']; token: string; barcode: string }>(null)
+  const setSampleTimeFor = async (id: string, testId: string, time: string) => {
+    try {
+      await labApi.updateOrderTrack(id, { testId, sampleTime: time })
+      setOrders(prev => prev.map(o => o.id === id ? { 
+        ...o, 
+        tests: o.tests.map(t => 
+          String(t.testId) === String(testId) ? { ...t, sampleTime: time } : t
+        ) 
+      } : o))
+    } catch (e) { console.error(e) }
+  }
 
   const openReturn = (id: string, testId: string) => { setReasonMode('return'); setReasonCtx({ id, testId }); setReasonOpen(true) }
   const openUndo = (id: string, testId: string) => { setReasonMode('undo'); setReasonCtx({ id, testId }); setReasonOpen(true) }
@@ -219,62 +218,94 @@ export default function Lab_Tracking() {
     if (!reasonCtx) return
     const { id, testId } = reasonCtx
     const o = orders.find(x => x.id === id); if (!o) { setReasonOpen(false); return }
-    const tokenNo = o.tokenNo || genToken(o.createdAt, o.id)
     try {
       if (reasonMode === 'return'){
-        await labApi.createReturn({ type: 'Customer', datetime: new Date().toISOString(), reference: tokenNo, party: o.patient.fullName, testId: String(testId), note: note || undefined, lines: [] })
+        // Find the test to get its price for refund calculation
+        const test = o.tests.find(t => String(t.testId) === String(testId))
+        const price = test ? Number(test.price || 0) : 0
+        
+        // Call track update with return info
+        await labApi.updateOrderTrack(id, { 
+          testId: String(testId), 
+          orderTestId: (test as any)?.orderTestId,
+          status: 'returned', 
+          isReturned: true, 
+          returnReason: note || 'Customer Return',
+          refundAmount: price,
+          refundMethod: 'cash'
+        })
+
         setOrders(prev => prev.map(x => {
           if (x.id !== id) return x
-          const rt = new Set<string>([...(x.returnedTests||[]).map(String), String(testId)])
-          const allReturned = rt.size >= (x.tests||[]).length
-          return { ...x, returnedTests: Array.from(rt), status: allReturned ? 'returned' : x.status }
+          const updatedTests = x.tests.map(t => 
+            String(t.testId) === String(testId) 
+              ? { ...t, isReturned: true, status: 'returned' as const, returnedAt: new Date().toISOString() }
+              : t
+          )
+          return { ...x, tests: updatedTests }
         }))
-        try { window.dispatchEvent(new CustomEvent('lab:return', { detail: { reference: tokenNo } })) } catch {}
       } else {
-        await labApi.undoReturn({ reference: tokenNo, testId: String(testId), note: note || undefined })
+        // Undo return
+        const test = o.tests.find(t => String(t.testId) === String(testId))
+        await labApi.updateOrderTrack(id, { 
+          testId: String(testId), 
+          orderTestId: (test as any)?.orderTestId,
+          status: 'sample_collected', 
+          isReturned: false 
+        })
+
         setOrders(prev => prev.map(x => {
           if (x.id !== id) return x
-          const before = new Set<string>((x.returnedTests||[]).map(String))
-          before.delete(String(testId))
-          const allReturned = before.size >= (x.tests||[]).length
-          return { ...x, returnedTests: Array.from(before), status: allReturned ? 'returned' : 'received' }
+          const updatedTests = x.tests.map(t => 
+            String(t.testId) === String(testId) 
+              ? { ...t, isReturned: false, status: 'sample_collected' as const, returnedAt: undefined }
+              : t
+          )
+          return { ...x, tests: updatedTests }
         }))
-        try { window.dispatchEvent(new CustomEvent('lab:return', { detail: { reference: tokenNo, undo: true } })) } catch {}
       }
     } catch (e){ console.error(e); setNotice({ text: `Failed to ${reasonMode==='return'?'return':'undo'} test`, kind: 'error' }); try { setTimeout(()=> setNotice(null), 2500) } catch {} }
     setReasonOpen(false)
   }
 
-  const requestDelete = (id: string) => { setDeleteId(id); setDeleteOpen(true) }
-  const performDelete = async () => {
-    const id = deleteId; if (!id) { setDeleteOpen(false); return }
-    try {
-      await labApi.deleteOrder(id)
-      setOrders(prev => prev.filter(o => o.id !== id))
-      setNotice({ text: 'Sample deleted', kind: 'success' })
-    } catch (e){ console.error(e); setNotice({ text: 'Failed to delete sample', kind: 'error' }) }
-    finally {
-      setDeleteOpen(false); setDeleteId(null); try { setTimeout(()=> setNotice(null), 2500) } catch {}
-    }
-  }
-
   const printToken = async (id: string) => {
     const o = orders.find(x => x.id === id); if (!o) return
-    const tokenNo = o.tokenNo || genToken(o.createdAt, id)
-    // Group all orders sharing the same token to build a single slip like Sample Intake
-    const sameToken = orders.filter(x => (x.tokenNo || genToken(x.createdAt, x.id)) === tokenNo)
-    const testIds = Array.from(new Set(sameToken.flatMap(x => x.tests)))
-    // Prefer saved per-order subtotals for exact historical pricing; fallback to catalog price
-    const priceByTestId: Record<string, number> = {}
+    const tokenNo = o.tokenNo || genBarcode(o)
+
+    // Fetch token timeline to get updated financial data (like Today's Tokens does)
+    let tl: any = null
+    let tlToken: any = null
+    let testStatuses: any[] = []
+    try {
+      tl = await labApi.getTokenTimeline(tokenNo)
+      tlToken = tl?.token
+      testStatuses = Array.isArray(tl?.testStatuses) ? tl.testStatuses : []
+    } catch {}
+
+    const sameToken = orders.filter(x => (x.tokenNo || genBarcode(x)) === tokenNo)
+    const allTests: Array<{ testId: string; testName: string; price: number; isReturned?: boolean; status?: string }> = []
     sameToken.forEach(x => {
-      const t = (x.tests||[])[0]
-      if (t && priceByTestId[t] == null) priceByTestId[t] = Number(x.subtotal||0)
+      (x.tests || []).forEach((t: OrderTest) => {
+        allTests.push({ testId: t.testId, testName: t.testName, price: Number(t.price || 0), isReturned: t.isReturned, status: t.status })
+      })
     })
-    const rows = testIds.map(tid => ({ name: testsMap[tid] || tid, price: (priceByTestId[tid] != null) ? Number(priceByTestId[tid]) : Number(testsPriceMap[tid] || 0) }))
-    const subtotal = rows.reduce((s,r)=> s + Number(r.price||0), 0)
-    const discount = sameToken.reduce((s,x)=> s + Number(x.discount||0), 0)
-    const net = Math.max(0, subtotal - discount)
-    // Try to enrich patient info (age, gender) and printedBy
+
+    // Build test rows from timeline data if available (includes returned state and correct prices)
+    const rows = (testStatuses.length > 0 ? testStatuses : allTests).map((t: any) => ({
+      name: (t.isReturned || t.status === 'returned') 
+        ? `${t.testName || t.testId} (Returned)` 
+        : (t.testName || t.testId),
+      price: Number(t.price || 0)
+    }))
+
+    const activeSubtotal = rows.reduce((s: number, r: any) => s + (r.name.includes('(Returned)') ? 0 : Number(r.price || 0)), 0)
+
+    // Use timeline financial data if available (includes return/undo adjustments)
+    const subtotal = Number(tlToken?.subtotal || tl?.order?.subtotal || activeSubtotal)
+    const discount = Number(tlToken?.discount || 0)
+    const net = Number(tlToken?.net || tl?.order?.net || Math.max(0, subtotal - discount))
+    const receivedAmount = Number(tlToken?.receivedAmount || tl?.order?.receivedAmount || 0)
+    const receivableAmount = Number(tlToken?.receivableAmount || tl?.order?.receivableAmount || Math.max(0, net - receivedAmount))
     let age: string | undefined = (o as any)?.patient?.age ? String((o as any).patient.age) : undefined
     let gender: string | undefined = (o as any)?.patient?.gender ? String((o as any).patient.gender) : undefined
     try {
@@ -316,7 +347,7 @@ export default function Lab_Tracking() {
         const h = localStorage.getItem('hospital.session'); if (h){ const u = JSON.parse(h||'{}'); printedBy = u?.username || '' }
       }
     } catch {}
-    await printLabTokenSlip({ tokenNo, createdAt: o.createdAt, patient: { fullName: o.patient.fullName, mrn: o.patient.mrn, phone: o.patient.phone, gender, age }, tests: rows, subtotal, discount, net, printedBy })
+    await printLabTokenSlip({ tokenNo, createdAt: o.createdAt, patient: { fullName: o.patient.fullName, mrn: o.patient.mrn, phone: o.patient.phone, gender, age }, tests: rows, subtotal, discount, net, receivedAmount, receivableAmount, printedBy })
   }
 
   return (
@@ -338,6 +369,19 @@ export default function Lab_Tracking() {
             <button type="button" onClick={()=>setStatus('all')} className={`rounded-md px-3 py-1.5 border ${status==='all'?'bg-sky-600 text-white border-sky-600':'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>All</button>
             <button type="button" onClick={()=>setStatus('received')} className={`rounded-md px-3 py-1.5 border ${status==='received'?'bg-sky-600 text-white border-sky-600':'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>Received</button>
             <button type="button" onClick={()=>setStatus('completed')} className={`rounded-md px-3 py-1.5 border ${status==='completed'?'bg-sky-600 text-white border-sky-600':'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>Completed</button>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <select
+              value={selectedCenterId}
+              onChange={e => { setSelectedCenterId(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-slate-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-200 outline-none"
+            >
+              <option value="">All Locations</option>
+              <option value="internal">Main Lab</option>
+              {collectionCenters.map(c => (
+                <option key={c._id} value={c._id}>{c.name}</option>
+              ))}
+            </select>
           </div>
           <div className="ml-auto flex items-center gap-2 text-sm">
             <span>Rows</span>
@@ -370,56 +414,59 @@ export default function Lab_Tracking() {
           </thead>
           <tbody>
             {items.reduce((acc: any[], o) => {
-              const token = o.tokenNo || genToken(o.createdAt, o.id)
-              o.tests.forEach((tid, idx) => {
-                const tname = testsMap[tid] || '—'
-                const isReturned = Array.isArray(o.returnedTests) ? o.returnedTests.map(String).includes(String(tid)) : false
-                const rowStatus = isReturned ? 'returned' : o.status
-                acc.push(
-                  <tr key={`${o.id}-${tid}-${idx}`} className="border-b border-slate-100 text-slate-700 hover:bg-slate-50/70">
-                    <td className="px-4 py-2 whitespace-nowrap">{formatDateTime(o.createdAt)}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{o.patient.fullName}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{token}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-xs">
-                        <Barcode className="h-4 w-4 text-slate-400" />
-                        <span className="font-mono">{o.barcode || genBarcode(o)}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2">{tname}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      <input type="time" value={o.sampleTime || ''} onChange={e=>setSampleTimeFor(o.id, e.target.value)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-slate-900" />
-                    </td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${rowStatus==='completed'?'bg-emerald-100 text-emerald-700':(rowStatus==='returned'?'bg-rose-100 text-rose-700':'bg-slate-100 text-slate-700')}`}>{rowStatus}</span>
-                    </td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={()=>printToken(o.id)} title="Print Token" className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"><Printer className="h-4 w-4" /></button>
-                        <button
-                          type="button"
-                          onClick={() => { setTrackTokenNo(token); setTrackOpen(true) }}
-                          title="Test Tracking"
-                          className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                        >
-                          <Clock className="h-4 w-4" />
-                        </button>
-                        <button type="button" onClick={()=>openEdit(token)} title="Edit" className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"><Edit className="h-4 w-4" /></button>
-                        {Number(o.receivableAmount||0) > 0 ? (
+              const token = o.tokenNo || o.id
+              if (Array.isArray(o.tests)) {
+                o.tests.forEach((t, idx) => {
+                  const tid = t.testId
+                  const tname = t.testName || tid || '—'
+                  const rowStatus = t.status
+                  const isReturned = t.isReturned || rowStatus === 'returned'
+                  
+                  acc.push(
+                    <tr key={`${o.id}-${tid}-${idx}`} className={`border-b border-slate-100 text-slate-700 hover:bg-slate-50/70 ${isReturned ? 'bg-rose-50/30' : ''}`}>
+                      <td className="px-4 py-2 whitespace-nowrap">{formatDateTime(o.createdAt)}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">{o.patient.fullName}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">{token}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <div className="flex items-center gap-1 text-xs">
+                          <Barcode className="h-4 w-4 text-slate-400" />
+                          <span className="font-mono">{o.barcode || genBarcode(o)}</span>
+                        </div>
+                      </td>
+                      <td className={`px-4 py-2 ${isReturned ? 'line-through text-slate-400' : ''}`}>{tname}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <input type="time" disabled={isReturned} value={t.sampleTime || ''} onChange={e=>setSampleTimeFor(o.id, String(tid), e.target.value)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-slate-900 disabled:opacity-50" />
+                      </td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${
+                          rowStatus === 'completed' || rowStatus === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                          rowStatus === 'result_entered' ? 'bg-orange-100 text-orange-700' :
+                          rowStatus === 'sample_collected' ? 'bg-blue-100 text-blue-700' :
+                          rowStatus === 'returned' ? 'bg-rose-100 text-rose-700' :
+                          rowStatus === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                          'bg-slate-100 text-slate-700'
+                        }`}>{rowStatus}</span>
+                      </td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <button type="button" onClick={()=>printToken(o.id)} title="Print Token" className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"><Printer className="h-4 w-4" /></button>
+                          <button
+                            type="button"
+                            onClick={() => { setTrackTokenNo(token); setTrackOpen(true) }}
+                            title="Test Tracking"
+                            className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                          >
+                            <Clock className="h-4 w-4" />
+                          </button>
                           <button type="button" onClick={()=>openReceive(token)} title="Receive Payment" className="inline-flex items-center justify-center rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"><DollarSign className="h-4 w-4" /></button>
-                        ) : null}
-                        {rowStatus==='received' ? (
                           <button type="button" onClick={()=>openReturn(o.id, String(tid))} title="Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><RotateCcw className="h-4 w-4" /></button>
-                        ) : null}
-                        {rowStatus==='returned' ? (
                           <button type="button" onClick={()=>openUndo(o.id, String(tid))} title="Undo Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-violet-600 hover:bg-violet-50 hover:text-violet-700"><RotateCcw className="h-4 w-4" /></button>
-                        ) : null}
-                        <button type="button" onClick={()=>requestDelete(o.id)} title="Delete" className="inline-flex items-center justify-center rounded-md p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><Trash2 className="h-4 w-4" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              }
               return acc
             }, [] as any[])}
           </tbody>
@@ -436,19 +483,6 @@ export default function Lab_Tracking() {
           <span>{curPage} / {pageCount}</span>
         </div>
       </div>
-
-      {deleteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-            <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800">Confirm Delete</div>
-            <div className="px-5 py-4 text-sm text-slate-700">Delete this sample? This will remove the order and any associated results.</div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-              <button type="button" onClick={()=>{ setDeleteOpen(false); setDeleteId(null) }} className="btn-outline-navy">Cancel</button>
-              <button type="button" onClick={performDelete} className="btn bg-rose-600 hover:bg-rose-700">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {patientOpen && patientCtx && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
@@ -515,106 +549,7 @@ export default function Lab_Tracking() {
         </div>
       )}
 
-      {editOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-            <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800">Edit Token</div>
-            <div className="px-5 py-4 text-sm text-slate-700 space-y-4">
-              <div>
-                <div className="text-xs text-slate-500">Token</div>
-                <div className="mt-1 font-mono text-slate-900">{editToken}</div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Discount</label>
-                  <input value={editDiscount} onChange={e=>setEditDiscount(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" placeholder="0" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Received</label>
-                  <input value={editReceived} onChange={e=>setEditReceived(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" placeholder="0" />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 text-xs font-medium text-slate-600">Selected Tests ({editTests.length})</div>
-                <div className="max-h-52 overflow-y-auto rounded-lg border border-slate-200">
-                  {editTests.length === 0 ? (
-                    <div className="px-3 py-3 text-xs text-slate-500">No tests selected</div>
-                  ) : (
-                    editTests.map((id) => {
-                      const t = tests.find(x => x.id === id)
-                      return (
-                        <label key={id} className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 last:border-b-0">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={true}
-                              onChange={()=> setEditTests(prev => prev.filter(x => x !== id))}
-                            />
-                            <span className="text-slate-800">{t?.name || id}</span>
-                          </div>
-                          <div className="text-xs text-slate-500">{Number(t?.price||0).toLocaleString()}</div>
-                        </label>
-                      )
-                    })
-                  )}
-                </div>
-
-                <div className="mt-4">
-                  <div className="mb-2 text-xs font-medium text-slate-600">Add Test</div>
-                  <input value={editSearch} onChange={e=>setEditSearch(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" placeholder="Search test by name..." />
-                  {(editSearch.trim().length > 0) && (
-                    <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-slate-200">
-                      {tests
-                        .filter(t => !editTests.includes(t.id))
-                        .filter(t => t.name.toLowerCase().includes(editSearch.trim().toLowerCase()))
-                        .slice(0, 30)
-                        .map(t => (
-                          <button
-                            type="button"
-                            key={t.id}
-                            onClick={() => { setEditTests(prev => Array.from(new Set([...prev, t.id]))); setEditSearch('') }}
-                            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
-                          >
-                            <div className="text-slate-800">{t.name}</div>
-                            <div className="text-xs text-slate-500">{Number(t.price||0).toLocaleString()}</div>
-                          </button>
-                        ))}
-                      {tests
-                        .filter(t => !editTests.includes(t.id))
-                        .filter(t => t.name.toLowerCase().includes(editSearch.trim().toLowerCase())).length === 0 && (
-                          <div className="px-3 py-3 text-xs text-slate-500">No matches</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-              <button type="button" onClick={()=>setEditOpen(false)} className="btn-outline-navy">Cancel</button>
-              <button type="button" onClick={submitEdit} className="btn bg-violet-700 hover:bg-violet-800">Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <Lab_TrackDialog open={trackOpen} onClose={() => setTrackOpen(false)} tokenNo={trackTokenNo || undefined} />
     </div>
   )
-}
-
-function genToken(dateIso: string, id: string) {
-  const d = new Date(dateIso)
-  const part = `${d.getDate().toString().padStart(2,'0')}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getFullYear()}`
-  return `D${part}_${id.slice(-3)}`
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
 }

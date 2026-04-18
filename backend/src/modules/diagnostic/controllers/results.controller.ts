@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { DiagnosticResult } from '../models/Result'
 import { DiagnosticOrder } from '../models/Order'
 import { DiagnosticAuditLog } from '../models/AuditLog'
+import { HospitalReferral } from '../../hospital/models/Referral'
 import jwt from 'jsonwebtoken'
 import { env } from '../../../config/env'
 import { resultCreateSchema, resultQuerySchema, resultUpdateSchema } from '../validators/result'
@@ -47,7 +48,7 @@ export async function create(req: Request, res: Response){
   const data = resultCreateSchema.parse(req.body)
   const doc = await DiagnosticResult.create(data)
   try {
-    // Mark corresponding order item as completed
+    // Mark corresponding order item as completed and update referral status
     const order: any = await DiagnosticOrder.findById(data.orderId)
     if (order){
       if (!Array.isArray(order.items)) order.items = []
@@ -59,6 +60,16 @@ export async function create(req: Request, res: Response){
       else if (statuses.length>0 && statuses.every((s: any)=> s==='completed')) order.status = 'completed'
       else order.status = 'received'
       await order.save()
+      
+      // Update referral reportStatus if order has linked token
+      if (order.tokenNo) {
+        const referral = await HospitalReferral.findOne({ tokenNo: order.tokenNo, type: 'diagnostic' })
+        if (referral) {
+          await HospitalReferral.findByIdAndUpdate(referral._id, {
+            $set: { reportStatus: 'result_entered' }
+          })
+        }
+      }
     }
   } catch {}
   try {
@@ -84,7 +95,7 @@ export async function update(req: Request, res: Response){
   const doc = await DiagnosticResult.findByIdAndUpdate(id, { $set: patch }, { new: true })
   if (!doc) return res.status(404).json({ message: 'Result not found' })
   try {
-    // If result finalized, ensure order item is completed
+    // If result finalized, ensure order item is completed and update referral status
     if (patch.status === 'final' || doc.status === 'final'){
       const order: any = await DiagnosticOrder.findById(doc.orderId)
       if (order){
@@ -96,6 +107,16 @@ export async function update(req: Request, res: Response){
         else if (statuses.length>0 && statuses.every((s: any)=> s==='completed')) order.status = 'completed'
         else order.status = 'received'
         await order.save()
+        
+        // Update referral reportStatus to final if order has linked token
+        if (order.tokenNo) {
+          const referral = await HospitalReferral.findOne({ tokenNo: order.tokenNo, type: 'diagnostic' })
+          if (referral) {
+            await HospitalReferral.findByIdAndUpdate(referral._id, {
+              $set: { reportStatus: 'final' }
+            })
+          }
+        }
       }
     }
   } catch {}

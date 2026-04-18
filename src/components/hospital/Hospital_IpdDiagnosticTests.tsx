@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { hospitalApi, diagnosticApi } from '../../utils/api'
 import { printEchocardiographyReport } from '../diagnostic/diagnostic_Echocardiography'
 import { printUltrasoundReport } from '../diagnostic/diagnostic_UltrasoundGeneric'
@@ -7,6 +7,7 @@ import { printColonoscopyReport } from '../diagnostic/diagnostic_Colonoscopy'
 import { printUpperGIEndoscopyReport } from '../diagnostic/diagnostic_UpperGIEndoscopy'
 import Toast, { type ToastState } from '../ui/Toast'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import SuggestField from '../SuggestField'
 
 function resolveKey(name: string){
   const n = (name||'').toLowerCase()
@@ -149,6 +150,34 @@ export default function DiagnosticTests({ encounterId }: { encounterId: string }
 
 function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId, testOptions }: { open: boolean; onClose: ()=>void; onSave: (d: { doctorId: string; test: string; date: string })=>void; doctors: Array<{ _id: string; name: string }>; defaultDoctorId?: string; testOptions: string[] }){
   if(!open) return null
+
+  const [testName, setTestName] = useState('')
+  const [suggestions, setSuggestions] = useState<string[]>(testOptions || [])
+  const searchTimer = useRef<any>(null)
+
+  useEffect(() => {
+    if (open) {
+      setTestName('')
+      setSuggestions(testOptions || [])
+    }
+  }, [open, testOptions])
+
+  const mergedSuggestions = useMemo(() => suggestions, [suggestions])
+
+  const onTestChange = (v: string) => {
+    setTestName(v)
+    const q = String(v || '').trim()
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (q.length < 2) return
+    searchTimer.current = setTimeout(async () => {
+      try{
+        const res: any = await diagnosticApi.listTests({ q, limit: 30 })
+        const names: string[] = (res?.items || []).map((it: any) => String(it?.name || '')).filter(Boolean)
+        if (names.length) setSuggestions(prev => Array.from(new Set([...(prev || []), ...names])).sort())
+      }catch{}
+    }, 250)
+  }
+
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -167,10 +196,15 @@ function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId, testOpti
             ))}
           </select>
           <label htmlFor="diag-test" className="block text-xs font-medium text-slate-600">Diagnostic Test</label>
-          <input id="diag-test" name="test" list="diag-tests-list" placeholder="e.g. Ultrasound Abdomen" required className="w-full rounded-md border border-slate-300 px-3 py-2" />
-          <datalist id="diag-tests-list">
-            {testOptions.map(n => (<option key={n} value={n} />))}
-          </datalist>
+          <SuggestField
+            as="input"
+            value={testName}
+            onChange={onTestChange}
+            suggestions={mergedSuggestions}
+            placeholder="e.g. Ultrasound Abdomen"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+          <input type="hidden" name="test" value={testName} />
           <label htmlFor="diag-date" className="block text-xs font-medium text-slate-600">Date</label>
           <input id="diag-date" name="date" type="date" className="w-full rounded-md border border-slate-300 px-3 py-2" />
         </div>

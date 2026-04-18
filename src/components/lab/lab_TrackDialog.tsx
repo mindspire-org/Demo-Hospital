@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Clock, User, CheckCircle2, FlaskConical, FileText, Stamp } from 'lucide-react'
+import { X, User, Building } from 'lucide-react'
 import { labApi } from '../../utils/api'
 
 type TimelineEvent = {
@@ -20,7 +20,7 @@ type TokenData = {
     age?: string
     gender?: string
   }
-  tests: string[]
+  tests: Array<string | { testId: string; testName: string; price: number }>
   status: string
   barcode?: string
   generatedAt: string
@@ -38,6 +38,19 @@ type TokenData = {
   net?: number
   receivedAmount?: number
   receivableAmount?: number
+  testStatuses?: Array<{
+    testId: string
+    testName: string
+    status: string
+    sampleTime?: string
+    resultId?: string
+  }>
+  // Collection Center fields
+  collectionCenterId?: string
+  collectionCenterName?: string
+  centerCommissionPercent?: number
+  centerCommissionAmount?: number
+  centerNetAmount?: number
 }
 
 type TrackDialogProps = {
@@ -60,16 +73,14 @@ const statusColors: Record<string, string> = {
   token_generated: 'bg-blue-100 text-blue-700',
   converted_to_sample: 'bg-purple-100 text-purple-700',
   sample_received: 'bg-amber-100 text-amber-700',
+  sample_collected: 'bg-amber-100 text-amber-700',
+  returned: 'bg-rose-100 text-rose-700',
+  pending: 'bg-slate-100 text-slate-700',
   result_entered: 'bg-orange-100 text-orange-700',
+  result_rejected: 'bg-red-100 text-red-700',
+  result_edited: 'bg-yellow-100 text-yellow-700',
   approved: 'bg-emerald-100 text-emerald-700',
-}
-
-const eventIcons: Record<string, any> = {
-  'Token Generated': Clock,
-  'Converted to Sample': FlaskConical,
-  'Sample Received': CheckCircle2,
-  'Result Entered': FileText,
-  'Report Approved': Stamp,
+  completed: 'bg-emerald-100 text-emerald-700',
 }
 
 export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: TrackDialogProps) {
@@ -96,7 +107,11 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
     ;(async () => {
       try {
         const res = await labApi.getTokenTimeline(id)
-        setToken(res.token || null)
+        const t = res.token || null
+        if (t && res.testStatuses) {
+          t.testStatuses = res.testStatuses
+        }
+        setToken(t)
         setEvents(res.events || [])
         setOrder(res.order || null)
         
@@ -115,13 +130,12 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
   if (!open) return null
 
   const testsMap = Object.fromEntries(tests.map(t => [t.id, t.name]))
-  const testNames = (token?.tests || []).map(id => testsMap[id] || id).join(', ')
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-800">
+      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-800">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-700">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-700">
           <div>
             <div className="text-base font-semibold text-slate-800 dark:text-slate-100">Test Tracking</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">Track patient test progress</div>
@@ -136,7 +150,7 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
         </div>
 
         {/* Content */}
-        <div className="p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {loading && (
             <div className="py-8 text-center text-sm text-slate-600 dark:text-slate-400">Loading...</div>
           )}
@@ -172,12 +186,63 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
                     <span className="text-slate-500 dark:text-slate-400">MR No:</span>
                     <span className="ml-2 text-slate-800 dark:text-slate-200">{token.patient?.mrn || '-'}</span>
                   </div>
+                  
+                  {/* Collection Center Info */}
+                  {token.collectionCenterId && (
+                    <div className="col-span-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Building className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm font-bold text-blue-800 dark:text-blue-300">Collection Center</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <span className="text-slate-500 dark:text-slate-400">Center:</span>
+                          <span className="ml-1 font-semibold text-slate-800 dark:text-slate-200">{token.collectionCenterName || 'Unknown'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 dark:text-slate-400">Commission:</span>
+                          <span className="ml-1 font-semibold text-blue-700 dark:text-blue-400">{token.centerCommissionPercent || 0}%</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 dark:text-slate-400">Commission Amt:</span>
+                          <span className="ml-1 font-semibold text-orange-600 dark:text-orange-400">Rs {Number(token.centerCommissionAmount || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="col-span-2">
-                    <span className="text-slate-500 dark:text-slate-400">Tests:</span>
-                    <span className="ml-2 text-slate-800 dark:text-slate-200">{testNames || '-'}</span>
+                    <span className="text-slate-500 dark:text-slate-400">Tests Tracking:</span>
+                    <div className="mt-2 space-y-2">
+                      {(token.testStatuses || (token.tests || []).map(t => {
+                        if (typeof t === 'object' && t !== null) {
+                          return { testId: t.testId, testName: t.testName || testsMap[t.testId] || t.testId, status: token.status, sampleTime: undefined, isReturned: false }
+                        }
+                        return { testId: String(t), testName: testsMap[t] || String(t), status: token.status, sampleTime: undefined, isReturned: false }
+                      })).map((ts: any, idx) => {
+                        const isReturned = ts.isReturned || ts.status === 'returned'
+                        return (
+                          <div key={idx} className={`rounded-lg border p-2 text-xs dark:border-slate-700 ${isReturned ? 'border-rose-200 bg-rose-50/50 dark:bg-rose-900/10' : 'border-slate-100 bg-white dark:bg-slate-800'}`}>
+                            <div className="flex items-center justify-between">
+                              <span className={`font-medium ${isReturned ? 'line-through text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
+                                {ts.testName} {isReturned && <span className="ml-1 text-rose-600 font-bold">(Returned)</span>}
+                              </span>
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${statusColors[ts.status] || 'bg-slate-100 text-slate-700'}`}>
+                                {(ts.status || '').replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                            {ts.sampleTime && (
+                              <div className="mt-1 text-[10px] text-slate-500">
+                                Sample: {new Date(ts.sampleTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-slate-500 dark:text-slate-400">Status:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Overall Status:</span>
                     <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[token.status] || 'bg-slate-100 text-slate-700'}`}>
                       {token.status.replace(/_/g, ' ')}
                     </span>
@@ -207,23 +272,23 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
 
               {/* Timeline */}
               <div className="space-y-3">
-                <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Timeline</div>
+                <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Timeline (Step by Step)</div>
                 
-                <div className="relative space-y-4">
+                <div className="relative space-y-3">
                   {events.map((evt, idx) => {
-                    const Icon = eventIcons[evt.event] || Clock
+                    const stepNumber = idx + 1
                     const isLast = idx === events.length - 1
                     
                     return (
                       <div key={idx} className="relative flex gap-3">
                         {/* Timeline line */}
                         {!isLast && (
-                          <div className="absolute left-4 top-8 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700" />
+                          <div className="absolute left-5 top-8 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700" />
                         )}
                         
-                        {/* Icon */}
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
-                          <Icon className="h-4 w-4" />
+                        {/* Step Number */}
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-600 text-sm font-bold text-white dark:bg-violet-500">
+                          {stepNumber}
                         </div>
                         
                         {/* Content */}
@@ -256,7 +321,7 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end border-t border-slate-200 px-5 py-3 dark:border-slate-700">
+        <div className="flex shrink-0 justify-end border-t border-slate-200 px-5 py-3 dark:border-slate-700">
           <button
             type="button"
             onClick={onClose}

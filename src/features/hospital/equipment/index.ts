@@ -1,0 +1,6 @@
+export { equipmentApi } from './equipment.api'
+export { default as EquipmentDashboard } from './pages/EquipmentDashboard'
+export { default as EquipmentList } from './pages/EquipmentList'
+export { default as EquipmentSuppliers } from './pages/EquipmentSuppliers'
+export { default as EquipmentPurchases } from './pages/EquipmentPurchases'
+export { default as EquipmentDetail } from './pages/EquipmentDetail'

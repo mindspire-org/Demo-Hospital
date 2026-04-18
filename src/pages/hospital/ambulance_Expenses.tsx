@@ -196,14 +196,14 @@ export default function Ambulance_Expenses() {
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(n)
 
-  const categoryColors: Record<string, string> = {
-    'Fuel': 'bg-amber-100 text-amber-700',
-    'Maintenance': 'bg-sky-100 text-sky-700',
-    'Repairs': 'bg-rose-100 text-rose-700',
-    'Driver Allowance': 'bg-violet-100 text-violet-700',
-    'Insurance': 'bg-emerald-100 text-emerald-700',
-    'Registration': 'bg-slate-100 text-slate-700',
-    'Other': 'bg-slate-100 text-slate-600',
+  const categoryBadgeColors: Record<string, string> = {
+    'Fuel': 'bg-amber-100 text-amber-700 border-amber-200',
+    'Maintenance': 'bg-sky-100 text-sky-700 border-sky-200',
+    'Repairs': 'bg-rose-100 text-rose-700 border-rose-200',
+    'Driver Allowance': 'bg-violet-100 text-violet-700 border-violet-200',
+    'Insurance': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'Registration': 'bg-slate-100 text-slate-700 border-slate-200',
+    'Other': 'bg-slate-100 text-slate-600 border-slate-200',
   }
 
   return (
@@ -211,8 +211,8 @@ export default function Ambulance_Expenses() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-800">Expense Management</h2>
         <div className="flex gap-2">
-          <button onClick={exportCSV} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Export CSV</button>
-          <button onClick={() => setShowAdd(true)} className="rounded-md bg-sky-600 px-3 py-1.5 text-white hover:bg-sky-700">+ Add Expense</button>
+          <button onClick={exportCSV} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">Export CSV</button>
+          <button onClick={() => setShowAdd(true)} className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 transition-colors shadow-sm">+ Add Expense</button>
         </div>
       </div>
 
@@ -231,11 +231,11 @@ export default function Ambulance_Expenses() {
       </div>
 
       {/* Category Breakdown */}
-      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-medium text-slate-700">By Category</h3>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {Object.entries(summary.byCategory).map(([cat, amount]) => (
-            <div key={cat} className={`rounded-full px-3 py-1 text-sm ${categoryColors[cat]}`}>
+            <div key={cat} className={`rounded-full border px-3 py-1 text-sm font-medium ${categoryBadgeColors[cat]}`}>
               {cat}: {formatCurrency(amount)}
             </div>
           ))}
@@ -268,14 +268,14 @@ export default function Ambulance_Expenses() {
       <div className="mt-5 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left">
-              <th className="px-3 py-2 font-medium text-slate-600">Date</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Ambulance</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Category</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Amount</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Description</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Receipt</th>
-              <th className="px-3 py-2 font-medium text-slate-600"></th>
+            <tr className="border-b-2 border-slate-300 text-left bg-slate-100/50">
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Date</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Ambulance</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Category</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px] text-right">Amount</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Description</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Receipt</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]"></th>
             </tr>
           </thead>
           <tbody>
@@ -286,18 +286,28 @@ export default function Ambulance_Expenses() {
             ) : (
               expenses.map(e => (
               <tr key={e.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-3 py-2 text-slate-700">{e.date}</td>
+                <td className="px-3 py-2 text-slate-500">{e.date ? new Date(e.date).toLocaleDateString() : '-'}</td>
                 <td className="px-3 py-2 font-medium text-slate-800">{e.vehicleNumber}</td>
                 <td className="px-3 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${categoryColors[e.category]}`}>{e.category}</span>
+                  <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${categoryBadgeColors[e.category]}`}>{e.category}</span>
                 </td>
                 <td className="px-3 py-2 text-right font-medium text-rose-600">{formatCurrency(e.amount)}</td>
                 <td className="px-3 py-2 text-slate-500">{e.description || '-'}</td>
                 <td className="px-3 py-2 text-slate-500">{e.receiptNo || '-'}</td>
                 <td className="px-3 py-2">
-                  <div className="flex gap-1">
-                    <button onClick={() => { const exp = expenses.find(x => x.id === e.id); if (exp) setEditForm({ category: exp.category, amount: String(exp.amount), date: exp.date, description: exp.description || '', receiptNo: exp.receiptNo || '' }); setEditId(e.id) }} className="rounded p-1 text-slate-500 hover:bg-slate-100">✏️</button>
-                    <button onClick={() => setDeleteId(e.id)} className="rounded p-1 text-slate-500 hover:bg-slate-100">🗑️</button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { const exp = expenses.find(x => x.id === e.id); if (exp) setEditForm({ category: exp.category, amount: String(exp.amount), date: exp.date, description: exp.description || '', receiptNo: exp.receiptNo || '' }); setEditId(e.id) }}
+                      className="rounded-md bg-sky-50 px-3 py-1 text-sm font-medium text-sky-600 hover:bg-sky-100"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(e.id)}
+                      className="rounded-md bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </td>
               </tr>

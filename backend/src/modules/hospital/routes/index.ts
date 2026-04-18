@@ -54,27 +54,11 @@ import * as Audit from '../controllers/audit.controller'
 
 
 
-import * as FinanceAudit from '../controllers/finance_audit.controller'
-
-
-
 import * as Settings from '../controllers/settings.controller'
 
 
 
-import * as FinanceCtl from '../controllers/finance.controller'
-
-
-
 import * as Referrals from '../controllers/referrals.controller'
-
-
-
-import { list as financeUsersList, create as financeUsersCreate, update as financeUsersUpdate, remove as financeUsersRemove, login as financeUsersLogin, logout as financeUsersLogout } from '../controllers/finance_users.controller'
-
-
-
-import * as FinanceSidebarPerms from '../controllers/finance_sidebarPermission.controller'
 
 
 
@@ -115,8 +99,7 @@ import * as Appointments from '../controllers/appointments.controller'
 
 
 import * as Equipment from '../controllers/equipment.controller'
-
-
+import equipmentRoutes from './equipment.routes'
 
 import * as SidebarPerms from '../controllers/sidebarPermission.controller'
 
@@ -131,6 +114,8 @@ import * as ER from '../controllers/er.controller'
 
 
 import * as ERBilling from '../controllers/er_billing.controller'
+
+import * as FinanceCtl from '../../finance/controllers/finance.controller'
 
 
 
@@ -155,6 +140,8 @@ import * as IPDServices from '../controllers/ipd_services.controller'
 
 
 import * as ERRec from '../controllers/er_records.controller'
+
+import * as ErReferrals from '../controllers/er_referrals.controller'
 
 
 
@@ -294,7 +281,7 @@ r.post('/opd/encounters', OPD.createEncounter)
 
 
 
-r.get('/opd/quote-price', OPD.quotePrice)
+r.post('/opd/quote-price', OPD.quotePrice)
 
 
 
@@ -322,6 +309,12 @@ r.put('/opd/prescriptions/:id', Prescriptions.update)
 
 
 r.delete('/opd/prescriptions/:id', Prescriptions.remove)
+
+
+r.get('/opd/prescriptions/encounter/:encounterId', Prescriptions.getByEncounterId)
+
+
+r.put('/opd/prescriptions/encounter/:encounterId/vitals', Prescriptions.upsertVitals)
 
 
 // Prescription Templates (per doctor)
@@ -363,6 +356,10 @@ r.patch('/opd/referrals/:id/status', Referrals.updateStatus)
 
 r.delete('/opd/referrals/:id', Referrals.remove)
 
+r.patch('/opd/referrals/:id/link', Referrals.linkReferral)
+
+r.patch('/opd/referrals/:id/report-status', Referrals.updateReportStatus)
+
 
 
 
@@ -378,6 +375,14 @@ r.post('/ipd/admissions', IPD.admit)
 
 
 r.patch('/ipd/admissions/:id/discharge', IPD.discharge)
+
+
+
+// ER discharge (reuse discharge summary creation)
+r.patch('/er/encounters/:id/discharge', IPD.discharge)
+
+// ER encounters list
+ r.get('/er/encounters', ER.listER)
 
 
 
@@ -426,6 +431,39 @@ r.patch('/ipd/referrals/:id/status', IpdReferrals.updateStatus)
 
 
 r.post('/ipd/referrals/:id/admit', IpdReferrals.admit)
+
+
+
+
+// ER Referrals
+
+
+
+r.post('/er/referrals', ErReferrals.create)
+
+
+
+r.get('/er/referrals', ErReferrals.list)
+
+
+
+r.get('/er/referrals/:id', ErReferrals.getById)
+
+
+
+r.patch('/er/referrals/:id', ErReferrals.update)
+
+
+
+r.patch('/er/referrals/:id/status', ErReferrals.updateStatus)
+
+
+
+r.post('/er/referrals/:id/start-visit', ErReferrals.startVisit)
+
+
+
+r.post('/er/referrals/:id/complete', ErReferrals.completeVisit)
 
 
 
@@ -641,13 +679,7 @@ r.put('/ipd/billing/payments/:id', IPDRec.updatePayment)
 
 
 
-r.delete('/ipd/billing/payments/:id', IPDRec.removePayment)
-
-
-
-
-
-
+r.get('/ipd/admissions/:encounterId/billing/summary', IPDRec.getSummary)
 
 // ER Charges
 
@@ -690,6 +722,11 @@ r.get('/er/encounters/:encounterId/billing/payments', ERBilling.listPayments)
 
 
 r.post('/er/encounters/:encounterId/billing/payments', auth, ERBilling.createPayment)
+
+
+
+// Recent ER Payments (across all encounters)
+r.get('/er/billing/recent-payments', ERBilling.listRecentPayments)
 
 
 
@@ -1089,6 +1126,10 @@ r.post('/tokens/opd', auth, Tokens.createOpd)
 
 
 
+r.post('/tokens/quote-opd-price', OPD.quotePrice)
+
+
+
 r.get('/tokens', Tokens.list)
 
 
@@ -1341,6 +1382,11 @@ r.delete('/expenses/:id', Expense.remove)
 
 
 
+// Finance Transactions
+r.get('/finance/transactions', FinanceCtl.listAllTransactions)
+
+
+
 // Expense Departments & Categories
 
 r.get('/expense-departments', ExpenseMeta.listExpenseDepartments)
@@ -1355,191 +1401,6 @@ r.post('/expense-categories', ExpenseMeta.createExpenseCategory)
 
 r.delete('/expense-categories/:id', ExpenseMeta.deleteExpenseCategory)
 
-
-
-
-
-// Finance (Hospital-owned) Doctor finance
-
-
-
-r.post('/finance/manual-doctor-earning', FinanceCtl.postManualDoctorEarning)
-
-
-
-r.post('/finance/doctor-payout', auth, FinanceCtl.postDoctorPayout)
-
-
-
-r.get('/finance/doctor/:id/balance', FinanceCtl.getDoctorBalance)
-
-
-
-r.get('/finance/doctor/:id/payouts', FinanceCtl.listDoctorPayouts)
-
-
-
-r.get('/finance/doctor/:id/accruals', FinanceCtl.doctorAccruals)
-
-
-
-r.get('/finance/earnings', FinanceCtl.listDoctorEarnings)
-
-
-
-r.post('/finance/journal/:id/reverse', FinanceCtl.reverseJournal)
-
-
-
-r.delete('/finance/manual-earning/:id', FinanceCtl.deleteManualEarning)
-
-
-
-r.get('/finance/transactions', FinanceCtl.listAllTransactions)
-
-
-
-r.get('/finance/corporate-ar-breakdown', FinanceCtl.getCorporateARBreakdown)
-
-
-
-
-
-
-
-// Finance Accounts: Vendors
-
-
-
-
-
-
-
-// Finance Accounts: Trial Balance, Balance Sheet, Ledger
-
-
-
-
-
-
-
-// Finance Accounts: Vouchers
-
-
-
-
-
-
-
-// Finance Accounts: Recurring Payments
-
-
-
-
-
-
-
-// Finance Accounts: Combined Cash/Bank across modules
-
-
-
-
-
-
-
-// Manager Cash Count (Hospital)
-
-
-
-r.get('/finance/cash-counts', PharmacyCashCounts.list)
-
-
-
-r.post('/finance/cash-counts', PharmacyCashCounts.create)
-
-
-
-r.delete('/finance/cash-counts/:id', PharmacyCashCounts.remove)
-
-
-
-r.get('/finance/cash-counts/summary', PharmacyCashCounts.summary)
-
-
-
-
-
-
-
-// Finance: Users (Finance module-specific)
-
-
-
-r.get('/finance/users', financeUsersList)
-
-
-
-r.post('/finance/users', financeUsersCreate)
-
-
-
-r.put('/finance/users/:id', financeUsersUpdate)
-
-
-
-r.delete('/finance/users/:id', financeUsersRemove)
-
-
-
-r.post('/finance/users/login', financeUsersLogin)
-
-
-
-r.post('/finance/users/logout', financeUsersLogout)
-
-
-
-
-
-
-
-// Finance: Sidebar Roles & Permissions (Finance module-specific)
-
-
-
-r.get('/finance/sidebar-roles', FinanceSidebarPerms.listRoles)
-
-
-
-r.post('/finance/sidebar-roles', FinanceSidebarPerms.createRole)
-
-
-
-r.delete('/finance/sidebar-roles/:role', FinanceSidebarPerms.deleteRole)
-
-
-
-
-
-
-
-r.get('/finance/sidebar-permissions', FinanceSidebarPerms.getPermissions)
-
-
-
-r.put('/finance/sidebar-permissions/:role', FinanceSidebarPerms.updatePermissions)
-
-
-
-r.post('/finance/sidebar-permissions/:role/reset', FinanceSidebarPerms.resetToDefaults)
-
-
-
-
-
-
-
-// Cash Sessions removed per requirements
 
 
 
@@ -1568,22 +1429,6 @@ r.post('/audit-logs', Audit.create)
 
 
 r.get('/reports/my-activity', auth, Reports.myActivity)
-
-
-
-
-
-
-
-// Finance: Audit Logs (finance-specific store)
-
-
-
-r.get('/finance/audit-logs', FinanceAudit.list)
-
-
-
-r.post('/finance/audit-logs', FinanceAudit.create)
 
 
 
@@ -1716,126 +1561,7 @@ r.patch('/beds/:id/status', BedMgmt.updateBedStatus)
 
 
 // Equipment Management
-
-
-
-r.get('/equipment', Equipment.list)
-
-
-
-r.post('/equipment', Equipment.create)
-
-
-
-r.put('/equipment/:id', Equipment.update)
-
-
-
-r.delete('/equipment/:id', Equipment.remove)
-
-
-
-
-
-
-
-// Equipment: PPM
-
-
-
-r.get('/equipment/ppm', Equipment.listPPM)
-
-
-
-r.post('/equipment/ppm', Equipment.createPPM)
-
-
-
-
-
-
-
-// Equipment: Calibration
-
-
-
-r.get('/equipment/calibrations', Equipment.listCalibration)
-
-
-
-r.post('/equipment/calibrations', Equipment.createCalibration)
-
-
-
-
-
-
-
-// Equipment: Due Lists
-
-
-
-r.get('/equipment/due/ppm', Equipment.duePPM)
-
-
-
-r.get('/equipment/due/calibration', Equipment.dueCalibration)
-
-
-
-
-
-
-
-// Equipment: Breakdowns
-
-
-
-r.get('/equipment/breakdowns', Equipment.listBreakdowns)
-
-
-
-r.post('/equipment/breakdowns', Equipment.createBreakdown)
-
-
-
-r.put('/equipment/breakdowns/:id', Equipment.updateBreakdown)
-
-
-
-
-
-
-
-// Equipment: Condemnations
-
-
-
-r.get('/equipment/condemnations', Equipment.listCondemnations)
-
-
-
-r.post('/equipment/condemnations', Equipment.createCondemnation)
-
-
-
-r.put('/equipment/condemnations/:id', Equipment.updateCondemnation)
-
-
-
-
-
-
-
-// Equipment: KPIs
-
-
-
-r.get('/equipment/kpis', Equipment.kpis)
-
-
-
-
+r.use('/equipment', equipmentRoutes)
 
 // Store / Inventory Module
 
@@ -1852,10 +1578,4 @@ import ambulanceRoutes from './ambulance.routes'
 r.use('/ambulance', ambulanceRoutes)
 
 
-
-
-
 export default r
-
-
-

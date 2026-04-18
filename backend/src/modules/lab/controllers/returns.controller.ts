@@ -7,7 +7,14 @@ import mongoose from 'mongoose'
 import { ApiError } from '../../../common/errors/ApiError'
 import { LabAuditLog } from '../models/AuditLog'
 import { LabOrder } from '../models/Order'
+import { LabOrderTest } from '../models/OrderTest'
+import { LabToken } from '../models/Token'
 import { LabTest } from '../models/Test'
+import { LabPayment } from '../models/Payment'
+
+function resolveActor(req: Request) {
+  return (req as any).user?.username || (req as any).user?.name || (req as any).user?.email || 'system'
+}
 
 export async function list(req: Request, res: Response){
   const parsed = labReturnQuerySchema.safeParse(req.query)
@@ -42,34 +49,123 @@ export async function create(req: Request, res: Response){
     let order: any = await LabOrder.findOne({ tokenNo: data.reference })
     if (!order && mongoose.isValidObjectId(data.reference)) order = await LabOrder.findById(data.reference)
     if (!order) throw new ApiError(404, 'Order not found for reference')
-    const wasReturned = String(order.status) === 'returned'
+    const wasReturned = String(order.status) === 'cancelled'
 
-    // Resolve test names for return lines (qty 1 each)
-    const testIds: string[] = Array.isArray(order.tests) ? order.tests.map((t:any)=>String(t)) : []
-    const testDocs = testIds.length ? await LabTest.find({ _id: { $in: testIds } }).select('name').lean() : []
-    const nameMap = new Map<string,string>(testDocs.map((t:any)=>[String(t._id), String(t.name||'')]))
+    // Get all tests from LabOrderTest collection (source of truth)
+    const orderTests = await LabOrderTest.find({ orderId: order._id }).lean()
+    const tests = orderTests || []
+    
+    const nameMap = new Map<string, string>(tests.map((t: any) => [String(t.testId), String(t.testName || '')]))
+    const priceMap = new Map<string, number>(tests.map((t: any) => [String(t.testId), Number(t.price || 0)]))
 
     const selTid = (data as any).testId ? String((data as any).testId) : undefined
-    let computedReturnLines: { itemId?: string; name:string; qty:number; amount:number }[]
-    if (selTid && testIds.includes(selTid)){
+    let computedReturnLines: { itemId?: string; name: string; qty: number; amount: number }[] = []
+    let totalReturnAmount = 0
+    const actor = resolveActor(req)
+
+    if (selTid && tests.some((t: any) => String(t.testId) === selTid)) {
       // Per-test return
-      const existing: string[] = Array.isArray(order.returnedTests) ? order.returnedTests.map((t:any)=>String(t)) : []
-      const nextSet = new Set<string>([...existing, selTid])
-      order.returnedTests = Array.from(nextSet)
-      // If all tests returned, flip order status to 'returned'
-      if (order.returnedTests.length >= testIds.length) order.status = 'returned'
-      computedReturnLines = [{ itemId: String(selTid), name: nameMap.get(String(selTid)) || String(selTid), qty: 1, amount: 0 }]
+      const testToReturn = tests.find((t: any) => String(t.testId) === selTid)
+      if (testToReturn && !testToReturn.isReturned) {
+        totalReturnAmount = Number(testToReturn.price || 0)
+        computedReturnLines = [{
+          itemId: String(selTid),
+          name: testToReturn.testName || String(selTid),
+          qty: 1,
+          amount: totalReturnAmount
+        }]
+        // Update LabOrderTest status
+        await LabOrderTest.findByIdAndUpdate(testToReturn._id, {
+          isReturned: true,
+          status: 'returned',
+          returnedAt: new Date(),
+          returnReason: (data as any).note || ''
+        })
+      }
     } else {
-      // Fallback: whole-order return
-      computedReturnLines = testIds.map((tid: any) => ({ itemId: String(tid), name: nameMap.get(String(tid)) || String(tid), qty: 1, amount: 0 }))
-      order.status = 'returned'
-      order.returnedTests = [...testIds]
+      // Fallback: whole-order return (all tests that aren't already returned)
+      const toReturn = tests.filter((t: any) => !t.isReturned)
+      
+      for (const t of toReturn) {
+        totalReturnAmount += Number(t.price || 0)
+        computedReturnLines.push({
+          itemId: String(t.testId),
+          name: t.testName || String(t.testId),
+          qty: 1,
+          amount: Number(t.price || 0)
+        })
+        // Update LabOrderTest status
+        await LabOrderTest.findByIdAndUpdate(t._id, {
+          isReturned: true,
+          status: 'returned',
+          returnedAt: new Date(),
+          returnReason: (data as any).note || ''
+        })
+      }
     }
 
-    await order.save()
+    // Check if all tests are returned to update order status
+    const remainingTests = await LabOrderTest.countDocuments({ orderId: order._id, isReturned: false })
+    if (remainingTests === 0) {
+      order.status = 'cancelled'
+      await order.save()
+    }
+
+    // Calculate current financials from LabOrderTest and LabPayment
+    const activeTests = await LabOrderTest.find({ orderId: order._id, isReturned: false }).lean()
+    const newTotal = activeTests.reduce((sum, t) => sum + (t.price || 0), 0)
+    
+    const payments = await LabPayment.find({ orderId: order._id }).lean()
+    const totalPaid = payments.reduce((sum, p) => {
+      if (p.type === 'payment') return sum + p.amount
+      if (p.type === 'refund') return sum - p.amount
+      return sum
+    }, 0)
+
+    // Record refund if totalPaid > newTotal
+    if (totalPaid > newTotal) {
+      const refundAmount = totalPaid - newTotal
+      await LabPayment.create({
+        tokenId: order.tokenId,
+        orderId: order._id,
+        patientId: order.patientId,
+        type: 'refund',
+        amount: refundAmount,
+        method: 'cash',
+        note: `Refund for returned test: ${selTid || 'All'}`,
+        createdBy: actor
+      })
+    } else if (totalReturnAmount > 0) {
+      // Just an adjustment
+      await LabPayment.create({
+        tokenId: order.tokenId,
+        orderId: order._id,
+        patientId: order.patientId,
+        type: 'adjustment',
+        amount: -totalReturnAmount, // Negative to indicate reduction
+        note: `Balance adjustment for returned test: ${selTid || 'All'}`,
+        createdBy: actor
+      })
+    }
+
+    // Sync with LabToken if exists
+    try {
+      if (order.tokenNo) {
+        const token = await LabToken.findOne({ tokenNo: order.tokenNo })
+        if (token) {
+          token.subtotal = newTotal
+          token.net = newTotal
+          token.receivedAmount = Math.min(totalPaid, newTotal)
+          token.receivableAmount = Math.max(0, newTotal - totalPaid)
+          if (remainingTests === 0) token.status = 'cancelled'
+          await token.save()
+        }
+      }
+    } catch (e) { console.warn('Failed to sync LabToken on return', e) }
+
     // Inventory: on whole-order returned transition, restore consumables once
     try {
-      if (String(order.status) === 'returned' && !wasReturned){
+      if (remainingTests === 0 && !wasReturned){
         const cons: any[] = Array.isArray((order as any)?.consumables) ? (order as any).consumables : []
         await Promise.all(cons.map(async (c: any) => {
           const key = String(c.item || '').trim().toLowerCase()
@@ -86,7 +182,7 @@ export async function create(req: Request, res: Response){
 
     // Create return record
     const items = computedReturnLines.reduce((s: number, l: { qty: number }) => s + (Number(l.qty) || 0), 0)
-    const total = 0
+    const total = totalReturnAmount
     const token = String(order.tokenNo || data.reference || '')
     const party = String(order?.patient?.fullName || data.party || '')
     const doc = await LabReturn.create({
@@ -236,38 +332,82 @@ export async function undo(req: Request, res: Response){
   let order: any = await LabOrder.findOne({ tokenNo: body.reference })
   if (!order && mongoose.isValidObjectId(body.reference)) order = await LabOrder.findById(body.reference)
   if (!order) throw new ApiError(404, 'Order not found for reference')
-  const wasReturned = String(order.status) === 'returned'
+  const wasAllReturned = String(order.status) === 'cancelled'
+  
+  const actor = resolveActor(req)
+  
   // Resolve target test id
   let tid = String((body as any).testId || '').trim()
-  let tname = String((body as any).testName || '').trim()
-  if (!tid){
-    const ids: string[] = Array.isArray(order.tests) ? order.tests.map((t:any)=>String(t)) : []
-    const testDocs = ids.length ? await LabTest.find({ _id: { $in: ids } }).select('name').lean() : []
-    const byName = new Map<string,string>(testDocs.map((t:any)=>[String(t.name||'').toLowerCase(), String(t._id)]))
-    const found = byName.get(tname.toLowerCase())
-    if (!found) throw new ApiError(400, 'Test not found in order by name for undo')
-    tid = String(found)
+  
+  // Find the LabOrderTest document
+  const orderTestQuery = tid 
+    ? { orderId: order._id, testId: tid }
+    : { orderId: order._id, testName: (body as any).testName }
+  let orderTest: any = await LabOrderTest.findOne(orderTestQuery)
+  
+  if (!orderTest) throw new ApiError(400, 'Test not found in order for undo')
+  if (!orderTest.isReturned) {
+    return res.status(200).json({ ok: true, orderTest: { id: orderTest._id, isReturned: false } })
   }
-  if (!tname){
-    try {
-      const t = await LabTest.findById(tid).select('name').lean()
-      tname = String((t as any)?.name || '')
-    } catch {}
-  }
-  const before: string[] = Array.isArray(order.returnedTests) ? order.returnedTests.map((t:any)=>String(t)) : []
-  if (!before.includes(tid)){
-    return res.status(200).json({ ok: true, order: { id: order._id, status: order.status, returnedTests: before } })
-  }
-  const after = before.filter(x => x !== tid)
-  order.returnedTests = after
-  if (order.status === 'returned' && after.length < (Array.isArray(order.tests) ? order.tests.length : 0)){
-    order.status = 'received'
-  }
-  await order.save()
 
-  // Inventory: if transitioning from returned -> received, re-deduct previously restored consumables
+  // Restore the test
+  const restoreAmount = Number(orderTest.price || 0)
+  await LabOrderTest.findByIdAndUpdate(orderTest._id, {
+    isReturned: false,
+    status: 'pending',
+    returnedAt: undefined,
+    returnReason: undefined
+  })
+
+  // Record adjustment in ledger (positive to add back)
+  await LabPayment.create({
+    tokenId: order.tokenId,
+    orderId: order._id,
+    patientId: order.patientId,
+    type: 'adjustment',
+    amount: restoreAmount,
+    note: `Undo return adjustment for test: ${orderTest.testName}`,
+    createdBy: actor
+  })
+
+  // Recalculate and sync token
+  const activeTests = await LabOrderTest.find({ orderId: order._id, isReturned: false }).lean()
+  const newTotal = activeTests.reduce((sum, t) => sum + (t.price || 0), 0)
+  
+  const payments = await LabPayment.find({ orderId: order._id }).lean()
+  const totalPaid = payments.reduce((sum, p) => {
+    if (p.type === 'payment') return sum + p.amount
+    if (p.type === 'refund') return sum - p.amount
+    return sum
+  }, 0)
+
+  // Update order status if transitioning from cancelled
+  if (wasAllReturned) {
+    order.status = 'received'
+    await order.save()
+  }
+
+  // Sync with LabToken if exists
   try {
-    if (wasReturned && String(order.status) !== 'returned'){
+    if (order.tokenNo) {
+      const token = await LabToken.findOne({ tokenNo: order.tokenNo })
+      if (token) {
+        token.subtotal = newTotal
+        token.net = newTotal
+        token.receivedAmount = Math.min(totalPaid, newTotal)
+        token.receivableAmount = Math.max(0, newTotal - totalPaid)
+        if (token.status === 'cancelled') {
+          token.status = 'converted_to_sample'
+        }
+        await token.save()
+      }
+    }
+  } catch (e) { console.warn('Failed to sync LabToken on undo return', e) }
+
+
+  // Inventory: if transitioning from all-returned -> some active, re-deduct previously restored consumables
+  try {
+    if (wasAllReturned && order.status !== 'cancelled'){
       const cons: any[] = Array.isArray((order as any)?.consumables) ? (order as any).consumables : []
       await Promise.all(cons.map(async (c: any) => {
         const key = String(c.item || '').trim().toLowerCase()
@@ -285,13 +425,14 @@ export async function undo(req: Request, res: Response){
   // Remove matching line from the latest customer return doc for this token
   try {
     const token = String(order.tokenNo || body.reference)
+    const testName = orderTest?.testName || ''
     let doc: any = await LabReturn.findOne({ type: 'Customer', reference: token, 'lines.itemId': tid }).sort({ createdAt: -1 })
-    if (!doc && tname){
-      doc = await LabReturn.findOne({ type: 'Customer', reference: token, 'lines.name': tname }).sort({ createdAt: -1 })
+    if (!doc && testName){
+      doc = await LabReturn.findOne({ type: 'Customer', reference: token, 'lines.name': testName }).sort({ createdAt: -1 })
     }
     if (doc){
       const origLines = Array.isArray(doc.lines) ? doc.lines : []
-      const filtered = origLines.filter((l: any) => String(l.itemId || '') !== String(tid) && String(l.name || '') !== String(tname))
+      const filtered = origLines.filter((l: any) => String(l.itemId || '') !== String(tid) && String(l.name || '') !== String(testName))
       if (filtered.length === 0){
         await doc.deleteOne()
       } else {
@@ -316,5 +457,5 @@ export async function undo(req: Request, res: Response){
     })
   } catch {}
 
-  return res.json({ ok: true, order: { id: order._id, status: order.status, returnedTests: order.returnedTests } })
+  return res.json({ ok: true, order: { id: order._id, status: order.status }, orderTest: { id: orderTest._id, testId: orderTest.testId, isReturned: false } })
 }

@@ -38,6 +38,7 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
     consciousness: 'Conscious' as 'Conscious'|'Unconscious',
     remarks: '',
     signStamp: '',
+    priority: 'Regular' as 'Regular'|'Urgent'|'Critical',
   })
 
   useEffect(()=>{ if (mrn) loadPatient(mrn) }, [mrn])
@@ -63,6 +64,7 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
         stability: initialData.condition?.stability || 'Stable',
         consciousness: initialData.condition?.consciousness || 'Conscious',
         remarks: initialData.remarks || '',
+        priority: initialData.condition?.stability === 'Unstable' ? 'Urgent' : 'Regular',
         signStamp: initialData.signStamp || '',
       }))
     }
@@ -93,7 +95,15 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
     setLoading(false)
   }
 
-  const canSave = useMemo(()=> !!patient?._id && !!form.reasonOfReferral.trim(), [patient?._id, form.reasonOfReferral])
+  const isErReferral = useMemo(() => {
+    const dep = deps.find(d => String(d._id || d.id) === form.referredTo.departmentId)
+    const depName = dep?.name?.toLowerCase() || ''
+    return depName.includes('emergency') || depName.includes('er') || depName.includes('casualty')
+  }, [deps, form.referredTo.departmentId])
+
+  const formTitle = isErReferral ? 'Refer to Emergency' : 'Refer to IPD'
+
+  const canSave = useMemo(() => !!patient?._id && !!form.reasonOfReferral.trim(), [patient?._id, form.reasonOfReferral])
 
   const patientAge = useMemo(()=>{
     const p = patient
@@ -142,7 +152,7 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
       const isHex24 = (s?: string) => !!s && /^[a-f\d]{24}$/i.test(s)
       const depId = isHex24(form.referredTo.departmentId) ? form.referredTo.departmentId : undefined
       const docId = isHex24(form.referredTo.doctorId) ? form.referredTo.doctorId : undefined
-      const payload = {
+      const payload: any = {
         patientId: String(patient._id),
         referredByDoctorId: doctor?.id || undefined,
         referralDate: form.referralDate || undefined,
@@ -158,22 +168,30 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
         referredTo: { departmentId: depId, doctorId: docId },
         condition: { stability: form.stability, consciousness: form.consciousness },
         remarks: form.remarks || undefined,
-        signStamp: form.signStamp || undefined,
       }
-      const res = await hospitalApi.createIpdReferral(payload) as any
+      
+      let res: any
+      if (isErReferral) {
+        payload.priority = form.priority
+        res = await hospitalApi.createErReferral(payload)
+      } else {
+        payload.signStamp = form.signStamp || undefined
+        res = await hospitalApi.createIpdReferral(payload)
+      }
+      
       const id = res?.referral?._id || res?.id
       if (!res || res.error){ throw new Error(res?.error || 'Failed') }
       onSaved?.(id)
       setToast({ type: 'success', message: 'Referral saved' })
     }catch(e:any){
       try{
-        const key = 'hospital.ipd.referrals'
+        const key = isErReferral ? 'hospital.er.referrals' : 'hospital.ipd.referrals'
         const raw = localStorage.getItem(key) || '[]'
         const arr = JSON.parse(raw) as any[]
         const id = crypto.randomUUID()
         const depRow = deps.find(d=> String(d._id||d.id)===form.referredTo.departmentId)
         const docRow = docs.find(d=> String(d._id||d.id)===form.referredTo.doctorId)
-        const item = {
+        const item: any = {
           _id: id,
           serial: 'LOCAL-'+String(arr.length+1).padStart(4,'0'),
           patientId: patient._id,
@@ -199,9 +217,12 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
           status: 'New',
           createdAt: new Date().toISOString(),
         }
+        if (isErReferral) {
+          item.priority = form.priority
+        }
         localStorage.setItem(key, JSON.stringify([item, ...arr]))
         onSaved?.(id)
-        setToast({ type: 'info', message: `Failed to save on server: ${e?.message || 'Unknown error'}. Referral saved locally.` })
+        setToast({ type: 'info', message: `Failed to save on server: ${e?.message || 'Unknown error'}. ${isErReferral ? 'ER' : 'IPD'} referral saved locally.` })
       }catch(e:any){ setToast({ type: 'error', message: e?.message || 'Failed to save' }) }
     }finally{ setSaving(false) }
   }
@@ -209,7 +230,7 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="mb-3 flex items-center justify-between">
-        <div className="text-lg font-semibold text-slate-900">Refer to IPD</div>
+        <div className="text-lg font-semibold text-slate-900">{formTitle}</div>
         <button disabled={!canSave || saving} onClick={save} className="btn disabled:opacity-50">{saving? 'Saving...' : 'Save Referral'}</button>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
@@ -248,6 +269,13 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
               {deps.map((d:any)=> (<option key={String(d._id||d.id)} value={String(d._id||d.id)}>{d.name}</option>))}
             </select>
           </label>
+          <label className="block text-sm"><span className="text-slate-600 block mb-1">Priority (for Emergency)</span>
+            <select value={form.priority} onChange={e=>setForm(f=>({ ...f, priority: e.target.value as any }))} className="w-full rounded-md border border-slate-300 px-3 py-2">
+              <option value="Regular">Regular</option>
+              <option value="Urgent">Urgent</option>
+              <option value="Critical">Critical</option>
+            </select>
+          </label>
           <label className="block text-sm"><span className="text-slate-600 block mb-1">Doctor (optional)</span>
             <select value={form.referredTo.doctorId} onChange={e=>setForm(f=>({ ...f, referredTo: { ...f.referredTo, doctorId: e.target.value } }))} className="w-full rounded-md border border-slate-300 px-3 py-2">
               <option value="">Select doctor</option>
@@ -271,7 +299,6 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
             </label>
           </div>
           <label className="block text-sm"><span className="text-slate-600 block mb-1">Any other Remarks</span><textarea rows={3} value={form.remarks} onChange={e=>setForm(f=>({ ...f, remarks: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2" /></label>
-          <label className="block text-sm"><span className="text-slate-600 block mb-1">Sign & Stamp of Doctor</span><input value={form.signStamp} onChange={e=>setForm(f=>({ ...f, signStamp: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2" /></label>
         </div>
       </div>
 

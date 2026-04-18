@@ -144,13 +144,13 @@ export async function updateStatus(req: Request, res: Response) {
         invoiceNo: doc.poNumber,
         supplierId: doc.supplierId,
         supplierName: doc.supplierName,
-        totalAmount: 0,
+        totalAmount: qty * (item.avgCost || inv?.avgCost || 0),
         lines: [{
           itemName: item.name,
           category: item.category || inv?.category,
           quantity: qty,
           unit: item.unit || inv?.unit || 'pcs',
-          purchaseCost: 0,
+          purchaseCost: item.avgCost || inv?.avgCost || 0,
           minStock: inv?.minStock,
         }],
       })

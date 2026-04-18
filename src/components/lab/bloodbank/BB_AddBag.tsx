@@ -10,7 +10,6 @@ type Props = {
   onUpdate?: (row: BagRow) => void
 }
 
-const bloodTypes = ['O+','O-','A+','A-','B+','B-','AB+','AB-']
 const statuses = ['Available','Quarantined','Used','Expired']
 
 export default function BB_AddBag({ open, onClose, onCreate, mode = 'add', initial, onUpdate }: Props){
@@ -84,10 +83,7 @@ export default function BB_AddBag({ open, onClose, onCreate, mode = 'add', initi
           </div>
           <div className="col-span-6 sm:col-span-3">
             <label className="mb-1 block text-xs text-slate-600">Blood Type</label>
-            <select value={type} onChange={e=>setType(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2">
-              <option value="">Select</option>
-              {bloodTypes.map(t=> <option key={t}>{t}</option>)}
-            </select>
+            <input value={type} onChange={e=>setType(e.target.value)} placeholder="e.g. A+" className="w-full rounded-md border border-slate-300 px-3 py-2" />
           </div>
           <div className="col-span-6 sm:col-span-3">
             <label className="mb-1 block text-xs text-slate-600">Volume (ml)</label>

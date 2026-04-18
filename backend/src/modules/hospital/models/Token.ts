@@ -13,7 +13,7 @@ const TokenSchema = new Schema({
   encounterId: { type: Schema.Types.ObjectId, ref: 'Hospital_Encounter' },
   corporateId: { type: Schema.Types.ObjectId, ref: 'Corporate_Company' },
   paidMethod: { type: String, enum: ['Cash','Bank','AR'], default: 'Cash', index: true },
-  visitCategory: { type: String, enum: ['public','private'], index: true },
+  visitCategory: { type: String, enum: ['general','private'], index: true },
   fee: { type: Number },
   discount: { type: Number, default: 0 },
   status: { type: String, enum: ['queued','in-progress','completed','returned','cancelled'], default: 'queued', index: true },
@@ -45,7 +45,7 @@ export type HospitalTokenDoc = {
   encounterId?: string
   corporateId?: string
   paidMethod?: 'Cash'|'Bank'|'AR'
-  visitCategory?: 'public'|'private'
+  visitCategory?: 'general'|'private'
   fee?: number
   discount?: number
   status: 'queued'|'in-progress'|'completed'|'returned'|'cancelled'

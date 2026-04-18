@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
@@ -18,8 +17,6 @@ function money(n: number){
 }
 
 export default function Hospital_IPDServices(){
-  const navigate = useNavigate()
-
   const [q, setQ] = useState('')
   const [category, setCategory] = useState<string>('All')
 
@@ -30,6 +27,8 @@ export default function Hospital_IPDServices(){
   const [total, setTotal] = useState(0)
   const [editOpen, setEditOpen] = useState(false)
   const [editDraft, setEditDraft] = useState<{ id: string; name: string; category: string; price: number; active: boolean } | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addDraft, setAddDraft] = useState<{ name: string; category: string; price: number; active: boolean }>({ name: '', category: 'Procedure', price: 0, active: true })
   const [toast, setToast] = useState<ToastState>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string>('')
 
@@ -97,9 +96,12 @@ export default function Hospital_IPDServices(){
     setPage(1)
   }, [q, category, limit])
 
-  const goAddService = () => {
-    navigate(`/hospital/ipd-services/add`)
+  const openAdd = () => {
+    setAddDraft({ name: '', category: 'Procedure', price: 0, active: true })
+    setAddOpen(true)
   }
+
+  const goAddService = () => openAdd()
 
   const openEdit = (svc: ServiceCatalogItem) => {
     setEditDraft({
@@ -145,13 +147,13 @@ export default function Hospital_IPDServices(){
 
           <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-slate-700">
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">Service</th>
-                  <th className="px-3 py-2 text-left font-medium">Category</th>
-                  <th className="px-3 py-2 text-left font-medium">Price</th>
-                  <th className="px-3 py-2 text-left font-medium">Active</th>
-                  <th className="px-3 py-2 text-left font-medium">Actions</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Service</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Category</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Price</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Active</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -275,6 +277,56 @@ export default function Hospital_IPDServices(){
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
               <button type="button" onClick={()=>{ setEditOpen(false); setEditDraft(null) }} className="btn-outline-navy">Cancel</button>
+              <button type="submit" className="btn">Save</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {addOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <form
+            onSubmit={async (e)=>{
+              e.preventDefault()
+              if (!addDraft.name.trim()) return
+              try{
+                await hospitalApi.createIpdService({
+                  name: addDraft.name.trim(),
+                  category: addDraft.category?.trim() || undefined,
+                  price: Number(addDraft.price || 0),
+                  active: Boolean(addDraft.active),
+                })
+                setAddOpen(false)
+                setAddDraft({ name: '', category: 'Procedure', price: 0, active: true })
+                reload()
+                setToast({ type: 'success', message: 'Service added' })
+              }catch(e: any){
+                setToast({ type: 'error', message: e?.message || 'Failed to save service' })
+              }
+            }}
+            className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5"
+          >
+            <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Add Service</div>
+            <div className="space-y-3 px-5 py-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium text-slate-600">Name</label>
+                <input value={addDraft.name} onChange={e=>setAddDraft(d => ({...d, name: e.target.value}))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" placeholder="e.g. ICU Daily Charge" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600">Category</label>
+                <input value={addDraft.category} onChange={e=>setAddDraft(d => ({...d, category: e.target.value}))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" placeholder="e.g. Room Charges" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600">Price</label>
+                <input type="number" value={addDraft.price} onChange={e=>setAddDraft(d => ({...d, price: Number(e.target.value || 0)}))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={addDraft.active} onChange={e=>setAddDraft(d => ({...d, active: e.target.checked}))} />
+                Active
+              </label>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+              <button type="button" onClick={()=>setAddOpen(false)} className="btn-outline-navy">Cancel</button>
               <button type="submit" className="btn">Save</button>
             </div>
           </form>

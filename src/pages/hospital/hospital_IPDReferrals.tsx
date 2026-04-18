@@ -185,18 +185,18 @@ export default function Hospital_IPDReferrals(){
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
               <tr>
-                <th className="px-4 py-2">Serial</th>
-                <th className="px-4 py-2">MRN</th>
-                <th className="px-4 py-2">Patient</th>
-                <th className="px-4 py-2">Reason</th>
-                <th className="px-4 py-2">Diagnosis</th>
-                <th className="px-4 py-2">Referred To</th>
-                <th className="px-4 py-2">Date</th>
-                <th className="px-4 py-2">Time</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Actions</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Serial</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">MRN</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Reason</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Diagnosis</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Referred To</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Time</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">

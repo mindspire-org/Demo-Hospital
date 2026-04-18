@@ -12,13 +12,19 @@ const PatientSnapshotSchema = new Schema({
   cnic: { type: String },
 }, { _id: false })
 
+const LabTestSnapshotSchema = new Schema({
+  testId: { type: String, required: true },
+  testName: { type: String, required: true },
+  price: { type: Number, required: true, default: 0 },
+}, { _id: false })
+
 const TokenSchema = new Schema({
   // Lab number (continuously growing serial number, separate from token number)
-  labNumber: { type: Number, unique: true, index: true },
-  tokenNo: { type: String, required: true, unique: true, index: true },
+  labNumber: { type: Number, unique: true },
+  tokenNo: { type: String, required: true, unique: true },
   patientId: { type: String, required: true },
   patient: { type: PatientSnapshotSchema, required: true },
-  tests: { type: [String], default: [] },
+  tests: { type: [LabTestSnapshotSchema], default: [] }, // For display only, source of truth is LabOrderTest
   
   // Status tracking
   status: { 
@@ -66,8 +72,27 @@ const TokenSchema = new Schema({
   
   // Additional info
   referringConsultant: { type: String },
+  referralId: { type: String, index: true }, // Link to Hospital_Referral when created from referral
   corporateId: { type: Schema.Types.ObjectId, ref: 'Corporate_Company' },
   portal: { type: String, enum: ['lab', 'reception'], index: true },
+  
+  // Collection Center fields
+  collectionCenterId: { type: Schema.Types.ObjectId, ref: 'Lab_CollectionCenter', index: true },
+  collectionCenterName: { type: String },
+  centerCommissionPercent: { type: Number, default: 0 },
+  centerCommissionAmount: { type: Number, default: 0 },
+  centerNetAmount: { type: Number, default: 0 },
+  
+  // Per-test status tracking (synced from LabOrderTest)
+  testStatuses: {
+    type: [new Schema({
+      testId: String,
+      testName: String,
+      status: String,
+      resultId: String
+    }, { _id: false })],
+    default: []
+  }
 }, { timestamps: true })
 
 export type LabTokenDoc = {
@@ -86,7 +111,7 @@ export type LabTokenDoc = {
     guardianName?: string
     cnic?: string
   }
-  tests: string[]
+  tests: Array<{ testId: string; testName: string; price: number }> // For display only
   status: 'token_generated' | 'converted_to_sample' | 'sample_received' | 'result_entered' | 'approved' | 'cancelled'
   generatedAt: string
   generatedBy: string
@@ -104,10 +129,23 @@ export type LabTokenDoc = {
   cancelledBy?: string
   barcode?: string
   referringConsultant?: string
+  referralId?: string
   corporateId?: string
   portal?: 'lab' | 'reception'
+  // Collection Center fields
+  collectionCenterId?: string
+  collectionCenterName?: string
+  centerCommissionPercent?: number
+  centerCommissionAmount?: number
+  centerNetAmount?: number
   createdAt: string
   updatedAt: string
+  testStatuses?: Array<{
+    testId: string
+    testName: string
+    status: string
+    resultId?: string
+  }>
   // Financial fields stored on token for easy access
   subtotal?: number
   discount?: number

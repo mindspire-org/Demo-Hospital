@@ -7,6 +7,7 @@ export type LabReportInput = {
   createdAt: string
   sampleTime?: string
   reportingTime?: string
+  approvedAt?: string
   patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
   rows: LabReportRow[]
   interpretation?: string
@@ -283,7 +284,7 @@ async function buildReceiptStyleDoc(input: LabReportInput, mode: 'preview'|'down
   } catch {}
   writeKV('Location Name:', String(input.patient.address || '-'), rx, y + 44, rMax)
   writeKV('Collection Date/Time:', String(fmtDateTimeWithBase(input.createdAt, input.sampleTime || input.createdAt)), rx, y + 58, rMax)
-  writeKV('Report Date/Time:', String(fmtDateTimeWithBase(input.createdAt, input.reportingTime || '-')), rx, y + 72, rMax)
+  writeKV('Report Date/Time:', String(fmtDateTimeWithBase(input.createdAt, input.approvedAt || input.reportingTime || '-')), rx, y + 72, rMax)
 
   y = y + blockH + 10
 
@@ -302,6 +303,30 @@ async function buildReceiptStyleDoc(input: LabReportInput, mode: 'preview'|'down
   const profileGroups = groupByProfile(input.rows || [])
   const profiles = Object.keys(profileGroups)
 
+  // Check which columns have data across all rows
+  const allRows = Object.values(profileGroups).flat()
+  const hasReferenceValue = allRows.some(r => (r.normal || '').trim().length > 0)
+  const hasRemarks = allRows.some(r => (r.comment || '').trim().length > 0)
+
+  // Build column configuration with dynamic widths
+  // When columns are hidden, redistribute their width to Test Name column
+  let testNameWidth = 240
+  if (!hasReferenceValue) testNameWidth += 110
+  if (!hasRemarks) testNameWidth += 66
+
+  const columns: Array<{ key: string; header: string; width: number; halign?: string; fontStyle?: string }> = [
+    { key: 'test', header: 'Test Name', width: testNameWidth },
+    { key: 'value', header: 'Value', width: 60, halign: 'center', fontStyle: 'bold' },
+    { key: 'unit', header: 'Unit', width: 55, halign: 'center' },
+  ]
+  if (hasReferenceValue) {
+    columns.push({ key: 'normal', header: 'Reference Value', width: 110, halign: 'center' })
+  }
+  if (hasRemarks) {
+    columns.push({ key: 'comment', header: 'Remarks', width: 66, halign: 'right' })
+  }
+  const colCount = columns.length
+
   const allBody: any[] = []
 
   for (const profile of profiles) {
@@ -313,7 +338,7 @@ async function buildReceiptStyleDoc(input: LabReportInput, mode: 'preview'|'down
       {
         content: profile.toUpperCase(),
         rowType: 'dept',
-        colSpan: 5,
+        colSpan: colCount,
         styles: {
           fillColor: [230, 230, 230],
           textColor: [0, 0, 0],
@@ -326,29 +351,44 @@ async function buildReceiptStyleDoc(input: LabReportInput, mode: 'preview'|'down
     ])
 
     // Header row
-    allBody.push([
-      { content: 'Test Name', rowType: 'header', styles: { fontStyle: 'bold', lineWidth: 0.8, lineColor: [0, 0, 0] } },
-      { content: 'Value', rowType: 'header', styles: { fontStyle: 'bold', halign: 'center', lineWidth: 0.8, lineColor: [0, 0, 0] } },
-      { content: 'Unit', rowType: 'header', styles: { fontStyle: 'bold', halign: 'center', lineWidth: 0.8, lineColor: [0, 0, 0] } },
-      { content: 'Reference Value', rowType: 'header', styles: { fontStyle: 'bold', halign: 'center', lineWidth: 0.8, lineColor: [0, 0, 0] } },
-      { content: 'Remarks', rowType: 'header', styles: { fontStyle: 'bold', halign: 'center', lineWidth: 0.8, lineColor: [0, 0, 0] } },
-    ])
+    allBody.push(
+      columns.map(col => ({
+        content: col.header,
+        rowType: 'header',
+        styles: {
+          fontStyle: 'bold',
+          halign: col.halign || 'left',
+          lineWidth: 0.8,
+          lineColor: [0, 0, 0],
+        },
+      }))
+    )
 
     // Data rows
     deptRows.forEach(r => {
-      allBody.push([
-        { content: r.test || '', rowType: 'data' },
-        { content: r.value || '', rowType: 'data', styles: { halign: 'center', fontStyle: 'bold' } },
-        { content: r.unit || '', rowType: 'data', styles: { halign: 'center' } },
-        { content: r.normal || '', rowType: 'data', styles: { halign: 'center' } },
-        { content: r.comment || '', rowType: 'data', styles: { halign: 'center' } },
-      ])
+      allBody.push(
+        columns.map(col => ({
+          content: (r as any)[col.key] || '',
+          rowType: 'data',
+          styles: {
+            halign: col.halign || 'left',
+            fontStyle: col.fontStyle,
+          },
+        }))
+      )
     })
   }
 
+  // Build dynamic column styles and find value column index
+  const columnStyles: any = {}
+  columns.forEach((col, idx) => {
+    columnStyles[idx] = { cellWidth: col.width, halign: col.halign || 'left' }
+  })
+  const valueColumnIndex = columns.findIndex(c => c.key === 'value')
+
   autoTable(doc, {
     startY: y,
-    head: [['Test Name', 'Value', 'Unit', 'Reference Value', 'Remarks']],
+    head: [columns.map(c => c.header)],
     showHead: 'never',
     body: allBody,
     theme: 'plain',
@@ -357,19 +397,13 @@ async function buildReceiptStyleDoc(input: LabReportInput, mode: 'preview'|'down
     tableLineColor: [0, 0, 0],
     tableLineWidth: 0.8,
     margin: { left: xL, right: pageW - xR, bottom: 140 },
-    columnStyles: {
-      0: { cellWidth: 240 },
-      1: { cellWidth: 60, halign: 'center' },
-      2: { cellWidth: 55, halign: 'center' },
-      3: { cellWidth: 110, halign: 'center' },
-      4: { cellWidth: 66, halign: 'right' },
-    },
+    columnStyles,
     didParseCell: (hook: any) => {
       try {
         if (hook.section !== 'body') return
         const rowRaw: any[] = hook.row?.raw
         const rt = (rowRaw && rowRaw[0] && rowRaw[0].rowType) || (hook.cell?.raw as any)?.rowType
-        if (hook.column.index === 1) {
+        if (hook.column.index === valueColumnIndex) {
           hook.cell.styles.fontStyle = 'bold'
         }
         if (rt === 'dept' || rt === 'header' || rt === 'group') {

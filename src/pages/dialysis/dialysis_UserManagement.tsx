@@ -16,6 +16,7 @@ export default function Dialysis_UserManagement() {
   const [newUsername, setNewUsername] = useState('')
   const [newRole, setNewRole] = useState<string>('staff')
   const [newPassword, setNewPassword] = useState('')
+  const [createFinanceAccount, setCreateFinanceAccount] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<{ _id: string; username: string; role: string; password?: string } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -73,7 +74,26 @@ export default function Dialysis_UserManagement() {
         return
       }
       setUsers(prev => [...prev, { ...data.user, _id: data.user.id || data.user._id }])
+      
+      // Create finance account if checkbox is checked
+      if (createFinanceAccount && data.user?.id) {
+        try {
+          await fetch(`${API_BASE}/api/finance/chart-of-accounts/create-user-account`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              portal: 'dialysis',
+              userId: String(data.user.id),
+              username: data.user.username
+            })
+          })
+        } catch (e) {
+          console.error('Failed to create finance account:', e)
+        }
+      }
+      
       setNewUsername(''); setNewPassword(''); setNewRole(roles[0] || 'staff')
+      setCreateFinanceAccount(false)
       setNotice({ text: 'User added', kind: 'success' })
       setTimeout(()=> setNotice(null), 2500)
     } catch (e) {
@@ -214,6 +234,15 @@ export default function Dialysis_UserManagement() {
                   {(roles||[]).map(r=> <option key={r} value={r}>{r}</option>)}
                 </select>
                 <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Password (min 4 chars)" />
+                <label className="flex items-center gap-2 cursor-pointer sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={createFinanceAccount}
+                    onChange={e => setCreateFinanceAccount(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-700">Create Finance Account</span>
+                </label>
                 <button onClick={addUser} className="rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Add User</button>
                 {addUserError && <div className="sm:col-span-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{addUserError}</div>}
               </div>

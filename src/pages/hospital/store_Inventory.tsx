@@ -46,6 +46,7 @@ export default function Store_Inventory() {
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [limit, setLimit] = useState(20)
   const cancelledRef = useRef(false)
   const loadingRef = useRef(false)
   const [pendingRows, setPendingRows] = useState<any[]>([])
@@ -71,7 +72,7 @@ export default function Store_Inventory() {
       const res = await hospitalApi.listStorePurchaseDraftLines({
         search: query || undefined,
         page: p,
-        limit: 20,
+        limit: limit,
       }) as any
       const pending = (res.items || []).map((it: any) => ({
         id: it.draftId || it._id,
@@ -131,7 +132,7 @@ export default function Store_Inventory() {
         status: stockFilter || undefined,
         search: query || undefined,
         page: p,
-        limit: 20,
+        limit: limit,
       }) as any
       if (cancelledRef.current) return
       const inventory = (res.items || res.data || res || []).map((i: any) => ({
@@ -171,7 +172,7 @@ export default function Store_Inventory() {
       cancelledRef.current = true
       clearTimeout(timer)
     }
-  }, [categoryFilter, stockFilter, query])
+  }, [categoryFilter, stockFilter, query, limit])
 
   useEffect(() => {
     setPage(1)
@@ -249,11 +250,25 @@ export default function Store_Inventory() {
 
   const totalValue = items.reduce((sum, i) => sum + i.stockValue, 0)
 
+  const handleExportCsv = () => {
+    hospitalApi.exportStoreInventoryCsv({
+      category: categoryFilter || undefined,
+      status: stockFilter || undefined,
+      search: query || undefined,
+    })
+  }
+
   return (
     <div className="p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-800">Inventory / Stock</h2>
         <div className="flex gap-2">
+          <button
+            onClick={handleExportCsv}
+            className="rounded-md bg-emerald-600 px-3 py-1.5 text-white hover:bg-emerald-700"
+          >
+            Export CSV
+          </button>
           <Link to="/hospital/store/add-purchase" className="rounded-md bg-sky-600 px-3 py-1.5 text-white hover:bg-sky-700">
             + Add Item
           </Link>
@@ -302,7 +317,7 @@ export default function Store_Inventory() {
       <div className="mt-4 flex gap-2 border-b border-slate-200">
         <button
           onClick={() => setStockFilter('')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`px-4 py-2.5 text-base font-bold border-b-2 -mb-px transition-colors ${
             stockFilter === '' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-600 hover:text-slate-800'
           }`}
         >
@@ -310,7 +325,7 @@ export default function Store_Inventory() {
         </button>
         <button
           onClick={() => setStockFilter('pending')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`px-4 py-2.5 text-base font-bold border-b-2 -mb-px transition-colors ${
             stockFilter === 'pending' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-600 hover:text-slate-800'
           }`}
         >
@@ -318,7 +333,7 @@ export default function Store_Inventory() {
         </button>
         <button
           onClick={() => setStockFilter('low')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`px-4 py-2.5 text-base font-bold border-b-2 -mb-px transition-colors ${
             stockFilter === 'low' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-600 hover:text-slate-800'
           }`}
         >
@@ -326,7 +341,7 @@ export default function Store_Inventory() {
         </button>
         <button
           onClick={() => setStockFilter('expiring')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`px-4 py-2.5 text-base font-bold border-b-2 -mb-px transition-colors ${
             stockFilter === 'expiring' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-600 hover:text-slate-800'
           }`}
         >
@@ -334,7 +349,7 @@ export default function Store_Inventory() {
         </button>
         <button
           onClick={() => setStockFilter('out')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`px-4 py-2.5 text-base font-bold border-b-2 -mb-px transition-colors ${
             stockFilter === 'out' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-600 hover:text-slate-800'
           }`}
         >
@@ -356,8 +371,11 @@ export default function Store_Inventory() {
             page={pendingPage}
             totalPages={pendingPages}
             total={pendingTotal}
-            limit={20}
-            onChangeLimit={() => {}}
+            limit={limit}
+            onChangeLimit={(l) => {
+              setLimit(l)
+              setPendingPage(1)
+            }}
             onPrev={() => setPendingPage(p => Math.max(1, p - 1))}
             onNext={() => setPendingPage(p => Math.min(pendingPages, p + 1))}
           />
@@ -383,8 +401,11 @@ export default function Store_Inventory() {
             page={page}
             totalPages={pages}
             total={total}
-            limit={20}
-            onChangeLimit={() => {}}
+            limit={limit}
+            onChangeLimit={(l) => {
+              setLimit(l)
+              setPage(1)
+            }}
             onPrev={() => loadItems(page - 1)}
             onNext={() => loadItems(page + 1)}
           />

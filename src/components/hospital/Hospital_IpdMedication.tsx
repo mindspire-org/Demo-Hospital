@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { hospitalApi, pharmacyApi } from '../../utils/api'
+import SuggestField from '../SuggestField'
 
 export default function Medication({ encounterId }: { encounterId: string }){
   const [rows, setRows] = useState<Array<{ id: string; name: string; dose: string; freq: string; start: string }>>([])
@@ -86,10 +87,31 @@ function MedicationDialog({
     { name: '', dose: '', freq: '', start: '' },
   ])
 
+  const [medicineOptions, setMedicineOptions] = useState<string[]>([])
+  const searchTimer = useRef<any>(null)
+
+  const suggestions = useMemo(() => medicineOptions, [medicineOptions])
+
   useEffect(() => {
     if (open) {
       setItems([{ name: '', dose: '', freq: '', start: '' }])
     }
+  }, [open])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadMedicines(){
+      try{
+        const res: any = await pharmacyApi.getAllMedicines()
+        const meds: any[] = res?.medicines || []
+        const names = meds.map((m:any)=> String(m?.name || '')).filter(Boolean)
+        if (!cancelled) setMedicineOptions(names)
+      }catch{
+        if (!cancelled) setMedicineOptions([])
+      }
+    }
+    if (open) loadMedicines()
+    return ()=>{ cancelled = true }
   }, [open])
 
   if(!open) return null
@@ -103,6 +125,24 @@ function MedicationDialog({
   const removeRow = (idx: number) => setItems(items.filter((_, i) => i !== idx))
   const updateRow = (idx: number, patch: Partial<{ name: string; dose: string; freq: string; start: string }>) =>
     setItems(items.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+
+  const updateName = (idx: number, v: string) => {
+    updateRow(idx, { name: v })
+    const q = String(v || '').trim()
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (q.length < 2) return
+    searchTimer.current = setTimeout(async () => {
+      try{
+        const res: any = await pharmacyApi.searchMedicines(q, 20)
+        const rows: any[] = res?.suggestions || []
+        const names = rows.map((r:any)=> String(r?.name || '')).filter(Boolean)
+        if (names.length > 0) setMedicineOptions(prev => {
+          const merged = Array.from(new Set([...(prev || []), ...names]))
+          return merged
+        })
+      }catch{}
+    }, 250)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -121,9 +161,11 @@ function MedicationDialog({
               <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600">Name</label>
-                  <input
+                  <SuggestField
+                    as="input"
                     value={row.name}
-                    onChange={(e) => updateRow(idx, { name: e.target.value })}
+                    onChange={(v) => updateName(idx, v)}
+                    suggestions={suggestions}
                     placeholder="Medicine name"
                     className="w-full rounded-md border border-slate-300 px-3 py-2"
                   />

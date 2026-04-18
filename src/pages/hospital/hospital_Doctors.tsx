@@ -172,7 +172,12 @@ export default function Hospital_Doctors() {
       setEditId(null)
       setEditForm(prev => ({ ...prev, password: '' }))
       await reload()
-    } catch {}
+    } catch (e: any) {
+      const raw = (e?.message || '').trim()
+      let msg = raw
+      try { const j = JSON.parse(raw); if (j?.error) msg = j.error } catch {}
+      setToast({ type: 'error', message: msg || 'Failed to update doctor' })
+    }
   }
 
   const confirmDelete = async () => {
@@ -196,18 +201,18 @@ export default function Hospital_Doctors() {
 
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-4 py-2 text-left">Name</th>
-              <th className="px-4 py-2 text-left">Username</th>
-              <th className="px-4 py-2 text-left">PMDC No</th>
-              <th className="px-4 py-2 text-left">Specialization</th>
-              <th className="px-4 py-2 text-left">Qualification</th>
-              <th className="px-4 py-2 text-left">Department</th>
-              <th className="px-4 py-2 text-left">Public Fee</th>
-              <th className="px-4 py-2 text-left">Private Fee</th>
-              <th className="px-4 py-2 text-left">Phone</th>
-              <th className="px-4 py-2 text-left">Actions</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Name</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Username</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">PMDC No</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Specialization</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Qualification</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Department</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">General Fee</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Private Fee</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Phone</th>
+              <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 text-slate-700">
@@ -298,7 +303,7 @@ export default function Hospital_Doctors() {
                 <input value={editForm.phone} onChange={e=>setEditForm(f=>({ ...f, phone: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
               </div>
               <div>
-                <label className="mb-1 block text-sm text-slate-700">Public Fee (Rs.)</label>
+                <label className="mb-1 block text-sm text-slate-700">General Fee (Rs.)</label>
                 <input value={editForm.publicFee} onChange={e=>setEditForm(f=>({ ...f, publicFee: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
               </div>
               <div>

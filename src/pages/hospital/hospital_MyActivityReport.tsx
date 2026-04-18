@@ -58,7 +58,7 @@ function buildReportHtml({
   const printedTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   const periodLabel = mode === 'today' ? 'Today' : 'Current Shift'
   const shiftLabel = shift ? `${shift.name}: ${fmt12(shift.start)}-${fmt12(shift.end)}` : '-'
-  const rangeLabel = `${range?.start ? fmtDateTime12(range.start) : '-'} → ${range?.end ? fmtDateTime12(range.end) : '-'}`
+  const rangeLabel = range?.label || `${range?.start ? fmtDateTime12(range.start) : '-'} → ${range?.end ? fmtDateTime12(range.end) : '-'}`
 
   const table = (label: string, head: string[], bodyRows: string[][]) => {
     const th = head.map(h => `<th>${escHtml(h)}</th>`).join('')
@@ -109,8 +109,8 @@ function buildReportHtml({
         .section{ margin-top:12px; page-break-inside:avoid }
         .section-title{ font-size:12px; font-weight:800; background:#f1f5f9; border:1px solid #e2e8f0; padding:8px 10px; border-radius:10px; margin-bottom:6px }
         table{ width:100%; border-collapse:collapse; table-layout:fixed }
-        th,td{ border:1px solid #e2e8f0; padding:6px 8px; vertical-align:top; word-wrap:break-word }
-        th{ background:#f8fafc; font-weight:800; color:#334155 }
+        th,td{ border:1px solid #e2e8f0; padding:4px 6px; vertical-align:top; word-wrap:break-word; font-size:9px }
+        th{ background:#f8fafc; font-weight:700; color:#334155 }
         td.right, th.right{ text-align:right }
         .empty{ text-align:center; color:#64748b; padding:10px }
         .footer{ margin-top:14px; color:#94a3b8; font-size:10px; text-align:center }
@@ -458,9 +458,6 @@ export default function Hospital_MyActivityReport(){
                     <div className={`text-3xl font-bold mt-1 ${netTone}`}>
                       {currency(summary?.net || 0)}
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {range?.start ? fmtDateTime12(range.start) : '-'} → {range?.end ? fmtDateTime12(range.end) : '-'}
-                    </div>
                   </div>
                   <div className="text-xs font-medium text-slate-700 bg-white/60 px-2 py-1 rounded">
                     {data?.user?.username || '-'}
@@ -632,12 +629,12 @@ function SimpleTable({ head, rows }: { head: string[]; rows: Array<Array<string>
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm table-fixed">
-        <thead className="bg-slate-50 text-slate-700">
+        <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
           <tr>
             {head.map(h => (
               <th
                 key={h}
-                className={`px-3 py-2 font-medium whitespace-nowrap ${isMoneyCol(h) ? 'text-right' : ''}`}
+                className={`px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider whitespace-nowrap ${isMoneyCol(h) ? 'text-right' : ''}`}
                 style={isMoneyCol(h) ? ({ width: 120 } as any) : undefined}
               >
                 {h}

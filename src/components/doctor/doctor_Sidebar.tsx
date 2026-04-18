@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
-import { LayoutDashboard, Users, Stethoscope, ScrollText, Bell, Search, FileText, Settings as SettingsIcon, Copy, Share2 } from 'lucide-react'
+import { LayoutDashboard, Users, Stethoscope, ScrollText, Bell, Search, FileText, Settings as SettingsIcon, Copy, Share2, BedDouble } from 'lucide-react'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: any }
 
 const nav: NavItem[] = [
   { to: '/doctor', label: 'Dashboard', end: true, icon: LayoutDashboard },
   { to: '/doctor/patients', label: 'Patients', icon: Users },
+  { to: '/doctor/ipd-patients', label: 'IPD Patient List', icon: BedDouble },
   { to: '/doctor/patient-search', label: 'Patient Search', icon: Search },
   { to: '/doctor/prescription', label: 'Prescription', icon: Stethoscope },
   { to: '/doctor/prescription-templates', label: 'Templates', icon: Copy },

@@ -5,6 +5,7 @@ import { InventoryItem } from '../models/InventoryItem'
 import { AuditLog } from '../models/AuditLog'
 import mongoose from 'mongoose'
 import { postFbrInvoiceViaSDC } from '../../hospital/services/fbr'
+import { postUserRevenueJournal } from '../../finance/controllers/finance_ledger'
 
 function todayKey(){
   const d = new Date()
@@ -115,6 +116,27 @@ export async function create(req: Request, res: Response){
       detail: `Bill ${doc.billNo} — ${doc.customer} — Rs ${Number(doc.total||0).toFixed(2)}`,
     })
   } catch {}
+
+  // Auto-post revenue journal to finance
+  try {
+    const total = Number(doc.total || 0)
+    if (total > 0) {
+      const actor = String((data as any)?.createdBy || (req as any).user?.name || (req as any).user?.email || 'system')
+      const userAccount = `${actor}/pharmacy`
+      await postUserRevenueJournal({
+        userAccountName: userAccount,
+        revenueAccount: 'PHARMACY_REVENUE',
+        amount: total,
+        refType: 'pharmacy_sale',
+        refId: String(doc._id),
+        description: `Pharmacy Sale ${doc.billNo}`,
+        dateIso: new Date().toISOString().slice(0,10)
+      })
+    }
+  } catch (e) {
+    console.error('Failed to post Pharmacy revenue journal:', e)
+  }
+
   res.status(201).json(doc)
 }
 

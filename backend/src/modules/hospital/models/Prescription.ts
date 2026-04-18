@@ -45,6 +45,7 @@ const PrescriptionSchema = new Schema({
     bsa: { type: Number },
     spo2: { type: Number },
   },
+  tokenNo: { type: String },
   createdBy: { type: String },
 }, { timestamps: true })
 
@@ -81,6 +82,7 @@ export type HospitalPrescriptionDoc = {
     bsa?: number
     spo2?: number
   }
+  tokenNo?: string
   createdBy?: string
 }
 

@@ -132,17 +132,17 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
               <div>
                 <div className="pb-1 text-base font-semibold text-slate-900">Existing / Present Problem</div>
                 <table className="w-full table-fixed text-xs border border-slate-200 rounded-md overflow-hidden">
-                  <thead className="bg-slate-50 text-slate-700">
+                  <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                     <tr>
-                      <th className="px-3 py-1.5 text-left font-semibold">CVS</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Renal</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Respiration</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Hepatic</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Diabetic</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">GIT</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Neurology</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Anesthesia Hx</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Eventful</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">CVS</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Renal</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Respiration</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Hepatic</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Diabetic</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">GIT</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Neurology</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Anesthesia Hx</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Eventful</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -164,17 +164,17 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
               <div>
                 <div className="pb-1 text-base font-semibold text-slate-900">Physical Examination</div>
                 <table className="w-full table-fixed text-xs border border-slate-200 rounded-md overflow-hidden">
-                  <thead className="bg-slate-50 text-slate-700">
+                  <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                     <tr>
-                      <th className="px-3 py-1.5 text-left font-semibold">BP</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Pulse</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">RR</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Temp</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">CVS</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Chest</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Teeth</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Mallampati</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">ASA</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">BP</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Pulse</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">RR</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Temp</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">CVS</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Chest</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Teeth</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Mallampati</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">ASA</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -196,15 +196,15 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
               <div>
                 <div className="pb-1 text-base font-semibold text-slate-900">Anesthesia Plan</div>
                 <table className="w-full table-fixed text-xs border border-slate-200 rounded-md overflow-hidden">
-                  <thead className="bg-slate-50 text-slate-700">
+                  <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                     <tr>
-                      <th className="px-3 py-1.5 text-left font-semibold">General</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Spinal</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Local</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Monitoring Care</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">NPO</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Fluid/Blood</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Pre‑Anes Med</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">General</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Spinal</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Local</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Monitoring Care</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">NPO</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Fluid/Blood</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Pre‑Anes Med</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -224,11 +224,11 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
               <div>
                 <div className="pb-1 text-base font-semibold text-slate-900">Checklist</div>
                 <table className="w-full table-fixed text-xs border border-slate-200 rounded-md overflow-hidden">
-                  <thead className="bg-slate-50 text-slate-700">
+                  <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                     <tr>
-                      <th className="px-3 py-1.5 text-left font-semibold">Patient Identified</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Consent & Chart Revised</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Site/Procedure Checked</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Patient Identified</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Consent & Chart Revised</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Site/Procedure Checked</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -244,13 +244,13 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
               <div>
                 <div className="pb-1 text-base font-semibold text-slate-900">Pre-Induction Re-evaluation</div>
                 <table className="w-full table-fixed text-xs border border-slate-200 rounded-md overflow-hidden">
-                  <thead className="bg-slate-50 text-slate-700">
+                  <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                     <tr>
-                      <th className="px-3 py-1.5 text-left font-semibold">Orientation</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">BP</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Pulse</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Temp</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">SpO2</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Orientation</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">BP</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Pulse</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Temp</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">SpO2</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -268,12 +268,12 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
               <div>
                 <div className="pb-1 text-base font-semibold text-slate-900">Change in Anesthesia Plan (Yes/No)</div>
                 <table className="w-full table-fixed text-xs border border-slate-200 rounded-md overflow-hidden">
-                  <thead className="bg-slate-50 text-slate-700">
+                  <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                     <tr>
-                      <th className="px-3 py-1.5 text-left font-semibold">Changed</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">General</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Spinal</th>
-                      <th className="px-3 py-1.5 text-left font-semibold">Local</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Changed</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">General</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Spinal</th>
+                      <th className="px-3 py-2 text-left text-[13px] font-extrabold uppercase tracking-wider">Local</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -300,15 +300,15 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
               <div>{sess.doctorName ? `Dr: ${sess.doctorName}` : ''} {sess.sign ? ` Sign: ${sess.sign}` : ''}</div>
             </div>
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-700">
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                 <tr>
-                  <th className="px-3 py-2">Time</th>
-                  <th className="px-3 py-2">Pulse</th>
-                  <th className="px-3 py-2">BP</th>
-                  <th className="px-3 py-2">RR</th>
-                  <th className="px-3 py-2">SpO2</th>
-                  <th className="px-3 py-2">Drugs</th>
-                  <th className="px-3 py-2">IV Fluid / Blood</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Time</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Pulse</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">BP</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">RR</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">SpO2</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Drugs</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">IV Fluid / Blood</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -338,16 +338,16 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
       <SubTitle>Recovery</SubTitle>
       {rec.length === 0 ? <Empty /> : (
         <table className="mb-4 min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-700">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-3 py-2">Date/Time</th>
-              <th className="px-3 py-2">LOC</th>
-              <th className="px-3 py-2">BP</th>
-              <th className="px-3 py-2">Pulse</th>
-              <th className="px-3 py-2">RR</th>
-              <th className="px-3 py-2">SpO2</th>
-              <th className="px-3 py-2">Pain Stimulus</th>
-              <th className="px-3 py-2">Doctor/Sign</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date/Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">LOC</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">BP</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Pulse</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">RR</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">SpO2</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Pain Stimulus</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Doctor/Sign</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">{rec.map((r: any)=> (
@@ -368,20 +368,20 @@ function AnesthesiaSection({ pre, intra, rec, postRec, adv }: { pre: any[]; intr
       <SubTitle>Post Recovery</SubTitle>
       {postRec.length === 0 ? <Empty /> : (
         <table className="mb-4 min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-700">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-3 py-2">Date/Time</th>
-              <th className="px-3 py-2">BP</th>
-              <th className="px-3 py-2">Pulse</th>
-              <th className="px-3 py-2">RR</th>
-              <th className="px-3 py-2">SpO2</th>
-              <th className="px-3 py-2">Pain</th>
-              <th className="px-3 py-2">Temp</th>
-              <th className="px-3 py-2">Aldrete</th>
-              <th className="px-3 py-2">Vomiting</th>
-              <th className="px-3 py-2">Shivering</th>
-              <th className="px-3 py-2">Site Bleeding/Hematoma</th>
-              <th className="px-3 py-2">Doctor/Sign</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date/Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">BP</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Pulse</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">RR</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">SpO2</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Pain</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Temp</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Aldrete</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Vomiting</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Shivering</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Site Bleeding/Hematoma</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Doctor/Sign</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">{postRec.map((r: any)=> (
@@ -425,15 +425,15 @@ function SurgerySection({ preop, operation, postop, consultant }: { preop: any[]
       <SubTitle>Pre-Operative</SubTitle>
       {preop.length === 0 ? <Empty /> : (
         <table className="mb-4 min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-700">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-3 py-2">Date/Time</th>
-              <th className="px-3 py-2">NPO From</th>
-              <th className="px-3 py-2">Maintain I/V</th>
-              <th className="px-3 py-2">Shave & Prepare</th>
-              <th className="px-3 py-2">Special Consent</th>
-              <th className="px-3 py-2">Medication</th>
-              <th className="px-3 py-2">Special Instructions</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date/Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">NPO From</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Maintain I/V</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Shave & Prepare</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Special Consent</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Medication</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Special Instructions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">{preop.map((r: any)=> (
@@ -453,16 +453,16 @@ function SurgerySection({ preop, operation, postop, consultant }: { preop: any[]
       <SubTitle>Operation Notes</SubTitle>
       {operation.length === 0 ? <Empty /> : (
         <table className="mb-4 min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-700">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-3 py-2">Date/Time</th>
-              <th className="px-3 py-2">Incision</th>
-              <th className="px-3 py-2">Procedure</th>
-              <th className="px-3 py-2">Findings</th>
-              <th className="px-3 py-2">Drain</th>
-              <th className="px-3 py-2">Specimen</th>
-              <th className="px-3 py-2">Histopathology</th>
-              <th className="px-3 py-2">Condition at End</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date/Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Incision</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Procedure</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Findings</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Drain</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Specimen</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Histopathology</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Condition at End</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">{operation.map((r: any)=> (
@@ -509,18 +509,18 @@ function DailyMonitoringSection({ vitals }: { vitals: any[] }){
       <SectionTitle>DAILY MONITORING</SectionTitle>
       {vitals.length === 0 ? <Empty /> : (
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-700">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-3 py-2">Date/Time</th>
-              <th className="px-3 py-2">BP</th>
-              <th className="px-3 py-2">HR</th>
-              <th className="px-3 py-2">RR</th>
-              <th className="px-3 py-2">Temp</th>
-              <th className="px-3 py-2">SpO2</th>
-              <th className="px-3 py-2">Shift</th>
-              <th className="px-3 py-2">BSR</th>
-              <th className="px-3 py-2">Intake I/V</th>
-              <th className="px-3 py-2">Urine</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date/Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">BP</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">HR</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">RR</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Temp</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">SpO2</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Shift</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">BSR</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Intake I/V</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Urine</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">{vitals.map((v: any)=> (
@@ -549,15 +549,15 @@ function DailyProgressSection({ rows }: { rows: any[] }){
       <SectionTitle>DAILY PROGRESS</SectionTitle>
       {rows.length === 0 ? <Empty /> : (
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-700">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-3 py-2">Date</th>
-              <th className="px-3 py-2">Time</th>
-              <th className="px-3 py-2">Subjective</th>
-              <th className="px-3 py-2">Objective</th>
-              <th className="px-3 py-2">Assessment</th>
-              <th className="px-3 py-2">Plan</th>
-              <th className="px-3 py-2">Doctor</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Subjective</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Objective</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Assessment</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Plan</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Doctor</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">{rows.map((r: any)=>{
@@ -586,16 +586,16 @@ function MedicationSection({ orders }: { orders: any[] }){
       <SectionTitle>MEDICATION</SectionTitle>
       {orders.length === 0 ? <Empty /> : (
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-700">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-3 py-2">Date/Time</th>
-              <th className="px-3 py-2">Drug</th>
-              <th className="px-3 py-2">Dose</th>
-              <th className="px-3 py-2">Route</th>
-              <th className="px-3 py-2">Frequency</th>
-              <th className="px-3 py-2">Duration</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Prescribed By</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date/Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Drug</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Dose</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Route</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Frequency</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Duration</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Prescribed By</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">{orders.map((o: any)=> (

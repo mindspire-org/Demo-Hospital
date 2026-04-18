@@ -14,7 +14,7 @@ export const createOpdTokenSchema = z.object({
   age: z.string().optional(),
   departmentId: z.string().min(1),
   doctorId: z.string().optional(),
-  visitCategory: z.enum(['public','private']).optional(),
+  visitCategory: z.enum(['general','private']).optional(),
   visitType: z.enum(['new','followup']).default('new'),
   discount: z.number().min(0).optional(),
   paymentRef: z.string().optional(),
@@ -30,6 +30,10 @@ export const createOpdTokenSchema = z.object({
   // Scheduling (optional): either provide scheduleId and desired slot start HH:mm, or leave empty to auto-assign next free slot
   scheduleId: z.string().optional(),
   apptStart: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:mm
+  // ER-specific fields (optional, only used when department is Emergency)
+  triage: z.enum(['red', 'yellow', 'green']).optional(),
+  arrivalMode: z.enum(['walk-in', 'ambulance', 'referral']).optional(),
+  chiefComplaint: z.string().optional(),
 })
 
 export const listTokensSchema = z.object({

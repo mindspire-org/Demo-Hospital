@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { hospitalApi, labApi } from '../../utils/api'
 import PrescriptionPrint from '../../components/doctor/PrescriptionPrint'
-import { downloadPrescriptionPdf, previewPrescriptionPdf } from '../../utils/prescriptionPdf'
+import { previewPrescriptionPdf } from '../../utils/prescriptionPdf'
 import type { PrescriptionPdfTemplate } from '../../utils/prescriptionPdf'
 import PrescriptionVitals from '../../components/doctor/PrescriptionVitals'
 import PrescriptionDiagnosticOrders from '../../components/doctor/PrescriptionDiagnosticOrders'
+import Doctor_IpdReferralForm from '../../components/doctor/Doctor_IpdReferralForm'
 
 type DoctorSession = { id: string; name: string; username: string }
 
@@ -51,6 +52,8 @@ export default function Doctor_PrescriptionHistory() {
   const [toast, setToast] = useState<{ msg: string; kind: 'success'|'error' } | null>(null)
   const [refFlags, setRefFlags] = useState<Record<string, { ph?: boolean; lab?: boolean; diag?: boolean }>>({})
   const [attachView, setAttachView] = useState<{ open: boolean; fileName?: string; mimeType?: string; dataUrl?: string }>(()=>({ open: false }))
+  const [ipdReferralOpen, setIpdReferralOpen] = useState(false)
+  const [ipdReferralPrescription, setIpdReferralPrescription] = useState<Prescription | null>(null)
   useEffect(() => {
     try {
       const raw = localStorage.getItem('doctor.session')
@@ -166,42 +169,9 @@ export default function Doctor_PrescriptionHistory() {
       labNotes: data.labNotes || '',
       diagnosticTests: data.diagnosticTests || [],
       diagnosticNotes: data.diagnosticNotes || '',
+      tokenNo: data.tokenNo,
       createdAt: data.createdAt,
     }, tpl)
-  }
-
-  async function handleDownload(id: string){
-    const data: any = await fetchPrintData(id)
-    // Fetch template from database
-    let tpl: PrescriptionPdfTemplate = 'hospital-rx'
-    try {
-      if (doc?.id) {
-        const doctorData: any = await hospitalApi.getDoctor(doc.id)
-        if (doctorData?.doctor?.prescriptionTemplate) {
-          tpl = doctorData.doctor.prescriptionTemplate
-        }
-      }
-    } catch {}
-    await downloadPrescriptionPdf({
-      doctor: data.doctor || {},
-      settings: data.settings || {},
-      patient: data.patient || {},
-      items: data.items || [],
-      vitals: data.vitals,
-      primaryComplaint: data.primaryComplaint,
-      primaryComplaintHistory: data.primaryComplaintHistory,
-      familyHistory: data.familyHistory,
-      treatmentHistory: data.treatmentHistory,
-      history: data.history,
-      examFindings: data.examFindings,
-      diagnosis: data.diagnosis,
-      advice: data.advice,
-      labTests: data.labTests || [],
-      labNotes: data.labNotes || '',
-      diagnosticTests: data.diagnosticTests || [],
-      diagnosticNotes: data.diagnosticNotes || '',
-      createdAt: data.createdAt,
-    }, `prescription-${id}.pdf`, tpl)
   }
 
   async function openAttachment(p: Prescription){
@@ -479,7 +449,7 @@ export default function Doctor_PrescriptionHistory() {
               {p.medicines && <pre className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{p.medicines}</pre>}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>handlePrint(p.id)}>Print</button>
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>handleDownload(p.id)}>Download</button>
+                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>{ setIpdReferralPrescription(p); setIpdReferralOpen(true) }}>Refer to IPD</button>
                 {p.prescriptionMode === 'manual' && (p.manualAttachment?.dataUrl || p.manualAttachment?.fileName) && (
                   <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openAttachment(p)}>View Attachment</button>
                 )}
@@ -591,6 +561,30 @@ export default function Doctor_PrescriptionHistory() {
                 <div className="p-6 text-center text-sm text-slate-500">No attachment data</div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* IPD Referral Dialog */}
+      {ipdReferralOpen && ipdReferralPrescription && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-lg font-semibold text-slate-800">Refer to IPD</div>
+              <button className="btn-outline-navy" onClick={()=>{ setIpdReferralOpen(false); setIpdReferralPrescription(null) }}>Close</button>
+            </div>
+            <Doctor_IpdReferralForm
+              mrn={ipdReferralPrescription.mrNo}
+              doctor={doc ? { id: doc.id, name: doc.name } : undefined}
+              initialData={{
+                provisionalDiagnosis: ipdReferralPrescription.diagnosis,
+              }}
+              onSaved={(_id) => {
+                setToast({ msg: 'IPD referral created', kind: 'success' })
+                setIpdReferralOpen(false)
+                setIpdReferralPrescription(null)
+              }}
+            />
           </div>
         </div>
       )}
@@ -767,7 +761,7 @@ async function fetchPrintData(id: string){
     const mRoute = nt.match(/Route:\s*([^;]+)/i)
     const mInstr = nt.match(/Instruction:\s*([^;]+)/i)
     return { name: m.name || '', frequency: m.frequency || '', duration: m.duration || '', dose: m.dose || '', route: mRoute?.[1]?.trim() || m.route || '', instruction: mInstr?.[1]?.trim() || m.instruction || '' }
-  }), vitals: pres?.vitals, labTests: pres?.labTests || [], labNotes: pres?.labNotes, diagnosticTests: pres?.diagnosticTests || [], diagnosticNotes: pres?.diagnosticNotes, primaryComplaint: pres?.primaryComplaint || pres?.complaints, primaryComplaintHistory: pres?.primaryComplaintHistory, familyHistory: pres?.familyHistory, treatmentHistory: pres?.treatmentHistory, history: pres?.history, examFindings: pres?.examFindings, diagnosis: pres?.diagnosis, advice: pres?.advice, createdAt: pres?.createdAt }
+  }), vitals: pres?.vitals, labTests: pres?.labTests || [], labNotes: pres?.labNotes, diagnosticTests: pres?.diagnosticTests || [], diagnosticNotes: pres?.diagnosticNotes, primaryComplaint: pres?.primaryComplaint || pres?.complaints, primaryComplaintHistory: pres?.primaryComplaintHistory, familyHistory: pres?.familyHistory, treatmentHistory: pres?.treatmentHistory, history: pres?.history, examFindings: pres?.examFindings, diagnosis: pres?.diagnosis, advice: pres?.advice, createdAt: pres?.createdAt, tokenNo: pres?.tokenNo || '' }
 }
 
 // helper for fetching data used by both print and download

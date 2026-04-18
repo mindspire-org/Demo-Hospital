@@ -350,8 +350,23 @@ export async function list(req: Request, res: Response) {
 
   const filter: any = {}
   if (from || to) {
-    const fromIso = (from ? new Date(from + 'T00:00:00.000Z') : new Date(0)).toISOString()
-    const toIso = (to ? new Date(to + 'T23:59:59.999Z') : new Date()).toISOString()
+    // Pakistan timezone is UTC+5. Convert Pakistan local dates to UTC for filtering.
+    // Pakistan midnight (00:00) = UTC 19:00 (previous day)
+    // Pakistan 23:59:59.999 = UTC 18:59:59.999 (same day)
+    let fromIso: string
+    let toIso: string
+    if (from) {
+      const pakFrom = new Date(from + 'T00:00:00')
+      fromIso = new Date(pakFrom.getTime() - (5 * 60 * 60 * 1000)).toISOString()
+    } else {
+      fromIso = new Date(0).toISOString()
+    }
+    if (to) {
+      const pakTo = new Date(to + 'T23:59:59.999')
+      toIso = new Date(pakTo.getTime() - (5 * 60 * 60 * 1000)).toISOString()
+    } else {
+      toIso = new Date().toISOString()
+    }
     filter.date = { $gte: fromIso, $lte: toIso }
   }
   if (doctorId) filter.doctorId = doctorId

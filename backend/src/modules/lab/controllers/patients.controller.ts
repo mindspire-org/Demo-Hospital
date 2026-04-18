@@ -129,11 +129,15 @@ export async function findOrCreate(req: Request, res: Response) {
 export async function search(req: Request, res: Response) {
   const phone = normDigits(String((req.query as any).phone || ''))
   const name = normLower(String((req.query as any).name || ''))
+  const fatherName = normLower(String((req.query as any).fatherName || ''))
+  const mrn = String((req.query as any).mrn || '').trim()
   const limit = Math.max(1, Math.min(50, Number((req.query as any).limit || 10)))
   const filter: any = {}
+  if (mrn) filter.mrn = new RegExp(mrn, 'i')
   if (phone) filter.phoneNormalized = new RegExp(phone)
   if (name) filter.fullName = new RegExp(name, 'i')
-  if (!phone && !name) return res.json({ patients: [] })
+  if (fatherName) filter.fatherName = new RegExp(fatherName, 'i')
+  if (!mrn && !phone && !name && !fatherName) return res.json({ patients: [] })
   const pats = await LabPatient.find(filter).sort({ createdAt: -1 }).limit(limit).lean()
   res.json({ patients: pats })
 }
@@ -145,6 +149,7 @@ export async function update(req: Request, res: Response) {
   if (typeof body.fullName === 'string') patch.fullName = body.fullName
   if (typeof body.fatherName === 'string') patch.fatherName = body.fatherName
   if (typeof body.gender === 'string') patch.gender = body.gender
+  if (typeof body.age === 'string') patch.age = body.age
   if (typeof body.address === 'string') patch.address = body.address
   if (typeof body.phone === 'string') patch.phoneNormalized = normDigits(body.phone)
   if (typeof body.cnic === 'string') patch.cnicNormalized = normDigits(body.cnic)

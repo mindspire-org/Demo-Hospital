@@ -1,0 +1,16 @@
+export { hospitalApi } from './hospital.api'
+
+// Export individual sub-modules for direct access
+export { opdApi } from './opd'
+export { ipdApi } from './ipd'
+export { erApi } from './er'
+export { storeApi } from './store'
+export { ambulanceApi } from './ambulance'
+export { equipmentApi } from './equipment/equipment.api'
+export { default as EquipmentDashboard } from './equipment/pages/EquipmentDashboard'
+export { default as EquipmentList } from './equipment/pages/EquipmentList'
+export { default as EquipmentSuppliers } from './equipment/pages/EquipmentSuppliers'
+export { default as EquipmentPurchases } from './equipment/pages/EquipmentPurchases'
+export { default as SupplierLedger } from './equipment/pages/SupplierLedger'
+export { default as EquipmentDetail } from './equipment/pages/EquipmentDetail'
+export { sharedApi } from './shared'

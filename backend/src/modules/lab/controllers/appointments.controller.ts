@@ -8,6 +8,10 @@ import { nextGlobalMrn } from '../../../common/mrn'
 
 function normDigits(s?: string) { return (s || '').replace(/\D+/g, '') }
 
+function resolveActor(req: Request) {
+  return (req as any).user?.username || (req as any).user?.name || (req as any).user?.email || 'system'
+}
+
 export async function create(req: Request, res: Response) {
   try {
     const data = createAppointmentSchema.parse(req.body)
@@ -154,10 +158,10 @@ export async function convertToToken(req: Request, res: Response) {
     if (!appt) return res.status(404).json({ error: 'Appointment not found' })
     if (appt.status === 'cancelled') return res.status(400).json({ error: 'Cancelled appointment cannot be converted' })
 
-    // If already converted
+    // If already converted, return existing order info
     if (appt.orderId) {
       const ord = await LabOrder.findById(String(appt.orderId)).lean()
-      if (ord) return res.json({ order: ord, appointment: appt })
+      if (ord) return res.json({ order: ord, appointment: appt, alreadyConverted: true })
     }
 
     // Resolve patient (create MRN only here if missing)
@@ -185,30 +189,42 @@ export async function convertToToken(req: Request, res: Response) {
     const validTestIds = testIds.filter(tid => testIdSet.has(String(tid)))
     if (!validTestIds.length) return res.status(400).json({ error: 'No valid tests on appointment' })
 
-    const patientSnapshot: any = {
-      mrn: patient.mrn,
-      fullName: patient.fullName,
-      phone: patient.phoneNormalized || appt.phoneNormalized || undefined,
-      age: patient.age || appt.age || undefined,
-      gender: patient.gender || appt.gender || undefined,
+    // Get full test details for pre-filling
+    const testDetails = tests.filter((t: any) => testIdSet.has(String(t._id)))
+
+    // Update appointment with patient linkage if needed
+    let updatedAppt = appt
+    if (!appt.patientId) {
+      updatedAppt = await LabAppointment.findByIdAndUpdate(
+        id,
+        { $set: { patientId: (patient as any)._id, mrn: patient.mrn, patientName: patient.fullName } },
+        { new: true }
+      ).lean()
     }
 
-    // Create Lab Order (token generation)
-    const order = await LabOrder.create({
-      patientId: String(patient._id),
-      patient: patientSnapshot,
+    // Return appointment data and patient info for pre-filling the token form
+    res.status(200).json({
+      appointment: updatedAppt || appt,
+      patient: {
+        _id: String(patient._id),
+        mrn: patient.mrn,
+        fullName: patient.fullName,
+        phoneNormalized: patient.phoneNormalized || appt.phoneNormalized,
+        phone: patient.phoneNormalized || appt.phoneNormalized,
+        age: patient.age || appt.age,
+        gender: patient.gender || appt.gender,
+      },
       tests: validTestIds,
-      subtotal: 0,
-      discount: 0,
-      net: 0,
-      status: 'received',
+      testDetails: testDetails.map((t: any) => ({
+        _id: String(t._id),
+        id: String(t._id),
+        name: t.name,
+        price: t.price || 0
+      })),
+      readyForToken: true
     })
-
-    // Patch appointment with linkage + status
-    const updated = await LabAppointment.findByIdAndUpdate(id, { $set: { orderId: (order as any)._id, status: 'converted', patientId: (patient as any)._id, mrn: patient.mrn, patientName: patient.fullName } }, { new: true }).lean()
-
-    res.status(201).json({ order, appointment: updated || appt })
   } catch (e: any) {
-    res.status(500).json({ error: 'Internal Server Error' })
+    console.error('convertToToken error:', e)
+    res.status(500).json({ error: 'Internal Server Error', details: e?.message })
   }
 }

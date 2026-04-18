@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { hospitalStoreApi, hospitalApi } from '../../utils/api';
+import { hospitalApi } from '../../utils/api';
 import { FileText, Plus, Search, Trash2, Edit, Download, Send, CheckCircle } from 'lucide-react';
 import Store_AddPurchaseOrderDialog from '../../components/hospital/Store_AddPurchaseOrderDialog';
 import Store_ConfirmDialog from '../../components/hospital/Store_ConfirmDialog';
@@ -32,7 +32,7 @@ export default function Store_PurchaseOrders() {
     setError(null);
     try {
       console.log('Loading purchase orders...');
-      const res: any = await hospitalStoreApi.listPurchaseOrders({ q: query, page, limit });
+      const res: any = await hospitalApi.listStorePurchaseOrders({ q: query, page, limit });
       console.log('Purchase orders response:', res);
       setOrders(res.items || []);
       setTotal(res.total || 0);
@@ -59,7 +59,7 @@ export default function Store_PurchaseOrders() {
 
   const handleCreate = async (data: any) => {
     try {
-      await hospitalStoreApi.createPurchaseOrder(data);
+      await hospitalApi.createStorePurchaseOrder(data);
       loadOrders();
     } catch (error) {
       console.error('Failed to create purchase order', error);
@@ -69,7 +69,7 @@ export default function Store_PurchaseOrders() {
   const handleUpdate = async (data: any) => {
     try {
       if (!selectedOrder?._id) return;
-      await hospitalStoreApi.updatePurchaseOrder(selectedOrder._id, data);
+      await hospitalApi.updateStorePurchaseOrder(selectedOrder._id, data);
       loadOrders();
     } catch (error) {
       console.error('Failed to update purchase order', error);
@@ -78,7 +78,7 @@ export default function Store_PurchaseOrders() {
 
   const handleMarkAsSent = async (id: string) => {
     try {
-      await hospitalStoreApi.updatePurchaseOrderStatus(id, 'Sent');
+      await hospitalApi.updateStorePurchaseOrderStatus(id, 'Sent');
       loadOrders();
     } catch (error) {
       console.error('Failed to mark as sent', error);
@@ -87,7 +87,7 @@ export default function Store_PurchaseOrders() {
 
   const handleMarkAsComplete = async (id: string) => {
     try {
-      await hospitalStoreApi.updatePurchaseOrderStatus(id, 'Complete');
+      await hospitalApi.updateStorePurchaseOrderStatus(id, 'Complete');
       loadOrders();
     } catch (error) {
       console.error('Failed to mark as complete', error);
@@ -97,7 +97,7 @@ export default function Store_PurchaseOrders() {
   const handleDelete = async () => {
     if (!toDelete) return;
     try {
-      await hospitalStoreApi.deletePurchaseOrder(toDelete);
+      await hospitalApi.deleteStorePurchaseOrder(toDelete);
       loadOrders();
       setConfirmOpen(false);
       setToDelete(null);
@@ -355,14 +355,14 @@ export default function Store_PurchaseOrders() {
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
               <tr>
-                <th className="px-6 py-4">PO Number</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Supplier</th>
-                <th className="px-6 py-4">Items</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4 text-[13px] font-extrabold uppercase tracking-wider">PO Number</th>
+                <th className="px-6 py-4 text-[13px] font-extrabold uppercase tracking-wider">Date</th>
+                <th className="px-6 py-4 text-[13px] font-extrabold uppercase tracking-wider">Supplier</th>
+                <th className="px-6 py-4 text-[13px] font-extrabold uppercase tracking-wider">Items</th>
+                <th className="px-6 py-4 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-[13px] font-extrabold uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -393,7 +393,7 @@ export default function Store_PurchaseOrders() {
                         <button
                           onClick={() => handleMarkAsSent(order._id)}
                           title="Mark as Sent"
-                          className="rounded-md border border-slate-200 p-2 text-slate-500 hover:bg-sky-50 hover:text-sky-600 transition-all"
+                          className="rounded-md bg-sky-600 p-2 text-white hover:bg-sky-700 shadow-sm transition-all"
                         >
                           <Send className="h-4 w-4" />
                         </button>
@@ -402,7 +402,7 @@ export default function Store_PurchaseOrders() {
                         <button
                           onClick={() => handleMarkAsComplete(order._id)}
                           title="Mark as Complete"
-                          className="rounded-md border border-slate-200 p-2 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all"
+                          className="rounded-md bg-emerald-600 p-2 text-white hover:bg-emerald-700 shadow-sm transition-all"
                         >
                           <CheckCircle className="h-4 w-4" />
                         </button>
@@ -410,21 +410,21 @@ export default function Store_PurchaseOrders() {
                       <button
                         onClick={() => handleDownloadPDF(order)}
                         title="Download/Print PDF"
-                        className="rounded-md border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 hover:text-navy-600 transition-all"
+                        className="rounded-md bg-violet-600 p-2 text-white hover:bg-violet-700 shadow-sm transition-all"
                       >
                         <Download className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => { setSelectedOrder(order); setEditOpen(true); }}
                         title="Edit Order"
-                        className="rounded-md border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 hover:text-navy-600 transition-all"
+                        className="rounded-md bg-blue-600 p-2 text-white hover:bg-blue-700 shadow-sm transition-all"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => { setToDelete(order._id); setConfirmOpen(true); }}
                         title="Delete Order"
-                        className="rounded-md border border-slate-200 p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-all"
+                        className="rounded-md bg-rose-600 p-2 text-white hover:bg-rose-700 shadow-sm transition-all"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

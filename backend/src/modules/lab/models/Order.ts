@@ -17,45 +17,80 @@ const PatientSnapshotSchema = new Schema({
   cnic: { type: String },
 }, { _id: false })
 
-const PaymentSchema = new Schema({
-  amount: { type: Number, required: true },
-  at: { type: String, required: true },
-  note: { type: String },
-  method: { type: String },
-  receivedBy: { type: String },
+const LabTestSnapshotSchema = new Schema({
+  testId: { type: String, required: true },
+  testName: { type: String, required: true },
+  price: { type: Number, required: true, default: 0 },
 }, { _id: false })
 
 const OrderSchema = new Schema({
+  tokenId: { type: Schema.Types.ObjectId, ref: 'Lab_Token', required: true, index: true },
+  tokenNo: { type: String, required: true, index: true },
   labNumber: { type: Number, index: true },
   patientId: { type: String, required: true },
   patient: { type: PatientSnapshotSchema, required: true },
-  corporateId: { type: Schema.Types.ObjectId, ref: 'Corporate_Company' },
-  createdByUsername: { type: String },
-  tests: { type: [String], required: true },
-  returnedTests: { type: [String], default: [] },
-  consumables: { type: [ConsumableSchema], default: [] },
-  subtotal: { type: Number, default: 0 },
-  discount: { type: Number, default: 0 },
-  net: { type: Number, default: 0 },
-  receivedAmount: { type: Number, default: 0 },
-  receivableAmount: { type: Number, default: 0 },
-  payments: { type: [PaymentSchema], default: [] },
-  tokenNo: { type: String },
+  
+  status: {
+    type: String,
+    enum: ['received', 'in_progress', 'result_entered', 'completed', 'cancelled'],
+    default: 'received',
+    index: true
+  },
+  
   barcode: { type: String },
-  status: { type: String, enum: ['received','completed','returned'], default: 'received' },
-  sampleTime: { type: String },
-  reportingTime: { type: String },
+  sampleCollectedAt: { type: Date }, // Optional global timestamp
+  
   referringConsultant: { type: String },
+  corporateId: { type: Schema.Types.ObjectId, ref: 'Corporate_Company' },
+  
+  // FBR fields
   fbrInvoiceNo: { type: String },
   fbrQrCode: { type: String },
   fbrStatus: { type: String },
   fbrMode: { type: String },
   fbrError: { type: String },
+  
   portal: { type: String, enum: ['lab', 'reception'], index: true },
+  notes: { type: String },
+  
+  // Snapshots of tests for this order
+  tests: { type: [LabTestSnapshotSchema], default: [] },
+  
+  // Per-test status tracking (synced from LabOrderTest)
+  testStatuses: {
+    type: [new Schema({
+      testId: String,
+      testName: String,
+      status: String,
+      resultId: String
+    }, { _id: false })],
+    default: []
+  },
+
+  // Financial fields
+  subtotal: { type: Number, default: 0 },
+  discount: { type: Number, default: 0 },
+  net: { type: Number, default: 0 },
+  receivedAmount: { type: Number, default: 0 },
+  receivableAmount: { type: Number, default: 0 },
+  payments: {
+    type: [new Schema({
+      amount: Number,
+      at: String,
+      note: String,
+      method: String,
+      receivedBy: String
+    }, { _id: false })],
+    default: []
+  },
+  // Tracking who created the order
+  createdByUsername: { type: String },
 }, { timestamps: true })
 
 export type LabOrderDoc = {
   _id: string
+  tokenId: string
+  tokenNo: string
   labNumber?: number
   patientId: string
   patient: {
@@ -69,28 +104,39 @@ export type LabOrderDoc = {
     guardianName?: string
     cnic?: string
   }
-  corporateId?: string
-  createdByUsername?: string
-  tests: string[]
-  returnedTests?: string[]
-  consumables: { item: string; qty: number }[]
-  subtotal: number
-  discount: number
-  net: number
-  receivedAmount?: number
-  receivableAmount?: number
-  payments?: Array<{ amount: number; at: string; note?: string; method?: string; receivedBy?: string }>
-  tokenNo?: string
+  status: 'received' | 'in_progress' | 'result_entered' | 'completed' | 'cancelled'
   barcode?: string
-  status: 'received'|'completed'|'returned'
-  sampleTime?: string
-  reportingTime?: string
+  sampleCollectedAt?: string
   referringConsultant?: string
+  corporateId?: string
   fbrInvoiceNo?: string
   fbrQrCode?: string
   fbrStatus?: string
   fbrMode?: string
   fbrError?: string
+  portal?: 'lab' | 'reception'
+  notes?: string
+  createdAt: string
+  tests: Array<{ testId: string; testName: string; price: number }>
+  testStatuses?: Array<{
+    testId: string
+    testName: string
+    status: string
+    resultId?: string
+  }>
+  subtotal?: number
+  discount?: number
+  net?: number
+  receivedAmount?: number
+  receivableAmount?: number
+  payments?: Array<{
+    amount: number
+    at: string
+    note?: string
+    method?: string
+    receivedBy?: string
+  }>
+  createdByUsername?: string
 }
 
 export const LabOrder = models.Lab_Order || model('Lab_Order', OrderSchema)

@@ -3,10 +3,6 @@ import jwt from 'jsonwebtoken'
 import { env } from '../../config/env'
 
 export function adminGuard(req: Request, res: Response, next: NextFunction){
-  // Allow via Admin Key header
-  const keyHdr = String(req.headers['x-admin-key'] || '')
-  if (keyHdr && keyHdr === env.ADMIN_KEY) return next()
-
   // Allow via Bearer token with admin role
   const auth = String(req.headers['authorization'] || '')
   const bearer = auth.startsWith('Bearer ')? auth.slice(7) : ''

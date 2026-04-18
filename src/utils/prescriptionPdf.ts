@@ -15,6 +15,7 @@ export type PrescriptionPdfData = {
   examFindings?: string
   diagnosis?: string
   advice?: string
+  tokenNo?: string
   vitals?: {
     pulse?: number
     temperatureC?: number

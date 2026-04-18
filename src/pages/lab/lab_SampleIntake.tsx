@@ -94,6 +94,18 @@ export default function Lab_Orders() {
     return ()=>{ mounted = false }
   }, [])
 
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const res: any = await labApi.listActiveCollectionCenters()
+        if (!mounted) return
+        setCollectionCenters(res.items || [])
+      } catch {}
+    })()
+    return () => { mounted = false }
+  }, [])
+
   
 
   const [fullName, setFullName] = useState('')
@@ -106,6 +118,7 @@ export default function Lab_Orders() {
   const [cnic, setCnic] = useState('')
   const [mrNumber, setMrNumber] = useState('')
   const [referring, setReferring] = useState('')
+  const [fromReferralId, setFromReferralId] = useState<string>('')
 
   const [patientPickOpen, setPatientPickOpen] = useState(false)
   const [patientPickMatches, setPatientPickMatches] = useState<any[]>([])
@@ -114,6 +127,8 @@ export default function Lab_Orders() {
   const [forceCreateNextSubmit, setForceCreateNextSubmit] = useState(false)
 
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([])
+  const [collectionCenters, setCollectionCenters] = useState<any[]>([])
+  const [selectedCenterId, setSelectedCenterId] = useState('')
   const [discount, setDiscount] = useState('0')
   const [receivedAmount, setReceivedAmount] = useState('0')
   // Corporate billing fields
@@ -420,7 +435,11 @@ export default function Lab_Orders() {
       })()
     }
     if (st.referringConsultant) setReferring(String(st.referringConsultant))
-    // Do not auto-select tests (user will select manually)
+    if (st.fromReferralId) setFromReferralId(String(st.fromReferralId))
+    // Auto-select tests if coming from appointment conversion
+    if (st.preSelectedTests && Array.isArray(st.preSelectedTests) && st.preSelectedTests.length > 0) {
+      setSelectedTestIds(st.preSelectedTests.map((id: string) => String(id)))
+    }
   }, [location])
 
   const onSubmit = async () => {
@@ -498,6 +517,8 @@ export default function Lab_Orders() {
           tests: selectedTestIds,
           referringConsultant: referring.trim() || undefined,
           portal: window.location.pathname.startsWith('/reception') ? 'reception' : 'lab',
+          collectionCenterId: selectedCenterId || undefined,
+          collectionCenterName: selectedCenterId ? collectionCenters.find(c => c._id === selectedCenterId)?.name : undefined,
         }
         if (billingType === 'Corporate' && corpCompanyId) tokenData.corporateId = corpCompanyId
         await labApi.updateToken(String(tokenId), tokenData)
@@ -506,12 +527,22 @@ export default function Lab_Orders() {
         setToast({ type: 'success', message: `Token ${tokenNo || ''} updated` })
       } else {
         // Create token
+        const selectedCenter = selectedCenterId ? collectionCenters.find(c => c._id === selectedCenterId) : null
+        const commissionPercent = selectedCenter ? (selectedCenter.commissionPercent || 0) : 0
+        const commissionAmount = Math.round((net * commissionPercent / 100) * 100) / 100
+        const centerNetAmount = Math.round((net - commissionAmount) * 100) / 100
+
         const tokenData: any = {
           patientId: String(patient._id),
           patient: patientSnap,
           tests: selectedTestIds,
           referringConsultant: referring.trim() || undefined,
           portal: window.location.pathname.startsWith('/reception') ? 'reception' : 'lab',
+          collectionCenterId: selectedCenterId || undefined,
+          collectionCenterName: selectedCenter?.name || undefined,
+          centerCommissionPercent: commissionPercent,
+          centerCommissionAmount: commissionAmount,
+          centerNetAmount: centerNetAmount,
           // Financial data
           subtotal,
           discount: discountNum,
@@ -519,11 +550,22 @@ export default function Lab_Orders() {
           receivedAmount: receivedNum,
         }
         if (billingType === 'Corporate' && corpCompanyId) tokenData.corporateId = corpCompanyId
+        if (fromReferralId) tokenData.referralId = fromReferralId
 
         const createdToken = await labApi.createToken(tokenData)
         tokenNo = String(createdToken?.tokenNo || '')
         createdAtIso = String(createdToken?.createdAt || new Date().toISOString())
         setToast({ type: 'success', message: `Token ${tokenNo || ''} created` })
+
+        // Update appointment status to 'converted' if we came from an appointment
+        const st = (location?.state || {}) as any
+        if (st?.appointmentId && st?.fromAppointment) {
+          try {
+            await labApi.updateAppointmentStatus(String(st.appointmentId), 'converted')
+          } catch (e) {
+            console.error('Failed to update appointment status:', e)
+          }
+        }
       }
 
       // Print token slip
@@ -566,6 +608,7 @@ export default function Lab_Orders() {
         setCnic('')
         setMrNumber('')
         setReferring('')
+        setSelectedCenterId('')
         setSelectedTestIds([])
         setDiscount('0')
         setReceivedAmount('0')
@@ -616,6 +659,7 @@ export default function Lab_Orders() {
         setCnic(String(p.cnic || p.cnicNormalized || ''))
         setMrNumber(String(p.mrn || p.mrNumber || ''))
         setReferring(String(t.referringConsultant || ''))
+        setSelectedCenterId(String(t.collectionCenterId || ''))
         setSelectedTestIds(Array.isArray(t.tests) ? t.tests.map(String) : [])
         const cid = String(t.corporateId || '')
         setCorpCompanyId(cid)
@@ -814,6 +858,21 @@ export default function Lab_Orders() {
                   <input value={referring} onChange={e => setReferring(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Optional" />
                 </div>
               </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Collection Center</label>
+                  <select
+                    value={selectedCenterId}
+                    onChange={e => setSelectedCenterId(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                  >
+                    <option value="">Main Lab (Internal)</option>
+                    {collectionCenters.map(c => (
+                      <option key={c._id} value={c._id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               {billingType === 'Corporate' && (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div>
@@ -874,6 +933,8 @@ export default function Lab_Orders() {
                   setCnic('')
                   setMrNumber('')
                   setReferring('')
+                  setSelectedCenterId('')
+                  setFromReferralId('')
                   setSelectedTestIds([])
                   setDiscount('0')
                   setReceivedAmount('0')

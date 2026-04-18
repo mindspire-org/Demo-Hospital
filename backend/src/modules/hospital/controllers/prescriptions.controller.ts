@@ -16,6 +16,7 @@ export async function create(req: Request, res: Response){
   const pres = await HospitalPrescription.create({
     patientId: enc.patientId,
     encounterId: data.encounterId,
+    tokenNo: (data as any).tokenNo,
     prescriptionMode: (data as any).prescriptionMode || 'electronic',
     manualAttachment: att,
     items: (data as any).items || [],
@@ -79,10 +80,20 @@ export async function list(req: Request, res: Response){
 
 export async function getById(req: Request, res: Response){
   const { id } = req.params as any
-  const row = await HospitalPrescription.findById(String(id))
+  const row: any = await HospitalPrescription.findById(String(id))
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .lean()
   if (!row) return res.status(404).json({ error: 'Prescription not found' })
+  
+  // Fallback: fetch tokenNo from Token collection if not on prescription
+  if (!row.tokenNo && row.encounterId) {
+    try {
+      const { HospitalToken } = await import('../models/Token')
+      const tok: any = await HospitalToken.findOne({ encounterId: String(row.encounterId?._id || row.encounterId) }).select('tokenNo').lean()
+      if (tok?.tokenNo) row.tokenNo = tok.tokenNo
+    } catch {}
+  }
+  
   res.json({ prescription: row })
 }
 
@@ -90,6 +101,7 @@ export async function update(req: Request, res: Response){
   const { id } = req.params as any
   const data = updatePrescriptionSchema.parse(req.body)
   const set: any = {}
+  if ((data as any).tokenNo !== undefined) set.tokenNo = (data as any).tokenNo
   if ((data as any).prescriptionMode !== undefined) set.prescriptionMode = (data as any).prescriptionMode
   if ((data as any).manualAttachment !== undefined) {
     const att: any = (data as any).manualAttachment
@@ -116,6 +128,54 @@ export async function update(req: Request, res: Response){
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .lean()
   if (!row) return res.status(404).json({ error: 'Prescription not found' })
+  res.json({ prescription: row })
+}
+
+export async function getByEncounterId(req: Request, res: Response){
+  const { encounterId } = req.params as any
+  const row: any = await HospitalPrescription.findOne({ encounterId: String(encounterId) })
+    .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
+    .lean()
+  if (!row) return res.json({ prescription: null })
+
+  // Fallback: fetch tokenNo from Token collection if not on prescription
+  if (!row.tokenNo && encounterId) {
+    try {
+      const { HospitalToken } = await import('../models/Token')
+      const tok: any = await HospitalToken.findOne({ encounterId: String(encounterId) }).select('tokenNo').lean()
+      if (tok?.tokenNo) row.tokenNo = tok.tokenNo
+    } catch {}
+  }
+
+  res.json({ prescription: row })
+}
+
+export async function upsertVitals(req: Request, res: Response){
+  const { encounterId } = req.params as any
+  const vitals = (req as any).body?.vitals
+  if (!vitals) return res.status(400).json({ error: 'vitals required' })
+  
+  const enc = await HospitalEncounter.findById(encounterId)
+  if (!enc) return res.status(404).json({ error: 'Encounter not found' })
+  
+  let pres = await HospitalPrescription.findOne({ encounterId: String(encounterId) })
+  if (!pres) {
+    // Create a minimal prescription with just vitals
+    pres = await HospitalPrescription.create({
+      patientId: enc.patientId,
+      encounterId: String(encounterId),
+      tokenNo: (req as any).body?.tokenNo,
+      prescriptionMode: 'electronic',
+      items: [],
+      vitals,
+    })
+  } else {
+    pres = await HospitalPrescription.findByIdAndUpdate(pres._id, { $set: { vitals } }, { new: true })
+  }
+  
+  const row = await HospitalPrescription.findById(pres._id)
+    .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
+    .lean()
   res.json({ prescription: row })
 }
 

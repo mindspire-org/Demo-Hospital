@@ -200,15 +200,15 @@ export default function Hospital_StaffAttendance(){
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
               <tr>
-                <th className="px-4 py-2 font-medium">Staff</th>
-                <th className="px-4 py-2 font-medium">Position</th>
-                <th className="px-4 py-2 font-medium">Phone</th>
-                <th className="px-4 py-2 font-medium">Shift</th>
-                <th className="px-4 py-2 font-medium">Clock In</th>
-                <th className="px-4 py-2 font-medium">Clock Out</th>
-                <th className="px-4 py-2 font-medium">Actions</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Staff</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Position</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Phone</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Shift</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Clock In</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Clock Out</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">

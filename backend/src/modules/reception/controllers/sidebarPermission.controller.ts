@@ -26,7 +26,7 @@ const defaultVisibility: Record<string, Array<{ path: string; label: string; vis
   })),
 }
 
-const defaultAllVisible = defaultSidebarItems.map(item => ({ ...item, visible: true }))
+const defaultAllVisible = defaultSidebarItems.map(item => ({ ...item, visible: false }))
 
 const normalizeRole = (role: string) => String(role || '').trim().toLowerCase()
 

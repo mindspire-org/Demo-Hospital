@@ -79,10 +79,10 @@ export default function Ambulance_Dashboard() {
   const formatNumber = (n: number) => new Intl.NumberFormat('en-PK').format(n)
 
   const quickLinks = [
-    { to: '/hospital/ambulance/trips', label: 'New Trip', icon: '🚑', color: 'bg-sky-600' },
-    { to: '/hospital/ambulance/master', label: 'Ambulances', icon: '🚐', color: 'bg-violet-600' },
-    { to: '/hospital/ambulance/fuel', label: 'Add Fuel', icon: '⛽', color: 'bg-amber-600' },
-    { to: '/hospital/ambulance/expenses', label: 'Expenses', icon: '💰', color: 'bg-emerald-600' },
+    { to: '/hospital/ambulance/trips', label: 'New Trip', color: 'bg-sky-600' },
+    { to: '/hospital/ambulance/master', label: 'Ambulances', color: 'bg-violet-600' },
+    { to: '/hospital/ambulance/fuel', label: 'Add Fuel', color: 'bg-amber-600' },
+    { to: '/hospital/ambulance/expenses', label: 'Expenses', color: 'bg-emerald-600' },
   ]
 
   const statusColors: Record<string, string> = {
@@ -113,16 +113,15 @@ export default function Ambulance_Dashboard() {
               <Link
                 key={link.to}
                 to={link.to}
-                className={`flex items-center gap-3 rounded-xl ${link.color} px-4 py-3 text-white shadow-sm transition hover:scale-[1.02] hover:shadow-md`}
+                className={`flex items-center justify-center gap-2 rounded-xl ${link.color} px-4 py-3 text-white shadow-sm transition hover:scale-[1.02] hover:shadow-md`}
               >
-                <span className="text-2xl">{link.icon}</span>
                 <span className="font-medium">{link.label}</span>
               </Link>
             ))}
           </div>
 
-          {/* Stats Grid */}
-          <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
+          {/* Stats Grid - Row 1 */}
+          <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-sm text-slate-500">Total Ambulances</div>
               <div className="mt-1 text-2xl font-bold text-slate-800">{stats.totalAmbulances}</div>
@@ -135,6 +134,10 @@ export default function Ambulance_Dashboard() {
               <div className="text-sm text-sky-600">On Duty</div>
               <div className="mt-1 text-2xl font-bold text-sky-700">{stats.onDuty}</div>
             </div>
+          </div>
+
+          {/* Stats Grid - Row 2 */}
+          <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <div className="text-sm text-amber-600">Maintenance</div>
               <div className="mt-1 text-2xl font-bold text-amber-700">{stats.maintenance}</div>
@@ -143,10 +146,14 @@ export default function Ambulance_Dashboard() {
               <div className="text-sm text-slate-500">Today's Trips</div>
               <div className="mt-1 text-2xl font-bold text-violet-600">{stats.todayTrips}</div>
             </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-sm text-slate-500">Total Expenses</div>
+              <div className="mt-1 text-2xl font-bold text-rose-600">{formatCurrency(stats.monthExpenses)}</div>
+            </div>
           </div>
 
           {/* Monthly Summary */}
-          <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-sm text-slate-500">Monthly Trips</div>
               <div className="mt-1 text-xl font-bold text-slate-800">{formatNumber(stats.monthTrips)}</div>
@@ -158,10 +165,6 @@ export default function Ambulance_Dashboard() {
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-sm text-slate-500">Fuel Cost</div>
               <div className="mt-1 text-xl font-bold text-amber-600">{formatCurrency(stats.monthFuel)}</div>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">Total Expenses</div>
-              <div className="mt-1 text-xl font-bold text-rose-600">{formatCurrency(stats.monthExpenses)}</div>
             </div>
           </div>
 
@@ -232,23 +235,23 @@ export default function Ambulance_Dashboard() {
           <div className="mt-8">
             <h3 className="text-lg font-semibold text-slate-800">Reports & Analytics</h3>
             <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-              <Link to="/hospital/ambulance/reports?type=usage" className="rounded-lg border border-slate-200 bg-white p-3 text-sm hover:bg-slate-50">
-                📊 Usage Report
+              <Link to="/hospital/ambulance/reports?type=usage" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Usage Report
               </Link>
-              <Link to="/hospital/ambulance/reports?type=trips" className="rounded-lg border border-slate-200 bg-white p-3 text-sm hover:bg-slate-50">
-                🚗 Trip History
+              <Link to="/hospital/ambulance/reports?type=trips" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Trip History
               </Link>
-              <Link to="/hospital/ambulance/reports?type=fuel" className="rounded-lg border border-slate-200 bg-white p-3 text-sm hover:bg-slate-50">
-                ⛽ Fuel Report
+              <Link to="/hospital/ambulance/reports?type=fuel" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Fuel Report
               </Link>
-              <Link to="/hospital/ambulance/reports?type=expenses" className="rounded-lg border border-slate-200 bg-white p-3 text-sm hover:bg-slate-50">
-                💰 Expense Report
+              <Link to="/hospital/ambulance/reports?type=expenses" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Expense Report
               </Link>
-              <Link to="/hospital/ambulance/reports?type=cost-per-km" className="rounded-lg border border-slate-200 bg-white p-3 text-sm hover:bg-slate-50">
-                📈 Cost/Km Analysis
+              <Link to="/hospital/ambulance/reports?type=cost-per-km" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Cost/Km Analysis
               </Link>
-              <Link to="/hospital/ambulance/reports?type=patient-transport" className="rounded-lg border border-slate-200 bg-white p-3 text-sm hover:bg-slate-50">
-                👤 Patient Transport
+              <Link to="/hospital/ambulance/reports?type=patient-transport" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Patient Transport
               </Link>
             </div>
           </div>

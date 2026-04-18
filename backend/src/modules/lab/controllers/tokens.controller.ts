@@ -1,9 +1,14 @@
 import { Request, Response } from 'express'
 import { LabToken } from '../models/Token'
 import { LabOrder } from '../models/Order'
+import { LabOrderTest } from '../models/OrderTest'
+import { LabPayment } from '../models/Payment'
+import { LabTest } from '../models/Test'
 import { LabResult } from '../models/Result'
 import { LabCounter } from '../models/Counter'
 import { LabAuditLog } from '../models/AuditLog'
+import { postUserRevenueJournal } from '../../finance/controllers/finance_ledger'
+import { HospitalReferral } from '../../hospital/models/Referral'
 import { z } from 'zod'
 
 function resolveActor(req: Request) {
@@ -49,10 +54,24 @@ const tokenCreateSchema = z.object({
     guardianName: z.string().optional(),
     cnic: z.string().optional(),
   }),
-  tests: z.array(z.string()).default([]),
+  tests: z.array(z.union([
+    z.string(),
+    z.object({
+      testId: z.string(),
+      testName: z.string(),
+      price: z.number()
+    })
+  ])).default([]),
   referringConsultant: z.string().optional(),
+  referralId: z.string().optional(),
   corporateId: z.string().optional(),
   portal: z.enum(['lab', 'reception']).optional(),
+  // Collection Center fields
+  collectionCenterId: z.string().optional(),
+  collectionCenterName: z.string().optional(),
+  centerCommissionPercent: z.number().optional(),
+  centerCommissionAmount: z.number().optional(),
+  centerNetAmount: z.number().optional(),
   // Financial fields at token creation
   subtotal: z.number().default(0),
   discount: z.number().default(0),
@@ -67,6 +86,7 @@ const tokenQuerySchema = z.object({
   status: z.enum(['token_generated', 'converted_to_sample', 'sample_received', 'result_entered', 'approved', 'cancelled']).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
+  collectionCenterId: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(500).default(20),
 })
@@ -88,7 +108,14 @@ const tokenUpdateSchema = z.object({
 })
 
 const convertToSampleSchema = z.object({
-  tests: z.array(z.string()).min(1),
+  tests: z.array(z.union([
+    z.string(),
+    z.object({
+      testId: z.string(),
+      testName: z.string(),
+      price: z.number()
+    })
+  ])).min(1),
   subtotal: z.number().default(0),
   discount: z.number().default(0),
   net: z.number().default(0),
@@ -112,18 +139,48 @@ export async function create(req: Request, res: Response) {
   const labNumber = await nextLabNumber()
   const now = new Date().toISOString()
 
-  const doc = await LabToken.create({
-    tokenNo,
+  // Process tests to ensure they are all in snapshot format { testId, testName, price }
+  const tests: any[] = []
+  const testIdsToFetch: string[] = []
+
+  for (const t of data.tests) {
+    if (typeof t === 'string') {
+      testIdsToFetch.push(t)
+    } else {
+      tests.push(t)
+    }
+  }
+
+  if (testIdsToFetch.length > 0) {
+    const fetchedTests = await LabTest.find({ _id: { $in: testIdsToFetch } }).lean()
+    for (const ft of fetchedTests) {
+      tests.push({
+        testId: String(ft._id),
+        testName: ft.name,
+        price: ft.price || 0
+      })
+    }
+  }
+
+  const token = await LabToken.create({
     labNumber,
+    tokenNo,
     patientId: data.patientId,
     patient: data.patient,
-    tests: data.tests,
+    tests, // Snapshot for display only
     status: 'token_generated',
     generatedAt: now,
     generatedBy: actor,
     referringConsultant: data.referringConsultant,
+    referralId: data.referralId,
     corporateId: data.corporateId,
     portal,
+    // Collection Center fields
+    collectionCenterId: data.collectionCenterId,
+    collectionCenterName: data.collectionCenterName,
+    centerCommissionPercent: data.centerCommissionPercent,
+    centerCommissionAmount: data.centerCommissionAmount,
+    centerNetAmount: data.centerNetAmount,
     // Financial fields
     subtotal: data.subtotal,
     discount: data.discount,
@@ -140,17 +197,30 @@ export async function create(req: Request, res: Response) {
       method: 'POST',
       path: req.originalUrl,
       at: now,
-      detail: `Token ${tokenNo} — ${data.patient.fullName}`,
+      detail: `Token ${tokenNo} for patient ${data.patient.fullName}`,
     })
   } catch {}
 
-  res.status(201).json(doc)
+  // Record initial payment in ledger if any
+  if (data.receivedAmount > 0) {
+    await LabPayment.create({
+      tokenId: token._id,
+      patientId: data.patientId,
+      type: 'payment',
+      amount: data.receivedAmount,
+      method: (data as any).paymentMethod || 'cash',
+      note: 'Advance payment during token generation',
+      createdBy: actor
+    })
+  }
+
+  res.status(201).json(token)
 }
 
 // List tokens with filters
 export async function list(req: Request, res: Response) {
   const parsed = tokenQuerySchema.safeParse(req.query)
-  const { q, status, from, to, page, limit } = parsed.success ? parsed.data as any : {}
+  const { q, status, from, to, collectionCenterId, page, limit } = parsed.success ? parsed.data as any : {}
   
   const filter: any = {}
   if (q) {
@@ -163,15 +233,36 @@ export async function list(req: Request, res: Response) {
     ]
   }
   if (status) filter.status = status
-  if (from || to) {
-    filter.createdAt = {}
-    if (from) filter.createdAt.$gte = new Date(from)
-    if (to) {
-      const end = new Date(to)
-      end.setHours(23, 59, 59, 999)
-      filter.createdAt.$lte = end
+  if (collectionCenterId) {
+    if (collectionCenterId === 'internal') {
+      // Main lab tokens - no collection center assigned
+      filter.collectionCenterId = null
+    } else if (collectionCenterId === 'any') {
+      // Tokens with any collection center assigned (not null)
+      filter.collectionCenterId = { $exists: true, $ne: null }
+    } else {
+      filter.collectionCenterId = collectionCenterId
     }
   }
+  if (from || to) {
+    // Use generatedAt string comparison instead of createdAt to avoid timezone issues
+    // generatedAt is stored as ISO string in local time context
+    filter.generatedAt = {}
+    if (from) {
+      // Start of day in ISO format (YYYY-MM-DDT00:00:00.000Z equivalent for comparison)
+      const start = new Date(from)
+      start.setUTCHours(0, 0, 0, 0)
+      filter.generatedAt.$gte = start.toISOString()
+    }
+    if (to) {
+      // End of day in ISO format
+      const end = new Date(to)
+      end.setUTCHours(23, 59, 59, 999)
+      filter.generatedAt.$lte = end.toISOString()
+    }
+  }
+
+  console.log('[LAB TOKENS] Filter:', JSON.stringify(filter), '- from:', from, '- to:', to)
 
   const lim = Math.min(500, Number(limit || 20))
   const pg = Math.max(1, Number(page || 1))
@@ -181,6 +272,8 @@ export async function list(req: Request, res: Response) {
     LabToken.find(filter).sort({ createdAt: -1 }).skip(skip).limit(lim).lean(),
     LabToken.countDocuments(filter),
   ])
+
+  console.log('[LAB TOKENS] Found', items.length, 'of', total, 'tokens')
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / lim))
   res.json({ items, total, page: pg, totalPages })
@@ -291,11 +384,88 @@ export async function getTimeline(req: Request, res: Response) {
     result = await LabResult.findById(token.resultId).lean()
   }
 
+  // Get per-test status from LabOrderTest
+  const orderTests = await LabOrderTest.find({ tokenNo: token.tokenNo }).lean()
+  const testStatuses = orderTests.map(ot => ({
+    testId: ot.testId,
+    testName: ot.testName,
+    status: ot.status,
+    sampleTime: ot.sampleTime,
+    resultId: ot.resultId,
+    price: ot.price,
+    isReturned: ot.isReturned
+  }))
+
+  // Add per-test timeline events
+  const testEvents: typeof events = []
+  
+  for (const test of orderTests) {
+    // Sample collected event for this test
+    if (test.sampleTime) {
+      testEvents.push({
+        event: `Sample Collected: ${test.testName}`,
+        at: test.sampleTime.includes('T') ? test.sampleTime : `${new Date().toISOString().split('T')[0]}T${test.sampleTime}`,
+        by: test.performedBy || 'System',
+        details: `Test: ${test.testName}`
+      })
+    }
+    
+    // Result events for this test
+    if (test.resultId) {
+      const result: any = await LabResult.findById(test.resultId).lean()
+      if (result) {
+        // Result entered
+        testEvents.push({
+          event: `Result Entered: ${test.testName}`,
+          at: result?.createdAt || new Date().toISOString(),
+          by: result?.submittedBy || 'System',
+          details: `Test: ${test.testName}`
+        })
+        
+        // Result rejected (if applicable)
+        if (result?.rejectedAt) {
+          testEvents.push({
+            event: `Result Rejected: ${test.testName}`,
+            at: result.rejectedAt,
+            by: result.rejectedBy || 'System',
+            details: result.rejectionReason ? `Reason: ${result.rejectionReason}` : `Test: ${test.testName}`
+          })
+        }
+        
+        // Result edited (if applicable)
+        if (result?.editedAt) {
+          testEvents.push({
+            event: `Result Edited: ${test.testName}`,
+            at: result.editedAt,
+            by: result.editedBy || 'System',
+            details: result.editCount ? `Edit #${result.editCount}` : `Test: ${test.testName}`
+          })
+        }
+        
+        // Result approved
+        if (result?.reportStatus === 'approved' && result?.approvedAt) {
+          testEvents.push({
+            event: `Result Approved: ${test.testName}`,
+            at: result.approvedAt,
+            by: result.approvedBy || 'System',
+            details: `Test: ${test.testName}`
+          })
+        }
+      }
+    }
+  }
+  
+  // Sort all events by time
+  const allEvents = [...events, ...testEvents].sort((a, b) => {
+    return new Date(a.at).getTime() - new Date(b.at).getTime()
+  })
+
   res.json({
     token,
-    events,
+    events: allEvents,
     order,
     result,
+    testStatuses,
   })
 }
 
@@ -329,18 +499,49 @@ export async function convertToSample(req: Request, res: Response) {
   const now = new Date().toISOString()
   const barcode = generateBarcode(token.tokenNo, new Date())
 
-  // Create single order with all tests
+  // Process tests to ensure they are all in snapshot format { testId, testName, price }
+  const tests: any[] = []
+  const testIdsToFetch: string[] = []
+
+  for (const t of data.tests) {
+    if (typeof t === 'string') {
+      testIdsToFetch.push(t)
+    } else {
+      tests.push(t)
+    }
+  }
+
+  if (testIdsToFetch.length > 0) {
+    const fetchedTests = await LabTest.find({ _id: { $in: testIdsToFetch } }).lean()
+    for (const ft of fetchedTests) {
+      tests.push({
+        testId: String(ft._id),
+        testName: ft.name,
+        price: ft.price || 0
+      })
+    }
+  }
+
+  // Create order with financial fields for reporting
   const orderData: any = {
+    tokenId: token._id,
+    tokenNo: token.tokenNo,
     patientId: token.patientId,
     patient: token.patient,
-    tests: data.tests,
-    tokenNo: token.tokenNo,
     labNumber: token.labNumber,
     status: 'received',
     barcode,
+    tests,
+    testStatuses: tests.map((t: any) => ({
+      testId: t.testId,
+      testName: t.testName,
+      status: 'pending'
+    })),
     referringConsultant: data.referringConsultant || token.referringConsultant,
+    corporateId: data.corporateId || token.corporateId,
     portal: token.portal,
-    // Financial data on the single order
+    createdByUsername: actor,
+    // Financial fields for reporting
     subtotal,
     discount,
     net,
@@ -348,25 +549,59 @@ export async function convertToSample(req: Request, res: Response) {
     receivableAmount,
   }
 
-  if (data.paymentMethod || (receivedAmount > 0 && !data.paymentMethod)) {
-    orderData.payments = [{
-      amount: receivedAmount,
-      at: now,
-      note: data.paymentNote,
-      method: data.paymentMethod || 'cash',
-      receivedBy: actor,
-    }]
-  }
-
-  if (data.corporateId || token.corporateId) {
-    orderData.corporateId = data.corporateId || token.corporateId
-    if (data.corporatePreAuthNo) orderData.corporatePreAuthNo = data.corporatePreAuthNo
-    if (data.corporateCoPayPercent) orderData.corporateCoPayPercent = data.corporateCoPayPercent
-    if (data.corporateCoverageCap) orderData.corporateCoverageCap = data.corporateCoverageCap
-  }
-
   const order = await LabOrder.create(orderData)
   const orderId = String(order._id)
+
+  // Create LabOrderTest documents for each test (CORE - per test control)
+  // Set sampleTime to current time by default when converting to sample
+  // Format as HH:mm in Pakistan timezone (UTC+5) for compatibility with frontend time input
+  const sampleDate = new Date()
+  // Pakistan is UTC+5
+  const pakistanTime = new Date(sampleDate.getTime() + (5 * 60 * 60 * 1000))
+  const hours = String(pakistanTime.getUTCHours()).padStart(2, '0')
+  const minutes = String(pakistanTime.getUTCMinutes()).padStart(2, '0')
+  const sampleTimeStr = `${hours}:${minutes}`
+  
+  const orderTestDocs = tests.map((t: any) => ({
+    tokenId: token._id,
+    orderId: order._id,
+    tokenNo: token.tokenNo,
+    patientId: token.patientId,
+    testId: t.testId,
+    testName: t.testName,
+    price: t.price || 0,
+    status: 'pending',
+    sampleTime: sampleTimeStr, // Auto-set sample time to current time (HH:mm format)
+  }))
+  await LabOrderTest.insertMany(orderTestDocs)
+
+  // Record payment in ledger if any
+  if (receivedAmount > 0) {
+    const paymentRecord = {
+      tokenId: token._id,
+      orderId: order._id,
+      patientId: token.patientId,
+      type: 'payment',
+      amount: receivedAmount,
+      method: data.paymentMethod || 'cash',
+      note: data.paymentNote || 'Payment during conversion to sample',
+      createdBy: actor,
+    }
+    await LabPayment.create(paymentRecord)
+
+    // Also add to order's payments array for income ledger reporting
+    await LabOrder.findByIdAndUpdate(order._id, {
+      $push: {
+        payments: {
+          amount: receivedAmount,
+          at: now,
+          method: data.paymentMethod || 'cash',
+          note: data.paymentNote || 'Payment during conversion to sample',
+          receivedBy: actor
+        }
+      }
+    })
+  }
 
   // Update token with financial data
   token.status = 'converted_to_sample'
@@ -374,13 +609,44 @@ export async function convertToSample(req: Request, res: Response) {
   token.convertedBy = actor
   token.orderId = orderId
   token.barcode = barcode
-  token.tests = data.tests
+  token.tests = tests
   token.subtotal = subtotal
   token.discount = discount
   token.net = net
   token.receivedAmount = receivedAmount
   token.receivableAmount = receivableAmount
   await token.save()
+
+  // If this token was created from a referral, link the referral with the order
+  if (token.referralId) {
+    try {
+      await HospitalReferral.findByIdAndUpdate(token.referralId, {
+        $set: {
+          tokenNo: token.tokenNo,
+          linkedOrderId: orderId,
+          status: 'completed'
+        }
+      })
+    } catch {}
+  }
+
+  // Post revenue journal to finance (non-corporate only)
+  try {
+    if (!token.corporateId && net > 0) {
+      const userAccount = `${actor}/lab`
+      await postUserRevenueJournal({
+        userAccountName: userAccount,
+        revenueAccount: 'LAB_REVENUE',
+        amount: net,
+        refType: 'lab_order',
+        refId: orderId,
+        description: `Lab Order ${token.tokenNo}`,
+        dateIso: now
+      })
+    }
+  } catch (e) {
+    console.error('Failed to post Lab revenue journal:', e)
+  }
 
   try {
     await LabAuditLog.create({

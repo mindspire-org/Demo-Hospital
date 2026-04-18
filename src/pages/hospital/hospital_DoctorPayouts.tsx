@@ -175,14 +175,14 @@ export default function Finance_DoctorPayouts(){
         <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Recent Payouts</div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
               <tr>
-                <th className="px-4 py-2 font-medium">Date</th>
-                <th className="px-4 py-2 font-medium">Doctor</th>
-                <th className="px-4 py-2 font-medium">Amount</th>
-                <th className="px-4 py-2 font-medium">Performed By</th>
-                <th className="px-4 py-2 font-medium">Memo</th>
-                <th className="px-4 py-2 font-medium">Actions</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Doctor</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Amount</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Performed By</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Memo</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">

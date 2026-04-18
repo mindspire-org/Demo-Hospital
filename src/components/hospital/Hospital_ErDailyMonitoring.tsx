@@ -124,6 +124,10 @@ export default function Hospital_ErDailyMonitoring({ encounterId }: { encounterI
 
 function VitalsDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void; onSave: (d: { date?: string; time?: string; bp?: string; temp?: string; pulse?: string; resp?: string; bsr?: string; intakeIV?: string; urine?: string; nurseSign?: string; shift?: 'morning'|'evening'|'night' })=>void }){
   if(!open) return null
+  // Default to current date and time
+  const now = new Date()
+  const defaultDate = now.toISOString().split('T')[0]
+  const defaultTime = now.toTimeString().slice(0,5)
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -150,11 +154,11 @@ function VitalsDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>v
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <label htmlFor="mon-date" className="block text-xs font-medium text-slate-600">Date</label>
-              <input id="mon-date" name="date" type="date" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+              <input id="mon-date" name="date" type="date" defaultValue={defaultDate} className="w-full rounded-md border border-slate-300 px-3 py-2" />
             </div>
             <div>
               <label htmlFor="mon-time" className="block text-xs font-medium text-slate-600">Time</label>
-              <input id="mon-time" name="time" type="time" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+              <input id="mon-time" name="time" type="time" defaultValue={defaultTime} className="w-full rounded-md border border-slate-300 px-3 py-2" />
             </div>
             <div>
               <label htmlFor="mon-shift" className="block text-xs font-medium text-slate-600">Shift</label>

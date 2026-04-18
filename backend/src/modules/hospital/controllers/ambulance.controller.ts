@@ -485,10 +485,12 @@ export const getReport = async (req: Request, res: Response) => {
   try {
     const { reportType } = req.params
     const { from, to, ambulanceId } = req.query
+    const { page, limit, skip } = getPagination(req.query)
 
     const dateFilter = buildDateRange(from, to) || {}
 
     let data: any = {}
+    let pagination: any = null
 
     switch (reportType) {
       case 'usage': {
@@ -553,10 +555,15 @@ export const getReport = async (req: Request, res: Response) => {
         if (ambulanceId) filter.ambulanceId = ambulanceId
         if (Object.keys(dateFilter).length) filter.departureTime = dateFilter
 
-        const trips = await AmbulanceTripModel.find(filter)
-          .populate('ambulanceId', 'vehicleNumber')
-          .sort({ departureTime: -1 })
-          .lean()
+        const [trips, total] = await Promise.all([
+          AmbulanceTripModel.find(filter)
+            .populate('ambulanceId', 'vehicleNumber')
+            .sort({ departureTime: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+          AmbulanceTripModel.countDocuments(filter)
+        ])
 
         data = {
           trips: trips.map(t => ({
@@ -571,6 +578,7 @@ export const getReport = async (req: Request, res: Response) => {
             status: t.status,
           })),
         }
+        pagination = { page, limit, total, pages: Math.ceil(total / limit) }
         break
       }
 
@@ -579,10 +587,15 @@ export const getReport = async (req: Request, res: Response) => {
         if (ambulanceId) filter.ambulanceId = ambulanceId
         if (Object.keys(dateFilter).length) filter.date = dateFilter
 
-        const fuel = await AmbulanceFuelModel.find(filter)
-          .populate('ambulanceId', 'vehicleNumber')
-          .sort({ date: -1 })
-          .lean()
+        const [fuel, total] = await Promise.all([
+          AmbulanceFuelModel.find(filter)
+            .populate('ambulanceId', 'vehicleNumber')
+            .sort({ date: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+          AmbulanceFuelModel.countDocuments(filter)
+        ])
 
         data = {
           fuel: fuel.map(f => ({
@@ -593,6 +606,7 @@ export const getReport = async (req: Request, res: Response) => {
             station: f.station,
           })),
         }
+        pagination = { page, limit, total, pages: Math.ceil(total / limit) }
         break
       }
 
@@ -601,10 +615,15 @@ export const getReport = async (req: Request, res: Response) => {
         if (ambulanceId) filter.ambulanceId = ambulanceId
         if (Object.keys(dateFilter).length) filter.date = dateFilter
 
-        const expenses = await AmbulanceExpenseModel.find(filter)
-          .populate('ambulanceId', 'vehicleNumber')
-          .sort({ date: -1 })
-          .lean()
+        const [expenses, total] = await Promise.all([
+          AmbulanceExpenseModel.find(filter)
+            .populate('ambulanceId', 'vehicleNumber')
+            .sort({ date: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+          AmbulanceExpenseModel.countDocuments(filter)
+        ])
 
         data = {
           expenses: expenses.map(e => ({
@@ -615,6 +634,7 @@ export const getReport = async (req: Request, res: Response) => {
             description: e.description,
           })),
         }
+        pagination = { page, limit, total, pages: Math.ceil(total / limit) }
         break
       }
 
@@ -667,10 +687,15 @@ export const getReport = async (req: Request, res: Response) => {
         if (ambulanceId) filter.ambulanceId = ambulanceId
         if (Object.keys(dateFilter).length) filter.departureTime = dateFilter
 
-        const trips = await AmbulanceTripModel.find(filter)
-          .populate('ambulanceId', 'vehicleNumber')
-          .sort({ departureTime: -1 })
-          .lean()
+        const [trips, total] = await Promise.all([
+          AmbulanceTripModel.find(filter)
+            .populate('ambulanceId', 'vehicleNumber')
+            .sort({ departureTime: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+          AmbulanceTripModel.countDocuments(filter)
+        ])
 
         data = {
           patientTransport: trips.map(t => ({
@@ -684,6 +709,7 @@ export const getReport = async (req: Request, res: Response) => {
             distanceTraveled: t.distanceTraveled,
           })),
         }
+        pagination = { page, limit, total, pages: Math.ceil(total / limit) }
         break
       }
 
@@ -691,7 +717,7 @@ export const getReport = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Invalid report type' })
     }
 
-    res.json({ data })
+    res.json({ data, pagination })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }

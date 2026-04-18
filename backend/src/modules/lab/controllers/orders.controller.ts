@@ -1,16 +1,27 @@
 import { Request, Response } from 'express'
 import { LabOrder } from '../models/Order'
+import { LabOrderTest } from '../models/OrderTest'
 import { LabToken } from '../models/Token'
 import { LabAuditLog } from '../models/AuditLog'
 import { orderCreateSchema, orderQuerySchema, orderTrackUpdateSchema } from '../validators/order'
 import { LabCounter } from '../models/Counter'
 import { LabResult } from '../models/Result'
 import { LabInventoryItem } from '../models/InventoryItem'
+import { LabPayment } from '../models/Payment'
 import { LabTest } from '../models/Test'
 import { resolveTestPrice } from '../../corporate/utils/price'
 import { CorporateTransaction } from '../../corporate/models/Transaction'
 import { CorporateCompany } from '../../corporate/models/Company'
 import { postFbrInvoiceViaSDC } from '../../hospital/services/fbr'
+import { postUserRevenueJournal } from '../../finance/controllers/finance_ledger'
+
+function getPakistanDate(): string {
+  // Pakistan Standard Time is UTC+5
+  const now = new Date()
+  const pakistanOffset = 5 * 60 * 60 * 1000 // 5 hours in milliseconds
+  const pakistanTime = new Date(now.getTime() + pakistanOffset)
+  return pakistanTime.toISOString().slice(0, 10)
+}
 
 async function nextLabNumber(): Promise<number> {
   const key = 'lab_number_global'
@@ -31,101 +42,6 @@ function resolveActor(req: Request) {
   return (req as any).user?.username || (req as any).user?.name || (req as any).user?.email || 'system'
 }
 
-export async function updateToken(req: Request, res: Response){
-  const tokenNo = String((req as any).params?.tokenNo || '').trim()
-  if (!tokenNo) return res.status(400).json({ error: 'tokenNo is required' })
-
-  const body: any = req.body || {}
-  const nextTests = uniqStrings(Array.isArray(body.tests) ? body.tests : [])
-  const discount = clampMoney(body.discount)
-  const receivedWanted = clampMoney(body.receivedAmount)
-
-  const orders: any[] = await LabOrder.find({ tokenNo }).sort({ createdAt: 1 })
-  if (!orders.length) return res.status(404).json({ error: 'Token not found' })
-  const isCorporateToken = Boolean(orders.some(o => String((o as any)?.corporateId || '').trim()))
-
-  // If results exist for any order under token, block editing tests (safety)
-  try {
-    const ids = orders.map(o => String(o._id))
-    const hasResult = await LabResult.exists({ orderId: { $in: ids } })
-    if (hasResult && nextTests.length){
-      return res.status(400).json({ error: 'Cannot edit tests for token after results exist. Delete results first if you must edit.' })
-    }
-  } catch {}
-
-  const patientId = String(orders[0]?.patientId || '')
-  const patientSnap = orders[0]?.patient || undefined
-  const referringConsultant = orders[0]?.referringConsultant || undefined
-  const createdAt = orders[0]?.createdAt || new Date().toISOString()
-  const labNumber = orders[0]?.labNumber || await nextLabNumber()
-
-  // Rebuild orders to match nextTests, preserving tokenNo and patient snapshot
-  if (!nextTests.length) return res.status(400).json({ error: 'tests are required' })
-
-  // Compute prices from catalog (current). If you need historical prices, we can extend later.
-  const testsDocs: any[] = await LabTest.find({ _id: { $in: nextTests } }).select('price').lean()
-  const priceMap = new Map<string, number>(testsDocs.map((t:any)=> [String(t._id), Number(t.price||0)]))
-  const prices = nextTests.map(id => Math.max(0, Number(priceMap.get(String(id)) || 0)))
-  const tokenSubtotal = prices.reduce((s,n)=> s + n, 0)
-  const tokenNet = Math.max(0, tokenSubtotal - discount)
-  const received = isCorporateToken ? 0 : Math.min(tokenNet, receivedWanted)
-  const receivable = isCorporateToken ? 0 : Math.max(0, tokenNet - received)
-
-  // Delete old orders for token + associated results (only if no results exist; checked above)
-  await LabOrder.deleteMany({ tokenNo })
-
-  // Create single order with all tests
-  const actor = resolveActor(req)
-  const payments = (!isCorporateToken && received > 0) ? [{ amount: received, at: new Date().toISOString(), note: 'Adjusted on token edit', method: 'adjustment', receivedBy: actor }] : []
-
-  const order: any = await LabOrder.create({
-    patientId,
-    patient: patientSnap,
-    corporateId: (orders[0] as any)?.corporateId,
-    tests: nextTests,
-    subtotal: tokenSubtotal,
-    discount,
-    net: tokenNet,
-    tokenNo,
-    labNumber,
-    status: 'received',
-    createdAt,
-    referringConsultant,
-    receivedAmount: received,
-    receivableAmount: receivable,
-    payments,
-  })
-
-  // Corporate tokens should never contribute to Lab receivables
-  if (isCorporateToken){
-    try { await LabOrder.updateOne({ tokenNo }, { $set: { receivedAmount: 0, receivableAmount: 0 } }) } catch {}
-  }
-  
-  // Sync financial data with LabToken
-  try {
-    const token = await LabToken.findOne({ tokenNo })
-    if (token) {
-      token.receivedAmount = received
-      token.receivableAmount = receivable
-      await token.save()
-    }
-  } catch {}
-
-  try {
-    await LabAuditLog.create({
-      actor,
-      action: 'Edit Token',
-      label: 'LAB_EDIT_TOKEN',
-      method: 'PUT',
-      path: req.originalUrl,
-      at: new Date().toISOString(),
-      detail: `Token ${tokenNo} — tests=${nextTests.length}, discount=${discount}, received=${received}`,
-    })
-  } catch {}
-
-  res.json({ tokenNo, labNumber, subtotal: tokenSubtotal, discount, net: tokenNet, receivedAmount: received, receivableAmount: receivable, order })
-}
-
 function clampMoney(n: any){
   const x = Number(n || 0)
   if (!Number.isFinite(x)) return 0
@@ -134,8 +50,14 @@ function clampMoney(n: any){
 
 async function recomputeTokenTotals(tokenNo: string){
   const orders: any[] = await LabOrder.find({ tokenNo }).sort({ createdAt: 1 })
-  const tokenNet = orders.reduce((s, o)=> s + clampMoney(o?.net), 0)
   const base = orders[0]
+  
+  // Calculate tokenNet from non-returned LabOrderTest items (single source of truth)
+  const orderTests: any[] = await LabOrderTest.find({ tokenNo })
+  const tokenNet = orderTests
+    .filter(t => !t.isReturned)
+    .reduce((s, t) => s + clampMoney(t?.price || 0), 0)
+  
   const received = clampMoney(base?.receivedAmount)
   const receivable = Math.max(0, tokenNet - received)
   return { orders, tokenNet, received, receivable }
@@ -161,11 +83,25 @@ export async function list(req: Request, res: Response){
     const rx = new RegExp(String(q), 'i')
     filter.$or = [ { 'patient.fullName': rx }, { 'patient.phone': rx }, { tokenNo: rx }, { 'patient.mrn': rx } ]
   }
-  if (status) filter.status = status
+  if (status) {
+    filter.status = status
+  }
   if (from || to){
+    // Pakistan timezone is UTC+5. Convert Pakistan local dates to UTC boundaries.
+    // Pakistan midnight = UTC 19:00 (previous day)
     filter.createdAt = {}
-    if (from) filter.createdAt.$gte = new Date(from)
-    if (to) { const end = new Date(to); end.setHours(23,59,59,999); filter.createdAt.$lte = end }
+    if (from) {
+      // Start of day in Pakistan = 19:00 UTC previous day
+      const pakFrom = new Date(from + 'T00:00:00')
+      const utcFrom = new Date(pakFrom.getTime() - (5 * 60 * 60 * 1000))
+      filter.createdAt.$gte = utcFrom
+    }
+    if (to) {
+      // End of day in Pakistan = 18:59:59.999 UTC same day
+      const pakTo = new Date(to + 'T23:59:59.999')
+      const utcTo = new Date(pakTo.getTime() - (5 * 60 * 60 * 1000))
+      filter.createdAt.$lte = utcTo
+    }
   }
   const lim = Math.min(500, Number(limit || 20))
   const pg = Math.max(1, Number(page || 1))
@@ -174,8 +110,15 @@ export async function list(req: Request, res: Response){
     LabOrder.find(filter).sort({ createdAt: -1 }).skip(skip).limit(lim).lean(),
     LabOrder.countDocuments(filter),
   ])
+
+  // Fetch associated tests for each order
+  const ordersWithTests = await Promise.all(items.map(async (order: any) => {
+    const tests = await LabOrderTest.find({ orderId: order._id }).lean()
+    return { ...order, tests }
+  }))
+
   const totalPages = Math.max(1, Math.ceil((total || 0) / lim))
-  res.json({ items, total, page: pg, totalPages })
+  res.json({ items: ordersWithTests, total, page: pg, limit: lim, totalPages })
 }
 
 export async function create(req: Request, res: Response){
@@ -239,39 +182,101 @@ export async function create(req: Request, res: Response){
     } catch {}
   }
 
+  // Calculate financials for non-corporate orders
+  let orderSubtotal = 0
+  if (!isCorporate) {
+    try {
+      const ids = Array.isArray((data as any).tests) ? (data as any).tests : []
+      const docs = await LabTest.find({ _id: { $in: ids } }).select('price').lean()
+      orderSubtotal = (docs || []).reduce((s: number, t: any)=> s + Math.max(0, Number(t?.price || 0)), 0)
+    } catch {}
+  }
+  const orderDiscount = clampMoney((data as any).discount || 0)
+  const orderNet = isCorporate ? corpCoPayIncome : Math.max(0, orderSubtotal - orderDiscount)
+  const orderReceived = isCorporate 
+    ? (isFirstRow ? Math.min(corpCoPayIncome, initReceived) : 0)
+    : (isFirstRow ? Math.min(orderNet, initReceived) : 0)
+
   const doc: any = await LabOrder.create({
     ...data,
     createdByUsername: actor,
     portal,
     labNumber,
-    // Corporate tokens are billed via Corporate module; Lab ledger should only reflect co-pay (if any).
-    ...(isCorporate
-      ? {
-          subtotal: 0,
-          discount: 0,
-          net: corpCoPayIncome,
-          receivedAmount: isFirstRow ? Math.min(corpCoPayIncome, initReceived) : 0,
-          receivableAmount: 0,
-        }
-      : {}),
+    // Financial fields
+    subtotal: isCorporate ? 0 : orderSubtotal,
+    discount: orderDiscount,
+    net: orderNet,
+    receivedAmount: orderReceived || 0,
+    receivableAmount: Math.max(0, orderNet - (orderReceived || 0)),
+    payments,
     consumables: combinedConsumables,
     tokenNo,
     status: 'received',
-    // initialize ledger only once for token
-    receivedAmount: isCorporate ? (isFirstRow ? Math.min(corpCoPayIncome, initReceived) : 0) : (isFirstRow ? initReceived : 0),
-    receivableAmount: 0,
-    payments,
   })
+
+  // Create LabOrderTest documents for each test (CORE - per test control)
+  try {
+    const testIds = Array.isArray((data as any).tests) ? (data as any).tests : []
+    const tests = await LabTest.find({ _id: { $in: testIds } }).lean()
+    const map = new Map<string, any>(tests.map(t => [String((t as any)._id), t]))
+    
+    // Format sample time as HH:mm in Pakistan timezone (UTC+5) for frontend time input compatibility
+    const now = new Date()
+    // Pakistan is UTC+5
+    const pakistanTime = new Date(now.getTime() + (5 * 60 * 60 * 1000))
+    const hours = String(pakistanTime.getUTCHours()).padStart(2, '0')
+    const minutes = String(pakistanTime.getUTCMinutes()).padStart(2, '0')
+    const sampleTimeStr = `${hours}:${minutes}`
+    
+    const orderTestDocs = testIds.map((tid: any) => {
+      const t = map.get(String(tid))
+      return {
+        tokenId: existingOrders.length > 0 ? existingOrders[0].tokenId : undefined, // Will be fixed below if needed
+        orderId: doc._id,
+        tokenNo,
+        patientId: String((data as any).patientId || ''),
+        testId: String(tid),
+        testName: t?.name || String(tid),
+        price: Number(t?.price || 0),
+        status: 'pending',
+        sampleTime: sampleTimeStr, // Auto-set sample time to current time (HH:mm format)
+      }
+    })
+    
+    // If we have a tokenId from existing token record
+    const existingToken = await LabToken.findOne({ tokenNo })
+    if (existingToken) {
+      orderTestDocs.forEach((d: any) => d.tokenId = existingToken._id)
+    }
+    
+    await LabOrderTest.insertMany(orderTestDocs)
+  } catch (e) { console.error('Failed to create LabOrderTest documents:', e) }
 
   // After inserting, recompute token totals (net across all rows) and sync to all orders
   try {
+    const allTests = await LabOrderTest.find({ tokenNo }).lean()
+    const testStatuses = allTests.map(t => ({
+      testId: t.testId,
+      testName: t.testName,
+      status: t.status,
+      resultId: t.resultId
+    }))
+    
+    // Also fetch test snapshots for the order
+    const testDocs = await LabTest.find({ _id: { $in: uniqStrings(allTests.map(t => t.testId)) } }).lean()
+    const tests = testDocs.map(t => ({
+      testId: String(t._id),
+      testName: t.name,
+      price: t.price || 0
+    }))
+
     if (isCorporate){
       // Keep corporate tokens non-receivable; preserve co-pay received on first row
       const received = isFirstRow ? Math.min(corpCoPayIncome, initReceived) : 0
-      await LabOrder.updateMany({ tokenNo }, { $set: { receivedAmount: received, receivableAmount: 0 } })
+      await LabOrder.updateMany({ tokenNo }, { $set: { receivedAmount: received, receivableAmount: 0, testStatuses, tests } })
     } else {
       const { tokenNet, received, receivable } = await recomputeTokenTotals(tokenNo)
-      await LabOrder.updateMany({ tokenNo }, { $set: { receivedAmount: received, receivableAmount: receivable } })
+      await LabOrder.updateMany({ tokenNo }, { $set: { receivedAmount: received, receivableAmount: receivable, testStatuses, tests } })
     }
   } catch {}
 
@@ -336,7 +341,7 @@ export async function create(req: Request, res: Response){
       const testIds = Array.isArray(data.tests)? data.tests : []
       const tests = await LabTest.find({ _id: { $in: testIds } }).lean()
       const map = new Map<string, any>(tests.map(t => [String((t as any)._id), t]))
-      const dateIso = new Date().toISOString().slice(0,10)
+      const dateIso = getPakistanDate()
       for (const tid of testIds){
         const t = map.get(String(tid))
         const listPrice = Number(t?.price || 0)
@@ -423,7 +428,26 @@ export async function create(req: Request, res: Response){
       })
     }
   } catch (e) { console.warn('Failed to sync LabToken for order', e) }
-  
+
+  // Auto-post revenue journal to finance (non-corporate only)
+  try {
+    const net = Number((data as any).net || 0)
+    if (!isCorporate && net > 0) {
+      const userAccount = `${actor}/lab`
+      await postUserRevenueJournal({
+        userAccountName: userAccount,
+        revenueAccount: 'LAB_REVENUE',
+        amount: net,
+        refType: 'lab_order',
+        refId: String(doc._id),
+        description: `Lab Order ${tokenNo}`,
+        dateIso: getPakistanDate()
+      })
+    }
+  } catch (e) {
+    console.error('Failed to post Lab revenue journal:', e)
+  }
+
   res.status(201).json(doc)
 }
 
@@ -486,9 +510,156 @@ export async function receivePayment(req: Request, res: Response){
 export async function updateTrack(req: Request, res: Response){
   const { id } = req.params
   const patch = orderTrackUpdateSchema.parse(req.body)
-  const before: any = await LabOrder.findById(id).lean()
-  const doc = await LabOrder.findByIdAndUpdate(id, { $set: patch }, { new: true })
-  if (!doc) return res.status(404).json({ message: 'Order not found' })
+  const actor = resolveActor(req)
+  const before: any = await LabOrder.findById(id)
+  if (!before) return res.status(404).json({ message: 'Order not found' })
+
+  const { testId, orderTestId, ...otherFields } = patch
+  
+  // Handle per-test updates
+  if (orderTestId || testId) {
+    let financialDelta = 0
+    let financialDeltaType: 'refund' | 'payment' | null = null
+
+    const updateData: any = {}
+    if (otherFields.sampleTime !== undefined) updateData.sampleTime = otherFields.sampleTime
+    if (otherFields.status !== undefined) updateData.status = otherFields.status
+    if (otherFields.isReturned !== undefined) updateData.isReturned = otherFields.isReturned
+    if (otherFields.returnReason !== undefined) updateData.returnReason = otherFields.returnReason
+    
+    let testDoc: any = null
+    if (orderTestId) {
+      testDoc = await LabOrderTest.findByIdAndUpdate(orderTestId, { $set: updateData }, { new: true })
+    } else {
+      testDoc = await LabOrderTest.findOneAndUpdate({ orderId: id, testId }, { $set: updateData }, { new: true })
+    }
+
+    if (testDoc) {
+      // Logic for RETURNED test
+      if (updateData.isReturned === true || updateData.status === 'returned') {
+        // Create refund if requested or by default for return
+        const amountToRefund = patch.refundAmount !== undefined ? patch.refundAmount : (testDoc.price || 0)
+        if (amountToRefund > 0) {
+          await LabPayment.create({
+            tokenId: before.tokenId,
+            orderId: id,
+            patientId: before.patientId,
+            type: 'refund',
+            amount: amountToRefund,
+            method: patch.refundMethod || 'cash',
+            note: `Refund for returned test: ${testDoc.testName}. Reason: ${testDoc.returnReason || 'N/A'}`,
+            createdBy: actor
+          })
+          financialDelta = Math.max(0, Number(amountToRefund) || 0)
+          financialDeltaType = 'refund'
+        }
+      } 
+      // Logic for UNDO RETURN
+      else if (updateData.isReturned === false && testDoc.isReturned === true) {
+        // Create payment entry for undoing a return
+        await LabPayment.create({
+          tokenId: before.tokenId,
+          orderId: id,
+          patientId: before.patientId,
+          type: 'payment',
+          amount: testDoc.price || 0,
+          method: 'cash',
+          note: `Undo return for test: ${testDoc.testName}`,
+          createdBy: actor
+        })
+        financialDelta = Math.max(0, Number(testDoc.price || 0))
+        financialDeltaType = 'payment'
+      }
+    }
+
+    // Sync testStatuses back to LabOrder
+    try {
+      const allTests = await LabOrderTest.find({ orderId: id })
+      const testStatuses = allTests.map(t => ({
+        testId: t.testId,
+        testName: t.testName,
+        status: t.status,
+        resultId: t.resultId,
+        orderTestId: t._id,
+        isReturned: t.isReturned
+      }))
+
+      const activeTests = allTests.filter(t => !t.isReturned)
+      const allCompleted = activeTests.length > 0 && activeTests.every(t => t.status === 'completed')
+      const allHaveResults = activeTests.length > 0 && activeTests.every(t => t.status === 'result_entered' || t.status === 'completed')
+      const anyInProgress = activeTests.some(t => t.status === 'in_progress' || t.status === 'sample_collected')
+
+      let nextOrderStatus: any = before?.status || 'received'
+      if (activeTests.length === 0 && allTests.some(t => t.isReturned)) nextOrderStatus = 'cancelled' // or stay as is
+      else if (allCompleted) nextOrderStatus = 'completed'
+      else if (allHaveResults) nextOrderStatus = 'result_entered'
+      else if (anyInProgress) nextOrderStatus = 'in_progress'
+      
+      await LabOrder.findByIdAndUpdate(id, {
+        $set: {
+          testStatuses,
+          status: nextOrderStatus,
+        }
+      })
+
+      // Recompute and persist token/order financials based on non-returned tests.
+      // This keeps totals consistent across Sample Tracking print, Today's Tokens print, and Track dialog.
+      try {
+        const tokenNo = String((before as any)?.tokenNo || '')
+        if (tokenNo) {
+          const activeSubtotal = activeTests.reduce((s: number, t: any) => s + Math.max(0, Number(t?.price || 0)), 0)
+          const discount = 0
+          const net = Math.max(0, activeSubtotal - discount)
+
+          const tokenDoc: any = await LabToken.findOne({ tokenNo })
+          const prevReceived = Math.max(0, Number(tokenDoc?.receivedAmount ?? (before as any)?.receivedAmount ?? 0))
+          const nextReceived = financialDeltaType === 'refund'
+            ? Math.max(0, prevReceived - financialDelta)
+            : (financialDeltaType === 'payment'
+              ? (prevReceived + financialDelta)
+              : prevReceived)
+          const nextReceivable = Math.max(0, net - nextReceived)
+
+          await LabOrder.updateMany(
+            { tokenNo },
+            {
+              $set: {
+                subtotal: activeSubtotal,
+                discount,
+                net,
+                receivedAmount: nextReceived,
+                receivableAmount: nextReceivable,
+              },
+            },
+          )
+
+          if (tokenDoc) {
+            tokenDoc.subtotal = activeSubtotal
+            tokenDoc.discount = discount
+            tokenDoc.net = net
+            tokenDoc.receivedAmount = nextReceived
+            tokenDoc.receivableAmount = nextReceivable
+            await tokenDoc.save()
+          }
+        }
+      } catch (e) { console.warn('Failed to recompute token financials after return/undo return', e) }
+    } catch (e) { console.warn('Failed to sync testStatuses to LabOrder in updateTrack', e) }
+  }
+
+  // Handle order-level updates
+  let updateQuery: any = { $set: {} }
+  for (const [key, value] of Object.entries(otherFields)) {
+    if (value !== undefined && key !== 'sampleTime' && key !== 'status') {
+      updateQuery.$set[key] = value
+    }
+  }
+
+  // Only update LabOrder if there are non-test-specific fields
+  let doc = before
+  if (Object.keys(updateQuery.$set).length > 0) {
+    doc = await LabOrder.findByIdAndUpdate(id, updateQuery, { new: true })
+    if (!doc) return res.status(404).json({ message: 'Order not found' })
+  }
   // Corporate: on returned, create reversals for all items
   try {
     if ((patch as any).status === 'returned' && String(before?.status) !== 'returned'){
@@ -504,7 +675,7 @@ export async function updateTrack(req: Request, res: Response){
             refType: tx.refType,
             refId: tx.refId,
             itemRef: tx.itemRef,
-            dateIso: new Date().toISOString().slice(0,10),
+            dateIso: getPakistanDate(),
             description: `Reversal: ${tx.description || 'Lab Test'}`,
             qty: tx.qty,
             unitPrice: -Math.abs(Number(tx.unitPrice||0)),
@@ -565,13 +736,16 @@ export async function updateTrack(req: Request, res: Response){
       detail: `Order ${id}${changed ? ' — ' + changed : ''}`,
     })
   } catch {}
-  res.json(doc)
+  // Include LabOrderTest data in response
+  const tests = await LabOrderTest.find({ orderId: id }).lean()
+  res.json({ ...doc, tests })
 }
 
 export async function remove(req: Request, res: Response){
   const { id } = req.params
-  // Remove associated results first to avoid orphans
+  // Remove associated results and order tests first to avoid orphans
   await LabResult.deleteMany({ orderId: id })
+  await LabOrderTest.deleteMany({ orderId: id })
   // Corporate: create reversals before deleting the order
   try {
     const existing: any[] = await CorporateTransaction.find({ refType: 'lab_order', refId: String(id), status: { $ne: 'reversed' } }).lean()
@@ -586,7 +760,7 @@ export async function remove(req: Request, res: Response){
           refType: tx.refType,
           refId: tx.refId,
           itemRef: tx.itemRef,
-          dateIso: new Date().toISOString().slice(0,10),
+          dateIso: getPakistanDate(),
           description: `Reversal: ${tx.description || 'Lab Test'}`,
           qty: tx.qty,
           unitPrice: -Math.abs(Number(tx.unitPrice||0)),

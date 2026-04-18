@@ -9,6 +9,36 @@ import { printColonoscopyReport } from '../../components/diagnostic/diagnostic_C
 import { printUpperGIEndoscopyReport } from '../../components/diagnostic/diagnostic_UpperGIEndoscopy'
 import { previewLabReportPdf } from '../../utils/printLabReport'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { 
+  User, Phone, IdCard, MapPin, Calendar, Edit2, Save, X, 
+  FileText, FlaskConical, ScanLine, Sparkles, BedDouble, ChevronDown, ChevronUp
+} from 'lucide-react'
+
+interface PatientDetails {
+  _id?: string
+  mrn: string
+  fullName: string
+  fatherName?: string
+  phoneNormalized?: string
+  cnicNormalized?: string
+  gender?: string
+  age?: string
+  guardianRel?: string
+  address?: string
+  createdAtIso?: string
+}
+
+interface MedicalDetails {
+  pres?: any[]
+  lab?: any[]
+  diag?: any[]
+  ipd?: any[]
+  aesthetic?: any[]
+  er?: any[]
+  loading?: boolean
+}
+
+type MedicalTab = 'prescriptions' | 'lab' | 'diagnostic' | 'aesthetic' | 'ipd'
 
 export default function Hospital_SearchPatients() {
   const location = useLocation()
@@ -22,9 +52,15 @@ export default function Hospital_SearchPatients() {
   const [loading, setLoading] = useState(false)
   const [patients, setPatients] = useState<any[]>([])
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [details, setDetails] = useState<Record<string, { pres?: any[]; lab?: any[]; diag?: any[]; ipd?: any[]; aesthetic?: any[]; loading?: boolean }>>({})
+  const [details, setDetails] = useState<Record<string, MedicalDetails>>({})
   const [busy, setBusy] = useState<{ pres?: string; lab?: string; diag?: string }>({})
   const [toast, setToast] = useState<ToastState>(null)
+  
+  // Patient edit state
+  const [editingPatient, setEditingPatient] = useState<Record<string, boolean>>({})
+  const [editForm, setEditForm] = useState<Record<string, Partial<PatientDetails>>>({})
+  const [savingPatient, setSavingPatient] = useState<Record<string, boolean>>({})
+  const [activeTab, setActiveTab] = useState<Record<string, MedicalTab>>({})
 
   const update = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -35,9 +71,23 @@ export default function Hospital_SearchPatients() {
     setExpanded({})
     setDetails({})
     try {
-      const res: any = await hospitalApi.searchPatients({ mrn: form.mrNo || undefined, name: form.name || undefined, fatherName: form.fatherName || undefined, phone: form.phone || undefined, limit: 10 })
-      const rows: any[] = Array.isArray(res?.patients) ? res.patients : []
-      setPatients(rows)
+      // Patient master data for editing lives in LabPatient collection.
+      // Use Lab APIs so updates are visible after refresh.
+      const mrn = String(form.mrNo || '').trim()
+      if (mrn) {
+        const r: any = await labApi.getPatientByMrn(mrn)
+        const p = r?.patient
+        setPatients(p ? [p] : [])
+      } else {
+        const r: any = await labApi.searchPatients({
+          phone: form.phone || undefined,
+          name: form.name || undefined,
+          fatherName: form.fatherName || undefined,
+          limit: 10,
+        })
+        const rows: any[] = Array.isArray(r?.patients) ? r.patients : []
+        setPatients(rows)
+      }
     } catch {
       setPatients([])
     } finally {
@@ -60,7 +110,6 @@ export default function Hospital_SearchPatients() {
         navigate('.', { replace: true, state: null })
       }
     } catch {}
-    // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   
@@ -79,7 +128,6 @@ export default function Hospital_SearchPatients() {
   }, [])
   useEffect(()=>{
     try{
-      // Sanitize patients so JSON.stringify never fails on circular/complex objects
       const patientsLite = Array.isArray(patients)
         ? patients.map((p:any) => ({
             _id: p?._id || p?.id,
@@ -88,6 +136,10 @@ export default function Hospital_SearchPatients() {
             mrn: p?.mrn,
             fatherName: p?.fatherName,
             phoneNormalized: p?.phoneNormalized,
+            cnicNormalized: p?.cnicNormalized,
+            gender: p?.gender,
+            age: p?.age,
+            address: p?.address,
           }))
         : []
       const payload = { form, patients: patientsLite, expanded, details }
@@ -177,7 +229,6 @@ export default function Hospital_SearchPatients() {
   async function onLabPdf(orderId: string, mrn: string){
     try {
       setBusy(prev => ({ ...prev, lab: orderId }))
-      // Find the order to get patient/times
       const list: any = await labApi.listOrders({ q: mrn, limit: 500 })
       const ord: any = (list?.items || []).find((x: any) => String(x._id || x.id) === String(orderId))
       if (!ord) throw new Error('Order not found')
@@ -211,12 +262,13 @@ export default function Hospital_SearchPatients() {
   async function loadDetails(mrn: string, patientId?: string){
     setDetails(prev => ({ ...prev, [mrn]: { ...(prev[mrn]||{}), loading: true } }))
     try {
-      const [presRes, ordersRes, diagOrdersRes, ipdRes, aestRes] = await Promise.all([
+      const [presRes, ordersRes, diagOrdersRes, ipdRes, aestRes, erRes] = await Promise.all([
         hospitalApi.listPrescriptions({ patientMrn: mrn, page: 1, limit: 50 }) as any,
         labApi.listOrders({ q: mrn, limit: 50 }) as any,
         diagnosticApi.listOrders({ q: mrn, limit: 50 }) as any,
         hospitalApi.listIPDAdmissions(patientId ? { patientId, page: 1, limit: 50 } : { q: mrn, page: 1, limit: 50 }) as any,
         aestheticApi.listProcedureSessions({ patientMrn: mrn, page: 1, limit: 100 }) as any,
+        hospitalApi.listEREncounters(patientId ? { patientId, page: 1, limit: 50 } : { q: mrn, page: 1, limit: 50 }) as any,
       ])
       const pres: any[] = (presRes?.prescriptions || []).map((p: any) => ({ id: p._id || p.id, createdAt: p.createdAt, diagnosis: p.diagnosis, doctor: p.encounterId?.doctorId?.name || '-', items: p.items || [] }))
       const orders: any[] = (ordersRes?.items || [])
@@ -273,10 +325,109 @@ export default function Hospital_SearchPatients() {
         .filter(x => String(x?.patientMrn || '') === String(mrn))
         .sort((a,b)=> new Date(b?.date || 0).getTime() - new Date(a?.date || 0).getTime())
 
-      setDetails(prev => ({ ...prev, [mrn]: { pres, lab, diag, ipd, aesthetic: aestheticItems, loading: false } }))
+      const er: any[] = Array.isArray(erRes?.encounters) ? erRes.encounters.map((e: any) => ({
+        id: String(e._id || e.id),
+        startAt: e.startAt,
+        endAt: e.endAt,
+        status: e.status,
+        doctor: e.doctorId?.name || '-',
+        department: e.departmentId?.name || '-',
+        tokenNo: e.tokenId?.tokenNo || '-',
+      })) : []
+
+      setDetails(prev => ({ ...prev, [mrn]: { pres, lab, diag, ipd, aesthetic: aestheticItems, er, loading: false } }))
+      // Default active tab
+      if (!activeTab[mrn]) {
+        setActiveTab(prev => ({ ...prev, [mrn]: 'prescriptions' }))
+      }
     } catch {
-      setDetails(prev => ({ ...prev, [mrn]: { pres: [], lab: [], diag: [], ipd: [], aesthetic: [], loading: false } }))
+      setDetails(prev => ({ ...prev, [mrn]: { pres: [], lab: [], diag: [], ipd: [], aesthetic: [], er: [], loading: false } }))
     }
+  }
+
+  async function startEditingPatient(patient: PatientDetails & { id?: string }) {
+    // Try to get the lab patient ID if not available
+    let patientWithId = { ...patient }
+    
+    if (!patientWithId._id && !patientWithId.id && patientWithId.mrn) {
+      try {
+        const labPatient: any = await labApi.getPatientByMrn(patientWithId.mrn)
+        if (labPatient?.patient?._id) {
+          patientWithId._id = labPatient.patient._id
+          console.log('Fetched lab patient ID:', labPatient.patient._id)
+        }
+      } catch (e) {
+        console.error('Failed to fetch lab patient ID:', e)
+      }
+    }
+    
+    setEditForm(prev => ({ ...prev, [patient.mrn]: { ...patientWithId } }))
+    setEditingPatient(prev => ({ ...prev, [patient.mrn]: true }))
+  }
+
+  function cancelEditing(mrn: string) {
+    setEditingPatient(prev => ({ ...prev, [mrn]: false }))
+    setEditForm(prev => { const n = { ...prev }; delete n[mrn]; return n })
+  }
+
+  async function savePatientChanges(mrn: string, patientId: string) {
+    const formData = editForm[mrn]
+    if (!formData) {
+      setToast({ type: 'error', message: 'No changes to save.' })
+      return
+    }
+    
+    setSavingPatient(prev => ({ ...prev, [mrn]: true }))
+    try {
+      // Always resolve LabPatient id from MRN (authoritative source)
+      const labPat: any = await labApi.getPatientByMrn(mrn)
+      const effectiveId = String(labPat?.patient?._id || patientId || '')
+      if (!effectiveId) throw new Error('Lab patient ID not found for this MRN')
+
+      console.log('Updating lab patient:', effectiveId, formData)
+      const result = await labApi.updatePatient(effectiveId, {
+        fullName: formData.fullName,
+        fatherName: formData.fatherName,
+        phone: (formData as any).phoneNormalized || (formData as any).phone,
+        cnic: (formData as any).cnicNormalized || (formData as any).cnic,
+        gender: formData.gender,
+        age: formData.age,
+        address: formData.address,
+        mrn: formData.mrn,
+      })
+      console.log('Update result:', result)
+      
+      // Re-fetch from lab collection to ensure DB update is reflected (and field names match)
+      let refreshed: any = null
+      try {
+        const labPat2: any = await labApi.getPatientByMrn(mrn)
+        refreshed = labPat2?.patient || null
+      } catch {}
+
+      // Update local patient data with the new values (prefer refreshed server copy)
+      setPatients(prev => prev.map(p =>
+        p.mrn === mrn
+          ? { ...p, ...formData, ...(refreshed || {}), _id: refreshed?._id || effectiveId }
+          : p
+      ))
+      
+      // Clear the edit form to prevent stale data
+      setEditForm(prev => { const n = { ...prev }; delete n[mrn]; return n })
+      setEditingPatient(prev => ({ ...prev, [mrn]: false }))
+      setToast({ type: 'success', message: 'Patient information updated successfully' })
+    } catch (e: any) {
+      console.error('Failed to update patient:', e)
+      setToast({ type: 'error', message: e?.response?.data?.message || e?.message || 'Failed to update patient' })
+    } finally {
+      setSavingPatient(prev => ({ ...prev, [mrn]: false }))
+    }
+  }
+
+  function updateEditForm(mrn: string, field: keyof PatientDetails, value: string) {
+    setEditForm(prev => ({
+      ...prev,
+      [mrn]: { ...prev[mrn], [field]: value }
+    }))
   }
 
   async function previewHtml(path: string){
@@ -285,7 +436,6 @@ export default function Hospital_SearchPatients() {
       const w = window.open('', '_blank'); if (!w) return
       w.document.open(); w.document.write(String(html)); w.document.close(); w.focus()
     } catch {
-      // Fallback to absolute URL
       const isFile = typeof window !== 'undefined' && window.location?.protocol === 'file:'
       const isElectronUA = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent || '')
       const apiBase = (import.meta as any).env?.VITE_API_URL || ((isFile || isElectronUA) ? 'http://127.0.0.1:4000/api' : 'http://localhost:4000/api')
@@ -295,10 +445,20 @@ export default function Hospital_SearchPatients() {
   }
 
   const onPreviewDischarge = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/discharge-summary/print`)
-  const onPreviewReceivedDeath = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/received-death/print`)
-  const onPreviewDeathCertificate = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/death-certificate/print`)
-  const onPreviewBirthCertificate = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/birth-certificate/print`)
+  // Kept for future IPD form previews
+  const _onPreviewReceivedDeath = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/received-death/print`)
+  const _onPreviewDeathCertificate = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/death-certificate/print`)
+  const _onPreviewBirthCertificate = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/birth-certificate/print`)
   const onPreviewFinalInvoice = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/final-invoice/print`)
+
+  // Mark as used (kept for future UI)
+  const __unusedIpdPreviewFns = {
+    _onPreviewReceivedDeath,
+    _onPreviewDeathCertificate,
+    _onPreviewBirthCertificate,
+  }
+  void __unusedIpdPreviewFns
+  
   async function onPreviewShortStay(encounterId: string){
     try{
       const [encRes, ssRes, settings] = await Promise.all([
@@ -337,11 +497,499 @@ export default function Hospital_SearchPatients() {
     } catch { setToast({ type: 'error', message: 'Failed to open short-stay preview' }) }
   }
 
-  return (
-    <div>
-      <h2 className="text-xl font-semibold text-slate-800">Advanced Patient Search</h2>
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '-'
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', { 
+        year: 'numeric', month: 'short', day: 'numeric' 
+      })
+    } catch { return '-' }
+  }
 
-      <form onSubmit={onSearch} className="mt-5 space-y-5">
+  const renderMedicalRecords = (mrn: string) => {
+    const d = details[mrn]
+    
+    if (d?.loading) {
+      return (
+        <div className="p-8 text-center text-slate-500">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-sky-500 rounded-full animate-spin mx-auto mb-3" />
+          Loading medical records...
+        </div>
+      )
+    }
+
+    return (
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Prescriptions */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-4 py-3 bg-sky-50 dark:bg-sky-900/30 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">Prescriptions</h4>
+            </div>
+            <span className="text-xs px-2 py-1 bg-sky-100 dark:bg-sky-800 text-sky-700 dark:text-sky-300 rounded-full">{(d?.pres || []).length}</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {(d?.pres || []).length === 0 ? (
+              <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">No prescriptions</div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {d?.pres?.slice(0, 5).map((pr: any) => (
+                  <div key={String(pr.id)} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{new Date(pr.createdAt).toLocaleDateString()}</div>
+                      <button
+                        className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300"
+                        onClick={() => onPrescriptionPdf(String(pr.id), mrn)}
+                        disabled={busy.pres === String(pr.id)}
+                      >
+                        {busy.pres === String(pr.id) ? '...' : 'PDF'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">{pr.doctor || '-'} • {pr.diagnosis || '-'}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Lab Reports */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FlaskConical className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">Lab Reports</h4>
+            </div>
+            <span className="text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-full">{(d?.lab || []).length}</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {(d?.lab || []).length === 0 ? (
+              <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">No lab reports</div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {d?.lab?.slice(0, 5).map((lr: any) => (
+                  <div key={String(lr.id)} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                        {new Date(lr.createdAt).toLocaleDateString()}
+                        <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${lr.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300'}`}>{lr.status || 'pending'}</span>
+                      </div>
+                      {lr.hasResult && (
+                        <div className="flex gap-1">
+                          <Link to={`/lab/results?orderId=${encodeURIComponent(lr.id)}&token=${encodeURIComponent(lr.tokenNo||'')}`} className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">View</Link>
+                          <button
+                            className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 ml-2"
+                            onClick={() => onLabPdf(String(lr.id), mrn)}
+                            disabled={busy.lab === String(lr.id)}
+                          >
+                            {busy.lab === String(lr.id) ? '...' : 'PDF'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{(lr.tests || []).map((t: any) => t.name || t).join(', ')}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Diagnostic Reports */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-4 py-3 bg-violet-50 dark:bg-violet-900/30 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ScanLine className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">Diagnostic Reports</h4>
+            </div>
+            <span className="text-xs px-2 py-1 bg-violet-100 dark:bg-violet-800 text-violet-700 dark:text-violet-300 rounded-full">{(d?.diag || []).length}</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {(d?.diag || []).length === 0 ? (
+              <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">No diagnostic reports</div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {d?.diag?.slice(0, 5).map((dr: any) => (
+                  <div key={String(dr.id)} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                        {new Date(dr.createdAt).toLocaleDateString()}
+                        <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${dr.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300'}`}>{dr.status || 'pending'}</span>
+                      </div>
+                      {dr.hasResult && (
+                        <button
+                          onClick={() => onDiagnosticPrint(String(dr.id), mrn)}
+                          disabled={busy.diag === String(dr.id)}
+                          className="text-xs text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
+                        >
+                          {busy.diag === String(dr.id) ? '...' : 'View'}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{(dr.tests || []).map((t: any) => t.name || t).join(', ')}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Aesthetic History */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/30 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">Aesthetic History</h4>
+            </div>
+            <span className="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded-full">{(d?.aesthetic || []).length}</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {(d?.aesthetic || []).length === 0 ? (
+              <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">No aesthetic history</div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {d?.aesthetic?.slice(0, 5).map((s: any, i: number) => (
+                  <div key={String(s._id||s.id||i)} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{String(s.procedureName || s.procedureId || 'Procedure')}</div>
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${s.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300' : s.status === 'cancelled' ? 'bg-rose-100 dark:bg-rose-800 text-rose-700 dark:text-rose-300' : 'bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300'}`}>{s.status || 'planned'}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 mt-1">
+                      <span>{s.date ? new Date(s.date).toLocaleDateString() : '-'}</span>
+                      <span>Paid: Rs {Math.round(Number(s.paid||0)).toLocaleString()}</span>
+                      {Number(s.balance||0) > 0 && <span className="text-rose-600 dark:text-rose-400">Bal: Rs {Math.round(Number(s.balance||0)).toLocaleString()}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Emergency Cart - Full Width */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden lg:col-span-2">
+          <div className="px-4 py-3 bg-red-50 dark:bg-red-900/30 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">Emergency Cart</h4>
+            </div>
+            <span className="text-xs px-2 py-1 bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 rounded-full">{(d?.er || []).length}</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {(d?.er || []).length === 0 ? (
+              <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">No emergency visits</div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {d?.er?.map((er: any) => (
+                  <div key={String(er.id)} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-200">Token #{er.tokenNo}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-400">{new Date(er.startAt).toLocaleDateString()} - {er.endAt ? new Date(er.endAt).toLocaleDateString() : 'Present'}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded ${er.status === 'discharged' ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'}`}>{er.status || 'active'}</span>
+                        <span className="text-xs text-slate-600 dark:text-slate-400">Dr. {er.doctor}</span>
+                        <Link
+                          to={`/hospital/emergency/${encodeURIComponent(er.id)}`}
+                          className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300"
+                        >
+                          Open
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* IPD Admissions - Full Width */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden lg:col-span-2">
+          <div className="px-4 py-3 bg-rose-50 dark:bg-rose-900/30 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BedDouble className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">IPD Admissions</h4>
+            </div>
+            <span className="text-xs px-2 py-1 bg-rose-100 dark:bg-rose-800 text-rose-700 dark:text-rose-300 rounded-full">{(d?.ipd || []).length}</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {(d?.ipd || []).length === 0 ? (
+              <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">No IPD admissions</div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {d?.ipd?.map((ad: any) => (
+                  <div key={String(ad.id)} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-200">Admission #{ad.admissionNo || ad.id}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-400">{new Date(ad.startAt).toLocaleDateString()} - {ad.endAt ? new Date(ad.endAt).toLocaleDateString() : 'Present'}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded ${ad.status === 'discharged' ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' : 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300'}`}>{ad.status || 'active'}</span>
+                        <Link
+                          to={`/hospital/patient/${encodeURIComponent(ad.id)}`}
+                          state={{
+                            fromSearch: true,
+                            searchSnapshot: {
+                              form,
+                              patients: (Array.isArray(patients) ? patients.map((pp:any)=>({ _id: pp?._id||pp?.id, id: pp?.id, fullName: pp?.fullName, mrn: pp?.mrn, fatherName: pp?.fatherName, phoneNormalized: pp?.phoneNormalized })) : []),
+                              expanded,
+                              details,
+                            }
+                          }}
+                          className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300"
+                        >
+                          Profile
+                        </Link>
+                        {ad.forms?.dischargeSummary && (
+                          <button onClick={()=>onPreviewDischarge(String(ad.id))} className="text-xs text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300">Discharge</button>
+                        )}
+                        {ad.forms?.shortStay && (
+                          <button onClick={()=>onPreviewShortStay(String(ad.id))} className="text-xs text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300">Short Stay</button>
+                        )}
+                        <button onClick={()=>onPreviewFinalInvoice(String(ad.id))} className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300">Invoice</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderPatientInfoCard = (patient: PatientDetails & { id?: string }) => {
+    const isEditing = editingPatient[patient.mrn]
+    const formData = editForm[patient.mrn] || patient
+    const isSaving = savingPatient[patient.mrn]
+    // Support both _id (MongoDB) and id fields from different API responses.
+    // IMPORTANT: when we fetch the lab patient id during edit, it is stored in editForm,
+    // so we must also resolve the id from formData.
+    const patientId = (formData as any)?._id || (formData as any)?.id || patient._id || patient.id || ''
+
+    return (
+      <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-slate-800 to-slate-700 dark:from-slate-900 dark:to-slate-800 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                <User className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">{patient.fullName}</h3>
+                <p className="text-slate-300 text-sm">MRN: {patient.mrn} {patientId ? '' : '(No ID)'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {!isEditing ? (
+                <button
+                  onClick={() => startEditingPatient(patient)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition-colors"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit Profile
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => savePatientChanges(patient.mrn, patientId)}
+                    disabled={isSaving || !patientId}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-400 disabled:opacity-50 text-white rounded-lg text-sm transition-colors"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => cancelEditing(patient.mrn)}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg text-sm transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Patient Info Grid */}
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Full Name */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Full Name</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.fullName || ''}
+                  onChange={(e) => updateEditForm(patient.mrn, 'fullName', e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none"
+                />
+              ) : (
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span className="font-medium">{patient.fullName || '-'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* MR Number */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">MR Number</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.mrn || ''}
+                  disabled
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                />
+              ) : (
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                  <IdCard className="w-4 h-4 text-slate-400" />
+                  <span className="font-medium text-sky-600 dark:text-sky-400">{patient.mrn || '-'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Father/Guardian Name */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Father/Guardian Name</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.fatherName || ''}
+                  onChange={(e) => updateEditForm(patient.mrn, 'fatherName', e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none"
+                />
+              ) : (
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span>{patient.fatherName || '-'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Phone Number</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.phoneNormalized || ''}
+                  onChange={(e) => updateEditForm(patient.mrn, 'phoneNormalized', e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none"
+                />
+              ) : (
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                  <Phone className="w-4 h-4 text-slate-400" />
+                  <span>{patient.phoneNormalized || '-'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* CNIC */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">CNIC</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.cnicNormalized || ''}
+                  onChange={(e) => updateEditForm(patient.mrn, 'cnicNormalized', e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none"
+                />
+              ) : (
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                  <IdCard className="w-4 h-4 text-slate-400" />
+                  <span>{patient.cnicNormalized || '-'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Gender */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Gender</label>
+              {isEditing ? (
+                <select
+                  value={formData.gender || ''}
+                  onChange={(e) => updateEditForm(patient.mrn, 'gender', e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              ) : (
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span>{patient.gender || '-'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Age */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Age</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.age || ''}
+                  onChange={(e) => updateEditForm(patient.mrn, 'age', e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none"
+                />
+              ) : (
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  <span>{patient.age || '-'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Address - Full Width */}
+            <div className="space-y-1 md:col-span-2 lg:col-span-3">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Address</label>
+              {isEditing ? (
+                <textarea
+                  value={formData.address || ''}
+                  onChange={(e) => updateEditForm(patient.mrn, 'address', e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none resize-none"
+                />
+              ) : (
+                <div className="flex items-start gap-2 text-slate-800 dark:text-slate-200">
+                  <MapPin className="w-4 h-4 text-slate-400 mt-0.5" />
+                  <span className="text-sm">{patient.address || '-'}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Registration Date */}
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <Calendar className="w-3 h-3" />
+              <span>Registered: {formatDate(patient.createdAtIso)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Advanced Patient Search</h2>
+
+      <form onSubmit={onSearch} className="space-y-5">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">MR Number</label>
@@ -368,170 +1016,51 @@ export default function Hospital_SearchPatients() {
       </form>
 
       {patients.length>0 && (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-sm">
-            <div className="font-medium text-slate-800">Results</div>
-            <div className="text-slate-600">{patients.length} patient{patients.length!==1?'s':''}</div>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="font-medium text-slate-800 dark:text-slate-100">Search Results</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">{patients.length} patient{patients.length!==1?'s':''} found</div>
           </div>
-          <div className="divide-y divide-slate-200">
+          
+          <div className="space-y-4">
             {patients.map((p, idx) => (
-              <div key={String(p._id||idx)} className="px-4 py-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{p.fullName || '-'} <span className="text-xs text-slate-500">{p.mrn || '-'}</span></div>
-                  <div className="text-xs text-slate-600">{p.phoneNormalized || ''}</div>
+              <div key={String(p._id||idx)} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                {/* Patient Header Bar */}
+                <div 
+                  className="flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                  onClick={() => {
+                    const mrn = String(p.mrn||'')
+                    setExpanded(prev => ({ ...prev, [mrn]: !prev[mrn] }))
+                    if (!details[mrn]) loadDetails(mrn, String(p._id||''))
+                  }}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                      <User className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-slate-800 dark:text-slate-100">{p.fullName || '-'}</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400">
+                        MRN: {p.mrn || '-'} • Father: {p.fatherName || '-'} • Phone: {p.phoneNormalized || '-'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                      {expanded[String(p.mrn||'')] ? (
+                        <><ChevronUp className="w-4 h-4" /> Hide Details</>
+                      ) : (
+                        <><ChevronDown className="w-4 h-4" /> View Details</>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-0.5 text-xs text-slate-600">Father Name: {p.fatherName || '-'}</div>
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                    onClick={()=>{
-                      const mrn = String(p.mrn||'')
-                      setExpanded(prev => ({ ...prev, [mrn]: !prev[mrn] }))
-                      if (!details[mrn]) loadDetails(mrn, String(p._id||''))
-                    }}
-                  >{expanded[String(p.mrn||'')] ? 'Hide Data' : 'View Data'}</button>
-                </div>
-                {expanded[String(p.mrn||'')] && (
-                  <div className="mt-3 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-lg border border-slate-200">
-                      <div className="border-b border-slate-200 px-3 py-2 text-sm font-medium">Prescriptions</div>
-                      <div className="divide-y divide-slate-100">
-                        {(details[String(p.mrn||'')]?.loading) && <div className="p-3 text-xs text-slate-500">Loading...</div>}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.pres||[]).map((pr: any) => (
-                          <div key={String(pr.id)} className="px-3 py-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium">{new Date(pr.createdAt).toLocaleString()}</div>
-                              <div className="text-slate-600">{pr.doctor || '-'}</div>
-                            </div>
-                            <div className="text-slate-700">{pr.diagnosis || '-'}</div>
-                            <div className="mt-1">
-                              <button
-                                className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                                onClick={()=>onPrescriptionPdf(String(pr.id), String(p.mrn||''))}
-                                disabled={busy.pres===String(pr.id)}
-                              >{busy.pres===String(pr.id)?'Generating...':'Prescription PDF'}</button>
-                            </div>
-                          </div>
-                        ))}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.pres||[]).length===0 && (
-                          <div className="p-3 text-xs text-slate-500">No prescriptions found</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-slate-200">
-                      <div className="border-b border-slate-200 px-3 py-2 text-sm font-medium">Lab Reports</div>
-                      <div className="divide-y divide-slate-100">
-                        {(details[String(p.mrn||'')]?.loading) && <div className="p-3 text-xs text-slate-500">Loading...</div>}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.lab||[]).map((lr: any) => (
-                          <div key={String(lr.id)} className="px-3 py-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium">{new Date(lr.createdAt).toLocaleString()}</div>
-                              <div className="text-slate-600">{lr.tokenNo || '-'}</div>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="text-slate-700">Status: {lr.status || '-'}</div>
-                              <div className="flex items-center gap-2">
-                                {lr.hasResult && <>
-                                  <Link to={`/lab/results?orderId=${encodeURIComponent(lr.id)}&token=${encodeURIComponent(lr.tokenNo||'')}`} className="text-sky-700 hover:underline">Open Report</Link>
-                                  <button className="rounded-md border border-slate-300 px-2 py-1 text-xs" onClick={()=>onLabPdf(String(lr.id), String(p.mrn||''))} disabled={busy.lab===String(lr.id)}>{busy.lab===String(lr.id)?'Opening...':'Lab Report PDF'}</button>
-                                </>}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.lab||[]).length===0 && (
-                          <div className="p-3 text-xs text-slate-500">No lab records found</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-slate-200">
-                      <div className="border-b border-slate-200 px-3 py-2 text-sm font-medium">Diagnostic Reports</div>
-                      <div className="divide-y divide-slate-100">
-                        {(details[String(p.mrn||'')]?.loading) && <div className="p-3 text-xs text-slate-500">Loading...</div>}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.diag||[]).map((dr: any) => (
-                          <div key={String(dr.id)} className="px-3 py-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium">{new Date(dr.createdAt).toLocaleString()}</div>
-                              <div className="text-slate-600">{dr.tokenNo || '-'}</div>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="text-slate-700">Status: {dr.status || '-'}</div>
-                              <div className="flex items-center gap-2">
-                                {dr.hasResult && <button onClick={()=>onDiagnosticPrint(String(dr.id), String(p.mrn||''))} className="rounded-md border border-slate-300 px-2 py-1 text-xs" disabled={busy.diag===String(dr.id)}>{busy.diag===String(dr.id)?'Opening...':'Open Report'}</button>}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.diag||[]).length===0 && (
-                          <div className="p-3 text-xs text-slate-500">No diagnostic records found</div>
-                        )}
-                      </div>
-                    </div>
 
-                    <div className="rounded-lg border border-slate-200 md:col-span-3">
-                      <div className="border-b border-slate-200 px-3 py-2 text-sm font-medium">Aesthetic History</div>
-                      <div className="divide-y divide-slate-100">
-                        {(details[String(p.mrn||'')]?.loading) && <div className="p-3 text-xs text-slate-500">Loading...</div>}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.aesthetic||[]).map((s: any, i: number) => (
-                          <div key={String(s._id||s.id||i)} className="px-3 py-2 text-xs">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="font-medium text-slate-800">{String(s.procedureName || s.procedureId || 'Procedure')}</div>
-                              <div className="text-slate-600">{s.date ? new Date(s.date).toLocaleString() : ''}</div>
-                            </div>
-                            <div className="mt-1 grid gap-2 sm:grid-cols-4">
-                              <div className="text-slate-600">Paid: <span className="font-medium text-slate-800">Rs {Math.round(Number(s.paid||0)).toLocaleString()}</span></div>
-                              <div className="text-slate-600">Balance: <span className={`font-medium ${Number(s.balance||0)>0?'text-rose-700':'text-slate-800'}`}>Rs {Math.round(Number(s.balance||0)).toLocaleString()}</span></div>
-                              <div className="text-slate-600">Status: <span className="font-medium text-slate-800">{String(s.status||'planned')}</span></div>
-                              <div className="text-slate-600">Next: <span className="font-medium text-slate-800">{s.nextVisitDate ? new Date(s.nextVisitDate).toLocaleString() : '-'}</span></div>
-                            </div>
-                          </div>
-                        ))}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.aesthetic||[]).length===0 && (
-                          <div className="p-3 text-xs text-slate-500">No aesthetic history found</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-slate-200 md:col-span-3">
-                      <div className="border-b border-slate-200 px-3 py-2 text-sm font-medium">IPD Admissions & Forms</div>
-                      <div className="divide-y divide-slate-100">
-                        {(details[String(p.mrn||'')]?.loading) && <div className="p-3 text-xs text-slate-500">Loading...</div>}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.ipd||[]).map((ad: any) => (
-                          <div key={String(ad.id)} className="px-3 py-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium">{ad.admissionNo || ad.id}</div>
-                              <div className="text-slate-600">{new Date(ad.startAt).toLocaleString()} {ad.endAt?`- ${new Date(ad.endAt).toLocaleString()}`:''}</div>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="text-slate-700">Status: {ad.status || '-'}</div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Link
-                                  to={`/hospital/patient/${encodeURIComponent(ad.id)}`}
-                                  state={{
-                                    fromSearch: true,
-                                    searchSnapshot: {
-                                      form,
-                                      patients: (Array.isArray(patients) ? patients.map((pp:any)=>({ _id: pp?._id||pp?.id, id: pp?.id, fullName: pp?.fullName, mrn: pp?.mrn, fatherName: pp?.fatherName, phoneNormalized: pp?.phoneNormalized })) : []),
-                                      expanded,
-                                      details,
-                                    }
-                                  }}
-                                  className="text-slate-700 hover:underline"
-                                >Open IPD Profile</Link>
-                                {ad.forms?.dischargeSummary && <button onClick={()=>onPreviewDischarge(String(ad.id))} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-violet-700">Discharge Summary</button>}
-                                {ad.forms?.shortStay && <button onClick={()=>onPreviewShortStay(String(ad.id))} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-violet-700">Short Stay</button>}
-                                {ad.forms?.receivedDeath && <button onClick={()=>onPreviewReceivedDeath(String(ad.id))} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-violet-700">Received Death</button>}
-                                {ad.forms?.deathCertificate && <button onClick={()=>onPreviewDeathCertificate(String(ad.id))} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-violet-700">Death Certificate</button>}
-                                {ad.forms?.birthCertificate && <button onClick={()=>onPreviewBirthCertificate(String(ad.id))} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-violet-700">Birth Certificate</button>}
-                                <button onClick={()=>onPreviewFinalInvoice(String(ad.id))} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-rose-700">Final Invoice</button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {(!details[String(p.mrn||'')]?.loading) && (details[String(p.mrn||'')]?.ipd||[]).length===0 && (
-                          <div className="p-3 text-xs text-slate-500">No IPD admissions found</div>
-                        )}
-                      </div>
-                    </div>
+                {/* Expanded Patient Profile */}
+                {expanded[String(p.mrn||'')] && (
+                  <div className="p-6 border-t border-slate-200 dark:border-slate-700">
+                    {renderPatientInfoCard(p)}
+                    {renderMedicalRecords(String(p.mrn||''))}
                   </div>
                 )}
               </div>

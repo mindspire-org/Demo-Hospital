@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { hospitalApi, labApi } from '../../utils/api'
 import { printLabReport } from '../../utils/printLabReport'
 import Toast, { type ToastState } from '../ui/Toast'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import SuggestField from '../SuggestField'
 
 export default function LabTests({ encounterId }: { encounterId: string }){
   const [rows, setRows] = useState<Array<{ id: string; test: string; date: string; orderId?: string }>>([])
@@ -10,6 +11,7 @@ export default function LabTests({ encounterId }: { encounterId: string }){
   const [doctors, setDoctors] = useState<Array<{ _id: string; name: string }>>([])
   const [encDoctorId, setEncDoctorId] = useState<string>('')
   const [testsMap, setTestsMap] = useState<Record<string,string>>({})
+  const [testOptions, setTestOptions] = useState<string[]>([])
   const [ordersMap, setOrdersMap] = useState<Record<string, any>>({})
   const [resultByOrder, setResultByOrder] = useState<Record<string, any>>({})
   const [toast, setToast] = useState<ToastState>(null)
@@ -18,7 +20,24 @@ export default function LabTests({ encounterId }: { encounterId: string }){
   useEffect(()=>{ if(encounterId){ reload() } }, [encounterId])
   useEffect(()=>{ (async()=>{ try { const res = await hospitalApi.getIPDAdmissionById(encounterId) as any; const enc = res?.encounter; setEncDoctorId(String(enc?.doctorId?._id || enc?.doctorId || '')) } catch {} })() }, [encounterId])
   useEffect(()=>{ (async()=>{ try { const res = await hospitalApi.listDoctors() as any; const items = (res?.doctors || res || []) as Array<{ _id: string; name: string }>; setDoctors(items) } catch { setDoctors([]) } })() }, [])
-  useEffect(()=>{ (async()=>{ try { const t = await labApi.listTests({ limit: 1000 }) as any; const m: Record<string,string> = {}; for(const it of (t.items||[])){ m[String(it._id)] = String(it.name||'-') } setTestsMap(m) } catch { setTestsMap({}) } })() }, [])
+  useEffect(()=>{ (async()=>{ 
+    try { 
+      const t = await labApi.listTests({ limit: 1000 }) as any
+      const m: Record<string,string> = {}
+      const names: string[] = []
+      for(const it of (t.items||[])){
+        const id = String(it._id)
+        const name = String(it.name||'-')
+        m[id] = name
+        if (name && name !== '-') names.push(name)
+      }
+      setTestsMap(m)
+      setTestOptions(Array.from(new Set(names)).sort())
+    } catch { 
+      setTestsMap({})
+      setTestOptions([])
+    } 
+  })() }, [])
 
   async function reload(){
     try{
@@ -173,7 +192,7 @@ export default function LabTests({ encounterId }: { encounterId: string }){
           </table>
         </div>
       )}
-      <OrderDialog open={open} onClose={()=>setOpen(false)} onSave={save} doctors={doctors} defaultDoctorId={encDoctorId} />
+      <OrderDialog open={open} onClose={()=>setOpen(false)} onSave={save} doctors={doctors} defaultDoctorId={encDoctorId} testOptions={testOptions} />
     </div>
     <ConfirmDialog
       open={!!confirmDeleteId}
@@ -220,8 +239,35 @@ export default function LabTests({ encounterId }: { encounterId: string }){
   }
 }
 
-function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId }: { open: boolean; onClose: ()=>void; onSave: (d: { doctorId: string; test: string; date: string })=>void; doctors: Array<{ _id: string; name: string }>; defaultDoctorId?: string }){
+function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId, testOptions }: { open: boolean; onClose: ()=>void; onSave: (d: { doctorId: string; test: string; date: string })=>void; doctors: Array<{ _id: string; name: string }>; defaultDoctorId?: string; testOptions: string[] }){
   if(!open) return null
+  const [testName, setTestName] = useState('')
+  const [suggestions, setSuggestions] = useState<string[]>(testOptions || [])
+  const searchTimer = useRef<any>(null)
+
+  useEffect(() => {
+    if (open) {
+      setTestName('')
+      setSuggestions(testOptions || [])
+    }
+  }, [open, testOptions])
+
+  const mergedSuggestions = useMemo(() => suggestions, [suggestions])
+
+  const onTestChange = (v: string) => {
+    setTestName(v)
+    const q = String(v || '').trim()
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (q.length < 2) return
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const res: any = await labApi.listTests({ q, limit: 30 })
+        const names: string[] = (res?.items || []).map((it: any) => String(it?.name || '')).filter(Boolean)
+        if (names.length) setSuggestions(prev => Array.from(new Set([...(prev || []), ...names])).sort())
+      } catch {}
+    }, 250)
+  }
+
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -240,7 +286,15 @@ function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId }: { open
             ))}
           </select>
           <label htmlFor="order-test" className="block text-xs font-medium text-slate-600">Test name</label>
-          <input id="order-test" name="test" placeholder="e.g. CBC" required className="w-full rounded-md border border-slate-300 px-3 py-2" />
+          <SuggestField
+            as="input"
+            value={testName}
+            onChange={onTestChange}
+            suggestions={mergedSuggestions}
+            placeholder="e.g. CBC"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+          <input type="hidden" name="test" value={testName} />
           <label htmlFor="order-date" className="block text-xs font-medium text-slate-600">Date</label>
           <input id="order-date" name="date" type="date" className="w-full rounded-md border border-slate-300 px-3 py-2" />
         </div>

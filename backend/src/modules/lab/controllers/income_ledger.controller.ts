@@ -16,17 +16,23 @@ const querySchema = z.object({
 function toDateStart(ymd?: string): Date | undefined {
   const s = String(ymd || '').trim()
   if (!s) return undefined
-  const d = new Date(s + 'T00:00:00.000Z')
-  if (isNaN(d.getTime())) return undefined
-  return d
+  // Pakistan timezone is UTC+5. Convert Pakistan midnight to UTC.
+  // Pakistan midnight (00:00) = UTC 19:00 (previous day)
+  const pakDate = new Date(s + 'T00:00:00')
+  const utcDate = new Date(pakDate.getTime() - (5 * 60 * 60 * 1000))
+  if (isNaN(utcDate.getTime())) return undefined
+  return utcDate
 }
 
 function toDateEnd(ymd?: string): Date | undefined {
   const s = String(ymd || '').trim()
   if (!s) return undefined
-  const d = new Date(s + 'T23:59:59.999Z')
-  if (isNaN(d.getTime())) return undefined
-  return d
+  // Pakistan timezone is UTC+5. Convert Pakistan end-of-day to UTC.
+  // Pakistan 23:59:59.999 = UTC 18:59:59.999 (same day)
+  const pakDate = new Date(s + 'T23:59:59.999')
+  const utcDate = new Date(pakDate.getTime() - (5 * 60 * 60 * 1000))
+  if (isNaN(utcDate.getTime())) return undefined
+  return utcDate
 }
 
 function money(n: any) {

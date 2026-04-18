@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { labApi } from '../../utils/api'
 import { getLocalDate } from '../../utils/date'
+import Lab_ConfirmDialog from '../../components/lab/lab_ConfirmDialog'
 
 function todayIso() { return getLocalDate() }
 
@@ -25,6 +27,7 @@ type AppointmentRow = {
 function normDigits(s?: string) { return String(s || '').replace(/\D+/g, '').slice(0, 11) }
 
 export default function Lab_Appointments() {
+  const navigate = useNavigate()
   const [dateIso, setDateIso] = useState(todayIso())
   const [status, setStatus] = useState<'all' | AppointmentRow['status']>('all')
   const [query, setQuery] = useState('')
@@ -81,6 +84,10 @@ export default function Lab_Appointments() {
     setNotice({ kind, text })
     try { setTimeout(() => setNotice(null), 2500) } catch {}
   }
+
+  // Delete confirmation dialog state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<AppointmentRow | null>(null)
 
   function openEdit(r: AppointmentRow) {
     setEditRow(r)
@@ -263,22 +270,56 @@ export default function Lab_Appointments() {
   async function convertToToken(id: string) {
     try {
       const res: any = await labApi.convertAppointmentToToken(id)
-      const token = res?.order?.tokenNo || ''
-      showNotice('success', token ? `Converted to Token ${token}` : 'Converted to Token')
-      await load()
+
+      // If already converted, show message and reload
+      if (res?.alreadyConverted) {
+        const token = res?.order?.tokenNo || ''
+        showNotice('success', token ? `Already converted to Token ${token}` : 'Already converted')
+        await load()
+        return
+      }
+
+      // Navigate to Sample Intake page with pre-filled appointment data
+      const patient = res?.patient
+      const testDetails = res?.testDetails || []
+
+      if (patient) {
+        navigate('/lab/orders', {
+          state: {
+            appointmentId: id,
+            patient: {
+              mrn: patient.mrn,
+              fullName: patient.fullName,
+              phone: patient.phoneNormalized || patient.phone,
+              age: patient.age,
+              gender: patient.gender,
+            },
+            preSelectedTests: testDetails.map((t: any) => t.id || t._id),
+            fromAppointment: true
+          }
+        })
+      } else {
+        showNotice('error', 'No patient data returned from server')
+      }
     } catch (e: any) {
       showNotice('error', e?.message || 'Failed to convert')
     }
   }
 
-  async function removeAppointment(r: AppointmentRow){
+  function openDeleteConfirm(r: AppointmentRow) {
     if (!r) return
     if (r.status === 'converted' || r.orderId) { showNotice('error', 'Converted appointment cannot be deleted'); return }
-    const ok = window.confirm('Delete this appointment?')
-    if (!ok) return
+    setDeleteTarget(r)
+    setDeleteConfirmOpen(true)
+  }
+
+  async function confirmDelete(){
+    if (!deleteTarget) return
     try {
-      await labApi.deleteAppointment(r.id)
+      await labApi.deleteAppointment(deleteTarget.id)
       showNotice('success', 'Appointment deleted')
+      setDeleteConfirmOpen(false)
+      setDeleteTarget(null)
       await load()
     } catch (e: any) {
       showNotice('error', e?.message || 'Failed to delete appointment')
@@ -475,7 +516,7 @@ export default function Lab_Appointments() {
                       <button type="button" onClick={() => convertToToken(r.id)} className="rounded-md border border-violet-300 bg-violet-50 px-2 py-1 text-xs text-violet-700">Convert to Token</button>
                     )}
                     {r.status !== 'converted' && !r.orderId && (
-                      <button type="button" onClick={() => removeAppointment(r)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700">Delete</button>
+                      <button type="button" onClick={() => openDeleteConfirm(r)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700">Delete</button>
                     )}
                     {r.orderId && (
                       <span className="text-xs text-slate-500">Converted</span>
@@ -608,6 +649,16 @@ export default function Lab_Appointments() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Lab_ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Delete Appointment"
+        message={deleteTarget ? `Are you sure you want to delete appointment for "${deleteTarget.patientName || 'Unknown Patient'}"?` : 'Are you sure you want to delete this appointment?'}
+        confirmText="Delete"
+        onCancel={() => { setDeleteConfirmOpen(false); setDeleteTarget(null) }}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

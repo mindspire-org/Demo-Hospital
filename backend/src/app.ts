@@ -8,8 +8,38 @@ import { errorHandler } from './common/middleware/error'
 
 const app = express()
 
-const corsOrigin = env.NODE_ENV === 'development' ? true : env.CORS_ORIGIN
-app.use(cors({ origin: corsOrigin as any, credentials: true }))
+// CORS configuration: allow specific origins for security with credentials
+const allowedOrigins = [
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  env.CORS_ORIGIN,
+].filter(Boolean)
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    if (!origin) return callback(null, true)
+    
+    // In development, allow all localhost origins
+    if (env.NODE_ENV === 'development') {
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true)
+      }
+    }
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+    
+    callback(new Error(`CORS policy: Origin ${origin} not allowed`))
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}))
 app.use(express.json({ limit: '100mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(morgan('dev'))

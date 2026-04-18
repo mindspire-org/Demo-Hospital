@@ -26,7 +26,7 @@ export const updateAppointmentSchema = z.object({
 })
 
 export const updateAppointmentStatusSchema = z.object({
-  status: z.enum(['booked','confirmed','cancelled']),
+  status: z.enum(['booked','confirmed','cancelled','converted']),
 })
 
 export const listAppointmentsSchema = z.object({

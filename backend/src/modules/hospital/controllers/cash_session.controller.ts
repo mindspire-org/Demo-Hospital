@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { z } from 'zod'
 import { HospitalCashSession } from '../models/CashSession'
-import { FinanceJournal } from '../models/FinanceJournal'
+import { FinanceJournal } from '../../finance/models/FinanceJournal'
 
 function todayIso(){ return new Date().toISOString().slice(0,10) }
 

@@ -34,7 +34,7 @@ const defaultVisibility: Record<string, Array<{ path: string; label: string; vis
   admin: defaultSidebarItems.map(item => ({ ...item, visible: true })),
 }
 
-const defaultAllVisible = defaultSidebarItems.map(item => ({ ...item, visible: true }))
+const defaultAllVisible = defaultSidebarItems.map(item => ({ ...item, visible: false }))
 const normalizeRole = (role: string) => String(role || '').trim().toLowerCase()
 
 function getDefaultForRole(role: string) {

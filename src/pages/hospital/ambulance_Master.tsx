@@ -148,13 +148,31 @@ export default function Ambulance_Master() {
 
   const formatNumber = (n: number) => new Intl.NumberFormat('en-PK').format(n)
 
+  const exportCSV = () => {
+    const header = ['Vehicle Number', 'Type', 'Driver Name', 'Driver Contact', 'Status', 'Total Trips', 'Total Distance (km)', 'Notes']
+    const lines = [header.join(',')]
+    for (const a of items) {
+      lines.push([a.vehicleNumber, a.type, a.driverName, a.driverContact || '', a.status, a.totalTrips || 0, a.totalDistance || 0, a.notes || ''].join(','))
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `ambulances-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-800">Ambulance Master</h2>
-        <button onClick={() => setShowAdd(true)} className="rounded-md bg-sky-600 px-3 py-1.5 text-white hover:bg-sky-700">
-          + Add Ambulance
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">Export CSV</button>
+          <button onClick={() => setShowAdd(true)} className="rounded-md bg-sky-600 px-3 py-1.5 text-white hover:bg-sky-700">
+            + Add Ambulance
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-3">
@@ -182,16 +200,16 @@ export default function Ambulance_Master() {
       <div className="mt-5 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left">
-              <th className="px-3 py-2 font-medium text-slate-600">Vehicle #</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Type</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Driver</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Contact</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Status</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Total Trips</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Distance (km)</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Last Trip</th>
-              <th className="px-3 py-2 font-medium text-slate-600"></th>
+            <tr className="border-b-2 border-slate-300 text-left bg-slate-100/50">
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Vehicle #</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Type</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Driver</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Contact</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Status</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px] text-right">Total Trips</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px] text-right">Distance (km)</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Last Trip</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]"></th>
             </tr>
           </thead>
           <tbody>
@@ -215,9 +233,19 @@ export default function Ambulance_Master() {
                 <td className="px-3 py-2 text-right text-slate-700">{formatNumber(a.totalDistance || 0)}</td>
                 <td className="px-3 py-2 text-slate-500">{a.lastTrip || '-'}</td>
                 <td className="px-3 py-2">
-                  <div className="flex gap-1">
-                    <button onClick={() => { setEditId(a.id); setEditForm({ vehicleNumber: a.vehicleNumber, type: a.type, driverName: a.driverName, driverContact: a.driverContact, status: a.status, notes: a.notes || '' }) }} className="rounded p-1 text-slate-500 hover:bg-slate-100">✏️</button>
-                    <button onClick={() => setDeleteId(a.id)} className="rounded p-1 text-slate-500 hover:bg-slate-100">🗑️</button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setEditId(a.id); setEditForm({ vehicleNumber: a.vehicleNumber, type: a.type, driverName: a.driverName, driverContact: a.driverContact, status: a.status, notes: a.notes || '' }) }}
+                      className="rounded-md bg-sky-50 px-3 py-1 text-sm font-medium text-sky-600 hover:bg-sky-100"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(a.id)}
+                      className="rounded-md bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -242,12 +270,7 @@ export default function Ambulance_Master() {
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Type *</label>
-                <select value={addForm.type} onChange={e => setAddForm(f => ({ ...f, type: e.target.value as any }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500">
-                  <option value="BLS">Basic Life Support</option>
-                  <option value="ALS">Advanced Life Support</option>
-                  <option value="Patient Transport">Patient Transport</option>
-                  <option value="Neonatal">Neonatal</option>
-                </select>
+                <input value={addForm.type} onChange={e => setAddForm(f => ({ ...f, type: e.target.value as any }))}  className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Driver Name *</label>
@@ -293,12 +316,7 @@ export default function Ambulance_Master() {
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Type *</label>
-                <select value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value as any }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500">
-                  <option value="BLS">Basic Life Support</option>
-                  <option value="ALS">Advanced Life Support</option>
-                  <option value="Patient Transport">Patient Transport</option>
-                  <option value="Neonatal">Neonatal</option>
-                </select>
+                <input value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value as any }))} placeholder="e.g., BLS, ALS, Patient Transport" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Driver Name *</label>

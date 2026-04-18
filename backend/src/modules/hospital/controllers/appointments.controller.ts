@@ -8,7 +8,7 @@ import { createAppointmentSchema, updateAppointmentSchema, updateAppointmentStat
 import { HospitalDepartment } from '../models/Department'
 import { HospitalEncounter } from '../models/Encounter'
 import { HospitalAuditLog } from '../models/AuditLog'
-import { postOpdTokenJournal } from './finance_ledger'
+import { postOpdTokenJournal } from '../../finance/controllers/finance_ledger'
 import { nextGlobalMrn } from '../../../common/mrn'
 
 function toMin(hhmm: string){ const [h,m] = (hhmm||'').split(':').map(x=>parseInt(x,10)||0); return h*60+m }

@@ -58,60 +58,155 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   const marginX = 10
   let y = 10
 
-  // ── Header ──────────────────────────────────────────────────────────────────
-  const logo = String((settings as any).logoDataUrl || '')
-  if (logo) {
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1.  CARD HEADER  ── Hospital (left) + Doctor (right)
+  // ══════════════════════════════════════════════════════════════════════════
+  const headerH  = 38
+  const headerY  = 8
+
+  const navy     = { r: 15,  g: 40,  b: 100 }
+  const skyBg    = { r: 241, g: 246, b: 255 }
+  const lightBlue= { r: 219, g: 234, b: 254 }
+  const gray     = { r: 100, g: 116, b: 139 }
+
+  // Card background
+  pdf.setFillColor(skyBg.r, skyBg.g, skyBg.b)
+  pdf.setDrawColor(lightBlue.r, lightBlue.g, lightBlue.b)
+  pdf.setLineWidth(0.6)
+  pdf.roundedRect(marginX, headerY, W - 2 * marginX, headerH, 4, 4, 'FD')
+
+  // Bold navy left accent strip
+  pdf.setFillColor(navy.r, navy.g, navy.b)
+  pdf.rect(marginX, headerY, 4, headerH, 'F')
+  // Soften strip corners
+  pdf.setFillColor(skyBg.r, skyBg.g, skyBg.b)
+  pdf.rect(marginX, headerY, 2, 2, 'F')
+  pdf.rect(marginX, headerY + headerH - 2, 2, 2, 'F')
+
+  // Thick blue bottom line
+  pdf.setDrawColor(blue.r, blue.g, blue.b)
+  pdf.setLineWidth(1.8)
+  pdf.line(marginX, headerY + headerH, W - marginX, headerY + headerH)
+
+  // ── LEFT: logo + hospital name + address ───────────────────────────────────
+  let nameX = marginX + 10
+  const logoAreaX = marginX + 10
+  const logoY     = headerY + 6
+
+  const logoSrc = String(settings.logoDataUrl || '')
+  if (logoSrc) {
     try {
-      const normalized = await ensurePngDataUrl(logo)
-      pdf.addImage(normalized, 'PNG' as any, W / 2 - 5, y, 10, 10, undefined, 'FAST')
-      y += 11
+      const normalized = await ensurePngDataUrl(logoSrc)
+      pdf.addImage(normalized, 'PNG' as any, logoAreaX, logoY, 14, 14, undefined, 'FAST')
+      nameX = logoAreaX + 18
     } catch {}
   }
 
-  pdf.setTextColor(blue.r, blue.g, blue.b)
+  // Hospital name
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(16)
-  pdf.text(String(settings.name || 'Hospital'), W / 2, y + 6, { align: 'center' })
-  pdf.setFontSize(10)
-  pdf.text('Medical Prescription', W / 2, y + 11, { align: 'center' })
+  pdf.setTextColor(slate.r, slate.g, slate.b)
+  const hospitalName  = String(settings.name || 'Hospital')
+  const nameLines = (pdf as any).splitTextToSize(hospitalName, 75)
+  pdf.text(nameLines, nameX, headerY + 13)
 
-  y += 18
+  // Thin blue rule under name
+  const ruleY = headerY + 13 + nameLines.length * 6
   pdf.setDrawColor(blue.r, blue.g, blue.b)
   pdf.setLineWidth(0.6)
-  pdf.line(marginX, y, W - marginX, y)
-  y += 6
+  pdf.line(nameX, ruleY, nameX + 70, ruleY)
 
-  // ── Patient + Meta (two columns) ─────────────────────────────────────────
+  // Address
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8)
+  pdf.setTextColor(gray.r, gray.g, gray.b)
+  pdf.text(String(settings.address || ''), nameX, ruleY + 5)
+
+  // ── RIGHT: doctor info ────────────────────────────────────────────────────
+  const cardRight = W - marginX
+  const drX       = cardRight - 8
+
+  // Department badge (top-right of card)
+  const dept = String((doctor as any).departmentName || '').toUpperCase().trim()
+  if (dept) {
+    const badgeW = Math.min(60, Math.max(36, dept.length * 1.9 + 8))
+    const badgeX = cardRight - badgeW - 4
+    pdf.setFillColor(navy.r, navy.g, navy.b)
+    pdf.roundedRect(badgeX, headerY + 4, badgeW, 7, 1.5, 1.5, 'F')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(6.5)
+    pdf.setTextColor(255, 255, 255)
+    pdf.text(dept, badgeX + badgeW / 2, headerY + 9, { align: 'center' })
+  }
+
+  // Doctor name
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(14)
+  pdf.setTextColor(slate.r, slate.g, slate.b)
+  pdf.text(`Dr. ${String(doctor.name || '-')}`, drX, headerY + 18, { align: 'right' })
+
+  // Qualification
+  if (doctor.qualification) {
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    pdf.setTextColor(gray.r, gray.g, gray.b)
+    pdf.text(String(doctor.qualification), drX, headerY + 25, { align: 'right' })
+  }
+
+  // Specialization (blue)
+  const spec = (doctor as any).specialization || ''
+  if (spec) {
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.setTextColor(blue.r, blue.g, blue.b)
+    pdf.text(spec, drX, headerY + 31, { align: 'right' })
+  }
+
+  y = headerY + headerH + 8
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2.  PATIENT INFO (two columns)
+  // ══════════════════════════════════════════════════════════════════════════
   pdf.setTextColor(slate.r, slate.g, slate.b)
   pdf.setFontSize(9)
   pdf.setFont('helvetica', 'bold')
 
-  const leftX  = marginX
-  const rightX = W / 2 + 4
-  const rowH   = 4.5
+  const col1X = marginX
+  const col2X = marginX + (W - 2 * marginX) / 3
+  const col3X = marginX + 2 * (W - 2 * marginX) / 3
+  const colW = (W - 2 * marginX) / 3 - 4
+  const rowH = 4.5
 
-  const kv = (label: string, value: string, x: number, yy: number) => {
+  const kv3 = (label: string, value: string, x: number, yy: number) => {
     pdf.setFont('helvetica', 'bold')
     pdf.text(label, x, yy)
     pdf.setFont('helvetica', 'normal')
-    pdf.text(value || '-', x + 22, yy)
+    pdf.text(value || '-', x + 18, yy)
   }
 
-  const startY = y
-  kv('Patient Name:', String(patient.name  || '-'), leftX, y); y += rowH
-  kv('Age:',         String(patient.age    || '-'), leftX, y); y += rowH
-  kv('Gender:',      String(patient.gender || '-'), leftX, y); y += rowH
-  kv('Phone:',       String(patient.phone  || '-'), leftX, y); y += rowH
-  kv('Address:',     String(patient.address|| '-'), leftX, y); y += rowH
+  // Row 1: Patient Name | MR Number | Token #
+  kv3('Patient:', String(patient.name || '-'), col1X, y)
+  kv3('MR #:', String(patient.mrn || '-'), col2X, y)
+  kv3('Token:', String((data as any).tokenNo || '-'), col3X, y)
+  y += rowH
 
-  let y2 = startY
-  kv('MR Number:',  String(patient.mrn || '-'),                          rightX, y2); y2 += rowH
-  kv('Token #:',    String((data as any).tokenNo || '-'),                rightX, y2); y2 += rowH
-  kv('Date:',       String(dt.toLocaleDateString()),                     rightX, y2); y2 += rowH
-  kv('Doctor:',     String(doctor.name ? `Dr. ${doctor.name}` : '-'),   rightX, y2); y2 += rowH
-  kv('Department:', String((doctor as any).departmentName || '-'),       rightX, y2); y2 += rowH
+  // Row 2: Age | Gender | Date
+  kv3('Age:', String(patient.age || '-'), col1X, y)
+  kv3('Gender:', String(patient.gender || '-'), col2X, y)
+  kv3('Date:', String(dt.toLocaleDateString()), col3X, y)
+  y += rowH
 
-  y = Math.max(y, y2) + 6
+  // Row 3: Phone | Address
+  kv3('Phone:', String(patient.phone || '-'), col1X, y)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('Address:', col2X, y)
+  pdf.setFont('helvetica', 'normal')
+  const addrX = col2X + 18
+  const addrLines = (pdf as any).splitTextToSize(String(patient.address || '-'), colW * 2 - 20)
+  pdf.text(addrLines, addrX, y)
+  y += Math.max(rowH, addrLines.length * 3.5)
+
+  y += 4
 
   // ── Layout constants ─────────────────────────────────────────────────────
   const leftColW  = 40
@@ -339,19 +434,22 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   }
 
   // ── Doctor Signature ─────────────────────────────────────────────────────
-  const signY = rxY + rxH + 10
+  // Position signature at bottom left (inside left column area), above footer
+  const footerY = H - 22
+  const signY = footerY - 15
+  const signX = marginX + 2
   pdf.setDrawColor(slate.r, slate.g, slate.b)
   pdf.setLineWidth(0.2)
-  pdf.line(marginX, signY, marginX + 55, signY)
+  pdf.line(signX, signY, signX + 35, signY)
   pdf.setFontSize(8)
   pdf.setFont('helvetica', 'normal')
   pdf.setTextColor(slate.r, slate.g, slate.b)
-  pdf.text('Doctor Signature', marginX, signY + 4)
+  pdf.text('Doctor Signature', signX, signY + 4)
   pdf.setFont('helvetica', 'bold')
-  pdf.text(String(doctor.name ? `Dr. ${doctor.name}` : ''), marginX, signY + 8)
+  pdf.text(String(doctor.name ? `Dr. ${doctor.name}` : ''), signX, signY + 8)
 
   // ── Not Valid bar ────────────────────────────────────────────────────────
-  const nvY = H - 28
+  const nvY = H - 22
   pdf.setFillColor(softRed.r, softRed.g, softRed.b)
   pdf.setDrawColor(254, 202, 202)
   pdf.roundedRect(marginX, nvY, W - 2 * marginX, 8, 1.5, 1.5, 'FD')
@@ -361,15 +459,15 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   pdf.text('⚠ NOT VALID FOR COURT ⚠', W / 2, nvY + 5.5, { align: 'center' })
 
   // ── Contact box ──────────────────────────────────────────────────────────
-  const cbY = H - 18
+  const cbY = H - 12
   pdf.setFillColor(softBlue.r, softBlue.g, softBlue.b)
   pdf.setDrawColor(186, 230, 253)
-  pdf.roundedRect(marginX, cbY, W - 2 * marginX, 12, 2.5, 2.5, 'FD')
+  pdf.roundedRect(marginX, cbY, W - 2 * marginX, 10, 2.5, 2.5, 'FD')
   pdf.setTextColor(slate.r, slate.g, slate.b)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
-  pdf.text(`Phone: ${String(settings.phone   || '+92-xxx-xxxxxx')}`,                    W / 2, cbY + 5,   { align: 'center' })
-  pdf.text(`Address: ${String(settings.address || 'Hospital Address, City, Country')}`, W / 2, cbY + 9.5, { align: 'center' })
+  pdf.text(`Phone: ${String(settings.phone   || '+92-xxx-xxxxxx')}`,                    W / 2, cbY + 4,   { align: 'center' })
+  pdf.text(`Address: ${String(settings.address || 'Hospital Address, City, Country')}`, W / 2, cbY + 8, { align: 'center' })
 
   // ── Output ───────────────────────────────────────────────────────────────
   try {

@@ -17,6 +17,8 @@ export const createIPDAdmissionSchema = z.object({
 export const dischargeIPDSchema = z.object({
   dischargeSummary: z.string().optional(),
   endAt: z.string().optional(),
+  // ER-specific disposition
+  disposition: z.enum(['discharged', 'admitted', 'transferred', 'left-against-advice', 'expired']).optional(),
 })
 
 export const transferBedSchema = z.object({

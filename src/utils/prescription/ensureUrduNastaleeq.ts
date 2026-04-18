@@ -27,8 +27,8 @@ export async function ensureUrduNastaleeq(doc: any){
     if (!urduNastaleeqB64) {
       try {
         urduNastaleeqB64 = await fetchBase64(url)
-      } catch (error) {
-        console.warn('Failed to load AlQalam Taj Nastaleeq font from local assets. Urdu instructions will use fallback font.', error)
+      } catch {
+        // Font not available, use fallback
         return
       }
     }
@@ -37,10 +37,18 @@ export async function ensureUrduNastaleeq(doc: any){
   }
   
   try {
+    // Suppress jsPDF internal errors by wrapping in try-catch
+    const originalPubSub = (doc as any).internal?.events?.publish
+    if (originalPubSub) {
+      (doc as any).internal.events.publish = () => {}
+    }
     doc.addFileToVFS('AlQalamTajNastaleeq.ttf', urduNastaleeqB64)
     doc.addFont('AlQalamTajNastaleeq.ttf', 'AlQalamTajNastaleeq', 'normal')
-    console.log('AlQalam Taj Nastaleeq font loaded successfully')
-  } catch (error) {
-    console.warn('Failed to register AlQalam Taj Nastaleeq font:', error)
+    // Restore pubsub
+    if (originalPubSub) {
+      (doc as any).internal.events.publish = originalPubSub
+    }
+  } catch {
+    // Ignore font registration errors
   }
 }

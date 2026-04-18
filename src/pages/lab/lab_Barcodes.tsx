@@ -1,15 +1,22 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calendar, Search, Clock } from 'lucide-react'
 import { labApi } from '../../utils/api'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
 
-type LabTest = { id: string; name: string }
+type OrderTest = {
+  _id: string
+  testId: string
+  testName: string
+  status: string
+  isReturned: boolean
+  sampleTime?: string
+}
 
 type Order = {
   id: string
   createdAt: string
   patient: { fullName: string; phone: string; mrn?: string }
-  tests: string[]
+  tests: OrderTest[]
   status: 'received' | 'completed' | 'returned'
   tokenNo?: string
   sampleTime?: string
@@ -53,8 +60,6 @@ function downloadDataUrlPng(dataUrl: string, fileName: string) {
 
 export default function Lab_Barcodes() {
   const [orders, setOrders] = useState<Order[]>([])
-  const [tests, setTests] = useState<LabTest[]>([])
-  const testsMap = useMemo(() => Object.fromEntries(tests.map(t => [t.id, t.name])), [tests])
 
   // Filters
   const [q, setQ] = useState('')
@@ -77,6 +82,9 @@ export default function Lab_Barcodes() {
   const [trackOpen, setTrackOpen] = useState(false)
   const [trackTokenNo, setTrackTokenNo] = useState<string | null>(null)
 
+  // Expanded test rows state (for showing all tests inline)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+
   const isAssignedView = Boolean(String(assignOrder?.barcode || '').trim())
 
   const openAssign = async (o: Order) => {
@@ -98,10 +106,7 @@ export default function Lab_Barcodes() {
   }
 
   const refresh = async () => {
-    const [ordRes, tstRes] = await Promise.all([
-      labApi.listOrders({ q: q || undefined, from: from || undefined, to: to || undefined, status: status === 'all' ? undefined : status, page, limit: rows }),
-      labApi.listTests({ limit: 1000 }),
-    ])
+    const ordRes = await labApi.listOrders({ q: q || undefined, from: from || undefined, to: to || undefined, status: status === 'all' ? undefined : status, page, limit: rows })
     const items: Order[] = (ordRes.items || []).map((x: any) => ({
       id: x._id,
       createdAt: x.createdAt || new Date().toISOString(),
@@ -113,7 +118,6 @@ export default function Lab_Barcodes() {
       barcode: x.barcode,
     }))
     setOrders(items)
-    setTests((tstRes.items || []).map((t: any) => ({ id: String(t._id), name: String(t.name || '') })))
     setTotal(Number(ordRes.total || items.length || 0))
     setTotalPages(Number(ordRes.totalPages || 1))
   }
@@ -127,7 +131,6 @@ export default function Lab_Barcodes() {
         console.error(e)
         if (mounted) {
           setOrders([])
-          setTests([])
           setTotal(0)
           setTotalPages(1)
         }
@@ -243,7 +246,6 @@ export default function Lab_Barcodes() {
                 <th className="px-3 py-2">Test(s)</th>
                 <th className="px-3 py-2">MR No</th>
                 <th className="px-3 py-2">Phone</th>
-                <th className="px-3 py-2">Sample Time</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Actions</th>
               </tr>
@@ -251,18 +253,59 @@ export default function Lab_Barcodes() {
             <tbody>
               {orders.map(o => {
                 const token = o.tokenNo || ''
-                const testId = (o.tests || [])[0]
-                const testName = (testsMap as any)[testId] || testId || '-'
+                // Show tests with expansion option
+                const allTests = (o.tests || [])
+                const isExpanded = expandedRows.has(o.id)
+                const visibleTests = isExpanded ? allTests : allTests.slice(0, 2)
+                const hiddenCount = allTests.length - visibleTests.length
                 return (
                   <tr key={o.id} className="border-b border-slate-100">
                     <td className="px-3 py-2">{o.barcode || '-'}</td>
                     <td className="px-3 py-2">{formatDateTime(o.createdAt)}</td>
                     <td className="px-3 py-2">{o.patient?.fullName || '-'}</td>
                     <td className="px-3 py-2">{token || '-'}</td>
-                    <td className="px-3 py-2">{testName}</td>
+                    <td className="px-3 py-2 max-w-xs">
+                      <div className="flex flex-wrap items-center gap-1">
+                        {visibleTests.map((t, i) => (
+                          <span key={i} className="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                            {t.testName || t.testId}
+                          </span>
+                        ))}
+                        {hiddenCount > 0 && !isExpanded && (
+                          <button
+                            onClick={() => {
+                              setExpandedRows(prev => {
+                                const next = new Set(prev)
+                                next.add(o.id)
+                                return next
+                              })
+                            }}
+                            className="inline-flex items-center rounded bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 hover:bg-violet-200"
+                            title={`Show all ${allTests.length} tests`}
+                          >
+                            +{hiddenCount} more
+                          </button>
+                        )}
+                        {isExpanded && allTests.length > 2 && (
+                          <button
+                            onClick={() => {
+                              setExpandedRows(prev => {
+                                const next = new Set(prev)
+                                next.delete(o.id)
+                                return next
+                              })
+                            }}
+                            className="inline-flex items-center rounded bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-300"
+                            title="Show less"
+                          >
+                            show less
+                          </button>
+                        )}
+                        {allTests.length === 0 && '-'}
+                      </div>
+                    </td>
                     <td className="px-3 py-2">{o.patient?.mrn || '-'}</td>
                     <td className="px-3 py-2">{o.patient?.phone || '-'}</td>
-                    <td className="px-3 py-2">{o.sampleTime || '-'}</td>
                     <td className="px-3 py-2">{o.status}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
@@ -275,7 +318,7 @@ export default function Lab_Barcodes() {
               })}
               {orders.length === 0 && (
                 <tr>
-                  <td className="px-3 py-8 text-center text-sm text-slate-500" colSpan={10}>No samples found</td>
+                  <td className="px-3 py-8 text-center text-sm text-slate-500" colSpan={9}>No samples found</td>
                 </tr>
               )}
             </tbody>
@@ -317,7 +360,7 @@ export default function Lab_Barcodes() {
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Tests</label>
-                <input value={(testsMap as any)[(assignOrder.tests || [])[0]] || (assignOrder.tests || [])[0] || ''} readOnly className="w-full rounded-md border border-slate-300 px-3 py-2 bg-slate-50" />
+                <input value={(assignOrder.tests || []).map(t => t.testName || t.testId).join(', ')} readOnly className="w-full rounded-md border border-slate-300 px-3 py-2 bg-slate-50" />
               </div>
 
               <div className="rounded-xl border border-slate-200 p-4">

@@ -251,12 +251,12 @@ export default function Hospital_CorporateReports() {
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-slate-50">
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Company</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Outstanding</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Accrued</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Claimed</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-extrabold uppercase tracking-wider">Company</th>
+                  <th className="px-4 py-3 text-right text-[13px] font-extrabold uppercase tracking-wider">Outstanding</th>
+                  <th className="px-4 py-3 text-right text-[13px] font-extrabold uppercase tracking-wider">Accrued</th>
+                  <th className="px-4 py-3 text-right text-[13px] font-extrabold uppercase tracking-wider">Claimed</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

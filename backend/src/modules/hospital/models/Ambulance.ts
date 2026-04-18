@@ -2,7 +2,7 @@ import mongoose from 'mongoose'
 
 const AmbulanceSchema = new mongoose.Schema({
   vehicleNumber: { type: String, required: true, unique: true },
-  type: { type: String, enum: ['BLS', 'ALS', 'Patient Transport', 'Neonatal'], default: 'BLS' },
+  type: { type: String, default: 'BLS' },
   driverName: { type: String, required: true },
   driverContact: { type: String },
   status: { type: String, enum: ['Available', 'On Duty', 'Maintenance'], default: 'Available' },

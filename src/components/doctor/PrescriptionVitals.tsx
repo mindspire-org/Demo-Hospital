@@ -42,16 +42,17 @@ type VitalSuggestions = {
 type Props = { initial?: DisplayVitals; suggestions?: VitalSuggestions; onBlurStore?: (field: keyof DisplayVitals, value: string) => void }
 
 export default forwardRef(function PrescriptionVitals({ initial, suggestions, onBlurStore }: Props, ref) {
+  const str = (x: any) => x != null ? String(x) : ''
   const [v, setV] = useState<DisplayVitals>({
-    pulse: initial?.pulse || '',
-    temperature: initial?.temperature || '',
-    bloodPressureSys: initial?.bloodPressureSys || '',
-    bloodPressureDia: initial?.bloodPressureDia || '',
-    respiratoryRate: initial?.respiratoryRate || '',
-    bloodSugar: initial?.bloodSugar || '',
-    weightKg: initial?.weightKg || '',
-    height: initial?.height || '',
-    spo2: initial?.spo2 || '',
+    pulse: str(initial?.pulse),
+    temperature: str(initial?.temperature),
+    bloodPressureSys: str(initial?.bloodPressureSys),
+    bloodPressureDia: str(initial?.bloodPressureDia),
+    respiratoryRate: str(initial?.respiratoryRate),
+    bloodSugar: str(initial?.bloodSugar),
+    weightKg: str(initial?.weightKg),
+    height: str(initial?.height),
+    spo2: str(initial?.spo2),
   })
   const [tempUnit, setTempUnit] = useState<'C'|'F'>('C')
   const [heightUnit, setHeightUnit] = useState<'cm'|'ft'>('cm')
@@ -100,7 +101,21 @@ export default forwardRef(function PrescriptionVitals({ initial, suggestions, on
       }
     },
     getDisplay(): DisplayVitals { return v },
-    setDisplay(next: DisplayVitals){ setV(next) },
+    setDisplay(next: DisplayVitals){
+      // Ensure all values are strings for SuggestField compatibility
+      const str = (x: any) => x != null ? String(x) : ''
+      setV({
+        pulse: str(next.pulse),
+        temperature: str(next.temperature),
+        bloodPressureSys: str(next.bloodPressureSys),
+        bloodPressureDia: str(next.bloodPressureDia),
+        respiratoryRate: str(next.respiratoryRate),
+        bloodSugar: str(next.bloodSugar),
+        weightKg: str(next.weightKg),
+        height: str(next.height),
+        spo2: str(next.spo2),
+      })
+    },
   }))
 
   return (

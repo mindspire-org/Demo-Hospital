@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { labApi } from '../../utils/api';
 import { FileText, Plus, Search, Trash2, Edit, Download, Send, CheckCircle } from 'lucide-react';
-import Lab_AddPurchaseOrderDialog from '../../components/lab/lab_AddPurchaseOrderDialog';
-import Lab_ConfirmDialog from '../../components/lab/lab_ConfirmDialog';
+import Lab_AddPurchaseOrderDialog from '../../components/lab/lab_AddPurchaseOrderDialog.tsx';
+import Lab_ConfirmDialog from '../../components/lab/lab_ConfirmDialog.tsx';
 
 export default function Lab_PurchaseOrders() {
   const [orders, setOrders] = useState<any[]>([]);

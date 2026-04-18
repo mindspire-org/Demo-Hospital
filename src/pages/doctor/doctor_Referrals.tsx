@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
+import { hospitalApi, labApi } from '../../utils/api'
 import Toast from '../../components/ui/Toast'
 import Doctor_IpdReferralForm from '../../components/doctor/Doctor_IpdReferralForm'
 import { previewIpdReferralPdf } from '../../utils/ipdReferralPdf'
@@ -12,6 +12,12 @@ type IpdReferral = {
   patientId: string
   patientName?: string
   mrNo?: string
+  gender?: string
+  fatherName?: string
+  age?: string
+  phone?: string
+  address?: string
+  cnic?: string
   status: 'New' | 'Accepted' | 'Rejected' | 'Admitted'
   referralDate?: string
   referralTime?: string
@@ -39,6 +45,10 @@ export default function Doctor_Referrals() {
   const [editing, setEditing] = useState<IpdReferral | null>(null)
   const [settings, setSettings] = useState<any>(null)
   const referralFormRef = useRef<any>(null)
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
+  const [total, setTotal] = useState(0)
 
   useEffect(() => {
     try {
@@ -50,10 +60,16 @@ export default function Doctor_Referrals() {
 
   useEffect(() => {
     if (doc?.id) {
+      setPage(1) // Reset to first page when filters change
+    }
+  }, [doc?.id, statusFilter, from, to])
+
+  useEffect(() => {
+    if (doc?.id) {
       loadReferrals()
       loadSettings()
     }
-  }, [doc?.id, statusFilter, from, to])
+  }, [doc?.id, statusFilter, from, to, page, limit])
 
   async function loadSettings() {
     try {
@@ -66,20 +82,73 @@ export default function Doctor_Referrals() {
     if (!doc?.id) return
     setLoading(true)
     try {
-      const params: any = { referredByDoctorId: doc.id, limit: 100 }
+      const params: any = { referredByDoctorId: doc.id, page, limit }
       if (statusFilter !== 'all') params.status = statusFilter
       if (from) params.from = from
       if (to) params.to = to
       const res: any = await hospitalApi.listIpdReferrals(params)
+      const totalCount = res?.total || 0
+      setTotal(totalCount)
       const rows: any[] = res?.referrals || []
-      const items: IpdReferral[] = rows.map((r: any) => {
+      const items: IpdReferral[] = await Promise.all(rows.map(async (r: any) => {
         const patientData = r.patientId?._id ? r.patientId : r.patientSnapshot
         const referredToData = r.referredTo || {}
+        
+        // Calculate age from dob if available
+        let ageStr = patientData?.age || ''
+        let fatherName = patientData?.fatherName || patientData?.fatherHusbandName || ''
+        let phone = patientData?.phone || patientData?.phoneNormalized || ''
+        let address = patientData?.address || ''
+        let cnic = patientData?.cnic || patientData?.cnicNormalized || ''
+        let gender = patientData?.gender || '-'
+        
+        // If age or other details missing, try fetching from lab API
+        const mrn = patientData?.mrn || patientData?.mrNumber
+        if ((!ageStr || !fatherName || !phone || !address) && mrn) {
+          try {
+            const resp: any = await labApi.getPatientByMrn(mrn)
+            const lp = resp?.patient
+            if (lp) {
+              if (!ageStr && lp.dob) {
+                try {
+                  const dob = new Date(lp.dob)
+                  if (!isNaN(dob as any)) {
+                    const years = Math.floor((Date.now() - dob.getTime()) / 31557600000)
+                    ageStr = String(Math.max(0, years))
+                  }
+                } catch {}
+              }
+              if (!gender || gender === '-') gender = lp.gender || gender
+              if (!fatherName) fatherName = lp.fatherName || ''
+              if (!phone) phone = lp.phone || lp.phoneNormalized || ''
+              if (!address) address = lp.address || ''
+              if (!cnic) cnic = lp.cnic || lp.cnicNormalized || ''
+            }
+          } catch {}
+        }
+        
+        // Fallback: calculate from patientData dob if still no age
+        if (!ageStr && patientData?.dob) {
+          try {
+            const dob = new Date(patientData.dob)
+            if (!isNaN(dob as any)) {
+              const years = Math.floor((Date.now() - dob.getTime()) / 31557600000)
+              ageStr = String(Math.max(0, years))
+            }
+          } catch {}
+        }
+        
         return {
           id: String(r._id || r.id),
           patientId: String(r.patientId?._id || r.patientId || r.patientSnapshot?._id),
           patientName: patientData?.fullName || patientData?.name || '-',
           mrNo: patientData?.mrn || patientData?.mrNumber || '-',
+          gender: gender,
+          fatherName: fatherName,
+          age: ageStr,
+          phone: phone,
+          address: address,
+          cnic: cnic,
           status: r.status || 'New',
           referralDate: r.referralDate,
           referralTime: r.referralTime,
@@ -98,7 +167,7 @@ export default function Doctor_Referrals() {
           createdAt: r.createdAt,
           referredBy: r.referredBy?.doctorName || r.referredBy || r.doctorId?.name,
         }
-      })
+      }))
       setReferrals(items)
     } catch (e: any) {
       setToast({ type: 'error', message: e?.message || 'Failed to load referrals' })
@@ -130,16 +199,27 @@ export default function Doctor_Referrals() {
       const patientObj = {
         name: r.patientName || '-',
         mrn: r.mrNo || '-',
-        gender: '-',
-        fatherName: '',
-        age: '',
-        phone: '',
-        address: '',
-        cnic: '',
+        gender: r.gender || '-',
+        fatherName: r.fatherName || '',
+        age: r.age || '',
+        phone: r.phone || '',
+        address: r.address || '',
+        cnic: r.cnic || '',
       }
 
+      // Format date properly
+      let formattedDate = r.referralDate || new Date().toISOString().slice(0, 10)
+      try {
+        if (formattedDate) {
+          const d = new Date(formattedDate)
+          if (!isNaN(d as any)) {
+            formattedDate = d.toLocaleDateString('en-GB')
+          }
+        }
+      } catch {}
+
       const referralObj = {
-        date: r.referralDate || new Date().toISOString().slice(0, 10),
+        date: formattedDate,
         time: r.referralTime || new Date().toTimeString().slice(0, 5),
         reason: r.reasonOfReferral || '-',
         provisionalDiagnosis: r.provisionalDiagnosis || '-',
@@ -229,7 +309,10 @@ export default function Doctor_Referrals() {
 
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <div className="font-medium text-slate-800">IPD Referrals ({referrals.length})</div>
+          <div className="font-medium text-slate-800">IPD Referrals ({total})</div>
+          <div className="text-sm text-slate-500">
+            Showing {Math.min((page - 1) * limit + 1, total)}-{Math.min(page * limit, total)} of {total}
+          </div>
         </div>
 
         {loading ? (
@@ -302,6 +385,44 @@ export default function Doctor_Referrals() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {total > 0 && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500">Rows per page:</span>
+              <select
+                value={limit}
+                onChange={e => { setLimit(Number(e.target.value)); setPage(1) }}
+                className="rounded border border-slate-300 px-2 py-1 text-xs"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Prev
+              </button>
+              <span className="px-3 py-1 text-slate-600">
+                Page {page} of {Math.ceil(total / limit)}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(Math.ceil(total / limit), p + 1))}
+                disabled={page >= Math.ceil(total / limit)}
+                className="rounded px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

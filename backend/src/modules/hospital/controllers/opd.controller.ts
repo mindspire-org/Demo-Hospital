@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import { createOPDEncounterSchema } from '../validators/opd'
+import { createOPDEncounterSchema, quoteOPDPriceSchema } from '../validators/opd'
 import { HospitalDepartment } from '../models/Department'
 import { HospitalDoctor } from '../models/Doctor'
 import { resolveOPDPrice } from '../../corporate/utils/price'
@@ -7,7 +7,7 @@ import { HospitalEncounter } from '../models/Encounter'
 import { LabPatient } from '../../lab/models/Patient'
 import { CorporateCompany } from '../../corporate/models/Company'
 
-function resolveOPDFee({ department, doctor, visitType }: any){
+function resolveOPDFee({ department, doctor, visitType, visitCategory }: any){
   const isFollowup = visitType === 'followup'
   // 1) Department-level per-doctor mapping overrides if present
   if (doctor && Array.isArray(department.doctorPrices)){
@@ -15,6 +15,8 @@ function resolveOPDFee({ department, doctor, visitType }: any){
     if (match && match.price != null) return { fee: match.price, source: 'department-mapping' }
   }
   if (doctor){
+    if (!isFollowup && visitCategory === 'general' && (doctor as any).opdPublicFee != null) return { fee: (doctor as any).opdPublicFee, source: 'doctor-general' }
+    if (!isFollowup && visitCategory === 'private' && (doctor as any).opdPrivateFee != null) return { fee: (doctor as any).opdPrivateFee, source: 'doctor-private' }
     if (isFollowup && doctor.opdFollowupFee != null) return { fee: doctor.opdFollowupFee, source: 'followup-doctor' }
     if (doctor.opdBaseFee != null) return { fee: doctor.opdBaseFee, source: 'doctor' }
   }
@@ -37,7 +39,7 @@ export async function createEncounter(req: Request, res: Response){
     if (!doctor) return res.status(400).json({ error: 'Invalid doctorId' })
   }
 
-  const { fee, source } = resolveOPDFee({ department, doctor, visitType: data.visitType })
+  const { fee, source } = resolveOPDFee({ department, doctor, visitType: data.visitType, visitCategory: (data as any).visitCategory })
 
   const enc = await HospitalEncounter.create({
     patientId: data.patientId,
@@ -56,11 +58,9 @@ export async function createEncounter(req: Request, res: Response){
 }
 
 export async function quotePrice(req: Request, res: Response){
-  const departmentId = String((req.query as any).departmentId || '')
-  const doctorId = String((req.query as any).doctorId || '')
-  const visitType = String((req.query as any).visitType || 'new')
-  const corporateId = String((req.query as any).corporateId || '')
-  if (!departmentId) return res.status(400).json({ error: 'departmentId is required' })
+  const data = quoteOPDPriceSchema.parse(req.body)
+  const { departmentId, doctorId, visitType, visitCategory, corporateId } = data
+
   if (corporateId){
     const comp = await CorporateCompany.findById(corporateId).lean()
     if (!comp) return res.status(400).json({ error: 'Invalid corporateId' })
@@ -73,7 +73,7 @@ export async function quotePrice(req: Request, res: Response){
     doctor = await HospitalDoctor.findById(doctorId).lean()
     if (!doctor) return res.status(400).json({ error: 'Invalid doctorId' })
   }
-  const { fee, source } = resolveOPDFee({ department, doctor, visitType })
+  const { fee, source } = resolveOPDFee({ department, doctor, visitType, visitCategory })
   let corporate: any = null
   if (corporateId){
     try {
@@ -81,5 +81,5 @@ export async function quotePrice(req: Request, res: Response){
       corporate = { price: corp.price, appliedRuleId: corp.appliedRuleId, mode: corp.mode, value: corp.value }
     } catch {}
   }
-  res.json({ fee, feeSource: source, corporate })
+  res.json({ feeResolved: corporate ? corporate.price : fee, fee, feeSource: source, corporate })
 }

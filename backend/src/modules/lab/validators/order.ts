@@ -17,7 +17,14 @@ const patientSnapshotSchema = z.object({
 export const orderCreateSchema = z.object({
   patientId: z.string().min(1),
   patient: patientSnapshotSchema,
-  tests: z.array(z.string().min(1)).min(1),
+  tests: z.array(z.union([
+    z.string().min(1),
+    z.object({
+      testId: z.string().min(1),
+      testName: z.string().min(1),
+      price: z.coerce.number().nonnegative()
+    })
+  ])).min(1),
   consumables: z.array(consumableSchema).optional().default([]),
   subtotal: z.coerce.number().nonnegative().optional().default(0),
   discount: z.coerce.number().nonnegative().optional().default(0),
@@ -36,7 +43,7 @@ export const orderCreateSchema = z.object({
 
 export const orderQuerySchema = z.object({
   q: z.string().optional(),
-  status: z.enum(['received','completed']).optional(),
+  status: z.enum(['received','in_progress','result_entered','approved','completed','cancelled']).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
   page: z.coerce.number().int().positive().optional(),
@@ -44,9 +51,15 @@ export const orderQuerySchema = z.object({
 })
 
 export const orderTrackUpdateSchema = z.object({
+  testId: z.string().optional(), // For per-test updates
+  orderTestId: z.string().optional(), // Precise per-test updates
   sampleTime: z.string().optional(),
   reportingTime: z.string().optional(),
-  status: z.enum(['received','completed','returned']).optional(),
+  status: z.enum(['pending', 'received','in_progress','sample_collected','result_entered','approved','completed','returned','cancelled']).optional(),
   referringConsultant: z.string().optional(),
   barcode: z.string().optional(),
+  isReturned: z.boolean().optional(),
+  returnReason: z.string().optional(),
+  refundAmount: z.number().optional(),
+  refundMethod: z.string().optional(),
 })

@@ -169,41 +169,14 @@ function buildReportHtml({
 
 
   diagnosticCarts: any[]
-
-
-
   erPayments: any[]
-
-
-
   ipdPayments: any[]
-
-
-
 }){
-
-
-
   const now = new Date()
-
-
-
   const printedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-
-
-
   const printedTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-
-
-
   const periodLabel = mode === 'today' ? 'Today' : 'Current Shift'
-
-
-
   const shiftLabel = shift ? `${shift.name}: ${fmt12(shift.start)}-${fmt12(shift.end)}` : '-'
-
-
-
   const rangeLabel = `${range?.start ? fmtDateTime12(range.start) : '-'} → ${range?.end ? fmtDateTime12(range.end) : '-'}`
 
 
@@ -410,15 +383,8 @@ function buildReportHtml({
 
         table{ width:100%; border-collapse:collapse; table-layout:fixed }
 
-
-
-        th,td{ border:1px solid #e2e8f0; padding:6px 8px; vertical-align:top; word-wrap:break-word }
-
-
-
-        th{ background:#f8fafc; font-weight:800; color:#334155 }
-
-
+        th,td{ border:1px solid #e2e8f0; padding:4px 6px; vertical-align:top; word-wrap:break-word; font-size:9px }
+        th{ background:#f8fafc; font-weight:700; color:#334155 }
 
         td.right, th.right{ text-align:right }
 

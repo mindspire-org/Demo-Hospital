@@ -58,6 +58,7 @@ export async function downloadLabReportPdf(input: {
   createdAt: string
   sampleTime?: string
   reportingTime?: string
+  approvedAt?: string
   patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
   rows: ReportRow[]
   interpretation?: string
@@ -165,7 +166,7 @@ export async function downloadLabReportPdf(input: {
   drawKV('Patient Name :', String(input.patient.fullName), L, y)
   drawKV('Age / Gender :', `${input.patient.age || ''} / ${input.patient.gender || ''}`, R, y); y += 14
   drawKV('Reg. & Sample Time :', String(dt(input.createdAt)), L, y)
-  drawKV('Reporting Time :', String(input.reportingTime || '-'), R, y); y += 14
+  drawKV('Reporting Time :', String(dt(input.approvedAt) || input.reportingTime || '-'), R, y); y += 14
   drawKV('Contact No :', String(input.patient.phone || '-'), L, y)
   drawKV('Referring Consultant :', String(input.referringConsultant || '-'), R, y); y += 14
   drawKV('Address :', String(input.patient.address || '-'), L, y); y += 8
@@ -252,6 +253,7 @@ export async function previewLabReportPdf(input: {
   createdAt: string
   sampleTime?: string
   reportingTime?: string
+  approvedAt?: string
   patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
   rows: ReportRow[]
   interpretation?: string
@@ -357,7 +359,7 @@ export async function previewLabReportPdf(input: {
   drawKV('Patient Name :', String(input.patient.fullName), L, y)
   drawKV('Age / Gender :', `${input.patient.age || ''} / ${input.patient.gender || ''}`, R, y); y += 14
   drawKV('Reg. & Sample Time :', String(dt(input.createdAt)), L, y)
-  drawKV('Reporting Time :', String(input.reportingTime || '-'), R, y); y += 14
+  drawKV('Reporting Time :', String(dt(input.approvedAt) || input.reportingTime || '-'), R, y); y += 14
   drawKV('Contact No :', String(input.patient.phone || '-'), L, y)
   drawKV('Referring Consultant :', String(input.referringConsultant || '-'), R, y); y += 14
   drawKV('Address :', String(input.patient.address || '-'), L, y); y += 8
@@ -474,7 +476,7 @@ function esc(s: string){
 }
 
 function fmtDateTime(iso?: string){
-  if (!iso) return '-'
+  if (!iso || iso === '-') return '-'
   // Handle time-only strings like '14:25'
   if (/^\d{1,2}:\d{2}$/.test(String(iso))) return String(iso)
   try { const d = new Date(iso); if (isNaN(d.getTime())) return String(iso); return d.toLocaleDateString()+', '+d.toLocaleTimeString() } catch { return String(iso) }
@@ -511,6 +513,7 @@ export async function printLabReport(input: {
   createdAt: string
   sampleTime?: string
   reportingTime?: string
+  approvedAt?: string
   patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
   rows: ReportRow[]
   interpretation?: string
@@ -623,7 +626,7 @@ export async function printLabReport(input: {
           <div>Patient Name :</div><div>${esc(input.patient.fullName)}</div>
           <div>Age / Gender :</div><div>${esc(input.patient.age || '')} / ${esc(input.patient.gender || '')}</div>
           <div>Reg. & Sample Time :</div><div>${fmtDateTime(input.createdAt)}</div>
-          <div>Reporting Time :</div><div>${fmtDateTime(input.reportingTime || new Date().toISOString())}</div>
+          <div>Reporting Time :</div><div>${fmtDateTime(input.approvedAt || input.reportingTime || new Date().toISOString())}</div>
           <div>Contact No :</div><div>${esc(input.patient.phone || '-')}</div>
           <div>Referring Consultant :</div><div>${esc(input.referringConsultant || '-')}</div>
           <div>Address :</div><div>${esc(input.patient.address || '-')}</div>

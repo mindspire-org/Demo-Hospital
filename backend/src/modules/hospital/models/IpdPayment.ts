@@ -9,6 +9,7 @@ const IpdPaymentSchema = new Schema({
   patientId: { type: Schema.Types.ObjectId, ref: 'Lab_Patient', required: true, index: true },
   encounterId: { type: Schema.Types.ObjectId, ref: 'Hospital_Encounter', required: true },
   amount: { type: Number, required: true },
+  type: { type: String, enum: ['payment', 'refund', 'adjustment'], default: 'payment' },
   method: { type: String },
   refNo: { type: String },
   receivedBy: { type: String },
@@ -32,6 +33,7 @@ export type HospitalIpdPaymentDoc = {
   patientId: string
   encounterId: string
   amount: number
+  type?: 'payment' | 'refund' | 'adjustment'
   method?: string
   refNo?: string
   receivedBy?: string

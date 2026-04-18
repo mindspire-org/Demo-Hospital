@@ -26,8 +26,6 @@ type Props = {
   onUpdate?: (r: Receiver) => void
 }
 
-const bloodTypes = ['A+','A-','B+','B-','AB+','AB-','O+','O-']
-
 export default function BB_NewReceiverRequest({ open, onClose, onCreate, mode = 'add', initial, onUpdate }: Props){
   const [name, setName] = useState('')
   const [gender, setGender] = useState<'Male'|'Female'|'Other'|''>('')
@@ -177,12 +175,8 @@ export default function BB_NewReceiverRequest({ open, onClose, onCreate, mode = 
           <div>
             <div className="mb-2 text-sm font-semibold">Medical Requirement</div>
             <div className="mb-2">
-              <div className="mb-1 text-xs text-slate-600">Blood Type Required</div>
-              <div className={`flex flex-wrap gap-2 ${errType?'rounded-md ring-1 ring-rose-300 p-1':''}`}>
-                {bloodTypes.map(t => (
-                  <button key={t} onClick={()=>{ setType(t); if (errType) setErrType(false) }} className={`rounded-md border px-3 py-1.5 text-sm ${t===type?'border-sky-600 bg-sky-50 text-sky-700':''}`}>{t}</button>
-                ))}
-              </div>
+              <label className="mb-1 block text-xs text-slate-600">Blood Type Required</label>
+              <input value={type} onChange={e=>{ setType(e.target.value); if (errType) setErrType(false) }} placeholder="e.g. A+" className={`w-full rounded-md border px-3 py-2 ${errType?'border-rose-300 focus:border-rose-400':'border-slate-300'}`} />
               {errType && <div className="mt-1 text-xs text-rose-600">Blood type is required.</div>}
             </div>
             <div className="grid grid-cols-12 gap-3">

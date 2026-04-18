@@ -58,8 +58,9 @@ export default function Lab_Layout() {
   const navigate = useNavigate()
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('lab.session')
-      if (!raw) navigate('/lab/login')
+      const labSession = localStorage.getItem('lab.session')
+      const receptionSession = localStorage.getItem('reception.session')
+      if (!labSession && !receptionSession) navigate('/lab/login')
     } catch {
       navigate('/lab/login')
     }

@@ -27,6 +27,7 @@ export default function Home() {
     { to: '/lab/login', title: 'Lab', description: 'Lab orders, tests, and results management.', icon: <FlaskConical className="size-7 text-emerald-600" />, tone: 'emerald' as const },
     { to: '/diagnostic/login', title: 'Diagnostics', description: 'Diagnostic tokens, tests, tracking, and reports.', icon: <FlaskConical className="size-7 text-teal-600" />, tone: 'teal' as const },
     { to: '/dialysis/login', title: 'Dialysis', description: 'Dialysis sessions, patients, and machine management.', icon: <Droplets className="size-7 text-cyan-600" />, tone: 'teal' as const },
+    { to: '/indoor-pharmacy/login', title: 'Indoor Pharmacy', description: 'Internal hospital prescriptions and dispensing.', icon: <Pill className="size-7 text-blue-600" />, tone: 'sky' as const },
     { to: '/pharmacy/login', title: 'Pharmacy', description: 'Prescriptions, inventory, and POS.', icon: <Pill className="size-7 text-violet-600" />, tone: 'violet' as const },
     { to: '/aesthetic/login', title: 'Aesthetic', description: 'Aesthetic treatments, bookings, and billing.', icon: <Sparkles className="size-7 text-violet-600" />, tone: 'violet' as const },
     { to: '/finance', title: 'Finance', description: 'Financial management and accounting.', icon: <FileText className="size-7 text-amber-600" />, tone: 'amber' as const },

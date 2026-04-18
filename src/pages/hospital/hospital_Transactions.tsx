@@ -193,21 +193,21 @@ export default function Hospital_Transactions() {
         <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Results</div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
               <tr>
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Type</th>
-                <th className="px-3 py-2 font-medium">Token#</th>
-                <th className="px-3 py-2 font-medium">Patient</th>
-                <th className="px-3 py-2 font-medium">Doctor</th>
-                <th className="px-3 py-2 font-medium">Department</th>
-                <th className="px-3 py-2 font-medium">Description</th>
-                <th className="px-3 py-2 font-medium text-right">Fee</th>
-                <th className="px-3 py-2 font-medium text-right">Discount</th>
-                <th className="px-3 py-2 font-medium text-right">Net</th>
-                <th className="px-3 py-2 font-medium">Method</th>
-                <th className="px-3 py-2 font-medium">Performed By</th>
-                <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Type</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Token#</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Doctor</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Department</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Description</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-right">Fee</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-right">Discount</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-right">Net</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Method</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Performed By</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">

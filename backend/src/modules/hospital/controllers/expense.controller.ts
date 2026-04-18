@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { HospitalExpense } from '../models/Expense'
-import { FinanceJournal } from '../models/FinanceJournal'
+import { FinanceJournal } from '../../finance/models/FinanceJournal'
 import { HospitalCashSession } from '../models/CashSession'
 import { createExpenseSchema, listExpenseSchema } from '../validators/expense'
 

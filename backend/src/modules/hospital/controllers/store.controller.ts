@@ -5,13 +5,25 @@ import { StoreItemModel } from '../models/StoreItem'
 import { StorePurchaseModel } from '../models/StorePurchase'
 import { StorePurchaseDraft } from '../models/StorePurchaseDraft'
 import { StoreIssueModel } from '../models/StoreIssue'
+import { HospitalCounter } from '../models/Counter'
 import { StoreSupplierPaymentModel } from '../models/StoreSupplierPayment'
 import { HospitalDepartment } from '../models/Department'
 
-// Pagination helper
+// Generate next sequential issue number (e.g., IS-0001)
+async function nextIssueNo(): Promise<string> {
+  const datePrefix = new Date().toISOString().slice(0, 7).replace('-', '') // e.g., 202504
+  const counterKey = `store_issue_${datePrefix}`
+  const c = await HospitalCounter.findByIdAndUpdate(
+    counterKey,
+    { $inc: { seq: 1 } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  )
+  const seq = String(c.seq || 1).padStart(4, '0')
+  return `IS-${datePrefix}-${seq}` // e.g., IS-202504-0001
+}
 const getPagination = (query: any) => {
   const page = Math.max(1, parseInt(query.page as string) || 1)
-  const limit = Math.min(100, Math.max(1, parseInt(query.limit as string) || 20))
+  const limit = Math.min(1000000, Math.max(1, parseInt(query.limit as string) || 20))
   const skip = (page - 1) * limit
   return { page, limit, skip }
 }
@@ -438,18 +450,71 @@ export const deleteItem = async (req: Request, res: Response) => {
     if (!id || id === 'undefined' || id === 'null') {
       return res.status(400).json({ error: 'Invalid item ID' })
     }
-    
+
     // Hard delete - permanently remove from database
     const item = await StoreItemModel.findByIdAndDelete(id)
-    
+
     if (!item) {
       return res.status(404).json({ error: 'Item not found' })
     }
-    
+
     res.json({ success: true, message: 'Item deleted successfully' })
   } catch (err: any) {
     console.error('Delete item error:', err)
     res.status(500).json({ error: err.message || 'Internal server error' })
+  }
+}
+
+export const exportInventoryCsv = async (req: Request, res: Response) => {
+  try {
+    const { category, status, search } = req.query
+
+    const filter: any = { active: true }
+    if (category) filter.category = category
+    if (status === 'low') filter.$expr = { $lte: ['$currentStock', '$minStock'] }
+    if (status === 'out') filter.currentStock = 0
+    if (search) {
+      filter.name = new RegExp(search as string, 'i')
+    }
+
+    const items = await StoreItemModel.find(filter).sort({ name: 1 }).lean()
+
+    // CSV headers
+    const headers = ['Name', 'Category', 'Unit', 'Current Stock', 'Min Stock', 'Avg Cost', 'Stock Value', 'Location', 'Earliest Expiry', 'Supplier']
+
+    // CSV rows
+    const rows = items.map((item: any) => [
+      item.name,
+      item.category || '',
+      item.unit || 'pcs',
+      item.currentStock || 0,
+      item.minStock || 0,
+      item.avgCost || 0,
+      (item.currentStock || 0) * (item.avgCost || 0),
+      item.location || '',
+      item.earliestExpiry ? new Date(item.earliestExpiry).toISOString().slice(0, 10) : '',
+      item.lastSupplier || ''
+    ])
+
+    // Escape and format CSV
+    const escapeCsv = (val: any) => {
+      const str = String(val ?? '')
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"'
+      }
+      return str
+    }
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(escapeCsv).join(','))
+    ].join('\n')
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', 'attachment; filename="store-inventory.csv"')
+    res.send(csvContent)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
   }
 }
 
@@ -625,7 +690,10 @@ export const createIssue = async (req: Request, res: Response) => {
   try {
     const { date, departmentId, departmentName, issuedTo, notes, items, totalAmount } = req.body
 
+    const issueNo = await nextIssueNo()
+
     const issue = await StoreIssueModel.create({
+      issueNo,
       date: new Date(date),
       departmentId,
       departmentName,
@@ -666,24 +734,113 @@ export const getIssue = async (req: Request, res: Response) => {
   }
 }
 
+export const updateIssue = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const { date, departmentId, departmentName, issuedTo, notes, items, totalAmount } = req.body
+
+    const existingIssue: any = await StoreIssueModel.findById(id).lean()
+    if (!existingIssue) return res.status(404).json({ error: 'Issue not found' })
+
+    // Restore previous stock
+    for (const it of existingIssue.items || []) {
+      await StoreItemModel.findByIdAndUpdate(it.itemId, { $inc: { currentStock: it.quantity } })
+    }
+
+    // Deduct new stock
+    for (const it of items || []) {
+      await StoreItemModel.findByIdAndUpdate(it.itemId, { $inc: { currentStock: -it.quantity } })
+    }
+
+    const updated = await StoreIssueModel.findByIdAndUpdate(
+      id,
+      {
+        date: date ? new Date(date) : existingIssue.date,
+        departmentId: departmentId || existingIssue.departmentId,
+        departmentName: departmentName || existingIssue.departmentName,
+        issuedTo: issuedTo !== undefined ? issuedTo : existingIssue.issuedTo,
+        notes: notes !== undefined ? notes : existingIssue.notes,
+        items: (items || []).map((it: any) => ({
+          itemId: it.itemId,
+          itemName: it.itemName,
+          batchId: it.batchId,
+          batchNo: it.batchNo,
+          quantity: it.quantity,
+          unit: it.unit,
+          costPerUnit: it.costPerUnit,
+        })),
+        totalAmount: totalAmount || existingIssue.totalAmount,
+      },
+      { new: true }
+    )
+
+    res.json({ issue: updated })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+export const deleteIssue = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const issue: any = await StoreIssueModel.findById(id).lean()
+    if (!issue) return res.status(404).json({ error: 'Issue not found' })
+
+    // Restore stock
+    for (const it of issue.items || []) {
+      await StoreItemModel.findByIdAndUpdate(it.itemId, { $inc: { currentStock: it.quantity } })
+    }
+
+    await StoreIssueModel.findByIdAndDelete(id)
+    res.json({ success: true, message: 'Issue deleted successfully' })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
 // ==================== REPORTS ====================
 export const getReport = async (req: Request, res: Response) => {
   try {
     const { reportType } = req.params
-    const { from, to, departmentId, supplierId } = req.query
+    const { from, to, departmentId, supplierId, page, limit, search } = req.query
 
     let data: any[] = []
+    let pagination: { page: number; limit: number; total: number; totalPages: number } | undefined
 
     switch (reportType) {
       case 'stock': {
-        const items = await StoreItemModel.find({ active: true }).lean()
+        const pageNum = Math.max(1, parseInt(page as string, 10) || 1)
+        const limitNum = Math.max(1, Math.min(1000000, parseInt(limit as string, 10) || 15))
+        
+        const query: any = { active: true }
+        if (search) {
+          query.name = { $regex: search, $options: 'i' }
+        }
+
+        const total = await StoreItemModel.countDocuments(query)
+        const limitNumFinal = limitNum === 1000000 ? total : limitNum
+        
+        const items = await StoreItemModel.find(query)
+          .sort({ name: 1 })
+          .skip((pageNum - 1) * limitNumFinal)
+          .limit(limitNumFinal)
+          .lean()
+        
         data = items.map((item) => ({
           name: item.name,
           category: item.category || '',
+          unit: item.unit || 'pcs',
           stock: item.currentStock,
           minStock: item.minStock,
           status: item.currentStock === 0 ? 'out' : item.currentStock <= item.minStock ? 'low' : 'ok',
         }))
+        
+        pagination = {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum)
+        }
         break
       }
       case 'department-usage': {
@@ -694,18 +851,44 @@ export const getReport = async (req: Request, res: Response) => {
           if (to) match.date.$lte = new Date(to as string)
         }
         if (departmentId) match.departmentId = departmentId
+        if (search) {
+          match['items.itemName'] = { $regex: search, $options: 'i' }
+        }
+
+        const pageNum = Math.max(1, parseInt(page as string, 10) || 1)
+        const limitNum = Math.max(1, Math.min(100, parseInt(limit as string, 10) || 15))
 
         const agg = await StoreIssueModel.aggregate([
           { $match: match },
-          { $group: { _id: '$departmentId', departmentName: { $first: '$departmentName' }, items: { $sum: { $size: '$items' } }, value: { $sum: '$totalAmount' }, lastIssue: { $max: '$date' } } },
-          { $sort: { value: -1 } },
+          { $unwind: '$items' },
+          { $match: search ? { 'items.itemName': { $regex: search, $options: 'i' } } : {} },
+          { $group: { _id: { departmentId: '$departmentId', itemName: '$items.itemName' }, departmentName: { $first: '$departmentName' }, itemName: { $first: '$items.itemName' }, unit: { $first: '$items.unit' }, quantity: { $sum: '$items.quantity' }, value: { $sum: { $multiply: ['$items.quantity', '$items.costPerUnit'] } }, lastIssue: { $max: '$date' } } },
+          { $sort: { departmentName: 1, itemName: 1 } },
+          {
+            $facet: {
+              data: [{ $skip: (pageNum - 1) * limitNum }, { $limit: limitNum }],
+              total: [{ $count: 'count' }]
+            }
+          }
         ])
-        data = agg.map(a => ({
+        
+        const result = agg[0] || { data: [], total: [{ count: 0 }] }
+        data = result.data.map((a: any) => ({
           department: a.departmentName,
-          items: a.items,
+          itemName: a.itemName,
+          unit: a.unit || 'pcs',
+          quantity: a.quantity,
           value: a.value,
           lastIssue: a.lastIssue?.toISOString()?.slice(0, 10) || '',
         }))
+        
+        const total = result.total[0]?.count || 0
+        pagination = {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum)
+        }
         break
       }
       case 'consumption': {
@@ -715,12 +898,43 @@ export const getReport = async (req: Request, res: Response) => {
           if (from) match.date.$gte = new Date(from as string)
           if (to) match.date.$lte = new Date(to as string)
         }
+        if (search) {
+          match['items.itemName'] = { $regex: search, $options: 'i' }
+        }
+
+        const pageNum = Math.max(1, parseInt(page as string, 10) || 1)
+        const limitNum = Math.max(1, Math.min(100, parseInt(limit as string, 10) || 15))
+
         const agg = await StoreIssueModel.aggregate([
           { $match: match },
-          { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$date' } }, items: { $sum: { $size: '$items' } }, value: { $sum: '$totalAmount' } } },
-          { $sort: { _id: 1 } },
+          { $unwind: '$items' },
+          { $match: search ? { 'items.itemName': { $regex: search, $options: 'i' } } : {} },
+          { $group: { _id: { month: { $dateToString: { format: '%Y-%m', date: '$date' } }, itemName: '$items.itemName' }, unit: { $first: '$items.unit' }, quantity: { $sum: '$items.quantity' }, value: { $sum: { $multiply: ['$items.quantity', '$items.costPerUnit'] } } } },
+          { $sort: { '_id.month': 1, '_id.itemName': 1 } },
+          {
+            $facet: {
+              data: [{ $skip: (pageNum - 1) * limitNum }, { $limit: limitNum }],
+              total: [{ $count: 'count' }]
+            }
+          }
         ])
-        data = agg.map(a => ({ month: a._id, items: a.items, value: a.value, topItem: '' }))
+        
+        const result = agg[0] || { data: [], total: [{ count: 0 }] }
+        data = result.data.map((a: any) => ({
+          month: a._id.month,
+          itemName: a._id.itemName,
+          unit: a.unit || 'pcs',
+          quantity: a.quantity,
+          value: a.value,
+        }))
+        
+        const total = result.total[0]?.count || 0
+        pagination = {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum)
+        }
         break
       }
       case 'supplier-purchases': {
@@ -731,29 +945,66 @@ export const getReport = async (req: Request, res: Response) => {
           if (from) match.date.$gte = new Date(from as string)
           if (to) match.date.$lte = new Date(to as string)
         }
+        if (search) {
+          match['items.itemName'] = { $regex: search, $options: 'i' }
+        }
+
+        const pageNum = Math.max(1, parseInt(page as string, 10) || 1)
+        const limitNum = Math.max(1, Math.min(100, parseInt(limit as string, 10) || 15))
+
         const agg = await StorePurchaseModel.aggregate([
           { $match: match },
-          { $group: { _id: '$supplierId', supplierName: { $first: '$supplierName' }, purchases: { $sum: 1 }, totalValue: { $sum: '$totalAmount' } } },
-          { $sort: { totalValue: -1 } },
+          { $unwind: '$items' },
+          { $match: search ? { 'items.itemName': { $regex: search, $options: 'i' } } : {} },
+          { $group: {
+            _id: { supplierId: '$supplierId', itemId: '$items.itemId', itemName: '$items.itemName' },
+            supplierName: { $first: '$supplierName' },
+            unit: { $first: '$items.unit' },
+            quantity: { $sum: '$items.quantity' },
+            totalValue: { $sum: { $multiply: ['$items.quantity', '$items.unitPrice'] } }
+          }},
+          { $sort: { 'supplierName': 1, 'totalValue': -1 } },
+          {
+            $facet: {
+              data: [{ $skip: (pageNum - 1) * limitNum }, { $limit: limitNum }],
+              total: [{ $count: 'count' }]
+            }
+          }
         ])
+        
         const suppliers = await StoreSupplierModel.find().lean()
-        data = agg.map(a => {
-          const sup = suppliers.find(s => String(s._id) === String(a._id))
+        const result = agg[0] || { data: [], total: [{ count: 0 }] }
+        data = result.data.map((a: any) => {
+          const sup = suppliers.find(s => String(s._id) === String(a._id.supplierId))
           return {
             supplier: a.supplierName,
-            purchases: a.purchases,
+            itemName: a._id.itemName,
+            unit: a.unit || 'pcs',
+            quantity: a.quantity,
             totalValue: a.totalValue,
             paid: sup?.paid || 0,
             outstanding: sup?.outstanding || 0,
           }
         })
+        
+        const total = result.total[0]?.count || 0
+        pagination = {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum)
+        }
         break
       }
       default:
         break
     }
 
-    res.json({ data })
+    if (pagination) {
+      res.json({ data, pagination, debug: { search, query: { name: { $regex: search, $options: 'i' } } } })
+    } else {
+      res.json({ data, debug: { search } })
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }

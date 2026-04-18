@@ -99,7 +99,7 @@ export default function Hospital_CorporatePayments(){
   async function loadPayments(){
     setPayLoading(true)
     try {
-      const res: any = await corporateApi.listPayments({ companyId: companyId || undefined, from: undefined, to: undefined, sort: paySort, order: payOrder, page: payPage, limit: payLimit }) as any
+      const res: any = await corporateApi.listPayments({ companyId: companyId || undefined, from: undefined, to: undefined, page: payPage, limit: payLimit }) as any
       const items = res?.payments || res?.items || res || []
       setPayRows(items)
       setPayTotal(Number(res?.total || items?.length || 0))
@@ -340,13 +340,13 @@ export default function Hospital_CorporatePayments(){
         {!payLoading && payRows.length > 0 && (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-600">
-                  <PaySortHeader field="dateIso">Date</PaySortHeader>
-                  <PaySortHeader field="companyId">Company</PaySortHeader>
-                  <PaySortHeader field="amount" align="right">Amount</PaySortHeader>
-                  <PaySortHeader field="refNo">Ref No</PaySortHeader>
-                  <PaySortHeader field="notes">Notes</PaySortHeader>
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+                <tr className="text-left">
+                  <PaySortHeader field="dateIso"><span className="text-[13px] font-extrabold uppercase tracking-wider">Date</span></PaySortHeader>
+                  <PaySortHeader field="companyId"><span className="text-[13px] font-extrabold uppercase tracking-wider">Company</span></PaySortHeader>
+                  <PaySortHeader field="amount" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Amount</span></PaySortHeader>
+                  <PaySortHeader field="refNo"><span className="text-[13px] font-extrabold uppercase tracking-wider">Ref No</span></PaySortHeader>
+                  <PaySortHeader field="notes"><span className="text-[13px] font-extrabold uppercase tracking-wider">Notes</span></PaySortHeader>
                 </tr>
               </thead>
               <tbody>
@@ -387,18 +387,18 @@ export default function Hospital_CorporatePayments(){
         {!txLoading && txRows.length > 0 && (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-600">
-                  <OutSortHeader field="dateIso">Date</OutSortHeader>
-                  <th className="px-2 py-2">Company</th>
-                  <OutSortHeader field="patientMrn">MRN</OutSortHeader>
-                  <OutSortHeader field="patientName">Patient</OutSortHeader>
-                  <OutSortHeader field="serviceType">Service</OutSortHeader>
-                  <OutSortHeader field="description">Description</OutSortHeader>
-                  <OutSortHeader field="netToCorporate" align="right">Net</OutSortHeader>
-                  <OutSortHeader field="paidAmount" align="right">Paid</OutSortHeader>
-                  <OutSortHeader field="due" align="right">Due</OutSortHeader>
-                  <th className="px-2 py-2">Action</th>
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+                <tr className="text-left">
+                  <OutSortHeader field="dateIso"><span className="text-[13px] font-extrabold uppercase tracking-wider">Date</span></OutSortHeader>
+                  <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider">Company</th>
+                  <OutSortHeader field="patientMrn"><span className="text-[13px] font-extrabold uppercase tracking-wider">MRN</span></OutSortHeader>
+                  <OutSortHeader field="patientName"><span className="text-[13px] font-extrabold uppercase tracking-wider">Patient</span></OutSortHeader>
+                  <OutSortHeader field="serviceType"><span className="text-[13px] font-extrabold uppercase tracking-wider">Service</span></OutSortHeader>
+                  <OutSortHeader field="description"><span className="text-[13px] font-extrabold uppercase tracking-wider">Description</span></OutSortHeader>
+                  <OutSortHeader field="netToCorporate" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Net</span></OutSortHeader>
+                  <OutSortHeader field="paidAmount" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Paid</span></OutSortHeader>
+                  <OutSortHeader field="due" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Due</span></OutSortHeader>
+                  <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -440,11 +440,11 @@ export default function Hospital_CorporatePayments(){
         {allocations.length > 0 && (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-600">
-                  <th className="px-2 py-2">Transaction</th>
-                  <th className="px-2 py-2 text-right">Amount</th>
-                  <th className="px-2 py-2">Remove</th>
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+                <tr className="text-left">
+                  <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider">Transaction</th>
+                  <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-right">Amount</th>
+                  <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider">Remove</th>
                 </tr>
               </thead>
               <tbody>

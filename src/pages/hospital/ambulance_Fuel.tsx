@@ -206,7 +206,7 @@ export default function Ambulance_Fuel() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-800">Fuel Tracking</h2>
         <div className="flex gap-2">
-          <button onClick={exportCSV} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Export CSV</button>
+          <button onClick={exportCSV} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">Export CSV</button>
           <button onClick={() => setShowAdd(true)} className="rounded-md bg-sky-600 px-3 py-1.5 text-white hover:bg-sky-700">+ Add Fuel</button>
         </div>
       </div>
@@ -247,15 +247,15 @@ export default function Ambulance_Fuel() {
       <div className="mt-5 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left">
-              <th className="px-3 py-2 font-medium text-slate-600">Date</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Ambulance</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Quantity (L)</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Cost</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Station</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Odometer</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Receipt</th>
-              <th className="px-3 py-2 font-medium text-slate-600"></th>
+            <tr className="border-b-2 border-slate-300 text-left bg-slate-100/50">
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Date</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Ambulance</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px] text-right">Quantity (L)</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px] text-right">Cost</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Station</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px] text-right">Odometer</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Receipt</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]"></th>
             </tr>
           </thead>
           <tbody>
@@ -274,9 +274,19 @@ export default function Ambulance_Fuel() {
                 <td className="px-3 py-2 text-right text-slate-700">{formatNumber(r.odometer)} km</td>
                 <td className="px-3 py-2 text-slate-500">{r.receiptNo || '-'}</td>
                 <td className="px-3 py-2">
-                  <div className="flex gap-1">
-                    <button onClick={() => { const rec = records.find(x => x.id === r.id); if (rec) setEditForm({ date: rec.date, quantity: String(rec.quantity), cost: String(rec.cost), station: rec.station || '', odometer: String(rec.odometer), receiptNo: rec.receiptNo || '', notes: rec.notes || '' }); setEditId(r.id) }} className="rounded p-1 text-slate-500 hover:bg-slate-100">✏️</button>
-                    <button onClick={() => setDeleteId(r.id)} className="rounded p-1 text-slate-500 hover:bg-slate-100">🗑️</button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { const rec = records.find(x => x.id === r.id); if (rec) setEditForm({ date: rec.date, quantity: String(rec.quantity), cost: String(rec.cost), station: rec.station || '', odometer: String(rec.odometer), receiptNo: rec.receiptNo || '', notes: rec.notes || '' }); setEditId(r.id) }}
+                      className="rounded-md bg-sky-50 px-3 py-1 text-sm font-medium text-sky-600 hover:bg-sky-100"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(r.id)}
+                      className="rounded-md bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </td>
               </tr>

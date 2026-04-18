@@ -7,14 +7,49 @@ const EquipmentSchema = new Schema({
   make: { type: String },
   model: { type: String },
   serialNo: { type: String },
-  purchaseDate: { type: String }, // YYYY-MM-DD
-  cost: { type: Number },
-  vendorId: { type: Schema.Types.ObjectId, ref: 'Hospital_Vendor' },
+  purchaseDate: { type: String }, // YYYY-MM-DD (Legacy, preferring new fields)
+  cost: { type: Number },          // Legacy, renamed in v2 as purchaseCost
+  vendorId: { type: Schema.Types.ObjectId, ref: 'Hospital_Vendor' }, // Legacy
+
+  // NEW: Purchase Information (v2)
+  condition: { type: String, enum: ['New', 'Used', 'Refurbished'], default: 'New' },
+  purchaseOrderNo: { type: String },
+  invoiceNo: { type: String },
+  purchaseCost: { type: Number },
+  supplierId: { type: Schema.Types.ObjectId, ref: 'Hospital_EquipmentSupplier' },
+  
+  // NEW: Company/Warranty
+  manufacturingCompany: { type: String },
+  warrantyStart: { type: String }, // YYYY-MM-DD
+  warrantyEnd: { type: String },   // YYYY-MM-DD
+  warrantyTerms: { type: String },
+  amcProviderId: { type: Schema.Types.ObjectId, ref: 'Hospital_EquipmentSupplier' },
+
+  // NEW: Technical Specifications
+  specifications: { type: Map, of: String },
+  powerRequirements: { type: String },
+  dimensions: { type: String },
+  weight: { type: Number },
+
+  // NEW: Financial/Lifecycle
+  depreciationMethod: { type: String, enum: ['StraightLine', 'ReducingBalance'] },
+  depreciationRate: { type: Number },
+  currentBookValue: { type: Number },
+  salvageValue: { type: Number },
+  commissionDate: { type: String },
+  decommissionDate: { type: String },
+  expectedLifeYears: { type: Number },
+
+  // NEW: Assets
+  assetTag: { type: String },
+  barcode: { type: String },
+  rfidTag: { type: String },
+  attachments: [{ type: String }],
+  isActive: { type: Boolean, default: true },
+
   locationDepartmentId: { type: Schema.Types.ObjectId, ref: 'Hospital_Department' },
   custodian: { type: String },
   installDate: { type: String }, // YYYY-MM-DD
-  warrantyStart: { type: String },
-  warrantyEnd: { type: String },
   amcStart: { type: String },
   amcEnd: { type: String },
   requiresCalibration: { type: Boolean, default: false },
@@ -38,12 +73,39 @@ export type HospitalEquipmentDoc = {
   serialNo?: string
   purchaseDate?: string
   cost?: number
+  
+  // v2 fields
+  condition: 'New' | 'Used' | 'Refurbished'
+  purchaseOrderNo?: string
+  invoiceNo?: string
+  purchaseCost?: number
+  supplierId?: string
+  manufacturingCompany?: string
+  warrantyStart?: string
+  warrantyEnd?: string
+  warrantyTerms?: string
+  amcProviderId?: string
+  specifications?: Record<string, string>
+  powerRequirements?: string
+  dimensions?: string
+  weight?: number
+  depreciationMethod?: 'StraightLine' | 'ReducingBalance'
+  depreciationRate?: number
+  currentBookValue?: number
+  salvageValue?: number
+  commissionDate?: string
+  decommissionDate?: string
+  expectedLifeYears?: number
+  assetTag?: string
+  barcode?: string
+  rfidTag?: string
+  attachments?: string[]
+  isActive: boolean
+
   vendorId?: string
   locationDepartmentId?: string
   custodian?: string
   installDate?: string
-  warrantyStart?: string
-  warrantyEnd?: string
   amcStart?: string
   amcEnd?: string
   requiresCalibration?: boolean

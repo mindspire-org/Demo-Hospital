@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { hospitalApi, corporateApi } from '../../utils/api'
+import { getLocalDate } from '../../utils/date'
 import Hospital_TokenSlip from '../../components/hospital/Hospital_TokenSlip'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 import { previewHospitalRxPdf } from '../../utils/hospitalRxPdf'
+import PrescriptionVitals from '../../components/doctor/PrescriptionVitals'
 
 function escHtml(v: any){
   return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c] || c)
@@ -105,11 +107,20 @@ type TokenSlipData = {
   mrn?: string
   age?: string
   gender?: string
+  guardianRel?: string
+  guardianName?: string
+  cnic?: string
+  address?: string
   amount: number
   discount: number
   payable: number
   createdAt?: string
   fbr?: any
+  visitCategory?: string
+  tokenType?: string
+  isReprint?: boolean
+  doctorQualification?: string
+  doctorSpecialization?: string
 }
 
 interface TokenRow {
@@ -119,6 +130,7 @@ interface TokenRow {
   mrNo: string
   patient: string
   doctorId?: string
+  encounterId?: string
   visitCategory?: 'public' | 'private'
   gender?: string
   phone?: string
@@ -137,6 +149,7 @@ interface TokenRow {
   corporateId?: string
   performedBy?: string
   createdAt?: string
+  vitals?: any
 }
 
 export default function Hospital_TodayTokens(){
@@ -158,6 +171,8 @@ export default function Hospital_TodayTokens(){
   const [confirmCancel, setConfirmCancel] = useState<{ open: boolean; token: any } | null>(null)
   const [tokenType, setTokenType] = useState<'All' | 'Cash' | 'Corporate'>('All')
   const [visitCategory, setVisitCategory] = useState<'All' | 'Public' | 'Private'>('All')
+  const [vitalsDialog, setVitalsDialog] = useState<{ open: boolean; token: TokenRow | null }>({ open: false, token: null })
+  const vitalsRef = useRef<any>(null)
 
 
   useEffect(() => {
@@ -183,7 +198,7 @@ export default function Hospital_TodayTokens(){
   useEffect(() => { load() }, [departmentId, doctorId, tokenType, visitCategory])
 
   async function load(){
-    const today = new Date().toISOString().slice(0,10)
+    const today = getLocalDate()
     const params: any = { date: today }
     if (departmentId !== 'All') params.departmentId = departmentId
     if (doctorId !== 'All') params.doctorId = doctorId
@@ -195,6 +210,7 @@ export default function Hospital_TodayTokens(){
       mrNo: t.patientId?.mrn || t.mrn || '-',
       patient: t.patientId?.fullName || t.patientName || '-',
       doctorId: String(t.doctorId?._id || t.doctorId?.id || t.doctorId || ''),
+      encounterId: t.encounterId ? String(t.encounterId._id || t.encounterId) : undefined,
       visitCategory: t.visitCategory,
       gender: t.patientId?.gender,
       phone: t.patientId?.phoneNormalized,
@@ -213,8 +229,27 @@ export default function Hospital_TodayTokens(){
       corporateId: t.corporateId,
       performedBy: t.createdByUsername || t.createdBy || '-',
       createdAt: t.createdAt,
+      vitals: undefined as any,
     }))
-    const rowsClean = items.filter(r => r.status !== 'cancelled')
+
+    // Fetch vitals status for each token with encounter
+    const itemsWithVitals = await Promise.all(
+      items.map(async (item) => {
+        if (!item.encounterId) return item
+        try {
+          const presRes: any = await hospitalApi.getPrescriptionByEncounterId(item.encounterId)
+          const vitals = presRes?.prescription?.vitals
+          if (vitals && Object.keys(vitals).some(k => vitals[k] != null)) {
+            return { ...item, vitals: true }
+          }
+          return item
+        } catch {
+          return item
+        }
+      })
+    )
+
+    const rowsClean = itemsWithVitals.filter(r => r.status !== 'cancelled')
     setRows(rowsClean)
     setPage(1)
 
@@ -300,6 +335,10 @@ export default function Hospital_TodayTokens(){
 
   function printSlip(r: TokenRow){
     const panelName = r.corporateId ? (companies.find(c=> c.id === String(r.corporateId))?.name || '') : ''
+    const tType = r.visitCategory?.toLowerCase() === 'private' ? 'Private' : 'General'
+    // Find doctor details for qualification and specialization
+    const docRec = doctors.find((d:any)=> String(d._id||d.id) === String(r.doctorId)) ||
+                   doctors.find((d:any)=> String(d.name||'').toLowerCase() === String(r.doctor||'').toLowerCase())
     const slip: TokenSlipData = {
       tokenNo: r.tokenNo,
       departmentName: r.department || '-',
@@ -307,11 +346,20 @@ export default function Hospital_TodayTokens(){
       patientName: r.patient || '-',
       phone: r.phone || '',
       mrn: r.mrNo || '',
+      age: r.age,
       gender: r.gender,
+      guardianRel: r.guardianRel,
+      guardianName: r.guardianName,
+      cnic: r.cnic,
+      address: r.address,
       amount: r.fee + (r.discount || 0),
       discount: r.discount || 0,
       payable: r.fee,
       createdAt: r.createdAt,
+      tokenType: tType,
+      isReprint: true,
+      doctorQualification: docRec?.qualification || '',
+      doctorSpecialization: docRec?.specialization || '',
       ...(panelName ? { corporateCompanyName: panelName } : {}),
     }
     setSlipData(slip)
@@ -356,6 +404,8 @@ export default function Hospital_TodayTokens(){
         items: [],
         createdAt: new Date().toISOString(),
         tokenNo: r.tokenNo,
+        visitCategory: r.visitCategory,
+        isReprint: true,
       } as any)
     } catch (e: any){
       setToast({ type: 'error', message: e?.message || 'Failed to open Rx preview' })
@@ -366,6 +416,58 @@ export default function Hospital_TodayTokens(){
     // Stay on current portal (reception or hospital)
     const portal = window.location.pathname.startsWith('/reception') ? 'reception' : 'hospital'
     navigate(`/${portal}/token-generator?tokenId=${encodeURIComponent(r._id)}`)
+  }
+
+  async function openVitals(r: TokenRow){
+    if (!r.encounterId) {
+      setToast({ type: 'error', message: 'No encounter found for this token' })
+      return
+    }
+    try {
+      const presRes: any = await hospitalApi.getPrescriptionByEncounterId(r.encounterId)
+      const vitals = presRes?.prescription?.vitals || {}
+      // Convert normalized vitals to display format
+      const displayVitals: any = {
+        pulse: vitals.pulse != null ? String(vitals.pulse) : '',
+        temperature: vitals.temperatureC != null ? String(vitals.temperatureC) : '',
+        bloodPressureSys: vitals.bloodPressureSys != null ? String(vitals.bloodPressureSys) : '',
+        bloodPressureDia: vitals.bloodPressureDia != null ? String(vitals.bloodPressureDia) : '',
+        respiratoryRate: vitals.respiratoryRate != null ? String(vitals.respiratoryRate) : '',
+        bloodSugar: vitals.bloodSugar != null ? String(vitals.bloodSugar) : '',
+        weightKg: vitals.weightKg != null ? String(vitals.weightKg) : '',
+        height: vitals.heightCm != null ? String(vitals.heightCm) : '',
+        spo2: vitals.spo2 != null ? String(vitals.spo2) : '',
+      }
+      setVitalsDialog({ open: true, token: r })
+      // Delay setting vitals to allow dialog to mount
+      setTimeout(() => {
+        try { vitalsRef.current?.setDisplay?.(displayVitals) } catch {}
+      }, 50)
+    } catch {
+      // No prescription yet, open with empty vitals
+      setVitalsDialog({ open: true, token: r })
+    }
+  }
+
+  async function saveVitals(){
+    const token = vitalsDialog.token
+    if (!token?.encounterId) {
+      setToast({ type: 'error', message: 'No encounter found' })
+      return
+    }
+    try {
+      const vitals = vitalsRef.current?.getNormalized?.()
+      if (!vitals || !Object.values(vitals).some(x => x != null)) {
+        setToast({ type: 'error', message: 'Enter at least one vital' })
+        return
+      }
+      await hospitalApi.upsertPrescriptionVitals(token.encounterId, vitals)
+      setToast({ type: 'success', message: 'Vitals saved' })
+      setVitalsDialog({ open: false, token: null })
+      load()
+    } catch (e: any) {
+      setToast({ type: 'error', message: e?.message || 'Failed to save vitals' })
+    }
   }
 
   
@@ -488,12 +590,12 @@ export default function Hospital_TodayTokens(){
         </select>
         <select value={visitCategory} onChange={e=>{ setVisitCategory(e.target.value as any); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1">
           <option value="All">All Categories</option>
-          <option value="Public">Public</option>
+          <option value="Public">General</option>
           <option value="Private">Private</option>
         </select>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Tokens Generated" value={totalTokens} tone="green" />
         <StatCard title="Cash Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} tone="violet" />
         <StatCard title="Card Revenue" value={`Rs. ${cardRevenue.toLocaleString()}`} tone="indigo" />
@@ -506,8 +608,8 @@ export default function Hospital_TodayTokens(){
 
       <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr className="text-left text-slate-600">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+            <tr className="text-left">
               <Th>Time</Th>
               <Th>Type</Th>
               <Th>Token #</Th>
@@ -515,11 +617,11 @@ export default function Hospital_TodayTokens(){
               <Th>Patient</Th>
               <Th>Performed By</Th>
               <Th>Token Type</Th>
-              <Th>Gender</Th>
               <Th>Phone</Th>
               <Th>Doctor</Th>
               <Th>Department</Th>
               <Th>Fee</Th>
+              <Th>Vitals</Th>
               <Th>Print</Th>
               <Th>Actions</Th>
             </tr>
@@ -547,14 +649,20 @@ export default function Hospital_TodayTokens(){
                   {r.visitCategory === 'private' ? (
                     <span className="inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Private</span>
                   ) : (
-                    <span className="inline-flex rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Public</span>
+                    <span className="inline-flex rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">General</span>
                   )}
                 </Td>
-                <Td>{r.gender}</Td>
                 <Td>{r.phone || '-'}</Td>
                 <Td>{r.doctor || '-'}</Td>
                 <Td>{r.department || '-'}</Td>
                 <Td className="font-semibold text-emerald-600">Rs. {r.fee.toLocaleString()}</Td>
+                <Td>
+                  {r.vitals ? (
+                    <span className="inline-flex rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Added</span>
+                  ) : (
+                    <span className="inline-flex rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">-</span>
+                  )}
+                </Td>
                 <Td>
                   <div className="flex flex-col gap-1">
                     <button onClick={()=>printSlip(r)} className="text-sky-600 hover:underline text-left">Print Slip</button>
@@ -563,6 +671,7 @@ export default function Hospital_TodayTokens(){
                 </Td>
                 <Td>
                   <div className="flex gap-2">
+                    <button disabled={actioningId===r._id} onClick={()=>openVitals(r)} title="Vitals" className="text-emerald-600 hover:text-emerald-800 disabled:opacity-50">🩺</button>
                     <button disabled={actioningId===r._id} onClick={()=>openEdit(r)} title="Edit" className="text-sky-600 hover:text-sky-800 disabled:opacity-50">✏️</button>
                     <button disabled={actioningId===r._id} onClick={()=>setStatus(r, r.status === 'returned' ? 'queued' : 'returned')} title="Return" className={`hover:text-amber-800 ${r.status === 'returned' ? 'text-amber-800' : 'text-amber-600'} disabled:opacity-50`}>↩️</button>
                     <button disabled={actioningId===r._id} onClick={()=>setConfirmCancel({ open: true, token: r })} title="Cancel" className="text-rose-600 hover:text-rose-800 disabled:opacity-50">🗑️</button>
@@ -620,6 +729,26 @@ export default function Hospital_TodayTokens(){
         </div>
       )}
 
+      {vitalsDialog.open && vitalsDialog.token && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+              <div className="font-semibold text-slate-800">
+                Vitals - {vitalsDialog.token.patient} ({vitalsDialog.token.mrNo})
+              </div>
+              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="text-slate-500 hover:text-slate-700">✕</button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+              <PrescriptionVitals ref={vitalsRef} />
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="btn-outline-navy">Cancel</button>
+              <button type="button" onClick={saveVitals} className="btn">Save Vitals</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toast toast={toast} onClose={()=>setToast(null)} />
 
     </>
@@ -627,7 +756,7 @@ export default function Hospital_TodayTokens(){
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-2 font-medium">{children}</th>
+  return <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">{children}</th>
 }
 function Td({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <td className={`px-4 py-2 ${className}`}>{children}</td>

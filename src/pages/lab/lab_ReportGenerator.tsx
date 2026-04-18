@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, FileDown, Printer, Pencil, Barcode, Clock } from 'lucide-react'
+import { Search, FileDown, Printer, Pencil, Barcode, Clock, Calendar } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { labApi } from '../../utils/api'
 import { previewLabReportPdf, downloadLabReportPdf } from '../../utils/printLabReport'
@@ -7,13 +7,13 @@ import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
 
 type ResultRow = { id: string; test: string; normal?: string; unit?: string; value?: string; comment?: string; flag?: 'normal'|'abnormal'|'critical' }
 
-type ResultRecord = { id: string; orderId: string; rows: ResultRow[]; interpretation?: string; createdAt: string; submittedBy?: string; approvedBy?: string; reportStatus?: 'pending' | 'approved' }
+type ResultRecord = { id: string; orderId: string; testId?: string; testName?: string; rows: ResultRow[]; interpretation?: string; createdAt: string; submittedBy?: string; approvedBy?: string; approvedAt?: string; reportStatus?: 'pending' | 'approved' }
 
 type Order = {
   id: string
   createdAt: string
-  patient: { fullName: string; phone: string; mrn?: string; cnic?: string; guardianName?: string }
-  tests: string[]
+  patient: { fullName: string; phone: string; mrn?: string; age?: string; gender?: string; address?: string; cnic?: string; guardianName?: string }
+  tests: Array<string | { testId: string; testName: string; price: number }>
   status: 'received'|'completed'
   tokenNo?: string
   sampleTime?: string
@@ -106,17 +106,31 @@ export default function Lab_ReportGenerator() {
           .map((r:any)=>({
             id: r._id,
             orderId: r.orderId,
+            testId: r.testId,
+            testName: r.testName,
             rows: r.rows||[],
             interpretation: r.interpretation,
             createdAt: r.createdAt || new Date().toISOString(),
             submittedBy: r.submittedBy,
             approvedBy: r.approvedBy,
+            approvedAt: r.approvedAt,
             reportStatus: r.reportStatus || 'pending'
           }))
         setResults(list)
         setTotal(Number(resRes.total || list.length || 0))
         setTotalPages(Number(resRes.totalPages || 1))
-        const o: Order[] = (ordRes.items||[]).map((x:any)=>({ id: x._id, createdAt: x.createdAt || new Date().toISOString(), patient: x.patient || { fullName: '-', phone: '' }, tests: x.tests||[], status: x.status || 'received', tokenNo: x.tokenNo, sampleTime: x.sampleTime, reportingTime: x.reportingTime, referringConsultant: x.referringConsultant, barcode: x.barcode }))
+        const o: Order[] = (ordRes.items||[]).map((x:any)=>({ 
+          id: x._id, 
+          createdAt: x.createdAt || new Date().toISOString(), 
+          patient: x.patient || { fullName: '-', phone: '' }, 
+          tests: x.tests||[], 
+          status: x.status || 'received', 
+          tokenNo: x.tokenNo, 
+          sampleTime: x.sampleTime, 
+          reportingTime: x.reportingTime, 
+          referringConsultant: x.referringConsultant, 
+          barcode: x.barcode 
+        }))
         setOrders(o)
         setTests((tstRes.items||[]).map((t:any)=>({ id: t._id, name: t.name, category: t.category||'' })))
       } catch (e){ console.error(e); setResults([]); setOrders([]); setTests([]) }
@@ -147,16 +161,41 @@ export default function Lab_ReportGenerator() {
       if (f === 'normal' && acc === 'unknown') return 'normal'
       return acc
     }, 'unknown')
-    const testsStr = order?.tests.map(id => testsMap[id]).filter(Boolean).join(', ') || ''
+    // Use result's testName if available, otherwise fall back to matching from order tests
+    let testsStr = ''
+    if (r.testName) {
+      testsStr = r.testName
+    } else {
+      const resultTestNames = new Set(r.rows.map((row: any) => String(row.test).toLowerCase()))
+      const filteredTests = order?.tests.filter((t: any) => {
+        const tname = typeof t === 'object' && t?.testName ? t.testName : testsMap[typeof t === 'object' ? t.testId : String(t)]
+        return resultTestNames.has(String(tname || '').toLowerCase())
+      })
+      testsStr = filteredTests?.map((t: any) => {
+        if (typeof t === 'object' && t?.testId) {
+          return t.testName || testsMap[t.testId] || t.testId
+        }
+        return testsMap[t] || t
+      }).filter(Boolean).join(', ') || ''
+    }
     return { r, order, track: tr, flag: flagAgg, testsStr }
   }), [results, ordersMap, track, testsMap])
 
   // Filters/search
   const [q, setQ] = useState('')
   const [flag, setFlag] = useState<'all'|'normal'|'abnormal'|'critical'|'unknown'>('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   const filtered = useMemo(() => enriched.filter(e => {
     if (flag !== 'all' && e.flag !== flag) return false
+    // Date filtering
+    if (fromDate || toDate) {
+      const resultDate = new Date(e.r.createdAt)
+      const resultDateStr = resultDate.toISOString().split('T')[0]
+      if (fromDate && resultDateStr < fromDate) return false
+      if (toDate && resultDateStr > toDate) return false
+    }
     const term = q.trim().toLowerCase()
     if (!term) return true
     return (
@@ -164,9 +203,10 @@ export default function Lab_ReportGenerator() {
       (e.order?.patient.phone || '').toLowerCase().includes(term) ||
       (e.order?.patient.mrn || '').toLowerCase().includes(term) ||
       (e.track?.tokenNo || '').toLowerCase().includes(term) ||
+      (e.order?.barcode || '').toLowerCase().includes(term) ||
       e.testsStr.toLowerCase().includes(term)
     )
-  }), [enriched, q, flag])
+  }), [enriched, q, flag, fromDate, toDate])
 
   const pageCount = totalPages
   const curPage = Math.min(page, pageCount)
@@ -182,10 +222,14 @@ export default function Lab_ReportGenerator() {
       createdAt: o.createdAt,
       sampleTime: e.track?.sampleTime,
       reportingTime: e.track?.reportingTime,
+      approvedAt: e.r.approvedAt,
       patient: {
         fullName: o.patient.fullName,
         phone: o.patient.phone,
         mrn: o.patient.mrn,
+        age: o.patient.age,
+        gender: o.patient.gender,
+        address: o.patient.address,
       },
       rows: (e.r.rows||[]).map((row: ResultRow)=>({
         test: row.test,
@@ -212,10 +256,14 @@ export default function Lab_ReportGenerator() {
       createdAt: o.createdAt,
       sampleTime: e.track?.sampleTime,
       reportingTime: e.track?.reportingTime,
+      approvedAt: e.r.approvedAt,
       patient: {
         fullName: o.patient.fullName,
         phone: o.patient.phone,
         mrn: o.patient.mrn,
+        age: o.patient.age,
+        gender: o.patient.gender,
+        address: o.patient.address,
       },
       rows: (e.r.rows||[]).map((row: ResultRow)=>({
         test: row.test,
@@ -245,18 +293,22 @@ export default function Lab_ReportGenerator() {
     const rightNow = now.toLocaleDateString() + ' ' + now.toLocaleTimeString()
     const labName = (settings?.labName || 'Lab').toUpperCase()
     const getCategory = (e: Enriched, rowTest: string) => {
-      const ids = e.order?.tests || []
-      for (const id of ids){
-        const t = tests.find(tt=>tt.id===id)
+      const testList = e.order?.tests || []
+      for (const testItem of testList){
+        const tid = typeof testItem === 'object' && testItem?.testId ? testItem.testId : String(testItem)
+        const t = tests.find(tt=>tt.id===tid)
         if (!t) continue
         if (t.name && (rowTest?.toLowerCase()||'').includes(t.name.toLowerCase())) return t.category || ''
       }
-      return (tests.find(tt=> (e.order?.tests||[])[0] === tt.id)?.category) || ''
+      const firstTest = testList[0]
+      const firstId = firstTest ? (typeof firstTest === 'object' && firstTest?.testId ? firstTest.testId : String(firstTest)) : ''
+      return (tests.find(tt=> tt.id === firstId)?.category) || ''
     }
     const getTestName = (e: Enriched, rowTest: string) => {
-      const ids = e.order?.tests || []
-      for (const id of ids){
-        const t = tests.find(tt=>tt.id===id)
+      const testList = e.order?.tests || []
+      for (const testItem of testList){
+        const tid = typeof testItem === 'object' && testItem?.testId ? testItem.testId : String(testItem)
+        const t = tests.find(tt=>tt.id===tid)
         if (t && rowTest && rowTest.toLowerCase().includes((t.name||'').toLowerCase())) return t.name
       }
       return rowTest || ''
@@ -356,7 +408,13 @@ export default function Lab_ReportGenerator() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[240px] flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }} placeholder="Search reports.." className="w-full rounded-md border border-slate-300 pl-9 pr-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+            <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }} placeholder="Search by name, token, barcode, MR number, test.." className="w-full rounded-md border border-slate-300 pl-9 pr-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-slate-400" />
+            <input type="date" value={fromDate} onChange={e=>{ setFromDate(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="From" />
+            <span className="text-slate-400">-</span>
+            <input type="date" value={toDate} onChange={e=>{ setToDate(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="To" />
           </div>
           <select value={flag} onChange={e=>{ setFlag(e.target.value as any); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
             <option value="all">All Flags</option>
@@ -365,24 +423,25 @@ export default function Lab_ReportGenerator() {
             <option value="critical">critical</option>
             <option value="unknown">unknown</option>
           </select>
+          <button onClick={()=>{ setFromDate(''); setToDate(''); setQ(''); setFlag('all'); setPage(1) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Clear</button>
           <button onClick={()=>{ flag==='critical' ? printCriticalList() : printList() }} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><FileDown className="h-4 w-4" /> PDF</button>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
-            <tr>
-              <th className="px-3 py-2">SR.NO</th>
-              <th className="px-3 py-2">Date</th>
-              <th className="px-3 py-2">Patient</th>
-              <th className="px-3 py-2">MR No</th>
-              <th className="px-3 py-2">Token No</th>
-              <th className="px-3 py-2">Barcode</th>
-              <th className="px-3 py-2">Test</th>
-              <th className="px-3 py-2">Flag</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Actions</th>
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+            <tr className="text-left">
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">SR.NO</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">MR No</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Token No</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Barcode</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Test</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Flag</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
@@ -19,7 +19,6 @@ function money(n: number){
 
 export default function Hospital_EmergencyServices(){
   const { id } = useParams()
-  const navigate = useNavigate()
 
   const [q, setQ] = useState('')
   const [category, setCategory] = useState<string>('All')
@@ -31,6 +30,8 @@ export default function Hospital_EmergencyServices(){
   const [total, setTotal] = useState(0)
   const [editOpen, setEditOpen] = useState(false)
   const [editDraft, setEditDraft] = useState<{ id: string; name: string; category: string; price: number; active: boolean } | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addDraft, setAddDraft] = useState<{ name: string; category: string; price: number; active: boolean }>({ name: '', category: '', price: 0, active: true })
   const [toast, setToast] = useState<ToastState>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string>('')
 
@@ -98,10 +99,12 @@ export default function Hospital_EmergencyServices(){
     setPage(1)
   }, [q, category, limit])
 
-  const goAddService = () => {
-    const returnTo = id ? `/hospital/emergency/${encodeURIComponent(String(id))}/services` : '/hospital/emergency-services'
-    navigate(`/hospital/emergency-services/add?returnTo=${encodeURIComponent(returnTo)}`)
+  const openAdd = () => {
+    setAddDraft({ name: '', category: '', price: 0, active: true })
+    setAddOpen(true)
   }
+
+  const goAddService = () => openAdd()
 
   const openEdit = (svc: ServiceCatalogItem) => {
     setEditDraft({
@@ -136,24 +139,21 @@ export default function Hospital_EmergencyServices(){
               placeholder="Search services..."
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
             />
-            <select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
+            <select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none">
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select value={limit} onChange={e=>setLimit(Number(e.target.value||20))} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
-              {[10,20,50,100].map(n => <option key={n} value={n}>{n}/page</option>)}
-            </select>
-            <button onClick={reload} className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" disabled={loading}>{loading ? 'Loading...' : 'Refresh'}</button>
+            <button onClick={reload} className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 transition-colors" disabled={loading}>{loading ? 'Loading...' : 'Refresh'}</button>
           </div>
 
           <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-slate-700">
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">Service</th>
-                  <th className="px-3 py-2 text-left font-medium">Category</th>
-                  <th className="px-3 py-2 text-left font-medium">Price</th>
-                  <th className="px-3 py-2 text-left font-medium">Active</th>
-                  <th className="px-3 py-2 text-left font-medium">Actions</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Service</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Category</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Price</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Active</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -181,7 +181,7 @@ export default function Hospital_EmergencyServices(){
                         <div className="flex gap-2">
                           <button
                             onClick={()=>openEdit(s)}
-                            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+                            className="rounded-md bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 text-xs font-medium hover:bg-amber-100 transition-colors"
                           >
                             Edit
                           </button>
@@ -189,7 +189,7 @@ export default function Hospital_EmergencyServices(){
                             onClick={async()=>{
                               setConfirmDeleteId(String(s.id))
                             }}
-                            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+                            className="rounded-md bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1.5 text-xs font-medium hover:bg-rose-100 transition-colors"
                           >
                             Delete
                           </button>
@@ -205,21 +205,33 @@ export default function Hospital_EmergencyServices(){
             </table>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-            <div className="text-slate-600">
-              Showing {(total === 0) ? 0 : ((page - 1) * limit + 1)}-{Math.min(page * limit, total)} of {total}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex items-center gap-4">
+              <div className="text-slate-600">
+                Showing {(total === 0) ? 0 : ((page - 1) * limit + 1)}-{Math.min(page * limit, total)} of {total}
+              </div>
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+                <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Rows:</span>
+                <select 
+                  value={limit} 
+                  onChange={e=>setLimit(Number(e.target.value||20))} 
+                  className="rounded-md border border-slate-300 px-2 py-1 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 bg-white"
+                >
+                  {[10,20,50,100].map(n => <option key={n} value={n}>{n} / page</option>)}
+                </select>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button
-                className="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-slate-300 px-4 py-1.5 hover:bg-slate-50 disabled:opacity-40 transition-all font-medium text-slate-700"
                 onClick={()=>setPage(p=>Math.max(1,p-1))}
                 disabled={page <= 1 || loading}
               >
                 Prev
               </button>
-              <div className="text-slate-700">Page {page} / {totalPages}</div>
+              <div className="px-3 py-1.5 rounded-md bg-slate-100 font-semibold text-slate-700">Page {page} of {totalPages}</div>
               <button
-                className="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-slate-300 px-4 py-1.5 hover:bg-slate-50 disabled:opacity-40 transition-all font-medium text-slate-700"
                 onClick={()=>setPage(p=>Math.min(totalPages,p+1))}
                 disabled={page >= totalPages || loading}
               >
@@ -277,6 +289,56 @@ export default function Hospital_EmergencyServices(){
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
               <button type="button" onClick={()=>{ setEditOpen(false); setEditDraft(null) }} className="btn-outline-navy">Cancel</button>
+              <button type="submit" className="btn">Save</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {addOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <form
+            onSubmit={async (e)=>{
+              e.preventDefault()
+              if (!addDraft.name.trim()) return
+              try{
+                await hospitalApi.createErService({
+                  name: addDraft.name.trim(),
+                  category: addDraft.category?.trim() || undefined,
+                  price: Number(addDraft.price || 0),
+                  active: Boolean(addDraft.active),
+                })
+                setAddOpen(false)
+                setAddDraft({ name: '', category: '', price: 0, active: true })
+                reload()
+                setToast({ type: 'success', message: 'Service added' })
+              }catch(e: any){
+                setToast({ type: 'error', message: e?.message || 'Failed to save service' })
+              }
+            }}
+            className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5"
+          >
+            <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Add Service</div>
+            <div className="space-y-3 px-5 py-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium text-slate-600">Name</label>
+                <input value={addDraft.name} onChange={e=>setAddDraft(d => ({...d, name: e.target.value}))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" placeholder="e.g. ECG" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600">Category</label>
+                <input value={addDraft.category} onChange={e=>setAddDraft(d => ({...d, category: e.target.value}))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" placeholder="e.g. Investigation" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600">Price</label>
+                <input type="number" value={addDraft.price} onChange={e=>setAddDraft(d => ({...d, price: Number(e.target.value || 0)}))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={addDraft.active} onChange={e=>setAddDraft(d => ({...d, active: e.target.checked}))} />
+                Active
+              </label>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+              <button type="button" onClick={()=>setAddOpen(false)} className="btn-outline-navy">Cancel</button>
               <button type="submit" className="btn">Save</button>
             </div>
           </form>

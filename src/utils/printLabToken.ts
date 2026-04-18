@@ -89,32 +89,30 @@ export async function printLabTokenSlip(order: LabSlipOrderInput){
     .title{font-size:22px;font-weight:800;text-align:center;margin:8px 0}
     .muted{color:#64748b;font-size:12px;text-align:center}
     .section-title{font-weight:700;text-align:center;margin:10px 0; text-decoration:underline}
-    .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 8px;font-size:14px;margin:8px 0}
-    .token{border:2px solid #0f172a;border-radius:4px;font-size:24px;font-weight:700;text-align:center;padding:10px;margin:10px 0}
-    table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+    .kv{display:grid;grid-template-columns:90px 1fr;gap:4px 6px;font-size:12px;margin:6px 0}
+    .token{border:2px solid #0f172a;border-radius:4px;font-size:20px;font-weight:700;text-align:center;padding:8px;margin:8px 0}
+    table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
     th{background:#f8fafc;color:#475569;font-weight:600}
-    th,td{padding:6px 8px}
-    .frow{display:flex;justify-content:space-between;margin-top:8px;font-size:14px}
+    th,td{padding:4px 6px}
+    .frow{display:grid;grid-template-columns:100px 1fr;gap:4px 6px;margin-top:6px;font-size:12px}
     .total{font-weight:700}
-    .footer{margin-top:12px;text-align:center;color:#64748b;font-size:12px}
+    .footer{margin-top:8px;text-align:center;color:#64748b;font-size:11px}
     /* Print only the slip and use thermal width */
     @media print{
-      @page{ size: 58mm auto; margin:0 }
-      html, body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; background:#fff !important; color:#000 !important }
-      body *{ visibility:hidden !important }
-      /* Print ONLY the slip element to avoid blank first page */
-      #lab-slip-printable, #lab-slip-printable *{ visibility:visible !important }
-      /* Collapse the overlay container so it doesn't reserve a full-page height */
-      #lab-slip-overlay{ position: static !important; width:auto !important; height:0 !important; padding:0 !important; margin:0 !important }
-      /* Place the slip at the very top to remove any leading blank */
-      #lab-slip-printable{ position:absolute !important; left:0; right:0; top:0; margin:0 auto !important; width:384px !important; box-shadow:none !important; background:#fff !important }
+      @page{ size: 80mm auto; margin:0 }
+      html, body{ margin:0 !important; padding:0 !important; height:auto !important; min-height:0 !important; overflow:visible !important; background:#fff !important; color:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact }
+      /* Hide all body siblings - they don't reserve space with display:none */
+      body > *:not(#lab-slip-overlay){ display:none !important }
+      /* Reset overlay from fixed fullscreen to normal flow */
+      #lab-slip-overlay{ display:block !important; position:static !important; width:auto !important; height:auto !important; padding:0 !important; margin:0 !important; background:#fff !important }
       .toolbar{ display:none !important }
+      /* Size slip for 80mm thermal paper */
+      #lab-slip-printable{ position:static !important; width:72mm !important; max-width:72mm !important; margin:0 auto !important; padding:6px 8px 4px !important; box-shadow:none !important; border-radius:0 !important; background:#fff !important; font-size:12px !important }
       .slip-body{ max-height:none !important; overflow:visible !important }
-      /* Force crisp black text for all content in the slip */
-      #lab-slip-printable, #lab-slip-printable * { color:#000 !important; background:transparent !important; background-color:transparent !important; border-color:#000 !important }
-      #lab-slip-printable .muted { color:#000 !important }
-      #lab-slip-printable .footer { color:#000 !important }
-      #lab-slip-printable table th{ background:transparent !important; color:#000 !important; border-bottom:1px dashed #000 !important }
+      /* Make slip content visible and black */
+      #lab-slip-printable * { visibility:visible !important; color:#000 !important; background:transparent !important; border-color:#000 !important; font-size:12px !important }
+      #lab-slip-printable .muted, #lab-slip-printable .footer { color:#000 !important }
+      #lab-slip-printable table th{ background:transparent !important; border-bottom:1px dashed #000 !important }
       #lab-slip-printable table td{ border-bottom:1px dashed #000 !important }
     }
   </style>
@@ -151,11 +149,11 @@ export async function printLabTokenSlip(order: LabSlipOrderInput){
         <thead><tr><th style="text-align:left">Sr</th><th style="text-align:left">Test Name</th><th style="text-align:right">Charges</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
-      <div class="frow"><div>Total Amount:</div><div>${order.subtotal.toFixed(2)}</div></div>
-      <div class="frow"><div>Discount:</div><div>${order.discount.toFixed(2)}</div></div>
-      <div class="frow total"><div>Payable Amount:</div><div>${order.net.toFixed(2)}</div></div>
-      ${typeof order.receivedAmount === 'number' ? `<div class="frow"><div>Received:</div><div>${Number(order.receivedAmount||0).toFixed(2)}</div></div>` : ''}
-      ${typeof order.receivableAmount === 'number' ? `<div class="frow"><div>Receivable:</div><div>${Number(order.receivableAmount||0).toFixed(2)}</div></div>` : ''}
+      <div class="frow"><div>Total Amount:</div><div style="text-align:left">${order.subtotal.toFixed(2)}</div></div>
+      <div class="frow"><div>Discount:</div><div style="text-align:left">${order.discount.toFixed(2)}</div></div>
+      <div class="frow total"><div>Net Amount:</div><div style="text-align:left">${order.net.toFixed(2)}</div></div>
+      ${typeof order.receivedAmount === 'number' ? `<div class="frow"><div>Received:</div><div style="text-align:left">${Number(order.receivedAmount||0).toFixed(2)}</div></div>` : ''}
+      ${typeof order.receivableAmount === 'number' ? `<div class="frow"><div>Receivable:</div><div style="text-align:left">${Number(order.receivableAmount||0).toFixed(2)}</div></div>` : ''}
       <div style="margin-top:10px">${fbrHtml}</div>
       <div class="footer">${esc(footer || 'Powered by Hospital MIS')}</div>
     </div></div>

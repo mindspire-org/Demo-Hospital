@@ -362,7 +362,7 @@ export default function Store_AddPurchase() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate('/hospital/store/purchase-history')}
+              onClick={() => navigate('/hospital/store/inventory')}
               className="rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-slate-50"
             >
               <ArrowLeft className="h-5 w-5" />

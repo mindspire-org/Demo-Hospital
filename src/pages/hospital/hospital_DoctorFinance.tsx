@@ -274,18 +274,18 @@ export default function Hospital_DoctorFinance() {
         <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Entries</div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
               <tr>
-                <th className="px-4 py-2 font-medium">Date/Time</th>
-                <th className="px-4 py-2 font-medium">Doctor</th>
-                <th className="px-4 py-2 font-medium">Type</th>
-                <th className="px-4 py-2 font-medium">Patient</th>
-                <th className="px-4 py-2 font-medium">MR Number</th>
-                <th className="px-4 py-2 font-medium">Token Number</th>
-                <th className="px-4 py-2 font-medium">Gross</th>
-                <th className="px-4 py-2 font-medium">Discount</th>
-                <th className="px-4 py-2 font-medium">Payable</th>
-                <th className="px-4 py-2 font-medium">Actions</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date/Time</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Doctor</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Type</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">MR Number</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Token Number</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Gross</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Discount</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Payable</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">

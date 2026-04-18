@@ -51,7 +51,7 @@ export default function Hospital_CorporateClaims(){
   async function load(){
     setLoading(true)
     try {
-      const res = await corporateApi.listClaims({ companyId: filters.companyId || undefined, status: (filters.status || undefined) as any, from: filters.from || undefined, to: filters.to || undefined, sort, order, page, limit }) as any
+      const res = await corporateApi.listClaims({ companyId: filters.companyId || undefined, status: (filters.status || undefined) as any, from: filters.from || undefined, to: filters.to || undefined, page, limit }) as any
       setRows((res?.items||res?.claims||[]) as ClaimRow[])
       const t = (res?.total ?? res?.count ?? res?.totalCount)
       setTotal(typeof t === 'number' ? t : null)
@@ -310,7 +310,7 @@ export default function Hospital_CorporateClaims(){
 
   async function printPatientWise(c: ClaimRow){
     try {
-      const res = await corporateApi.getClaimWithPatientDetails(String(c._id)) as any
+      const res = await corporateApi.getClaim(String(c._id)) as any
       const tx: TxRow[] = (res?.transactions||[]) as TxRow[]
       
       // Get patient details from the first transaction (since patient-wise claims have one patient)
@@ -568,15 +568,15 @@ export default function Hospital_CorporateClaims(){
         {!loading && rows.length > 0 && (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-600">
-                  <SortHeader field="claimNo">Claim #</SortHeader>
-                  <SortHeader field="companyId">Company</SortHeader>
-                  <SortHeader field="fromDate">From → To</SortHeader>
-                  <SortHeader field="totalTransactions" align="right">Tx</SortHeader>
-                  <SortHeader field="totalAmount" align="right">Amount</SortHeader>
-                  <SortHeader field="status">Status</SortHeader>
-                  <th className="px-2 py-2">Actions</th>
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+                <tr className="text-left">
+                  <SortHeader field="claimNo"><span className="text-[13px] font-extrabold uppercase tracking-wider">Claim #</span></SortHeader>
+                  <SortHeader field="companyId"><span className="text-[13px] font-extrabold uppercase tracking-wider">Company</span></SortHeader>
+                  <SortHeader field="fromDate"><span className="text-[13px] font-extrabold uppercase tracking-wider">From → To</span></SortHeader>
+                  <SortHeader field="totalTransactions" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Tx</span></SortHeader>
+                  <SortHeader field="totalAmount" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Amount</span></SortHeader>
+                  <SortHeader field="status"><span className="text-[13px] font-extrabold uppercase tracking-wider">Status</span></SortHeader>
+                  <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -645,17 +645,17 @@ export default function Hospital_CorporateClaims(){
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-600">
-                  <DetailSortHeader field="dateIso">Date</DetailSortHeader>
-                  <DetailSortHeader field="patientMrn">MRN</DetailSortHeader>
-                  <DetailSortHeader field="patientName">Patient</DetailSortHeader>
-                  <DetailSortHeader field="serviceType">Service</DetailSortHeader>
-                  <DetailSortHeader field="description">Description</DetailSortHeader>
-                  <DetailSortHeader field="qty" align="right">Qty</DetailSortHeader>
-                  <DetailSortHeader field="unitPrice" align="right">UnitPrice</DetailSortHeader>
-                  <DetailSortHeader field="coPay" align="right">CoPay</DetailSortHeader>
-                  <DetailSortHeader field="netToCorporate" align="right">Net</DetailSortHeader>
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+                <tr className="text-left">
+                  <DetailSortHeader field="dateIso"><span className="text-[13px] font-extrabold uppercase tracking-wider">Date</span></DetailSortHeader>
+                  <DetailSortHeader field="patientMrn"><span className="text-[13px] font-extrabold uppercase tracking-wider">MRN</span></DetailSortHeader>
+                  <DetailSortHeader field="patientName"><span className="text-[13px] font-extrabold uppercase tracking-wider">Patient</span></DetailSortHeader>
+                  <DetailSortHeader field="serviceType"><span className="text-[13px] font-extrabold uppercase tracking-wider">Service</span></DetailSortHeader>
+                  <DetailSortHeader field="description"><span className="text-[13px] font-extrabold uppercase tracking-wider">Description</span></DetailSortHeader>
+                  <DetailSortHeader field="qty" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Qty</span></DetailSortHeader>
+                  <DetailSortHeader field="unitPrice" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Unit Price</span></DetailSortHeader>
+                  <DetailSortHeader field="coPay" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">CoPay</span></DetailSortHeader>
+                  <DetailSortHeader field="netToCorporate" align="right"><span className="text-[13px] font-extrabold uppercase tracking-wider">Net Amount</span></DetailSortHeader>
                 </tr>
               </thead>
               <tbody>

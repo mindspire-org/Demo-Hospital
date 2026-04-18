@@ -507,13 +507,13 @@ export default function Hospital_Appointments(){
           <div className="text-slate-600">{tblLoading? 'Loading...' : `${tblTotal} item(s)`}</div>
         </div>
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
-              <th className="px-3 py-2 text-left">Time</th>
-              <th className="px-3 py-2 text-left">Patient</th>
-              <th className="px-3 py-2 text-left">Phone</th>
-              <th className="px-3 py-2 text-left">Status</th>
-              <th className="px-3 py-2 text-left">Actions</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Time</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Patient</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Phone</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Status</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Actions</th>
             </tr>
           </thead>
           <tbody>

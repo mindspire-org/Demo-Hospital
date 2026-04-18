@@ -7,6 +7,7 @@ const ErAllocationSchema = z.object({
 
 export const createErPaymentSchema = z.object({
   amount: z.coerce.number().min(0.01),
+  type: z.enum(['payment', 'refund', 'adjustment']).optional().default('payment'),
   method: z.string().optional(),
   refNo: z.string().optional(),
   receivedBy: z.string().optional(),
@@ -17,6 +18,7 @@ export const createErPaymentSchema = z.object({
 
 export const updateErPaymentSchema = z.object({
   amount: z.coerce.number().min(0.01).optional(),
+  type: z.enum(['payment', 'refund', 'adjustment']).optional(),
   method: z.string().optional(),
   refNo: z.string().optional(),
   receivedBy: z.string().optional(),

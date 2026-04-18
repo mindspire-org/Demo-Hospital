@@ -3,9 +3,9 @@ import { auth } from '../../../common/middleware/auth'
 import {
   storeDashboard,
   listSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplier, getSupplierLedger, createSupplierPayment, listSupplierPurchases, recomputeAllSuppliers,
-  listInventory, createItem, updateItem, deleteItem,
+  listInventory, createItem, updateItem, deleteItem, exportInventoryCsv,
   listPurchases, createPurchase, getPurchase, updatePurchase, deletePurchase,
-  listIssues, createIssue, getIssue,
+  listIssues, createIssue, getIssue, updateIssue, deleteIssue,
   getReport,
   listDepartments,
 } from '../controllers/store.controller'
@@ -44,6 +44,7 @@ router.post('/suppliers/recompute', recomputeAllSuppliers)
 
 // Inventory
 router.get('/inventory', listInventory)
+router.get('/inventory/export-csv', exportInventoryCsv)
 router.post('/inventory', createItem)
 router.put('/inventory/:id', updateItem)
 router.delete('/inventory/:id', deleteItem)
@@ -58,6 +59,8 @@ router.delete('/purchases/:id', deletePurchase)
 router.get('/issues', listIssues)
 router.post('/issues', createIssue)
 router.get('/issues/:id', getIssue)
+router.put('/issues/:id', updateIssue)
+router.delete('/issues/:id', deleteIssue)
 
 // Reports
 router.get('/reports/:reportType', getReport)

@@ -7,7 +7,7 @@ import { HospitalErPayment } from '../models/ErPayment'
 import { HospitalIpdPayment } from '../models/IpdPayment'
 import { HospitalExpense } from '../models/Expense'
 import { HospitalIpdBillingItem } from '../models/IpdBillingItem'
-import { FinanceJournal } from '../models/FinanceJournal'
+import { FinanceJournal } from '../../finance/models/FinanceJournal'
 import { HospitalDoctor } from '../models/Doctor'
 import { HospitalEncounter } from '../models/Encounter'
 import { LabPatient } from '../../lab/models/Patient'
@@ -39,6 +39,20 @@ function jsonError(res: Response, status: number, message: string){
   return res.status(status).json({ error: message })
 }
 
+// Format UTC date to Pakistan local time string (UTC+5)
+function fmtPakistanTime(d: Date): string {
+  // Add 5 hours to convert UTC to Pakistan time
+  const pakTime = new Date(d.getTime() + (5 * 60 * 60 * 1000))
+  const dd = String(pakTime.getUTCDate()).padStart(2, '0')
+  const mm = String(pakTime.getUTCMonth() + 1).padStart(2, '0')
+  const yyyy = pakTime.getUTCFullYear()
+  let hh = pakTime.getUTCHours()
+  const min = String(pakTime.getUTCMinutes()).padStart(2, '0')
+  const ampm = hh >= 12 ? 'PM' : 'AM'
+  hh = hh % 12 || 12
+  return `${dd}/${mm}/${yyyy}, ${String(hh).padStart(2, '0')}:${min} ${ampm}`
+}
+
 export async function myActivity(req: Request, res: Response){
   const mode = String((req.query as any)?.mode || 'today') as 'today'|'shift'
 
@@ -46,10 +60,17 @@ export async function myActivity(req: Request, res: Response){
   const userId = String((req as any).user?._id || (req as any).user?.id || '').trim()
   if (!username && !userId) return jsonError(res, 401, 'Unauthorized')
 
-  const todayIso = new Date().toISOString().slice(0,10)
+  // Get Pakistan local date (UTC+5)
+  const now = new Date()
+  const pakDate = new Date(now.getTime() + (5 * 60 * 60 * 1000))
+  const todayIso = pakDate.toISOString().slice(0,10)
 
-  let rangeStart = new Date(`${todayIso}T00:00:00.000`)
-  let rangeEnd = new Date(`${todayIso}T23:59:59.999`)
+  // Convert Pakistan local day to UTC for MongoDB query
+  // Pakistan midnight (00:00) = UTC 19:00 (previous day)
+  const pakStart = new Date(todayIso + 'T00:00:00')
+  const pakEnd = new Date(todayIso + 'T23:59:59.999')
+  let rangeStart = new Date(pakStart.getTime() - (5 * 60 * 60 * 1000))
+  let rangeEnd = new Date(pakEnd.getTime() - (5 * 60 * 60 * 1000))
   let shiftMeta: any = undefined
 
   if (mode === 'shift'){
@@ -124,10 +145,10 @@ export async function myActivity(req: Request, res: Response){
     try { return new Types.ObjectId(id) } catch { return null }
   }).filter(Boolean) as Types.ObjectId[]
 
-  const [erPayments, ipdPaymentsRaw] = await Promise.all([
+  const [erPaymentsRaw, ipdPaymentsRaw] = await Promise.all([
     erPaymentIds.length
       ? HospitalErPayment.find({ _id: { $in: toObjectIds(erPaymentIds) } })
-          .select('amount method refNo receivedAt createdAt receivedBy notes portal')
+          .select('amount method refNo receivedAt createdAt receivedBy notes portal encounterId patientId createdByUsername')
           .sort({ receivedAt: -1 })
           .lean()
       : Promise.resolve([] as any[]),
@@ -139,8 +160,40 @@ export async function myActivity(req: Request, res: Response){
       : Promise.resolve([] as any[]),
   ])
 
-  // Calculate pending amounts for IPD payments
+  // Get unique encounter IDs for both ER and IPD
+  const erEncounterIds = Array.from(new Set((erPaymentsRaw || []).map((p: any) => String(p.encounterId || '')).filter(Boolean)))
   const ipdEncounterIds = Array.from(new Set((ipdPaymentsRaw || []).map((p: any) => String(p.encounterId || '')).filter(Boolean)))
+  const allEncounterIds = Array.from(new Set([...erEncounterIds, ...ipdEncounterIds]))
+
+  // Get tokens for ER encounters
+  const erTokens = erEncounterIds.length
+    ? await HospitalToken.find({ encounterId: { $in: toObjectIds(erEncounterIds) } }).select('encounterId tokenNo').lean()
+    : []
+  const erTokenMap = new Map(erTokens.map((t: any) => [String(t.encounterId), t.tokenNo]))
+
+  // Fetch all patients for both ER and IPD
+  const erPatientIds = (erPaymentsRaw || []).map((p: any) => String(p.patientId)).filter(Boolean)
+  const ipdPatientIds = (ipdPaymentsRaw || []).map((p: any) => String(p.patientId)).filter(Boolean)
+  const allPatientIds = Array.from(new Set([...erPatientIds, ...ipdPatientIds]))
+
+  const patients = allPatientIds.length
+    ? await LabPatient.find({ _id: { $in: toObjectIds(allPatientIds) } }).select('_id fullName mrn').lean()
+    : []
+  const patientMap = new Map(patients.map((p: any) => [String(p._id), p]))
+
+  // Enrich ER Payments
+  const erPayments = (erPaymentsRaw || []).map((p: any) => {
+    const patient = patientMap.get(String(p.patientId))
+    return {
+      ...p,
+      tokenNo: erTokenMap.get(String(p.encounterId)) || '-',
+      mrn: patient?.mrn || '-',
+      patientName: patient?.fullName || '-',
+      performedBy: p.createdByUsername || p.receivedBy || performedBy,
+    }
+  })
+
+  // Calculate pending amounts for IPD payments
   const ipdBillingItems = ipdEncounterIds.length
     ? await HospitalIpdBillingItem.find({ encounterId: { $in: toObjectIds(ipdEncounterIds) } }).select('encounterId amount').lean()
     : []
@@ -165,13 +218,6 @@ export async function myActivity(req: Request, res: Response){
     ? await HospitalEncounter.find({ _id: { $in: toObjectIds(ipdEncounterIds) } }).select('_id admissionNo patientId').lean()
     : []
   const encounterMap = new Map(encounters.map((e: any) => [String(e._id), e]))
-
-  // Fetch patients directly from payment patientIds
-  const paymentPatientIds = Array.from(new Set((ipdPaymentsRaw || []).map((p: any) => String(p.patientId)).filter(Boolean)))
-  const patients = paymentPatientIds.length
-    ? await LabPatient.find({ _id: { $in: toObjectIds(paymentPatientIds) } }).select('_id fullName mrn').lean()
-    : []
-  const patientMap = new Map(patients.map((p: any) => [String(p._id), p]))
 
   const ipdPayments = (ipdPaymentsRaw || []).map((p: any) => {
     const encId = String(p.encounterId || '')
@@ -244,7 +290,11 @@ export async function myActivity(req: Request, res: Response){
     mode,
     user: { username: performedBy },
     shift: shiftMeta,
-    range: { start: rangeStartIso, end: rangeEndIso },
+    range: {
+      start: rangeStartIso,
+      end: rangeEndIso,
+      label: `${fmtPakistanTime(rangeStart)} → ${fmtPakistanTime(rangeEnd)}`
+    },
     summary: {
       tokens: { count: tokens.length, revenue: tokenRevenue, discount: tokenDiscount },
       erPayments: { count: erPayments.length, total: erTotal },

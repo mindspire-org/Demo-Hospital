@@ -87,7 +87,7 @@ export default function Hospital_AddDoctorDialog({
             <input value={form.phone} onChange={e=>update('phone', e.target.value)} placeholder="Enter phone number" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-700">Public Fee (Rs.)</label>
+            <label className="mb-1 block text-sm text-slate-700">General Fee (Rs.)</label>
             <input value={form.publicFee} onChange={e=>update('publicFee', e.target.value)} placeholder="0" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
           </div>
           <div>

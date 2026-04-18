@@ -10,6 +10,7 @@ const StoreIssueItemSchema = new mongoose.Schema({
 
 const StoreIssueSchema = new mongoose.Schema(
   {
+    issueNo: { type: String, unique: true, sparse: true },
     date: { type: Date, required: true },
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital_Department', required: true },
     departmentName: { type: String, required: true },
@@ -31,6 +32,7 @@ export type DocStoreIssue = mongoose.Document & {
   departmentId: string
   departmentName: string
   issuedTo?: string
+  issueNo?: string
   totalAmount: number
   notes?: string
   items: Array<{

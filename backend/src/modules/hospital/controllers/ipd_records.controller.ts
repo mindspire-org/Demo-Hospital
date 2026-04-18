@@ -9,7 +9,7 @@ import { HospitalIpdClinicalNote } from '../models/IpdClinicalNote'
 import { HospitalIpdMedicationOrder } from '../models/IpdMedicationOrder'
 import { HospitalIpdMedicationAdmin } from '../models/IpdMedicationAdmin'
 import { HospitalIpdLabLink } from '../models/IpdLabLink'
-import { FinanceJournal } from '../models/FinanceJournal'
+import { FinanceJournal } from '../../finance/models/FinanceJournal'
 import { LabPatient } from '../../lab/models/Patient'
 import { CorporateTransaction } from '../../corporate/models/Transaction'
 import { HospitalCashSession } from '../models/CashSession'
@@ -72,113 +72,156 @@ async function applyIpdAllocations(encounterId: any, allocations: Array<{ billin
   }
 }
 
-async function recalcIpdPaidAmounts(encounterId: any){
-  // Instead of resetting all to 0, we preserve existing paidAmount as baseline
-  // and only apply new allocations for payments that have explicit allocations not yet applied.
-  // This prevents the FIFO backfill from incorrectly reallocating historical payments.
+async function computeIpdTotals(encounterId: string){
+  const [charges, payments] = await Promise.all([
+    HospitalIpdBillingItem.find({ encounterId }).select('amount paidAmount').lean(),
+    HospitalIpdPayment.find({ encounterId }).select('amount allocations method type').lean()
+  ])
   
+  const grandTotal = charges.reduce((s: number, c: any) => s + Number(c.amount || 0), 0)
+  
+  const allPayments = payments.map((p: any) => ({
+    ...p,
+    isAdvance: String(p.method || '').toLowerCase() === 'advance',
+    isSettlement: String(p.method || '').toLowerCase() === 'advance settlement',
+    isRefund: String(p.type || '').toLowerCase() === 'refund'
+  }))
+
+  // Total advances received (minus refunds)
+  const totalAdvanceReceived = allPayments
+    .filter(p => p.isAdvance && !p.isRefund)
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
+    - allPayments
+      .filter(p => p.isRefund && String(p.method || '').toLowerCase().includes('advance'))
+      .reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  const totalDirectPaid = allPayments
+    .filter(p => !p.isAdvance && !p.isSettlement && !p.isRefund && String(p.method || '').toLowerCase() !== 'discount')
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  const totalDiscounts = allPayments
+    .filter(p => String(p.method || '').toLowerCase() === 'discount' && !p.isRefund)
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  // Total refunds for display
+  const totalRefunds = allPayments
+    .filter(p => p.isRefund)
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  const totalReceived = totalDirectPaid + totalAdvanceReceived
+  
+  const totalPaidToCharges = charges.reduce((s: number, c: any) => s + Number(c.paidAmount || 0), 0)
+  
+  const advanceUsed = Math.max(0, totalPaidToCharges - totalDirectPaid - totalDiscounts)
+  const unallocatedAdvance = Math.max(0, totalAdvanceReceived - advanceUsed)
+  
+  const netOutstanding = Math.max(0, grandTotal - totalPaidToCharges)
+  
+  return { 
+    grandTotal,           // Total charges
+    totalReceived,        // Direct + Advance (net after refunds)
+    totalPaidToCharges,   // Total Cleared
+    unallocatedAdvance,   // Advance Available
+    netOutstanding,       // Remaining/Net Due
+    totalDirectPaid,
+    totalAdvanceReceived,
+    totalDiscounts,
+    totalRefunds,
+    advanceUsed,
+    chargeCount: charges.length,
+    paymentCount: payments.length
+  }
+}
+
+async function recalcIpdPaidAmounts(encounterId: any){
   const items: any[] = await HospitalIpdBillingItem.find({ encounterId })
     .select('_id amount paidAmount date createdAt')
-    .sort({ date: 1, createdAt: 1 })
+    .sort({ createdAt: 1 })
     .lean()
   if (!items.length) return
 
-  // Build map of current paid amounts (our baseline)
   const baselinePaid = new Map<string, number>()
   for (const it of items){
-    baselinePaid.set(String(it._id), clampMoney(it.paidAmount || 0))
+    baselinePaid.set(String(it._id), 0)
   }
 
-  // Get all payments with their allocations
   const pays: any[] = await HospitalIpdPayment.find({ encounterId })
-    .select('_id amount allocations receivedAt createdAt')
-    .sort({ receivedAt: 1, createdAt: 1 })
+    .select('_id amount allocations receivedAt createdAt method type')
+    .sort({ createdAt: 1 })
     .lean()
 
-  // Calculate what the paidAmount SHOULD be based on all payment allocations
   const calculatedPaid = new Map<string, number>()
-  
-  // Initialize with baseline (current paid amounts)
   for (const [id, amt] of baselinePaid.entries()){
-    calculatedPaid.set(id, amt)
+    calculatedPaid.set(id, 0)
   }
 
-  // Track which payments we've already "accounted for" in our baseline
-  // A payment is accounted for if its allocations match what we've recorded
-  const accountedPaymentIds = new Set<string>()
+  // Calculate total refunds to subtract from available funds
+  const totalRefunds = pays
+    .filter(p => String(p.type || '').toLowerCase() === 'refund')
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
 
-  // First pass: identify payments that are already fully reflected in baselinePaid
-  for (const p of (pays || [])){
-    const existingAllocs: any[] = Array.isArray(p?.allocations) ? p.allocations : []
-    if (!existingAllocs.length) continue
-    
-    // Check if this payment's allocations are already reflected in paidAmount
-    let allMatch = true
-    for (const a of existingAllocs){
-      const itemId = String(a?.billingItemId || '')
-      const allocAmt = clampMoney(a?.amount)
-      if (!itemId || allocAmt <= 0) continue
-      // We can't easily verify individual allocations, so we assume payments with allocations are accounted
-    }
-    if (allMatch && existingAllocs.length > 0){
-      accountedPaymentIds.add(String(p._id))
-    }
-  }
+  const sourcePayments = pays.filter(p => {
+    const method = String(p.method || '').toLowerCase()
+    const pType = String(p.type || '').toLowerCase()
+    return method !== 'advance settlement' && pType !== 'refund'
+  })
 
-  // Second pass: process only NEW payments (those without allocations or not yet accounted for)
-  // For payments without allocations, we backfill using the REMAINING capacity after baseline
-  for (const p of (pays || [])){
+  // Track total available funds and net after refunds
+  const totalSourceFunds = sourcePayments.reduce((s, p) => s + Number(p.amount || 0), 0)
+  const netAvailable = Math.max(0, totalSourceFunds - totalRefunds)
+  let allocatedFromNet = 0
+  
+  for (const p of sourcePayments){
     const pid = String(p._id)
-    const existingAllocs: any[] = Array.isArray(p?.allocations) ? p.allocations : []
+    const paymentAmount = clampMoney(p.amount)
     
-    if (existingAllocs.length > 0){
-      // Payment has explicit allocations - verify/add them to calculated
-      for (const a of existingAllocs){
-        const itemId = String(a?.billingItemId || '')
-        const allocAmt = clampMoney(a?.amount)
-        if (!itemId || allocAmt <= 0) continue
-        calculatedPaid.set(itemId, clampMoney((calculatedPaid.get(itemId) || 0) + allocAmt))
-      }
-    } else {
-      // Payment has no allocations - do FIFO backfill against REMAINING (amount - baseline)
-      let left = clampMoney(p.amount)
-      const out: Array<{ billingItemId: string; amount: number }> = []
+    // Calculate available from this payment (accounting for refunds proportionally)
+    let availableFromThisPayment = paymentAmount
+    if (totalRefunds > 0 && totalSourceFunds > 0) {
+      const deductionRatio = Math.min(1, totalRefunds / totalSourceFunds)
+      availableFromThisPayment = clampMoney(paymentAmount * (1 - deductionRatio))
+    }
+    const remainingNet = Math.max(0, netAvailable - allocatedFromNet)
+    let left = Math.min(availableFromThisPayment, remainingNet)
+    allocatedFromNet += left
+    const out: Array<{ billingItemId: string; amount: number }> = []
+    
+    for (const it of items){
+      if (left <= 0) break
+      const id = String(it._id)
+      const itemAmount = clampMoney(it.amount)
+      const currentlyPaid = calculatedPaid.get(id) || 0
+      const remainingCapacity = Math.max(0, itemAmount - currentlyPaid)
       
-      for (const it of items){
-        if (left <= 0) break
-        const id = String(it._id)
-        const itemAmount = clampMoney(it.amount)
-        const currentlyPaid = baselinePaid.get(id) || 0
-        const remainingCapacity = Math.max(0, itemAmount - currentlyPaid)
-        
-        if (remainingCapacity <= 0) continue
-        const take = Math.min(remainingCapacity, left)
-        if (take > 0){
-          out.push({ billingItemId: id, amount: clampMoney(take) })
-          calculatedPaid.set(id, clampMoney((calculatedPaid.get(id) || 0) + take))
-          left = clampMoney(left - take)
-        }
-      }
-      
-      // Persist generated allocations for this previously-unallocated payment
-      if (out.length){
-        try { await HospitalIpdPayment.findByIdAndUpdate(pid, { $set: { allocations: out } }) } catch {}
+      if (remainingCapacity <= 0) continue
+      const take = Math.min(remainingCapacity, left)
+      if (take > 0){
+        out.push({ billingItemId: id, amount: clampMoney(take) })
+        calculatedPaid.set(id, clampMoney((calculatedPaid.get(id) || 0) + take))
+        left = clampMoney(left - take)
       }
     }
+    
+    try { await HospitalIpdPayment.findByIdAndUpdate(pid, { $set: { allocations: out } }) } catch {}
   }
 
-  // Apply updates only where calculated differs from baseline
   const ops: any[] = []
   for (const it of items){
     const id = String(it._id)
-    const baseline = baselinePaid.get(id) || 0
     const calculated = calculatedPaid.get(id) || 0
-    // Only update if there's a meaningful difference (>= 0.01)
-    if (Math.abs(calculated - baseline) >= 0.01){
-      ops.push({ updateOne: { filter: { _id: id, encounterId }, update: { $set: { paidAmount: calculated } } } })
-    }
+    ops.push({ updateOne: { filter: { _id: id, encounterId }, update: { $set: { paidAmount: calculated } } } })
   }
   if (ops.length) await HospitalIpdBillingItem.bulkWrite(ops)
+}
+
+// Billing Summary
+export async function getSummary(req: Request, res: Response){
+  try{
+    const { encounterId } = req.params as any
+    const enc = await getIPDEncounter(String(encounterId))
+    const totals = await computeIpdTotals(String(enc._id))
+    res.json({ totals })
+  }catch(e){ return handleError(res, e) }
 }
 
 // Vitals
@@ -574,7 +617,9 @@ export async function createBillingItem(req: Request, res: Response){
         })
       }
     } catch (e) { console.warn('Failed to create corporate transaction for IPD billing item', e) }
-    res.status(201).json({ item: row })
+    try { await recalcIpdPaidAmounts(enc._id) } catch {}
+    const totals = await computeIpdTotals(String(enc._id))
+    res.status(201).json({ item: row, totals })
   }catch(e){ return handleError(res, e) }
 }
 export async function listBillingItems(req: Request, res: Response){
@@ -593,7 +638,8 @@ export async function listBillingItems(req: Request, res: Response){
       const status = remaining <= 0 ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid')
       return { ...r, amount, paidAmount, remaining, status }
     })
-    res.json({ items, total, page, limit })
+    const totals = await computeIpdTotals(String(enc._id))
+    res.json({ items, total, page, limit, totals })
   }catch(e){ return handleError(res, e) }
 }
 export async function updateBillingItem(req: Request, res: Response){
@@ -611,6 +657,7 @@ export async function updateBillingItem(req: Request, res: Response){
     const row = await HospitalIpdBillingItem.findByIdAndUpdate(String(id), { $set: data }, { new: true })
     if (!row) return res.status(404).json({ error: 'Billing item not found' })
     try { await recalcIpdPaidAmounts((row as any).encounterId) } catch {}
+    const totals = await computeIpdTotals(String((row as any).encounterId))
     // Corporate: reverse previous and add new line
     try {
       const enc = await HospitalEncounter.findById((row as any).encounterId)
@@ -690,7 +737,8 @@ export async function updateBillingItem(req: Request, res: Response){
         })
       }
     } catch (e) { console.warn('Failed to update corporate transactions for IPD billing item', e) }
-    res.json({ item: row })
+    const totals2 = await computeIpdTotals(String((row as any).encounterId))
+    res.json({ item: row, totals: totals2 })
   }catch(e){ return handleError(res, e) }
 }
 export async function removeBillingItem(req: Request, res: Response){
@@ -725,7 +773,9 @@ export async function removeBillingItem(req: Request, res: Response){
     } catch (e) { console.warn('Corporate reversal lookup failed for IPD billing item delete', e) }
     const row = await HospitalIpdBillingItem.findByIdAndDelete(String(id))
     if (!row) return res.status(404).json({ error: 'Billing item not found' })
-    res.json({ ok: true })
+    try { await recalcIpdPaidAmounts((row as any).encounterId) } catch {}
+    const totals3 = await computeIpdTotals(String((row as any).encounterId))
+    res.json({ ok: true, totals: totals3 })
   }catch(e){ return handleError(res, e) }
 }
 
@@ -736,30 +786,38 @@ export async function createPayment(req: Request, res: Response){
     const enc = await getIPDEncounter(String(encounterId))
     const data = createIpdPaymentSchema.parse(req.body)
 
-    // Determine allocations: client-provided OR auto-allocate FIFO over unpaid items
-    let allocations: Array<{ billingItemId: string; amount: number }> = Array.isArray((data as any).allocations)
-      ? (data as any).allocations
-      : []
+    // Check if this is a refund
+    const isRefund = String((data as any).type || 'payment').toLowerCase() === 'refund'
 
-    if (!allocations.length) {
-      try {
-        const items: any[] = await HospitalIpdBillingItem.find({ encounterId: enc._id }).sort({ date: 1, createdAt: 1 }).select('amount paidAmount').lean()
-        let remainingToAllocate = clampMoney((data as any).amount)
-        const out: Array<{ billingItemId: string; amount: number }> = []
-        for (const it of (items || [])) {
-          if (remainingToAllocate <= 0) break
-          const amt = clampMoney(it.amount)
-          const paid = clampMoney(it.paidAmount)
-          const rem = clampMoney(amt - paid)
-          if (rem <= 0) continue
-          const take = Math.min(rem, remainingToAllocate)
-          if (take > 0) {
-            out.push({ billingItemId: String(it._id), amount: take })
-            remainingToAllocate = clampMoney(remainingToAllocate - take)
+    // Determine allocations: client-provided OR auto-allocate FIFO over unpaid items
+    // For refunds, skip auto-allocation (refunds should not pay charges)
+    let allocations: Array<{ billingItemId: string; amount: number }> = []
+
+    if (!isRefund) {
+      allocations = Array.isArray((data as any).allocations)
+        ? (data as any).allocations
+        : []
+
+      if (!allocations.length) {
+        try {
+          const items: any[] = await HospitalIpdBillingItem.find({ encounterId: enc._id }).sort({ date: 1, createdAt: 1 }).select('amount paidAmount').lean()
+          let remainingToAllocate = clampMoney((data as any).amount)
+          const out: Array<{ billingItemId: string; amount: number }> = []
+          for (const it of (items || [])) {
+            if (remainingToAllocate <= 0) break
+            const amt = clampMoney(it.amount)
+            const paid = clampMoney(it.paidAmount)
+            const rem = clampMoney(amt - paid)
+            if (rem <= 0) continue
+            const take = Math.min(rem, remainingToAllocate)
+            if (take > 0) {
+              out.push({ billingItemId: String(it._id), amount: take })
+              remainingToAllocate = clampMoney(remainingToAllocate - take)
+            }
           }
-        }
-        allocations = out
-      } catch {}
+          allocations = out
+        } catch {}
+      }
     }
 
     const row = await HospitalIpdPayment.create({
@@ -775,6 +833,8 @@ export async function createPayment(req: Request, res: Response){
 
     // Update per-item paid amounts (full/partial) - keep consistent
     try { await recalcIpdPaidAmounts(enc._id) } catch {}
+
+    const totals4 = await computeIpdTotals(String(enc._id))
 
     // FBR fiscalization (IPD payment receipt)
     try {
@@ -806,13 +866,15 @@ export async function createPayment(req: Request, res: Response){
     } catch {}
 
     // Finance Journal: record IPD payment; tag sessionId if cash session open
+    // For refunds, reverse the revenue entry
     try{
       const when = (row as any)?.receivedAt ? new Date((row as any).receivedAt) : new Date()
       const dateIso = when.toISOString().slice(0,10)
       const paidMethod = String((row as any)?.method || data.method || '').toLowerCase()
       const isCash = paidMethod === 'cash'
+      const isRefund = String((row as any)?.type || data.type || 'payment').toLowerCase() === 'refund'
       let sessionId: string | undefined = undefined
-      if (isCash){
+      if (isCash && !isRefund){
         try{
           const userId = String((req as any).user?._id || (req as any).user?.id || (req as any).user?.email || '')
           if (userId){
@@ -844,13 +906,21 @@ export async function createPayment(req: Request, res: Response){
       if (enc.departmentId) tags.departmentId = String(enc.departmentId)
       if (enc.doctorId) tags.doctorId = String(enc.doctorId)
       const debitAccount = isCash ? 'CASH' : 'BANK'
-      const lines = [
-        { account: debitAccount, debit: Number((row as any).amount||data.amount||0), tags },
-        { account: 'IPD_REVENUE', credit: Number((row as any).amount||data.amount||0), tags },
+      const paymentAmount = Number((row as any).amount||data.amount||0)
+      
+      // For refunds: credit cash/bank (money going out), debit IPD_REVENUE (reversing revenue)
+      // For regular payments: debit cash/bank, credit IPD_REVENUE
+      const lines = isRefund ? [
+        { account: 'IPD_REVENUE', debit: paymentAmount, tags },
+        { account: debitAccount, credit: paymentAmount, tags },
+      ] as any : [
+        { account: debitAccount, debit: paymentAmount, tags },
+        { account: 'IPD_REVENUE', credit: paymentAmount, tags },
       ] as any
-      await FinanceJournal.create({ dateIso, refType: 'ipd_payment', refId: String((row as any)._id), memo: (row as any)?.refNo || 'IPD Payment', lines })
+      await FinanceJournal.create({ dateIso, refType: isRefund ? 'ipd_refund' : 'ipd_payment', refId: String((row as any)._id), memo: (row as any)?.refNo || (isRefund ? 'IPD Refund' : 'IPD Payment'), lines })
     } catch {}
-    res.status(201).json({ payment: row })
+    const totals5 = await computeIpdTotals(String(enc._id))
+    res.status(201).json({ payment: row, totals: totals5 })
   }catch(e){ return handleError(res, e) }
 }
 export async function listPayments(req: Request, res: Response){
@@ -862,16 +932,7 @@ export async function listPayments(req: Request, res: Response){
     const limit = Math.max(1, Math.min(200, parseInt(String(q.limit || '50')) || 50))
     const total = await HospitalIpdPayment.countDocuments({ encounterId: enc._id })
     const rows = await HospitalIpdPayment.find({ encounterId: enc._id }).sort({ receivedAt: -1 }).skip((page-1)*limit).limit(limit).lean()
-    // Totals for UI summary/reporting
-    let totals: any = undefined
-    try {
-      const items = await HospitalIpdBillingItem.find({ encounterId: enc._id }).select('amount').lean()
-      const pays = await HospitalIpdPayment.find({ encounterId: enc._id }).select('amount').lean()
-      const totalAmount = (items || []).reduce((s: number, x: any) => s + Number(x.amount || 0), 0)
-      const paidAmount = (pays || []).reduce((s: number, x: any) => s + Number(x.amount || 0), 0)
-      const pendingAmount = Math.max(0, totalAmount - paidAmount)
-      totals = { total: totalAmount, paid: paidAmount, pending: pendingAmount }
-    } catch {}
+    const totals = await computeIpdTotals(String(enc._id))
     res.json({ payments: rows, total, page, limit, totals })
   }catch(e){ return handleError(res, e) }
 }
@@ -882,7 +943,8 @@ export async function updatePayment(req: Request, res: Response){
     const row = await HospitalIpdPayment.findByIdAndUpdate(String(id), { $set: data }, { new: true })
     if (!row) return res.status(404).json({ error: 'Payment not found' })
     try { await recalcIpdPaidAmounts((row as any).encounterId) } catch {}
-    res.json({ payment: row })
+    const totals = await computeIpdTotals(String((row as any).encounterId))
+    res.json({ payment: row, totals })
   }catch(e){ return handleError(res, e) }
 }
 export async function removePayment(req: Request, res: Response){
@@ -891,6 +953,7 @@ export async function removePayment(req: Request, res: Response){
     const row: any = await HospitalIpdPayment.findByIdAndDelete(String(id))
     if (!row) return res.status(404).json({ error: 'Payment not found' })
     try { await recalcIpdPaidAmounts(row.encounterId) } catch {}
-    res.json({ ok: true })
+    const totals = await computeIpdTotals(String(row.encounterId))
+    res.json({ ok: true, totals })
   }catch(e){ return handleError(res, e) }
 }

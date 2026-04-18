@@ -106,7 +106,8 @@ export async function discharge(req: Request, res: Response){
   const id = req.params.id
   const enc = await HospitalEncounter.findById(id)
   if (!enc) return res.status(404).json({ error: 'Encounter not found' })
-  if (enc.type !== 'IPD') return res.status(400).json({ error: 'Not an IPD encounter' })
+  // Allow discharge for both IPD and ER encounters
+  if (enc.type !== 'IPD' && enc.type !== 'ER') return res.status(400).json({ error: 'Not an IPD or ER encounter' })
   if (enc.status === 'discharged'){
     // If already discharged, allow updating discharge timestamp when provided
     if (data.endAt){
@@ -118,8 +119,12 @@ export async function discharge(req: Request, res: Response){
   }
   enc.status = 'discharged'
   enc.endAt = data.endAt ? new Date(data.endAt) : new Date()
+  // Update disposition for ER encounters
+  if (enc.type === 'ER' && data.disposition) {
+    (enc as any).disposition = data.disposition
+  }
   await enc.save()
-  // Free bed if occupied by this encounter
+  // Free bed if occupied by this encounter (only for IPD)
   if (enc.bedId){
     const bed = await HospitalBed.findById(enc.bedId)
     if (bed && String(bed.occupiedByEncounterId || '') === String(enc._id)){
@@ -170,7 +175,7 @@ export async function list(req: Request, res: Response){
   }
   let rows = await HospitalEncounter.find(criteria)
     .sort({ startAt: -1 })
-    .populate('patientId', 'mrn fullName phoneNormalized cnicNormalized')
+    .populate('patientId', 'mrn fullName fatherName phoneNormalized cnicNormalized')
     .populate('doctorId', 'name')
     .populate('departmentId', 'name')
     .populate('tokenId', 'tokenNo')
@@ -198,7 +203,7 @@ export async function list(req: Request, res: Response){
 export async function getById(req: Request, res: Response){
   const { id } = req.params as any
   let enc: any = await HospitalEncounter.findById(String(id))
-    .populate('patientId', 'mrn fullName phoneNormalized cnicNormalized address gender age')
+    .populate('patientId', 'mrn fullName fatherName phoneNormalized cnicNormalized address gender age')
     .populate('doctorId', 'name')
     .populate('departmentId', 'name')
     .lean()

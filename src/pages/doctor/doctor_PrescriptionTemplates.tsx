@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { hospitalApi, pharmacyApi, labApi } from '../../utils/api'
 import PrescriptionMedication from '../../components/doctor/PrescriptionMedication'
 import SuggestField from '../../components/SuggestField'
@@ -30,6 +30,9 @@ type Template = {
 }
 
 export default function Doctor_PrescriptionTemplates() {
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
+  const [total, setTotal] = useState(0)
   const [doc, setDoc] = useState<DoctorSession | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,7 +84,7 @@ export default function Doctor_PrescriptionTemplates() {
 
   useEffect(() => {
     if (doc?.id) loadTemplates()
-  }, [doc?.id])
+  }, [doc?.id, page, limit])
 
   // Fetch medicine names from pharmacy inventory
   useEffect(() => {
@@ -115,10 +118,12 @@ export default function Doctor_PrescriptionTemplates() {
     if (!doc?.id) return
     setLoading(true)
     try {
-      const res = await hospitalApi.getPrescriptionTemplatesByDoctor(doc.id) as any
+      const res = await hospitalApi.listPrescriptionTemplates({ doctorId: doc.id, page, limit }) as any
       setTemplates(res?.templates || [])
+      setTotal(res?.total || 0)
     } catch {
       setTemplates([])
+      setTotal(0)
     } finally {
       setLoading(false)
     }
@@ -242,9 +247,7 @@ export default function Doctor_PrescriptionTemplates() {
     }
   }
 
-  const filteredTemplates = useMemo(() => {
-    return templates.filter(t => t.doctorId === doc?.id)
-  }, [templates, doc?.id])
+  const totalPages = Math.ceil(total / limit)
 
   return (
     <div className="w-full px-2 sm:px-4">
@@ -422,14 +425,15 @@ export default function Doctor_PrescriptionTemplates() {
             </div>
           </div>
         </div>
-      ) : filteredTemplates.length === 0 ? (
+      ) : templates.length === 0 ? (
         <div className="mt-4 rounded-xl border border-slate-200 bg-white p-8 text-center">
           <FileText className="mx-auto h-12 w-12 text-slate-300" />
           <p className="mt-2 text-slate-500">No templates yet. Create your first template to speed up prescriptions.</p>
         </div>
       ) : (
+        <>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTemplates.map(t => (
+          {templates.map(t => (
             <div key={t._id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between">
                 <h3 className="font-semibold text-slate-800">{t.name}</h3>
@@ -468,6 +472,37 @@ export default function Doctor_PrescriptionTemplates() {
             </div>
           ))}
         </div>
+        <div className="mt-4 flex items-center justify-between border-t border-slate-200 px-4 py-3">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Prev
+          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-600">
+              Page <span className="font-medium">{page}</span> / {totalPages}
+            </span>
+            <select
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setPage(1) }}
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+            >
+              <option value={10}>10 rows</option>
+              <option value={20}>20 rows</option>
+              <option value={50}>50 rows</option>
+            </select>
+          </div>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+        </>
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />

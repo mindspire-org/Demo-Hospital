@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { diagnosticApi, labApi, hospitalApi } from '../../utils/api'
 import { previewLabReportPdf } from '../../utils/printLabReport'
@@ -21,13 +21,35 @@ function resolveDiagKey(name: string){
 
 type DoctorSession = { id: string; name: string; username: string }
 
-type DiagResult = { id: string; orderId?: string; testId?: string; testName: string; tokenNo?: string; createdAt?: string; reportedAt?: string; status: 'draft'|'final'; patient?: any; formData?: string }
+type Referral = { 
+  id: string; 
+  type: 'lab'|'diagnostic'|'pharmacy'; 
+  patientName: string; 
+  mrNo: string; 
+  tests: string[]; 
+  notes?: string; 
+  status: string; 
+  tokenNo?: string;
+  linkedOrderId?: string;
+  reportStatus?: 'pending' | 'result_entered' | 'approved' | 'final';
+  createdAt: string; 
+  encounterId?: string; 
+  doctorId?: string 
+}
 
-type LabResultRec = { id: string; orderId: string; rows: any[]; interpretation?: string; createdAt: string }
-
-type LabOrder = { id: string; createdAt: string; tokenNo?: string; patient?: any; tests?: string[]; sampleTime?: string; reportingTime?: string; referringConsultant?: string }
-
-type UnifiedResult = { id: string; kind: 'lab'|'diagnostic'; date: string; patientName: string; mrn: string; token?: string; testName: string; status: string; raw: any }
+type UnifiedResult = { 
+  id: string; 
+  kind: 'lab'|'diagnostic'; 
+  date: string; 
+  patientName: string; 
+  mrn: string; 
+  token?: string; 
+  testName: string; 
+  status: string;
+  reportStatus?: 'pending' | 'result_entered' | 'approved' | 'final';
+  raw: Referral;
+  canPrint: boolean;
+}
 
 export default function Doctor_Reports(){
   const location = useLocation()
@@ -46,6 +68,8 @@ export default function Doctor_Reports(){
   const [page, setPage] = useState(1)
   const [mrnFilter, setMrnFilter] = useState('')
   const [toast, setToast] = useState<{type: 'success'|'error', message: string} | null>(null)
+  const [referrals, setReferrals] = useState<Referral[]>([])
+  const [loading, setLoading] = useState(false)
 
   // Load doctor session
   useEffect(()=>{
@@ -83,113 +107,108 @@ export default function Doctor_Reports(){
     }catch{}
   }, [])
 
-  // Diagnostic results
-  const [diagItems, setDiagItems] = useState<DiagResult[]>([])
-  const diagReq = useRef(0)
+  // Fetch referrals from Hospital_Referral collection only
   useEffect(()=>{
     let mounted = true
     ;(async()=>{
+      if (!doc?.id) { if (mounted) setReferrals([]); return }
+      setLoading(true)
       try{
-        const my = ++diagReq.current
-        const res: any = await diagnosticApi.listResults({
-          q: q||undefined,
-          from: from||undefined,
-          to: to||undefined,
-          page: 1,
-          limit: 500,
+        const params: any = { 
+          doctorId: doc.id, 
+          from: from||undefined, 
+          to: to||undefined, 
+          page: 1, 
+          limit: 500 
+        }
+        // Filter by type if not 'all'
+        if (type !== 'all') params.type = type
+        
+        const res: any = await hospitalApi.listReferrals(params)
+        const rows: Referral[] = (res?.referrals||[]).map((r: any)=>{
+          // Extract patient data from populated encounterId.patientId
+          const encPatient = r.encounterId?.patientId
+          const patientName = r.patientName || r.patient?.fullName || r.patient?.name || 
+                             encPatient?.fullName || encPatient?.name || 
+                             r.patientId?.fullName || r.patientId?.name || '-'
+          const mrNo = r.mrNo || r.patient?.mrn || r.patient?.mrNo || 
+                      encPatient?.mrn || encPatient?.mrNo || 
+                      r.patientId?.mrn || r.patientId?.mrNo || '-'
+          return {
+            id: String(r._id||r.id),
+            type: r.type as 'lab'|'diagnostic'|'pharmacy',
+            patientName,
+            mrNo,
+            tests: r.tests || r.testNames || r.items || [],
+            notes: r.notes || '',
+            status: r.status || 'pending',
+            tokenNo: r.tokenNo,
+            linkedOrderId: r.linkedOrderId,
+            reportStatus: r.reportStatus || 'pending',
+            createdAt: r.createdAt || new Date().toISOString(),
+            encounterId: r.encounterId,
+            doctorId: r.doctorId,
+          }
         })
-        if (!mounted || my !== diagReq.current) return
-        const arr: DiagResult[] = (res?.items||[]).map((x:any)=>({
-          id: String(x._id || x.id),
-          orderId: x.orderId ? String(x.orderId) : undefined,
-          testId: x.testId ? String(x.testId) : undefined,
-          testName: String(x.testName||''),
-          tokenNo: x.tokenNo,
-          createdAt: x.createdAt,
-          reportedAt: x.reportedAt,
-          status: x.status || 'draft',
-          patient: x.patient,
-          formData: typeof x.formData==='string'? x.formData : JSON.stringify(x.formData||''),
-        }))
-        setDiagItems(arr)
-      } catch {
-        setDiagItems([])
-      }
+        if (mounted) setReferrals(rows)
+      } catch { if (mounted) setReferrals([]) }
+      finally { if (mounted) setLoading(false) }
     })()
     return ()=>{ mounted = false }
-  }, [q, from, to])
+  }, [doc?.id, from, to, type])
 
-  // Lab results + orders map
-  const [labResults, setLabResults] = useState<LabResultRec[]>([])
-  const [labOrders, setLabOrders] = useState<LabOrder[]>([])
-  const labReq = useRef(0)
-  useEffect(()=>{
-    let mounted = true
-    ;(async()=>{
-      try{
-        const my = ++labReq.current
-        const res: any = await labApi.listResults({ from: from||undefined, to: to||undefined, page: 1, limit: 500 })
-        if (!mounted || my !== labReq.current) return
-        const rlist: LabResultRec[] = (res?.items||[]).map((x:any)=>({ id: String(x._id||x.id), orderId: String(x.orderId||''), rows: x.rows||[], interpretation: x.interpretation, createdAt: x.createdAt || new Date().toISOString() }))
-        setLabResults(rlist)
-        const ordRes: any = await labApi.listOrders({ q: mrnFilter || undefined, from: from||undefined, to: to||undefined, limit: 500 })
-        const olist: LabOrder[] = (ordRes?.items||[]).map((o:any)=>({ id: String(o._id||o.id), createdAt: o.createdAt || new Date().toISOString(), tokenNo: o.tokenNo, patient: o.patient||{}, tests: o.tests||[], sampleTime: o.sampleTime, reportingTime: o.reportingTime, referringConsultant: o.referringConsultant }))
-        if (mounted) setLabOrders(olist)
-      } catch {
-        if (mounted){ setLabResults([]); setLabOrders([]) }
-      }
-    })()
-    return ()=>{ mounted = false }
-  }, [from, to, mrnFilter])
-
-  const ordersMap = useMemo(()=> Object.fromEntries((labOrders||[]).map(o => [o.id, o])), [labOrders])
-
-  // Combine into unified list
+  // Build unified list from referrals only
   const unifiedList = useMemo((): UnifiedResult[]=>{
     const term = q.trim().toLowerCase()
     const mrn = mrnFilter.trim().toLowerCase()
-    const diagRows: UnifiedResult[] = (diagItems||[]).filter(r => (
-      (r.patient?.fullName||'').toLowerCase().includes(term) ||
-      (r.patient?.mrn||'').toLowerCase().includes(mrn) ||
-      (r.tokenNo||'').toLowerCase().includes(term) ||
-      (r.testName||'').toLowerCase().includes(term)
-    )).map(r => ({
-      id: r.id,
-      kind: 'diagnostic' as const,
-      date: r.createdAt || '',
-      patientName: r.patient?.fullName || '-',
-      mrn: r.patient?.mrn || '-',
-      token: r.tokenNo || '-',
-      testName: r.testName || '-',
-      status: r.status,
-      raw: r,
-    }))
-    const labRows: UnifiedResult[] = (labResults||[]).filter(r => {
-      const ord = ordersMap[r.orderId]
-      if (!ord) return false
-      return (
-        (ord.patient?.fullName||'').toLowerCase().includes(term) ||
-        (ord.patient?.mrn||'').toLowerCase().includes(mrn) ||
-        String(ord?.tokenNo||'').toLowerCase().includes(term)
-      )
-    }).map(r => {
-      const ord = ordersMap[r.orderId]
-      return {
-        id: r.id,
-        kind: 'lab' as const,
-        date: r.createdAt || ord?.createdAt || '',
-        patientName: ord?.patient?.fullName || '-',
-        mrn: ord?.patient?.mrn || '-',
-        token: ord?.tokenNo || '-',
-        testName: (ord?.tests||[]).join(', ') || 'Lab Tests',
-        status: 'final',
-        raw: { rec: r, order: ord },
-      }
-    })
-    let combined = [...diagRows, ...labRows].sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime())
-    if (type !== 'all') combined = combined.filter(r => r.kind === type)
-    return combined
-  }, [diagItems, labResults, ordersMap, q, mrnFilter, type])
+    
+    return referrals
+      .filter(r => r.type === 'lab' || r.type === 'diagnostic')
+      .filter(r => {
+        if (!term && !mrn) return true
+        const testNames = (r.tests||[]).join(' ').toLowerCase()
+        return (
+          r.patientName.toLowerCase().includes(term) ||
+          r.mrNo.toLowerCase().includes(mrn) ||
+          testNames.includes(term) ||
+          (r.tokenNo||'').toLowerCase().includes(term)
+        )
+      })
+      .map(r => {
+        // Determine display status and print availability
+        let displayStatus = r.status || 'pending'
+        let canPrint = false
+        
+        if (r.reportStatus === 'final' || r.reportStatus === 'approved') {
+          displayStatus = 'completed'
+          canPrint = true
+        } else if (r.reportStatus === 'result_entered') {
+          displayStatus = 'processing'
+          canPrint = true
+        } else if (r.tokenNo) {
+          displayStatus = 'token_generated'
+        } else if (r.status === 'completed') {
+          // Legacy completed status without reportStatus
+          displayStatus = 'completed'
+          canPrint = true
+        }
+        
+        return {
+          id: r.id,
+          kind: r.type as 'lab'|'diagnostic',
+          date: r.createdAt,
+          patientName: r.patientName,
+          mrn: r.mrNo,
+          token: r.tokenNo || '-',
+          testName: (r.tests||[]).map((t:any)=>typeof t==='string'?t:(t.name||t.testName||t.test||'')).filter(Boolean).join(', ') || (r.type==='lab'?'Lab Order':'Diagnostic Order'),
+          status: displayStatus,
+          reportStatus: r.reportStatus,
+          raw: r,
+          canPrint,
+        }
+      })
+      .sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime())
+  }, [referrals, q, mrnFilter])
 
   // Pagination
   const totalItems = unifiedList.length
@@ -198,46 +217,130 @@ export default function Doctor_Reports(){
   const startIdx = (curPage - 1) * rows
   const pagedItems = unifiedList.slice(startIdx, startIdx + rows)
 
-  // Print handlers
-  function handlePrint(item: UnifiedResult){
-    if (item.kind === 'diagnostic') {
-      const r = item.raw as DiagResult
-      const key = resolveDiagKey(r.testName)
-      const payload = { tokenNo: r.tokenNo, createdAt: r.createdAt, reportedAt: r.reportedAt||r.createdAt, patient: r.patient as any, value: r.formData||'', referringConsultant: (r as any)?.patient?.referringConsultant }
-      if (key === 'Echocardiography'){ printEchocardiographyReport(payload as any); return }
-      if (key === 'Ultrasound'){ printUltrasoundReport(payload as any); return }
-      if (key === 'CTScan'){ printCTScanReport(payload as any); return }
-      if (key === 'Colonoscopy'){ printColonoscopyReport(payload as any); return }
-      if (key === 'UpperGiEndoscopy'){ printUpperGIEndoscopyReport(payload as any); return }
-      setToast({ type: 'error', message: 'Unknown diagnostic template for this test' })
-    } else {
-      const { rec, order } = item.raw as { rec: LabResultRec; order: LabOrder }
-      if (!order) return
-      previewLabReportPdf({
-        tokenNo: order.tokenNo || '-',
-        createdAt: order.createdAt,
-        sampleTime: order.sampleTime,
-        reportingTime: order.reportingTime,
-        patient: {
-          fullName: order.patient?.fullName,
-          phone: order.patient?.phone,
-          mrn: order.patient?.mrn,
-          age: order.patient?.age,
-          gender: order.patient?.gender,
-          address: order.patient?.address,
-        },
-        rows: (rec.rows||[]).map((row: any)=>({
-          test: row.test,
-          normal: row.normal,
-          unit: row.unit,
-          value: row.value,
-          prevValue: (row as any).prevValue,
-          flag: row.flag,
-          comment: row.comment,
-        })),
-        interpretation: rec.interpretation,
-        referringConsultant: order.referringConsultant,
-      }).catch(()=>{})
+  // Print handlers - fetch results on-demand
+  async function handlePrint(item: UnifiedResult){
+    try {
+      setToast({ type: 'success', message: 'Loading report...' })
+      
+      if (item.kind === 'diagnostic') {
+        // Fetch diagnostic result by linkedOrderId or search by token
+        const ref = item.raw
+        if (!ref.linkedOrderId && !ref.tokenNo) {
+          setToast({ type: 'error', message: 'No linked order found for this referral' })
+          return
+        }
+        
+        // Fetch diagnostic results
+        const res: any = await diagnosticApi.listResults({ 
+          orderId: ref.linkedOrderId,
+          page: 1, 
+          limit: 50 
+        })
+        const results = res?.items || []
+        
+        // Find matching result by test name or use first result
+        const testName = item.testName.toLowerCase()
+        let diagResult = results.find((r: any) => 
+          (r.testName || '').toLowerCase().includes(testName.split(',')[0].trim())
+        ) || results[0]
+        
+        if (!diagResult) {
+          setToast({ type: 'error', message: 'Report not found' })
+          return
+        }
+        
+        const key = resolveDiagKey(diagResult.testName || item.testName)
+        const payload = { 
+          tokenNo: ref.tokenNo || diagResult.tokenNo, 
+          createdAt: diagResult.createdAt || ref.createdAt, 
+          reportedAt: diagResult.reportedAt || diagResult.createdAt, 
+          patient: diagResult.patient || { fullName: ref.patientName }, 
+          value: typeof diagResult.formData === 'string' ? diagResult.formData : JSON.stringify(diagResult.formData || ''), 
+          referringConsultant: diagResult.patient?.referringConsultant 
+        }
+        
+        if (key === 'Echocardiography'){ printEchocardiographyReport(payload as any); setToast(null); return }
+        if (key === 'Ultrasound'){ printUltrasoundReport(payload as any); setToast(null); return }
+        if (key === 'CTScan'){ printCTScanReport(payload as any); setToast(null); return }
+        if (key === 'Colonoscopy'){ printColonoscopyReport(payload as any); setToast(null); return }
+        if (key === 'UpperGiEndoscopy'){ printUpperGIEndoscopyReport(payload as any); setToast(null); return }
+        setToast({ type: 'error', message: 'Unknown diagnostic template for this test' })
+      } else {
+        // Lab result - fetch by linkedOrderId
+        const ref = item.raw
+        if (!ref.linkedOrderId && !ref.tokenNo) {
+          setToast({ type: 'error', message: 'No linked order found for this referral' })
+          return
+        }
+        
+        // Fetch lab results for this order
+        const res: any = await labApi.listResults({ 
+          orderId: ref.linkedOrderId,
+          page: 1, 
+          limit: 10 
+        })
+        const results = res?.items || []
+        
+        if (!results.length) {
+          setToast({ type: 'error', message: 'Lab report not found' })
+          return
+        }
+        
+        const rec = results[0]
+        
+        // Fetch order details for patient info
+        let order: any = null
+        if (ref.linkedOrderId) {
+          try {
+            const ordersRes: any = await labApi.listOrders({ q: ref.tokenNo, limit: 1 })
+            order = ordersRes?.items?.[0]
+          } catch {}
+        }
+        
+        previewLabReportPdf({
+          tokenNo: ref.tokenNo || order?.tokenNo || '-',
+          createdAt: order?.createdAt || ref.createdAt,
+          sampleTime: order?.sampleTime,
+          reportingTime: order?.reportingTime,
+          patient: {
+            fullName: order?.patient?.fullName || ref.patientName,
+            phone: order?.patient?.phone,
+            mrn: order?.patient?.mrn || ref.mrNo,
+            age: order?.patient?.age,
+            gender: order?.patient?.gender,
+            address: order?.patient?.address,
+          },
+          rows: (rec.rows||[]).map((row: any)=>({
+            test: row.test,
+            normal: row.normal,
+            unit: row.unit,
+            value: row.value,
+            prevValue: row.prevValue,
+            flag: row.flag,
+            comment: row.comment,
+          })),
+          interpretation: rec.interpretation,
+          referringConsultant: order?.referringConsultant,
+        }).catch((e: any)=>{
+          console.error('PDF error:', e)
+          setToast({ type: 'error', message: 'Failed to open PDF: ' + (e?.message || 'Unknown error') })
+        })
+        setToast(null)
+      }
+    } catch (e: any) {
+      console.error('Print error:', e)
+      setToast({ type: 'error', message: 'Failed to open report: ' + (e?.message || 'Unknown error') })
+    }
+  }
+
+  async function handleDeleteReferral(id: string){
+    if (!confirm('Are you sure you want to delete this referral?')) return
+    try {
+      await hospitalApi.deleteReferral(id)
+      setToast({ type: 'success', message: 'Referral deleted successfully' })
+      setReferrals(prev => prev.filter(r => r.id !== id))
+    } catch (e: any) {
+      setToast({ type: 'error', message: 'Failed to delete referral: ' + (e?.message || 'Unknown error') })
     }
   }
 
@@ -297,7 +400,10 @@ export default function Doctor_Reports(){
             <div className="text-sm font-semibold text-slate-800">Results</div>
             <div className="text-xs text-slate-500">{totalItems ? `${startIdx + 1}-${Math.min(startIdx + rows, totalItems)} of ${totalItems}` : ''}</div>
           </div>
-          <div className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">{unifiedList.length} rows</div>
+          <div className="flex items-center gap-2">
+            {loading && <span className="text-xs text-slate-500">Loading...</span>}
+            <div className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">{unifiedList.length} rows</div>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -327,10 +433,22 @@ export default function Doctor_Reports(){
                   <td className="px-4 py-3 whitespace-nowrap text-slate-700">{r.token}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-slate-700">{r.testName}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${r.status==='final'?'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100':'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>{r.status}</span>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                      r.status==='completed'?'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100':
+                      r.status==='processing'?'bg-blue-50 text-blue-700 ring-1 ring-blue-100':
+                      r.status==='token_generated'?'bg-purple-50 text-purple-700 ring-1 ring-purple-100':
+                      r.status==='pending'?'bg-amber-50 text-amber-700 ring-1 ring-amber-100':
+                      'bg-slate-100 text-slate-700 ring-1 ring-slate-200'
+                    }`}>{r.status}</span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <button onClick={()=>handlePrint(r)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">Open PDF</button>
+                    {r.canPrint?(
+                      <button onClick={()=>handlePrint(r)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">Open PDF</button>
+                    ):r.status==='pending'||r.status==='cancelled'?(
+                      <button onClick={()=>handleDeleteReferral(r.id)} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm hover:bg-red-100">Delete</button>
+                    ):(
+                      <span className="text-xs text-slate-400">-</span>
+                    )}
                   </td>
                 </tr>
               ))}

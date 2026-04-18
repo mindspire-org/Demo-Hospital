@@ -65,3 +65,34 @@ export async function remove(req: Request, res: Response){
   if (!row) return res.status(404).json({ error: 'Referral not found' })
   res.json({ ok: true })
 }
+
+export async function linkReferral(req: Request, res: Response){
+  const { id } = req.params as any
+  const { tokenNo, linkedOrderId } = req.body as any
+  const update: any = {}
+  if (tokenNo) update.tokenNo = String(tokenNo)
+  if (linkedOrderId) update.linkedOrderId = String(linkedOrderId)
+  if (Object.keys(update).length === 0) {
+    return res.status(400).json({ error: 'tokenNo or linkedOrderId required' })
+  }
+  const row = await HospitalReferral.findByIdAndUpdate(String(id), { $set: update }, { new: true })
+    .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
+    .populate({ path: 'doctorId', select: 'name' })
+    .lean()
+  if (!row) return res.status(404).json({ error: 'Referral not found' })
+  res.json({ referral: row })
+}
+
+export async function updateReportStatus(req: Request, res: Response){
+  const { id } = req.params as any
+  const { reportStatus } = req.body as any
+  if (!reportStatus || !['pending','result_entered','approved','final'].includes(reportStatus)) {
+    return res.status(400).json({ error: 'Invalid reportStatus' })
+  }
+  const row = await HospitalReferral.findByIdAndUpdate(String(id), { $set: { reportStatus } }, { new: true })
+    .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
+    .populate({ path: 'doctorId', select: 'name' })
+    .lean()
+  if (!row) return res.status(404).json({ error: 'Referral not found' })
+  res.json({ referral: row })
+}

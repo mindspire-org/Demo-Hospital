@@ -168,7 +168,7 @@ export default function Store_PurchaseList() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-800">Purchase History</h2>
         <div className="flex gap-2">
-          <button onClick={exportCSV} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">
+          <button onClick={exportCSV} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm">
             Export CSV
           </button>
           <Link to="/hospital/store/add-purchase" className="rounded-md bg-sky-600 px-3 py-1.5 text-white hover:bg-sky-700">
@@ -209,6 +209,7 @@ export default function Store_PurchaseList() {
           <option value={20}>20 rows</option>
           <option value={50}>50 rows</option>
           <option value={100}>100 rows</option>
+          <option value={1000000}>All</option>
         </select>
         <input
           value={query}
@@ -224,15 +225,15 @@ export default function Store_PurchaseList() {
         <div className="mt-5 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left">
-                <th className="px-3 py-2 font-medium text-slate-600">Date</th>
-                <th className="px-3 py-2 font-medium text-slate-600">Invoice No</th>
-                <th className="px-3 py-2 font-medium text-slate-600">Supplier</th>
-                <th className="px-3 py-2 font-medium text-slate-600">Store Location</th>
-                <th className="px-3 py-2 font-medium text-slate-600">Items</th>
-                <th className="px-3 py-2 font-medium text-slate-600 text-right">Amount</th>
-                <th className="px-3 py-2 font-medium text-slate-600">Status</th>
-                <th className="px-3 py-2 font-medium text-slate-600"></th>
+              <tr className="border-b-2 border-slate-300 bg-slate-100/50 text-left">
+                <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Date</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Invoice No</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Supplier</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Store Location</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Items</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider text-right">Amount</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Status</th>
+                <th className="px-3 py-3 text-[13px] font-extrabold text-slate-700 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -263,19 +264,19 @@ export default function Store_PurchaseList() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleView(p.id)}
-                        className="text-sky-700 hover:underline text-xs"
+                        className="rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 shadow-sm"
                       >
                         View
                       </button>
                       <button
                         onClick={() => handlePrint(p.id)}
-                        className="text-emerald-700 hover:underline text-xs"
+                        className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 shadow-sm"
                       >
                         Print
                       </button>
                       <button
                         onClick={() => handleDeleteClick(p.id)}
-                        className="text-rose-600 hover:underline text-xs"
+                        className="rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-rose-700 shadow-sm"
                       >
                         Delete
                       </button>

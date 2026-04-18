@@ -11,14 +11,17 @@ export async function listIncomeLedger(req: Request, res: Response) {
     if (from || to) {
       match.createdAt = {}
       if (from) {
-        // Use UTC start of day (like Lab does)
-        const d = new Date((from as string) + 'T00:00:00.000Z')
-        if (!isNaN(d.getTime())) match.createdAt.$gte = d
+        // Pakistan timezone is UTC+5. Convert Pakistan midnight to UTC.
+        // Pakistan midnight (00:00) = UTC 19:00 (previous day)
+        const pakDate = new Date((from as string) + 'T00:00:00')
+        const utcDate = new Date(pakDate.getTime() - (5 * 60 * 60 * 1000))
+        if (!isNaN(utcDate.getTime())) match.createdAt.$gte = utcDate
       }
       if (to) {
-        // Use UTC end of day (like Lab does)
-        const d = new Date((to as string) + 'T23:59:59.999Z')
-        if (!isNaN(d.getTime())) match.createdAt.$lte = d
+        // Pakistan 23:59:59.999 = UTC 18:59:59.999 (same day)
+        const pakDate = new Date((to as string) + 'T23:59:59.999')
+        const utcDate = new Date(pakDate.getTime() - (5 * 60 * 60 * 1000))
+        if (!isNaN(utcDate.getTime())) match.createdAt.$lte = utcDate
       }
     }
     if (tokenNo) {
@@ -95,14 +98,17 @@ export async function getIncomeSummary(req: Request, res: Response) {
     if (from || to) {
       match.createdAt = {}
       if (from) {
-        // Use UTC start of day (like Lab does)
-        const d = new Date((from as string) + 'T00:00:00.000Z')
-        if (!isNaN(d.getTime())) match.createdAt.$gte = d
+        // Pakistan timezone is UTC+5. Convert Pakistan midnight to UTC.
+        // Pakistan midnight (00:00) = UTC 19:00 (previous day)
+        const pakDate = new Date((from as string) + 'T00:00:00')
+        const utcDate = new Date(pakDate.getTime() - (5 * 60 * 60 * 1000))
+        if (!isNaN(utcDate.getTime())) match.createdAt.$gte = utcDate
       }
       if (to) {
-        // Use UTC end of day (like Lab does)
-        const d = new Date((to as string) + 'T23:59:59.999Z')
-        if (!isNaN(d.getTime())) match.createdAt.$lte = d
+        // Pakistan 23:59:59.999 = UTC 18:59:59.999 (same day)
+        const pakDate = new Date((to as string) + 'T23:59:59.999')
+        const utcDate = new Date(pakDate.getTime() - (5 * 60 * 60 * 1000))
+        if (!isNaN(utcDate.getTime())) match.createdAt.$lte = utcDate
       }
     }
 

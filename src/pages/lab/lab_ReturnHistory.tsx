@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import Lab_ReasonDialog from '../../components/lab/lab_ReasonDialog'
 import Lab_ReturnSlipDialog from '../../components/lab/lab_ReturnSlipDialog'
 import { labApi } from '../../utils/api'
 
@@ -28,8 +27,6 @@ export default function Lab_ReturnHistory() {
   const [rows, setRows] = useState<Row[]>([])
   const [, setLoading] = useState(false)
   const [slip, setSlip] = useState<{ open:boolean; billNo:string; party?:string; lines:{ name:string; qty:number; amount:number }[]; total:number; type:'Customer'|'Supplier'; note?: string }>({ open:false, billNo:'', party:'', lines:[], total:0, type:'Customer', note: '' })
-  const [reasonOpen, setReasonOpen] = useState(false)
-  const [undoCtx, setUndoCtx] = useState<{ id: string; reference: string; testId?: string; testName?: string } | null>(null)
 
   useEffect(() => {
     function onReturn(){ setRefreshTick(t=>t+1) }
@@ -132,9 +129,6 @@ export default function Lab_ReturnHistory() {
                   <td className="px-4 py-2">{r.note || '-'}</td>
                   <td className="px-4 py-2 flex items-center gap-2">
                     <button className="btn-outline-navy text-xs" onClick={()=>setSlip({ open:true, billNo: r.reference, party: r.party, lines: r.lines, total: r.total, type: r.type, note: r.note })}>Reprint</button>
-                    {r.type==='Customer' && r.items===1 ? (
-                      <button className="rounded-md bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-700" onClick={()=>{ const l=r.lines[0]; setUndoCtx({ id: r.id, reference: r.reference, testId: l.itemId, testName: l.name }); setReasonOpen(true) }}>Undo</button>
-                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -169,24 +163,6 @@ export default function Lab_ReturnHistory() {
         total={slip.total}
         type={slip.type}
         note={slip.note}
-      />
-      <Lab_ReasonDialog
-        open={reasonOpen}
-        title="Undo Return Reason"
-        placeholder="Reason (optional)"
-        confirmText="Undo"
-        onConfirm={async (note)=>{
-          if (!undoCtx) { setReasonOpen(false); return }
-          try {
-            await labApi.undoReturn({ reference: undoCtx.reference, testId: undoCtx.testId, testName: undoCtx.testName, note: note || undefined })
-            setRows(prev => prev.filter(x => x.id !== (undoCtx?.id || '')))
-            setSlip(s=>({ ...s, open:false }))
-            setReasonOpen(false)
-            setUndoCtx(null)
-            try { window.dispatchEvent(new CustomEvent('lab:return', { detail: { reference: undoCtx.reference, undo: true } })) } catch {}
-          } catch (e){ console.error(e); alert('Failed to undo return') }
-        }}
-        onClose={()=>setReasonOpen(false)}
       />
     </div>
   )

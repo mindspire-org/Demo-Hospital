@@ -17,6 +17,7 @@ import { DiagnosticTest } from '../models/Test'
 import { resolveTestPrice } from '../../corporate/utils/price'
 
 import { CorporateTransaction } from '../../corporate/models/Transaction'
+import { postUserRevenueJournal } from '../../finance/controllers/finance_ledger'
 
 import { CorporateCompany } from '../../corporate/models/Company'
 
@@ -105,6 +106,17 @@ async function nextToken(date?: Date){
 
 
 
+export async function get(req: Request, res: Response){
+  const { id } = req.params
+  try {
+    const order = await DiagnosticOrder.findById(id).lean()
+    if (!order) return res.status(404).json({ error: 'Order not found' })
+    res.json({ order })
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || 'Failed to get order' })
+  }
+}
+
 export async function list(req: Request, res: Response){
 
   const parsed = diagnosticOrderQuerySchema.safeParse(req.query)
@@ -124,13 +136,21 @@ export async function list(req: Request, res: Response){
   if (status) filter.status = status
 
   if (from || to){
-
+    // Pakistan timezone is UTC+5. Convert Pakistan local dates to UTC boundaries.
+    // Pakistan midnight = UTC 19:00 (previous day)
     filter.createdAt = {}
-
-    if (from) filter.createdAt.$gte = new Date(from)
-
-    if (to) { const end = new Date(to); end.setHours(23,59,59,999); filter.createdAt.$lte = end }
-
+    if (from) {
+      // Start of day in Pakistan = 19:00 UTC previous day
+      const pakFrom = new Date(from + 'T00:00:00')
+      const utcFrom = new Date(pakFrom.getTime() - (5 * 60 * 60 * 1000))
+      filter.createdAt.$gte = utcFrom
+    }
+    if (to) {
+      // End of day in Pakistan = 18:59:59.999 UTC same day
+      const pakTo = new Date(to + 'T23:59:59.999')
+      const utcTo = new Date(pakTo.getTime() - (5 * 60 * 60 * 1000))
+      filter.createdAt.$lte = utcTo
+    }
   }
 
   const lim = Math.min(500, Number(limit || 20))
@@ -380,6 +400,26 @@ export async function create(req: Request, res: Response){
     }
 
   } catch (e) { console.warn('Failed to create corporate transactions for Diagnostic order', e) }
+
+  // Auto-post revenue journal to finance (non-corporate only)
+  try {
+    const net = Number((data as any).net || 0)
+    if (!isCorporate && net > 0) {
+      const actor = getActor(req)
+      const userAccount = `${actor}/diagnostic`
+      await postUserRevenueJournal({
+        userAccountName: userAccount,
+        revenueAccount: 'DIAGNOSTIC_REVENUE',
+        amount: net,
+        refType: 'diagnostic_order',
+        refId: String(doc._id),
+        description: `Diagnostic Order ${tokenNo}`,
+        dateIso: new Date().toISOString().slice(0,10)
+      })
+    }
+  } catch (e) {
+    console.error('Failed to post Diagnostic revenue journal:', e)
+  }
 
   res.status(201).json(doc)
 }

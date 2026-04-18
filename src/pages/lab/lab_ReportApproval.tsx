@@ -7,13 +7,13 @@ import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
 
 type ResultRow = { id: string; test: string; normal?: string; unit?: string; prevValue?: string; value?: string; flag?: 'normal'|'abnormal'|'critical'; comment?: string }
 
-type ResultRecord = { id: string; orderId: string; rows: ResultRow[]; interpretation?: string; createdAt: string; submittedBy?: string; approvedBy?: string; approvedAt?: string }
+type ResultRecord = { id: string; orderId: string; testId?: string; testName?: string; rows: ResultRow[]; interpretation?: string; createdAt: string; submittedBy?: string; approvedBy?: string; approvedAt?: string }
 
 type Order = {
   id: string
   createdAt: string
   patient: { fullName: string; phone: string; mrn?: string; age?: string; gender?: string; address?: string }
-  tests: string[]
+  tests: Array<string | { testId: string; testName: string; price: number }>
   status: 'received'|'completed'
   tokenNo?: string
   sampleTime?: string
@@ -43,6 +43,7 @@ export default function Lab_ReportApproval() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const orderId = searchParams.get('orderId') || ''
+  const resultId = searchParams.get('resultId') || ''
   const [loading, setLoading] = useState(false)
   const [order, setOrder] = useState<Order | null>(null)
   const [result, setResult] = useState<ResultRecord | null>(null)
@@ -57,6 +58,7 @@ export default function Lab_ReportApproval() {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectLoading, setRejectLoading] = useState(false)
   const [rejectError, setRejectError] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -69,7 +71,7 @@ export default function Lab_ReportApproval() {
       try {
         const [ordRes, resRes, tstRes] = await Promise.all([
           labApi.listOrders({ limit: 500 }),
-          labApi.listResults({ orderId, limit: 1 }),
+          labApi.listResults({ orderId, limit: 100 }),
           labApi.listTests({ limit: 1000 }),
         ])
         if (!mounted) return
@@ -90,14 +92,26 @@ export default function Lab_ReportApproval() {
           : null
         setOrder(o)
 
-        const rec = Array.isArray(resRes.items) && resRes.items.length ? resRes.items[0] : null
+        // Find specific result by resultId if provided, otherwise take first pending result
+        let rec = null
+        if (Array.isArray(resRes.items) && resRes.items.length) {
+          if (resultId) {
+            rec = resRes.items.find((r: any) => String(r._id) === String(resultId))
+          }
+          // Fallback to first pending result if specific one not found
+          if (!rec) {
+            rec = resRes.items.find((r: any) => r.reportStatus === 'pending' || r.reportStatus === 'rejected') || resRes.items[0]
+          }
+        }
         setResult(
           rec
             ? {
                 id: String(rec._id || rec.id),
                 orderId: String(rec.orderId || orderId),
+                testId: rec.testId,
+                testName: rec.testName,
                 rows: (rec.rows || []).map((r: any) => ({
-                  id: String(r.id || crypto.randomUUID()),
+                  id: String(r.id || r._id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`),
                   test: String(r.test || ''),
                   normal: r.normal,
                   unit: r.unit,
@@ -130,7 +144,7 @@ export default function Lab_ReportApproval() {
     return () => {
       mounted = false
     }
-  }, [orderId])
+  }, [orderId, resultId])
 
   useEffect(() => {
     let mounted = true
@@ -138,41 +152,59 @@ export default function Lab_ReportApproval() {
     setListLoading(true)
     ;(async () => {
       try {
-        const [ordRes, resRes, tstRes] = await Promise.all([
-          labApi.listOrders({ status: 'completed', q: q || undefined, limit: 500 }),
-          labApi.listResults({ limit: 500 }),
+        // Fetch all results that are not approved yet
+        const [resRes, ordRes, tstRes] = await Promise.all([
+          labApi.listResults({ limit: 1000 }),
+          labApi.listOrders({ limit: 1000 }),
           labApi.listTests({ limit: 1000 }),
         ])
         if (!mounted) return
-        const orders: Order[] = (ordRes.items || []).map((x: any) => ({
+
+        const results: any[] = (resRes.items || [])
+        // We only want results where reportStatus is pending or rejected
+        const pendingResults = results.filter(r => r.reportStatus === 'pending' || r.reportStatus === 'rejected')
+
+        const allOrders: Order[] = (ordRes.items || []).map((x: any) => ({
           id: x._id,
           createdAt: x.createdAt || new Date().toISOString(),
           patient: x.patient || { fullName: '-', phone: '' },
           tests: x.tests || [],
-          status: x.status || 'completed',
+          status: x.status || 'result_entered',
           tokenNo: x.tokenNo,
           sampleTime: x.sampleTime,
           reportingTime: x.reportingTime,
           referringConsultant: x.referringConsultant,
           barcode: x.barcode,
         }))
-        const results: any[] = (resRes.items || [])
-        const resultByOrderId = new Map<string, any>()
-        for (const r of results) {
-          const oid = String(r?.orderId || '')
-          if (!oid) continue
-          if (!resultByOrderId.has(oid)) resultByOrderId.set(oid, r)
-        }
+        const orderById = new Map<string, Order>(allOrders.map(o => [o.id, o]))
+
         setTests((tstRes.items || []).map((t: any) => ({ id: t._id, name: t.name, category: t.category || '' })))
-        setList(
-          orders
-            .map(o => ({ order: o, result: resultByOrderId.get(String(o.id)) || null }))
-            .filter(x => {
-              if (!x.result) return false
-              const st = String((x.result as any)?.reportStatus || 'pending')
-              return st !== 'approved'
+
+        // Build list from pending results + their orders
+        const listItems = pendingResults
+          .map(r => {
+            const oid = String(r?.orderId || '')
+            const order = orderById.get(oid)
+            if (!order) return null
+            return { order, result: r }
+          })
+          .filter(Boolean)
+          .map(x => {
+            // Use testName from result if available, otherwise fall back to matching
+            const resultTestName = x!.result?.testName
+            if (resultTestName) {
+              return { ...x!, order: { ...x!.order, tests: [{ testId: x!.result?.testId, testName: resultTestName, price: 0 }] } }
+            }
+            // Fallback: Filter tests to only show those in the result (for legacy results without testName)
+            const resultTestNames = new Set((x!.result?.rows || []).map((r: any) => String(r.test).toLowerCase()))
+            const filteredTests = x!.order.tests.filter((t: any) => {
+              const tname = typeof t === 'object' && t?.testName ? t.testName : testsMap[typeof t === 'object' ? t.testId : String(t)]
+              return resultTestNames.has(String(tname || '').toLowerCase())
             })
-        )
+            return { ...x!, order: { ...x!.order, tests: filteredTests } }
+          })
+
+        setList(listItems)
       } catch (e) {
         console.error(e)
         if (mounted) {
@@ -204,9 +236,16 @@ export default function Lab_ReportApproval() {
   }, [order, tokenNo])
 
   const testsStr = useMemo(() => {
+    // Use result's testName if available (for new results)
+    if (result?.testName) return result.testName
+    // Fallback: derive from order tests
     if (!order) return ''
-    return (order.tests || []).map(id => testsMap[id]).filter(Boolean).join(', ')
-  }, [order, testsMap])
+    return (order.tests || []).map((t: any) => {
+      const tid = typeof t === 'object' && t?.testId ? t.testId : String(t)
+      const tname = typeof t === 'object' && t?.testName ? t.testName : testsMap[tid]
+      return tname
+    }).filter(Boolean).join(', ')
+  }, [order, testsMap, result])
 
   const isApproved = useMemo(() => {
     return String((result as any)?.reportStatus || 'pending') === 'approved'
@@ -220,6 +259,7 @@ export default function Lab_ReportApproval() {
       createdAt: order.createdAt,
       sampleTime: track?.sampleTime,
       reportingTime: track?.reportingTime,
+      approvedAt: result.approvedAt,
       patient: {
         fullName: order.patient.fullName,
         phone: order.patient.phone,
@@ -265,10 +305,14 @@ export default function Lab_ReportApproval() {
             <tbody>
               {list.map(({ order, result }) => {
                 const token = order.tokenNo || genToken(order.createdAt, order.id)
-                const testsStr = (order.tests || []).map(id => testsMap[id]).filter(Boolean).join(', ')
+                const testsStr = (order.tests || []).map((t: any) => {
+                  const tid = typeof t === 'object' && t?.testId ? t.testId : String(t)
+                  const tname = typeof t === 'object' && t?.testName ? t.testName : testsMap[tid]
+                  return tname
+                }).filter(Boolean).join(', ')
                 const st = String(result?.reportStatus || 'pending')
                 return (
-                  <tr key={order.id} className="border-b border-slate-100">
+                  <tr key={result?.id || order.id} className="border-b border-slate-100">
                     <td className="px-3 py-2 whitespace-nowrap">{new Date(order.createdAt).toLocaleString()}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{order.patient.fullName}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{order.patient.mrn || '-'}</td>
@@ -285,7 +329,7 @@ export default function Lab_ReportApproval() {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-1">
-                        <button onClick={() => navigate(`/lab/report-approval?orderId=${encodeURIComponent(order.id)}`)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">Open</button>
+                        <button onClick={() => navigate(`/lab/report-approval?orderId=${encodeURIComponent(order.id)}&resultId=${encodeURIComponent(result?.id || '')}`)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">Open</button>
                         <button onClick={() => { setTrackTokenNo(token); setTrackOpen(true) }} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50"><Clock className="h-3 w-3" /></button>
                       </div>
                     </td>
@@ -295,7 +339,7 @@ export default function Lab_ReportApproval() {
             </tbody>
           </table>
           {!listLoading && list.length === 0 && (
-            <div className="p-6 text-sm text-slate-500">No completed results found</div>
+            <div className="p-6 text-sm text-slate-500">No results awaiting approval</div>
           )}
           {listLoading && <div className="p-6 text-sm text-slate-600">Loading...</div>}
         </div>
@@ -442,6 +486,16 @@ export default function Lab_ReportApproval() {
             <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800">Confirm Reject</div>
             <div className="px-5 py-4 text-sm text-slate-700 space-y-3">
               <div>Reject this report and send back to Result Entry?</div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Rejection Reason</label>
+                <textarea
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                  placeholder="Enter reason for rejection..."
+                />
+              </div>
               {rejectError && (
                 <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{rejectError}</div>
               )}
@@ -449,7 +503,7 @@ export default function Lab_ReportApproval() {
             <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
               <button
                 type="button"
-                onClick={() => { if (!rejectLoading) { setRejectOpen(false); setRejectError(null) } }}
+                onClick={() => { if (!rejectLoading) { setRejectOpen(false); setRejectError(null); setRejectReason('') } }}
                 className="btn-outline-navy"
                 disabled={rejectLoading}
               >
@@ -458,15 +512,21 @@ export default function Lab_ReportApproval() {
               <button
                 type="button"
                 onClick={async () => {
-                  if (!order) return
+                  if (!order || !result) return
                   setRejectLoading(true)
                   setRejectError(null)
                   try {
+                    // Update result with rejection status and reason
+                    await labApi.updateResult(result.id, { 
+                      reportStatus: 'rejected', 
+                      rejectionReason: rejectReason || 'Not specified' 
+                    })
+                    // Update order status back to received
                     await labApi.updateOrderTrack(order.id, { status: 'received' })
                     // Refresh the approval list
                     setListLoading(true)
                     const [ordRes, resRes] = await Promise.all([
-                      labApi.listOrders({ status: 'completed', q: q || undefined, limit: 500 }),
+                      labApi.listOrders({ status: 'result_entered' as any, q: q || undefined, limit: 500 }),
                       labApi.listResults({ limit: 500 }),
                     ])
                     const orders: Order[] = (ordRes.items || []).map((x: any) => ({
@@ -474,7 +534,7 @@ export default function Lab_ReportApproval() {
                       createdAt: x.createdAt || new Date().toISOString(),
                       patient: x.patient || { fullName: '-', phone: '' },
                       tests: x.tests || [],
-                      status: x.status || 'completed',
+                      status: x.status || 'result_entered',
                       tokenNo: x.tokenNo,
                       sampleTime: x.sampleTime,
                       reportingTime: x.reportingTime,
@@ -496,8 +556,18 @@ export default function Lab_ReportApproval() {
                           const st = String((x.result as any)?.reportStatus || 'pending')
                           return st !== 'approved'
                         })
+                        .map(x => {
+                          // Filter tests in the order to only show those that belong to the result
+                          const resultTestNames = new Set((x.result?.rows || []).map((r: any) => String(r.test).toLowerCase()))
+                          const filteredTests = x.order.tests.filter((t: any) => {
+                            const tname = typeof t === 'object' && t?.testName ? t.testName : testsMap[typeof t === 'object' ? t.testId : String(t)]
+                            return resultTestNames.has(String(tname || '').toLowerCase())
+                          })
+                          return { ...x, order: { ...x.order, tests: filteredTests } }
+                        })
                     )
                     setRejectOpen(false)
+                    setRejectReason('')
                     // Navigate back to the list view
                     navigate('/lab/report-approval')
                   } catch (e: any) {

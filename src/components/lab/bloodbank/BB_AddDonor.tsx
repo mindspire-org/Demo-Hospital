@@ -29,8 +29,6 @@ type Props = {
   onUpdate?: (d: Donor) => void
 }
 
-const bloodTypes = ['A+','A-','B+','B-','AB+','AB-','O+','O-']
-
 export default function BB_AddDonor({ open, onClose, onCreate, initial, mode = 'add', onUpdate }: Props){
   const [name, setName] = useState('')
   const [gender, setGender] = useState<Donor['gender']>('')
@@ -154,10 +152,7 @@ export default function BB_AddDonor({ open, onClose, onCreate, initial, mode = '
             </div>
             <div className="col-span-6 sm:col-span-3">
               <label className="mb-1 block text-xs text-slate-600">Blood Type</label>
-              <select value={type} onChange={e=>{ setType(e.target.value); if (errType) setErrType(false) }} className={`w-full rounded-md border px-3 py-2 ${errType? 'border-rose-300 focus:border-rose-400' : 'border-slate-300'}`}>
-                <option value="">Select Type</option>
-                {bloodTypes.map(t=> <option key={t}>{t}</option>)}
-              </select>
+              <input value={type} onChange={e=>{ setType(e.target.value); if (errType) setErrType(false) }} placeholder="e.g. A+" className={`w-full rounded-md border px-3 py-2 ${errType? 'border-rose-300 focus:border-rose-400' : 'border-slate-300'}`} />
               {errType && <div className="mt-1 text-xs text-rose-600">Blood type is required.</div>}
             </div>
             <div className="col-span-6 sm:col-span-3">

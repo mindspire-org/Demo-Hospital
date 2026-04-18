@@ -39,6 +39,10 @@ export default function Doctor_Patients() {
   const [histFinance, setHistFinance] = useState<any[]>([])
   const [filter, setFilter] = useState<'all'|'queued'|'in-progress'|'completed'|'returned'|'cancelled'>('all')
   const [sortBy, setSortBy] = useState<'date'|'name'|'status'>('date')
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
+  const [total, setTotal] = useState(0)
   useEffect(() => {
     try {
       const raw = localStorage.getItem('doctor.session')
@@ -64,7 +68,8 @@ export default function Doctor_Patients() {
     } catch {}
   }, [])
 
-  useEffect(() => { load() }, [doc?.id, from, to])
+  useEffect(() => { setPage(1) }, [doc?.id, from, to, filter])
+  useEffect(() => { load() }, [doc?.id, from, to, page, limit])
   useEffect(() => {
     if (!doc?.id) return
     const id = setInterval(() => { load() }, 15000)
@@ -81,14 +86,16 @@ export default function Doctor_Patients() {
 
   async function load(){
     try {
-      if (!doc?.id) { setList([]); setPresEncounterIds([]); return }
-      const params: any = { doctorId: doc.id }
+      if (!doc?.id) { setList([]); setPresEncounterIds([]); setTotal(0); return }
+      const params: any = { doctorId: doc.id, page, limit }
       if (from) params.from = from
       if (to) params.to = to
       const [tokRes, presRes] = await Promise.all([
         hospitalApi.listTokens(params) as any,
-        hospitalApi.listPrescriptions({ doctorId: doc.id, from, to }) as any,
+        hospitalApi.listPrescriptions({ doctorId: doc.id, from, to, page: 1, limit: 200 }) as any,
       ])
+      const totalCount = tokRes?.total || 0
+      setTotal(totalCount)
       const items: Token[] = (tokRes.tokens || []).map((t: any) => ({
         _id: t._id,
         createdAt: t.createdAt,
@@ -257,25 +264,29 @@ export default function Doctor_Patients() {
           <div className="lg:col-span-2">
             <label className="mb-1 block text-xs font-medium text-slate-600">Quick Stats</label>
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-              <div className="text-slate-600">Total: {filteredPatients.length}</div>
-              <div className="text-slate-500">Filtered: {list.filter(t => t.doctorId === doc?.id).length}</div>
+              <div className="text-slate-600">Total: {total}</div>
+              <div className="text-slate-500">Page: {page} of {Math.ceil(total / limit) || 1}</div>
             </div>
           </div>
         </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3 text-slate-800">Patient List</div>
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <div className="text-slate-800 font-medium">Patient List</div>
+          <div className="text-sm text-slate-500">
+            Showing {Math.min((page - 1) * limit + 1, total)}-{Math.min(page * limit, total)} of {total}
+          </div>
+        </div>
         <div className="divide-y divide-slate-200">
           {filteredPatients.map((t: Token, idx: number) => (
-            <button
+            <div
               key={t._id}
-              type="button"
+              className="w-full text-left flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50 cursor-pointer"
               onClick={()=>navigate(`/doctor/prescription?tokenId=${encodeURIComponent(t._id)}`)}
-              className="w-full text-left flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50 focus:outline-none"
             >
               <div className="flex items-center gap-3">
-                <div className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700">{idx+1}</div>
+                <div className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700">{(page - 1) * limit + idx + 1}</div>
                 <div>
                   <div className="font-medium">{t.patientName}</div>
                   <div className="text-xs text-slate-500">MR: {t.mrNo} • {new Date(t.createdAt).toLocaleTimeString()}</div>
@@ -308,7 +319,7 @@ export default function Doctor_Patients() {
                   title="Return token"
                 >{t.status==='returned'?'Unreturn':'Return'}</button>
               </div>
-            </button>
+            </div>
           ))}
           {filteredPatients.length === 0 && (
             <div className="px-4 py-8 text-center text-slate-500">
@@ -316,6 +327,44 @@ export default function Doctor_Patients() {
             </div>
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {total > 0 && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500">Rows per page:</span>
+              <select
+                value={limit}
+                onChange={e => { setLimit(Number(e.target.value)); setPage(1) }}
+                className="rounded border border-slate-300 px-2 py-1 text-xs"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Prev
+              </button>
+              <span className="px-3 py-1 text-slate-600">
+                Page {page} of {Math.ceil(total / limit) || 1}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(Math.ceil(total / limit) || 1, p + 1))}
+                disabled={page >= Math.ceil(total / limit)}
+                className="rounded px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {drawerOpen && drawerToken && (

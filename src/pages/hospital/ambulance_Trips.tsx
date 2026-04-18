@@ -54,6 +54,19 @@ export default function Ambulance_Trips() {
   })
   const [completeId, setCompleteId] = useState<string | null>(null)
   const [completeForm, setCompleteForm] = useState({ returnTime: new Date().toISOString().slice(0, 16), odometerEnd: '' })
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({
+    patientName: '',
+    patientId: '',
+    pickupLocation: '',
+    destination: '',
+    purpose: 'Emergency Pickup' as 'Emergency Pickup' | 'Transfer' | 'Discharge' | 'Home Collection' | 'Other',
+    departureTime: '',
+    odometerStart: '',
+    notes: '',
+  })
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [cancelId, setCancelId] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastState>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -187,6 +200,68 @@ export default function Ambulance_Trips() {
     }
   }
 
+  const openEdit = (trip: Trip) => {
+    setEditId(trip.id)
+    setEditForm({
+      patientName: trip.patientName || '',
+      patientId: trip.patientId || '',
+      pickupLocation: trip.pickupLocation,
+      destination: trip.destination,
+      purpose: trip.purpose,
+      departureTime: trip.departureTime.slice(0, 16),
+      odometerStart: String(trip.odometerStart),
+      notes: trip.notes || '',
+    })
+  }
+
+  const saveEdit = async () => {
+    if (!editId || !editForm.pickupLocation || !editForm.destination || !editForm.odometerStart) {
+      setToast({ type: 'error', message: 'Locations and odometer are required' })
+      return
+    }
+    try {
+      await hospitalApi.updateAmbulanceTrip(editId, {
+        patientName: editForm.patientName || undefined,
+        patientId: editForm.patientId || undefined,
+        pickupLocation: editForm.pickupLocation,
+        destination: editForm.destination,
+        purpose: editForm.purpose,
+        departureTime: editForm.departureTime,
+        odometerStart: Number(editForm.odometerStart),
+        notes: editForm.notes || undefined,
+      })
+      loadTrips(page)
+      setEditId(null)
+      setToast({ type: 'success', message: 'Trip updated' })
+    } catch (err: any) {
+      setToast({ type: 'error', message: err?.message || 'Failed to update trip' })
+    }
+  }
+
+  const saveCancel = async () => {
+    if (!cancelId) return
+    try {
+      await hospitalApi.updateAmbulanceTrip(cancelId, { status: 'Cancelled' })
+      loadTrips(page)
+      setCancelId(null)
+      setToast({ type: 'success', message: 'Trip cancelled' })
+    } catch (err: any) {
+      setToast({ type: 'error', message: err?.message || 'Failed to cancel trip' })
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteId) return
+    try {
+      await hospitalApi.deleteAmbulanceTrip?.(deleteId)
+      loadTrips(page)
+      setDeleteId(null)
+      setToast({ type: 'success', message: 'Trip deleted' })
+    } catch (err: any) {
+      setToast({ type: 'error', message: err?.message || 'Failed to delete trip' })
+    }
+  }
+
   const statusColors: Record<string, string> = {
     'In Progress': 'bg-sky-100 text-sky-700',
     'Completed': 'bg-emerald-100 text-emerald-700',
@@ -243,17 +318,17 @@ export default function Ambulance_Trips() {
       <div className="mt-5 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left">
-              <th className="px-3 py-2 font-medium text-slate-600">Vehicle #</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Patient</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Purpose</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Pickup</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Destination</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Departed</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Returned</th>
-              <th className="px-3 py-2 font-medium text-slate-600 text-right">Distance</th>
-              <th className="px-3 py-2 font-medium text-slate-600">Status</th>
-              <th className="px-3 py-2 font-medium text-slate-600"></th>
+            <tr className="border-b-2 border-slate-300 text-left bg-slate-100/50">
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Vehicle #</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Patient</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Purpose</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Pickup</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Destination</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Departed</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Returned</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px] text-right">Distance</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]">Status</th>
+              <th className="px-3 py-3 font-extrabold text-slate-700 uppercase tracking-wider text-[13px]"></th>
             </tr>
           </thead>
           <tbody>
@@ -278,9 +353,16 @@ export default function Ambulance_Trips() {
                   <span className={`rounded-full px-2 py-0.5 text-xs ${statusColors[t.status]}`}>{t.status}</span>
                 </td>
                 <td className="px-3 py-2">
-                  {t.status === 'In Progress' && (
-                    <button onClick={() => setCompleteId(t.id)} className="rounded bg-emerald-100 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-200">Complete</button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {t.status === 'In Progress' && (
+                      <button onClick={() => setCompleteId(t.id)} className="rounded-md bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-600 hover:bg-emerald-100">Complete</button>
+                    )}
+                    {t.status === 'In Progress' && (
+                      <button onClick={() => setCancelId(t.id)} className="rounded-md bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100">Cancel</button>
+                    )}
+                    <button onClick={() => openEdit(t)} className="rounded-md bg-sky-50 px-3 py-1 text-sm font-medium text-sky-600 hover:bg-sky-100">Edit</button>
+                    <button onClick={() => setDeleteId(t.id)} className="rounded-md bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 hover:bg-rose-100">Delete</button>
+                  </div>
                 </td>
               </tr>
             )))}
@@ -402,6 +484,90 @@ export default function Ambulance_Trips() {
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setCompleteId(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Cancel</button>
               <button onClick={saveComplete} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">Complete Trip</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editId && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-800">Edit Trip</h3>
+              <button onClick={() => setEditId(null)} className="text-slate-500">✖</button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Purpose *</label>
+                <select value={editForm.purpose} onChange={e => setEditForm(f => ({ ...f, purpose: e.target.value as any }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500">
+                  <option value="Emergency Pickup">Emergency Pickup</option>
+                  <option value="Transfer">Transfer</option>
+                  <option value="Discharge">Discharge</option>
+                  <option value="Home Collection">Home Collection</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Patient Name</label>
+                <input value={editForm.patientName} onChange={e => setEditForm(f => ({ ...f, patientName: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Patient ID / MRN</label>
+                <input value={editForm.patientId} onChange={e => setEditForm(f => ({ ...f, patientId: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Pickup Location *</label>
+                <input value={editForm.pickupLocation} onChange={e => setEditForm(f => ({ ...f, pickupLocation: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Destination *</label>
+                <input value={editForm.destination} onChange={e => setEditForm(f => ({ ...f, destination: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Departure Time</label>
+                <input type="datetime-local" value={editForm.departureTime} onChange={e => setEditForm(f => ({ ...f, departureTime: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Odometer Start *</label>
+                <input type="number" value={editForm.odometerStart} onChange={e => setEditForm(f => ({ ...f, odometerStart: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
+              </div>
+              <div className="col-span-2">
+                <label className="mb-1 block text-sm text-slate-700">Notes</label>
+                <input value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setEditId(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Cancel</button>
+              <button onClick={saveEdit} className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Confirmation */}
+      {cancelId && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+            <h3 className="text-base font-semibold text-slate-800">Cancel Trip</h3>
+            <p className="mt-2 text-sm text-slate-600">Are you sure you want to cancel this trip? This action cannot be undone.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setCancelId(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">No, Keep</button>
+              <button onClick={saveCancel} className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700">Yes, Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {deleteId && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+            <h3 className="text-base font-semibold text-slate-800">Delete Trip</h3>
+            <p className="mt-2 text-sm text-slate-600">Are you sure you want to delete this trip? This action cannot be undone.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setDeleteId(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">No, Keep</button>
+              <button onClick={confirmDelete} className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700">Yes, Delete</button>
             </div>
           </div>
         </div>

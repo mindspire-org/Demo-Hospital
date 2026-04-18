@@ -6,7 +6,7 @@ import { createErPaymentSchema } from '../validators/er_payments'
 import { HospitalToken } from '../models/Token'
 import { LabPatient } from '../../lab/models/Patient'
 import { postFbrInvoiceViaSDC } from '../services/fbr'
-import { FinanceJournal, JournalLine } from '../models/FinanceJournal'
+import { FinanceJournal, JournalLine } from '../../finance/models/FinanceJournal'
 import { Types } from 'mongoose'
 
 function clampMoney(n: number){
@@ -48,6 +48,9 @@ async function postErPaymentJournal(args: { encounter: any; payment: any; patien
   const amount = Math.max(0, Number(args.payment?.amount || 0))
   if (!Number.isFinite(amount) || amount <= 0) return
 
+  // Check if this is a refund
+  const isRefund = String((args.payment as any)?.type || '').toLowerCase() === 'refund'
+
   const enc: any = args.encounter || {}
   const pat: any = args.patient || {}
   const tags: any = {}
@@ -73,107 +76,190 @@ async function postErPaymentJournal(args: { encounter: any; payment: any; patien
   if ((args.payment as any)?.createdByUsername) tags.createdByUsername = String((args.payment as any).createdByUsername)
   if ((args.payment as any)?.source) tags.portal = String((args.payment as any).source)
 
-  const lines: JournalLine[] = [
-    { account: debitAccount, debit: amount, tags: { ...tags, method: methodRaw || undefined } },
-    { account: 'ER_REVENUE', credit: amount, tags: { ...tags } },
-  ]
-  const memo = `ER Payment ${methodRaw ? '('+methodRaw+')' : ''}`.trim()
+  let lines: JournalLine[]
+  let memo: string
+  
+  if (isRefund) {
+    // Refund: credit cash/bank, debit ER_REVENUE (reverse the payment)
+    lines = [
+      { account: 'ER_REVENUE', debit: amount, tags: { ...tags } },
+      { account: debitAccount, credit: amount, tags: { ...tags, method: methodRaw || undefined } },
+    ]
+    memo = `ER Refund ${methodRaw ? '('+methodRaw+')' : ''}`.trim()
+  } else {
+    // Normal payment: debit cash/bank, credit ER_REVENUE
+    lines = [
+      { account: debitAccount, debit: amount, tags: { ...tags, method: methodRaw || undefined } },
+      { account: 'ER_REVENUE', credit: amount, tags: { ...tags } },
+    ]
+    memo = `ER Payment ${methodRaw ? '('+methodRaw+')' : ''}`.trim()
+  }
   await FinanceJournal.create({ dateIso, refType: 'er_billing', refId: paymentId, memo, lines })
 }
 
 async function computeTotals(encounterId: string){
-  const charges = await HospitalErCharge.find({ encounterId }).select('amount paidAmount').lean()
-  const payments = await HospitalErPayment.find({ encounterId }).select('amount').lean()
-  const total = charges.reduce((s: number, c: any) => s + Number(c.amount || 0), 0)
-  const paidFromCharges = charges.reduce((s: number, c: any) => s + Number(c.paidAmount || 0), 0)
-  const pending = Math.max(0, total - paidFromCharges)
-  return { total, paid: paidFromCharges, pending }
+  const [charges, payments] = await Promise.all([
+    HospitalErCharge.find({ encounterId }).select('amount paidAmount').lean(),
+    HospitalErPayment.find({ encounterId }).select('amount allocations method type').lean()
+  ])
+  
+  // Total charges (what patient consumed)
+  const grandTotal = charges.reduce((s: number, c: any) => s + Number(c.amount || 0), 0)
+  
+  // Total money received from patient (all payments including advances)
+  const allPayments = payments.map((p: any) => ({
+    ...p,
+    isAdvance: String(p.method || '').toLowerCase() === 'advance',
+    isSettlement: String(p.method || '').toLowerCase() === 'advance settlement',
+    isRefund: String(p.type || '').toLowerCase() === 'refund'
+  }))
+
+  // Total advances received (minus refunds)
+  const totalAdvanceReceived = allPayments
+    .filter(p => p.isAdvance && !p.isRefund)
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
+    - allPayments
+      .filter(p => p.isRefund && String(p.method || '').toLowerCase().includes('advance'))
+      .reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  const totalSettlements = allPayments
+    .filter(p => p.isSettlement)
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  // Direct payments (excluding advances, settlements, and refunds)
+  const totalDirectPaid = allPayments
+    .filter(p => !p.isAdvance && !p.isSettlement && !p.isRefund)
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  // Total refunds (for display purposes) - ALL refunds regardless of method
+  const totalRefunds = allPayments
+    .filter(p => p.isRefund)
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  // Net received from patient (excluding refunds given back)
+  const totalReceived = totalDirectPaid + totalAdvanceReceived
+  
+  // Money already allocated to specific charges (C)
+  const totalPaidToCharges = charges.reduce((s: number, c: any) => s + Number(c.paidAmount || 0), 0)
+  
+  // ADVANCE AVAILABLE = Total Advance Received - Amount of Advance used for charges
+  // How much of the totalPaidToCharges came from advances?
+  // We can calculate this by: Total Paid to Charges - Total Direct Paid (assuming direct paid is always used first)
+  const advanceUsed = Math.max(0, totalPaidToCharges - totalDirectPaid)
+  const unallocatedAdvance = Math.max(0, totalAdvanceReceived - advanceUsed)
+  
+  // NET DUE = Total Bill - Total Paid to Charges
+  const netOutstanding = Math.max(0, grandTotal - totalPaidToCharges)
+  
+  // Legacy pending calculation (for backward compatibility)
+  const pending = netOutstanding
+  
+  return { 
+    grandTotal,           // Total charges (A)
+    totalReceived,        // All money actually received from patient (Direct + Advance) (B)
+    totalPaidToCharges,   // Sum of paidAmount on all charges (Cleared Amount) (C)
+    unallocatedAdvance,   // Current Advance Balance (D)
+    netOutstanding,       // What patient actually owes (Remaining) (E)
+    pending,
+    totalDirectPaid,
+    totalAdvanceReceived,
+    totalRefunds,
+    advanceUsed,
+    chargeCount: charges.length,
+    paymentCount: payments.length
+  }
 }
 
 async function recalcErPaidAmounts(encounterId: any){
   // Same logic as IPD: preserve existing paidAmount as baseline, apply new allocations
   const items: any[] = await HospitalErCharge.find({ encounterId })
     .select('_id amount paidAmount date createdAt')
-    .sort({ date: 1, createdAt: 1 })
+    .sort({ createdAt: 1 }) // Use absolute creation order
     .lean()
   if (!items.length) return
 
   const baselinePaid = new Map<string, number>()
   for (const it of items){
-    baselinePaid.set(String(it._id), clampMoney(it.paidAmount || 0))
+    baselinePaid.set(String(it._id), 0) // Reset baseline to 0 to recompute everything from payments
   }
 
   const pays: any[] = await HospitalErPayment.find({ encounterId })
-    .select('_id amount allocations receivedAt createdAt')
-    .sort({ receivedAt: 1, createdAt: 1 })
+    .select('_id amount allocations receivedAt createdAt method type')
+    .sort({ createdAt: 1 }) // Use absolute creation order for payments too
     .lean()
 
   const calculatedPaid = new Map<string, number>()
   for (const [id, amt] of baselinePaid.entries()){
-    calculatedPaid.set(id, amt)
+    calculatedPaid.set(id, 0)
   }
 
-  const accountedPaymentIds = new Set<string>()
+  // Calculate total refunds issued (to subtract from available funds)
+  const totalRefunds = pays
+    .filter(p => String(p.type || '').toLowerCase() === 'refund')
+    .reduce((s, p) => s + Number(p.amount || 0), 0)
 
-  for (const p of (pays || [])){
-    const existingAllocs: any[] = Array.isArray(p?.allocations) ? p.allocations : []
-    if (!existingAllocs.length) continue
-    let allMatch = true
-    for (const a of existingAllocs){
-      const itemId = String(a?.billingItemId || '')
-      const allocAmt = clampMoney(a?.amount)
-      if (!itemId || allocAmt <= 0) continue
-    }
-    if (allMatch && existingAllocs.length > 0){
-      accountedPaymentIds.add(String(p._id))
-    }
-  }
+  // First, process all payments that are NOT settlements or refunds (Direct payments and Advances)
+  // We re-allocate them FIFO to ensure correctness
+  const sourcePayments = pays.filter(p => {
+    const method = String(p.method || '').toLowerCase()
+    const pType = String(p.type || '').toLowerCase()
+    return method !== 'advance settlement' && pType !== 'refund'
+  })
 
-  for (const p of (pays || [])){
+  // Track total available funds from source payments
+  const totalSourceFunds = sourcePayments.reduce((s, p) => s + Number(p.amount || 0), 0)
+  // Net funds available after subtracting refunds
+  const netAvailable = Math.max(0, totalSourceFunds - totalRefunds)
+  
+  // Track how much we've allocated from net available
+  let allocatedFromNet = 0
+  
+  for (const p of sourcePayments){
     const pid = String(p._id)
-    const existingAllocs: any[] = Array.isArray(p?.allocations) ? p.allocations : []
+    const paymentAmount = clampMoney(p.amount)
     
-    if (existingAllocs.length > 0){
-      for (const a of existingAllocs){
-        const itemId = String(a?.billingItemId || '')
-        const allocAmt = clampMoney(a?.amount)
-        if (!itemId || allocAmt <= 0) continue
-        calculatedPaid.set(itemId, clampMoney((calculatedPaid.get(itemId) || 0) + allocAmt))
-      }
-    } else {
-      let left = clampMoney(p.amount)
-      const out: Array<{ billingItemId: string; amount: number }> = []
+    // Calculate how much of this payment is actually available (accounting for refunds)
+    // We distribute the refund proportionally or as a deduction from available pool
+    let availableFromThisPayment = paymentAmount
+    if (totalRefunds > 0 && totalSourceFunds > 0) {
+      // If refunds exist, reduce available amount proportionally
+      const deductionRatio = Math.min(1, totalRefunds / totalSourceFunds)
+      availableFromThisPayment = clampMoney(paymentAmount * (1 - deductionRatio))
+    }
+    
+    // Cap by remaining net available
+    const remainingNet = Math.max(0, netAvailable - allocatedFromNet)
+    let left = Math.min(availableFromThisPayment, remainingNet)
+    allocatedFromNet += left
+    
+    const out: Array<{ billingItemId: string; amount: number }> = []
+    
+    for (const it of items){
+      if (left <= 0) break
+      const id = String(it._id)
+      const itemAmount = clampMoney(it.amount)
+      const currentlyPaid = calculatedPaid.get(id) || 0
+      const remainingCapacity = Math.max(0, itemAmount - currentlyPaid)
       
-      for (const it of items){
-        if (left <= 0) break
-        const id = String(it._id)
-        const itemAmount = clampMoney(it.amount)
-        const currentlyPaid = baselinePaid.get(id) || 0
-        const remainingCapacity = Math.max(0, itemAmount - currentlyPaid)
-        
-        if (remainingCapacity <= 0) continue
-        const take = Math.min(remainingCapacity, left)
-        if (take > 0){
-          out.push({ billingItemId: id, amount: clampMoney(take) })
-          calculatedPaid.set(id, clampMoney((calculatedPaid.get(id) || 0) + take))
-          left = clampMoney(left - take)
-        }
-      }
-      
-      if (out.length){
-        try { await HospitalErPayment.findByIdAndUpdate(pid, { $set: { allocations: out } }) } catch {}
+      if (remainingCapacity <= 0) continue
+      const take = Math.min(remainingCapacity, left)
+      if (take > 0){
+        out.push({ billingItemId: id, amount: clampMoney(take) })
+        calculatedPaid.set(id, clampMoney((calculatedPaid.get(id) || 0) + take))
+        left = clampMoney(left - take)
       }
     }
+    
+    // Update allocations for this source payment (Advances/Direct)
+    try { await HospitalErPayment.findByIdAndUpdate(pid, { $set: { allocations: out } }) } catch {}
   }
 
+  // After re-allocating source payments, we update the paidAmount on charges
   const ops: any[] = []
   for (const it of items){
     const id = String(it._id)
-    const baseline = baselinePaid.get(id) || 0
     const calculated = calculatedPaid.get(id) || 0
-    if (Math.abs(calculated - baseline) >= 0.01){
-      ops.push({ updateOne: { filter: { _id: id, encounterId }, update: { $set: { paidAmount: calculated } } } })
-    }
+    ops.push({ updateOne: { filter: { _id: id, encounterId }, update: { $set: { paidAmount: calculated } } } })
   }
   if (ops.length) await HospitalErCharge.bulkWrite(ops)
 }
@@ -266,6 +352,77 @@ export async function createPayment(req: Request, res: Response){
     const totals = await computeTotals(String(enc._id))
     res.status(201).json({ payment: row, totals })
   }catch(e){ return handleError(res, e) }
+}
+
+// Export for use in other controllers (e.g., er.controller.ts)
+export { recalcErPaidAmounts, computeTotals }
+
+export async function listRecentPayments(req: Request, res: Response){
+  try{
+    const q = req.query as any
+    
+    // Parse dates properly - extend 'to' to end of day to include today's payments
+    let from: Date, to: Date
+    if (q.from) {
+      from = new Date(String(q.from) + 'T00:00:00.000Z')
+    } else {
+      from = new Date(Date.now() - 7*24*60*60*1000)
+    }
+    if (q.to) {
+      // Extend to end of day to include payments from that day
+      to = new Date(String(q.to) + 'T23:59:59.999Z')
+    } else {
+      to = new Date()
+    }
+    
+    console.log('listRecentPayments: from=', from.toISOString(), 'to=', to.toISOString())
+    
+    // Find all ER payments by receivedAt date range (ErPayment is already ER-specific)
+    const payments = await HospitalErPayment.find({
+      receivedAt: { $gte: from, $lte: to }
+    })
+      .sort({ receivedAt: -1 })
+      .populate({ path: 'patientId', select: 'fullName mrn' })
+      .lean()
+    
+    console.log('listRecentPayments: found', payments.length, 'payments')
+    
+    if (payments.length === 0) {
+      return res.json({ payments: [], total: 0, from: from.toISOString(), to: to.toISOString() })
+    }
+    
+    // Get unique encounter IDs from payments
+    const encounterIds = [...new Set(payments.map(p => String(p.encounterId)))]
+    
+    // Get token info for these encounters
+    const tokens = await HospitalToken.find({ encounterId: { $in: encounterIds } })
+      .select('encounterId tokenNo')
+      .lean()
+    
+    const tokenMap = new Map<string, string>()
+    for (const t of tokens) {
+      tokenMap.set(String(t.encounterId), String(t.tokenNo))
+    }
+    
+    // Enrich payment data
+    const enriched = payments.map((p: any) => ({
+      _id: String(p._id),
+      encounterId: String(p.encounterId),
+      tokenNo: tokenMap.get(String(p.encounterId)) || '-',
+      patientName: p.patientId?.fullName || '-',
+      mrn: p.patientId?.mrn || '-',
+      amount: Number(p.amount || 0),
+      method: p.method || '-',
+      refNo: p.refNo || '',
+      receivedAt: p.receivedAt || p.createdAt,
+      performedBy: p.createdByUsername || '-',
+    }))
+    
+    res.json({ payments: enriched, total: enriched.length, from: from.toISOString(), to: to.toISOString() })
+  }catch(e){ 
+    console.error('Error in listRecentPayments:', e)
+    return handleError(res, e) 
+  }
 }
 
 export async function getSummary(req: Request, res: Response){

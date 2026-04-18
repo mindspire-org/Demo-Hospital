@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import pharmacyRouter from './modules/pharmacy/routes'
+import indoorPharmacyRouter from './modules/indoorpharmacy/routes/indoorpharmacy.routes'
 import labRouter from './modules/lab/routes'
 import hospitalRouter from './modules/hospital/routes'
 import diagnosticRouter from './modules/diagnostic/routes'
@@ -9,10 +10,12 @@ import corporateRouter from './modules/corporate/routes'
 import aestheticRouter from './modules/aesthetic/routes'
 import biometricRouter from './modules/biometric/routes'
 import dialysisRouter from './modules/dialysis/routes'
+import financeRouter from './modules/finance/routes'
 
 const router = Router()
 
 router.use('/pharmacy', pharmacyRouter)
+router.use('/indoor-pharmacy', indoorPharmacyRouter)
 router.use('/lab', labRouter)
 router.use('/hospital', hospitalRouter)
 router.use('/diagnostic', diagnosticRouter)
@@ -22,5 +25,6 @@ router.use('/corporate', corporateRouter)
 router.use('/aesthetic', aestheticRouter)
 router.use('/biometric', biometricRouter)
 router.use('/dialysis', dialysisRouter)
+router.use('/finance', financeRouter)
 
 export default router

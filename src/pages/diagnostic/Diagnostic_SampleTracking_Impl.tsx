@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { diagnosticApi } from '../../utils/api'
 import Diagnostic_TokenSlip from '../../components/diagnostic/Diagnostic_TokenSlip'
-import Diagnostic_EditSampleDialog from '../../components/diagnostic/Diagnostic_EditSampleDialog'
 import type { DiagnosticTokenSlipData } from '../../components/diagnostic/Diagnostic_TokenSlip'
 import { Building2, Wallet, DollarSign, Printer, Pencil, Trash2, RotateCcw } from 'lucide-react'
 
@@ -71,8 +71,9 @@ export default function Diagnostic_SampleTracking(){
         subtotal: Number(x.subtotal||0), 
         discount: Number(x.discount||0), 
         net: Number(x.net||0),
-        receivedAmount: Number(x.receivedAmount||0),
-        receivableAmount: Number(x.receivableAmount||0),
+        // Keep these optional - don't default to 0 so we can detect missing API values
+        receivedAmount: x.receivedAmount != null ? Number(x.receivedAmount) : undefined,
+        receivableAmount: x.receivableAmount != null ? Number(x.receivableAmount) : undefined,
         corporateId: x.corporateId,
         billingType: x.corporateId ? 'corporate' : 'cash'
       }))
@@ -125,18 +126,15 @@ export default function Diagnostic_SampleTracking(){
     finally { try { setTimeout(()=> setNotice(null), 2500) } catch {} }
   }
 
+  const navigate = useNavigate()
+
   // Print Slip
   const [slipOpen, setSlipOpen] = useState(false)
   const [slipData, setSlipData] = useState<DiagnosticTokenSlipData | null>(null)
-  // Edit Sample Dialog
-  const [editOpen, setEditOpen] = useState(false)
-  const [editOrder, setEditOrder] = useState<{ id: string; patient: any; tests: string[] } | null>(null)
-  function openEdit(o: Order){ setEditOrder({ id: o.id, patient: o.patient, tests: o.tests }); setEditOpen(true) }
-  function onEditSaved(updated: any){
-    const id = String(updated?._id || updated?.id || (editOrder && editOrder.id))
-    if (!id) { setEditOpen(false); return }
-    setOrders(prev => prev.map(o => o.id===id ? { ...o, patient: updated.patient || o.patient, tests: updated.tests || o.tests, tokenNo: updated.tokenNo || o.tokenNo, createdAt: updated.createdAt || o.createdAt } : o))
-    setEditOpen(false)
+
+  // Navigate to Token Generator for editing
+  function openEdit(o: Order) {
+    navigate(`/diagnostic/token-generator?edit=${encodeURIComponent(o.id)}`)
   }
   const printToken = (o: Order) => {
     const rows = o.tests.map(tid => ({ name: testsMap[tid] || tid, price: Number(testsPrice[tid]||0) }))
@@ -144,6 +142,12 @@ export default function Diagnostic_SampleTracking(){
     const subtotal = (o.subtotal!=null && !Number.isNaN(o.subtotal)) ? Number(o.subtotal) : computedSubtotal
     const discount = (o.discount!=null && !Number.isNaN(o.discount)) ? Number(o.discount) : 0
     const payable = (o.net!=null && !Number.isNaN(o.net)) ? Number(o.net) : Math.max(0, subtotal - discount)
+    // Get stored values (may be incorrect in DB)
+    const storedReceived = o.receivedAmount !== undefined ? Number(o.receivedAmount) : 0
+    // Always calculate remaining correctly: payable - received
+    // Don't trust stored receivableAmount as it may be wrong in DB
+    let received = storedReceived
+    let remaining = Math.max(0, payable - received)
     const data: DiagnosticTokenSlipData = {
       tokenNo: o.tokenNo || '-',
       patientName: o.patient.fullName,
@@ -159,6 +163,8 @@ export default function Diagnostic_SampleTracking(){
       subtotal,
       discount,
       payable,
+      received,
+      remaining,
       createdAt: o.createdAt,
     }
     setSlipData(data); setSlipOpen(true)
@@ -173,7 +179,8 @@ export default function Diagnostic_SampleTracking(){
 
   function openReceivePayment(o: Order) {
     setReceiveOrder(o)
-    setReceiveAmount(String(o.receivableAmount || 0))
+    const pending = Math.max(0, Number(o.net || 0) - Number(o.receivedAmount || 0))
+    setReceiveAmount(String(pending))
     setReceiveMethod('cash')
     setReceiveNote('')
     setReceiveOpen(true)
@@ -390,15 +397,18 @@ export default function Diagnostic_SampleTracking(){
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
-                        {o.billingType !== 'corporate' && Number(o.receivableAmount || 0) > 0 && (
-                          <button
-                            onClick={() => openReceivePayment(o)}
-                            className="rounded-md p-1.5 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-                            title="Receive Payment"
-                          >
-                            <DollarSign className="h-4 w-4" />
-                          </button>
-                        )}
+                        {(() => {
+                          const pending = Math.max(0, Number(o.net || 0) - Number(o.receivedAmount || 0))
+                          return o.billingType !== 'corporate' && pending > 0 && (
+                            <button
+                              onClick={() => openReceivePayment(o)}
+                              className="rounded-md p-1.5 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                              title="Receive Payment"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                            </button>
+                          )
+                        })()}
                         {o.status !== 'returned' && Number(o.receivedAmount || 0) > 0 && (
                           <button
                             onClick={() => openReturnDialog(o)}
@@ -450,14 +460,6 @@ export default function Diagnostic_SampleTracking(){
       {slipOpen && slipData && (
         <Diagnostic_TokenSlip open={slipOpen} onClose={()=>setSlipOpen(false)} data={slipData} />
       )}
-      {editOpen && editOrder && (
-        <Diagnostic_EditSampleDialog
-          open={editOpen}
-          onClose={()=>setEditOpen(false)}
-          order={editOrder}
-          onSaved={onEditSaved}
-        />
-      )}
 
       {/* Receive Payment Dialog */}
       {receiveOpen && receiveOrder && (
@@ -490,7 +492,7 @@ export default function Diagnostic_SampleTracking(){
               </div>
               <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
                 <div className="text-xs text-amber-600">Pending Amount</div>
-                <div className="text-lg font-semibold text-amber-700">PKR {Number(receiveOrder.receivableAmount || 0).toLocaleString()}</div>
+                <div className="text-lg font-semibold text-amber-700">PKR {Math.max(0, Number(receiveOrder.net || 0) - Number(receiveOrder.receivedAmount || 0)).toLocaleString()}</div>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Receive Amount</label>

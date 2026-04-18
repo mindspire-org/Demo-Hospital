@@ -10,7 +10,6 @@ type AutoSettings = {
   enabled: boolean
   minutes: number
   folderPath: string
-  adminKey?: string
 }
 
 export default function Hospital_Backup() {
@@ -18,9 +17,9 @@ export default function Hospital_Backup() {
   const [settings, setSettings] = useState<AutoSettings>(() => {
     try {
       const raw = localStorage.getItem(AUTO_SETTINGS_KEY)
-      return raw ? JSON.parse(raw) : { enabled: false, minutes: 60, folderPath: '', adminKey: '' }
+      return raw ? JSON.parse(raw) : { enabled: false, minutes: 60, folderPath: '' }
     } catch {
-      return { enabled: false, minutes: 60, folderPath: '', adminKey: '' }
+      return { enabled: false, minutes: 60, folderPath: '' }
     }
   })
   const [banner, setBanner] = useState('')
@@ -145,11 +144,6 @@ export default function Hospital_Backup() {
               <label className="mb-1 block text-sm font-medium text-slate-700">Backup Folder Path</label>
               <input value={settings.folderPath} onChange={e=>setSettings(s=>({ ...s, folderPath: e.target.value }))} placeholder="e.g. C:\\HospitalBackups" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
               <p className="mt-1 text-xs text-slate-500">Note: Browsers download to your default folder; this is for reference only.</p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Admin Key (for server admin endpoints)</label>
-              <input value={settings.adminKey||''} onChange={e=>setSettings(s=>({ ...s, adminKey: e.target.value }))} placeholder="Set to match backend ADMIN_KEY" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
-              <p className="mt-1 text-xs text-slate-500">Stored locally and sent as header x-admin-key.</p>
             </div>
           </div>
 

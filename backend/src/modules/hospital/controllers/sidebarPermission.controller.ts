@@ -85,7 +85,7 @@ const defaultVisibility: Record<string, Array<{ path: string; label: string; vis
 }
 
 function normRole(role: string){ return String(role||'').trim().toLowerCase() }
-const defaultAllVisible = defaultSidebarItems.map(item => ({ ...item, visible: true }))
+const defaultAllVisible = defaultSidebarItems.map(item => ({ ...item, visible: false }))
 function getDefaultForRole(role: string){
   const r = normRole(role)
   const preset = (defaultVisibility as any)[r]

@@ -61,7 +61,7 @@ export default function Hospital_CashCountSlipDialog({ open, onClose, entry }: P
           html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; color: #000 !important }
           body * { visibility: hidden !important }
           #cashcount-slip, #cashcount-slip * { visibility: visible !important }
-          #cashcount-slip { position: absolute !important; left: 0; right: 0; top: 0; margin: 0 auto !important; padding: 0 6px !important; width: 384px !important; box-sizing: content-box !important; line-height: 1.25; overflow: visible !important; z-index: 2147483647; background: #fff !important }
+          #cashcount-slip { position: absolute !important; left: 0; top: 0; margin: 0 !important; padding: 0 8px 0 4px !important; width: 360px !important; box-sizing: border-box !important; line-height: 1.25; overflow: visible !important; z-index: 2147483647; background: #fff !important }
           .no-print { display: none !important }
           .only-print { display: block !important }
           #cashcount-slip hr { border-color: #000 !important }
@@ -79,7 +79,7 @@ export default function Hospital_CashCountSlipDialog({ open, onClose, entry }: P
           </div>
 
           <div className="max-h-[75vh] overflow-y-auto px-6 py-6 print:p-0 print:overflow-visible">
-            <div id="cashcount-slip" className="mx-auto w-[384px] print:w-[384px]">
+            <div id="cashcount-slip" className="mx-auto w-[360px] print:w-[360px] px-1">
               <div className="text-center">
                 {info.logo ? <img src={info.logo} alt="Logo" className="mx-auto mb-2 h-12 w-12 object-contain" /> : null}
                 <div className="text-xl font-bold tracking-wide print:tracking-normal print:text-black">{info.name}</div>
@@ -91,8 +91,6 @@ export default function Hospital_CashCountSlipDialog({ open, onClose, entry }: P
               <div className="text-center font-medium print:text-black">CASH COUNT</div>
               <div className="mt-2 text-xs text-slate-700 print:text-black">
                 <div>Date : {new Date(entry.date || new Date().toISOString()).toLocaleString()}</div>
-                <div>Entry ID : {entry.id}</div>
-                <div>User : {entry.user || '-'}</div>
               </div>
 
               <div className="mt-3 text-sm print:text-black space-y-1">

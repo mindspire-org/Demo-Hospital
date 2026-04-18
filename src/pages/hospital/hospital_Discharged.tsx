@@ -164,17 +164,17 @@ export default function Hospital_Discharged() {
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
               <tr>
-                <th className="px-4 py-2 font-medium">SR.NO</th>
-                <th className="px-4 py-2 font-medium">MRN</th>
-                <th className="px-4 py-2 font-medium">Patient</th>
-                <th className="px-4 py-2 font-medium">Doctor</th>
-                <th className="px-4 py-2 font-medium">Bed</th>
-                <th className="px-4 py-2 font-medium">Admitted</th>
-                <th className="px-4 py-2 font-medium">Discharged</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium">Actions</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">SR.NO</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">MRN</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Doctor</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Bed</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Admitted</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Discharged</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">

@@ -8,6 +8,7 @@ export type LabReportInput = {
   createdAt: string
   sampleTime?: string
   reportingTime?: string
+  approvedAt?: string
   patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
   rows: LabReportRow[]
   interpretation?: string
@@ -77,9 +78,13 @@ async function makeBarcodeDataUrl(text: string): Promise<string> {
 }
 
 function fmtDateTime(iso?: string){
-  if (!iso) return '-'
+  if (!iso || iso === '-') return '-'
   if (/^\d{1,2}:\d{2}$/.test(String(iso))) return String(iso)
-  try { const d = new Date(iso); if (isNaN(d.getTime())) return String(iso); return d.toLocaleDateString()+', '+d.toLocaleTimeString() } catch { return String(iso) }
+  try { 
+    const d = new Date(iso); 
+    if (isNaN(d.getTime())) return String(iso); 
+    return d.toLocaleDateString()+', '+d.toLocaleTimeString() 
+  } catch { return String(iso) }
 }
 
 function pickColumns(rows: LabReportRow[]) {
@@ -244,7 +249,7 @@ export async function previewLabReportPdfGradient(input: LabReportInput){
   drawKV('Reg. & Sample Time :', String(fmtDateTime(input.createdAt)), L, y)
   drawKV('M.R. No :', String(input.patient.mrn || '-'), R, y); y += 14
   drawKV('Contact No :', String(input.patient.phone || '-'), L, y)
-  drawKV('Reporting Time :', String(fmtDateTime(input.reportingTime || '-')), R, y); y += 14
+  drawKV('Reporting Time :', String(fmtDateTime(input.approvedAt || input.reportingTime || '-')), R, y); y += 14
   drawKV('Address :', String(input.patient.address || '-'), L, y); y += 8
   drawKV('Referring Consultant :', String(input.referringConsultant || '-'), R, y - 8)
 
@@ -396,7 +401,7 @@ export async function downloadLabReportPdfGradient(input: LabReportInput){
   drawKV('Reg. & Sample Time :', String(fmtDateTime(input.createdAt)), L, y)
   drawKV('M.R. No :', String(input.patient.mrn || '-'), R, y); y += 14
   drawKV('Contact No :', String(input.patient.phone || '-'), L, y)
-  drawKV('Reporting Time :', String(fmtDateTime(input.reportingTime || '-')), R, y); y += 14
+  drawKV('Reporting Time :', String(fmtDateTime(input.approvedAt || input.reportingTime || '-')), R, y); y += 14
   drawKV('Address :', String(input.patient.address || '-'), L, y); y += 8
   drawKV('Referring Consultant :', String(input.referringConsultant || '-'), R, y - 8)
 

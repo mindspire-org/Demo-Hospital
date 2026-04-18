@@ -27,6 +27,7 @@ r.put('/settings', Settings.update)
 
 // Orders (Sample Intake for Diagnostics)
 r.get('/orders', Orders.list)
+r.get('/orders/:id', Orders.get)
 r.post('/orders', Orders.create)
 r.put('/orders/:id', Orders.update)
 r.put('/orders/:id/track', Orders.updateTrack)

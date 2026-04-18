@@ -99,14 +99,15 @@ export default function Store_InventoryTable({
   const hasRows = rows.length > 0
 
   const headers = pending
-    ? ['Invoice #', 'Item Name', 'Category', 'Qty', 'Unit', 'Cost/Unit', 'Min Stock', 'Expiry', 'Supplier', 'Actions']
+    ? ['Sr. No.', 'Invoice #', 'Item Name', 'Category', 'Qty', 'Unit', 'Unit Cost', 'Min Stock', 'Expiry', 'Supplier', 'Actions']
     : [
+      'Sr. No.',
       'Item Name',
       'Category',
       'Unit',
       'Current Stock',
       'Min Stock',
-      'Avg Cost',
+      'Unit Cost',
       'Earliest Expiry',
       'Last Purchase',
       'Last Supplier',
@@ -129,10 +130,10 @@ export default function Store_InventoryTable({
     <div className="rounded-xl border border-slate-200 bg-white">
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-700">
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
             <tr>
               {headers.map(h => (
-                <th key={h} className="whitespace-nowrap px-4 py-2 font-medium">{h}</th>
+                <th key={h} className="whitespace-nowrap px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
@@ -144,10 +145,13 @@ export default function Store_InventoryTable({
                 </td>
               </tr>
             )}
-            {hasRows && rows.map((r) => (
+            {hasRows && rows.map((r, idx) => (
               <tr key={r.id || r.draftId} className={pending ? 'bg-sky-50 hover:bg-sky-100' : getRowClasses(r)}>
                 {pending ? (
                   <>
+                    <td className="px-4 py-2 font-medium text-slate-500">
+                      {idx + 1 + ((page || 1) - 1) * (limit || 20)}
+                    </td>
                     <td className="px-4 py-2 font-medium">{r.invoiceNo || '-'}</td>
                     <td className="px-4 py-2 font-medium">{r.name}</td>
                     <td className="px-4 py-2">{r.category || '-'}</td>
@@ -161,19 +165,19 @@ export default function Store_InventoryTable({
                       <div className="flex gap-2">
                         <button 
                           onClick={() => onEditDraft?.(r.draftId || '')} 
-                          className="rounded-md bg-blue-800 px-2 py-1 text-xs text-white hover:bg-blue-900"
+                          className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 shadow-sm"
                         >
                           Edit
                         </button>
                         <button 
                           onClick={() => onApprove?.(r.draftId || '')} 
-                          className="rounded-md bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-700"
+                          className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700 shadow-sm"
                         >
                           Approve
                         </button>
                         <button 
                           onClick={() => onReject?.(r.draftId || '')} 
-                          className="rounded-md bg-rose-600 px-2 py-1 text-xs text-white hover:bg-rose-700"
+                          className="rounded-md bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700 shadow-sm"
                         >
                           Reject
                         </button>
@@ -182,6 +186,9 @@ export default function Store_InventoryTable({
                   </>
                 ) : (
                   <>
+                    <td className="px-4 py-2 font-medium text-slate-500">
+                      {idx + 1 + ((page || 1) - 1) * (limit || 20)}
+                    </td>
                     <td className="px-4 py-2 font-medium">{r.name}</td>
                     <td className="px-4 py-2">{r.category || '-'}</td>
                     <td className="px-4 py-2">{r.unit}</td>
@@ -195,13 +202,13 @@ export default function Store_InventoryTable({
                       <div className="flex gap-2">
                         <button 
                           onClick={() => onEdit?.(r.id)} 
-                          className="rounded-md bg-blue-800 px-2 py-1 text-xs text-white hover:bg-blue-900"
+                          className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 shadow-sm"
                         >
                           Edit
                         </button>
                         <button 
                           onClick={() => onDelete?.(r.id)} 
-                          className="rounded-md bg-rose-600 px-2 py-1 text-xs text-white hover:bg-rose-700"
+                          className="rounded-md bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700 shadow-sm"
                         >
                           Delete
                         </button>
@@ -230,6 +237,7 @@ export default function Store_InventoryTable({
                 <option value={20}>20</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
+                <option value={1000000}>All</option>
               </select>
             )}
             <button 

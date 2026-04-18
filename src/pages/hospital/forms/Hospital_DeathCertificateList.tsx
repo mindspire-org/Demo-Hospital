@@ -90,17 +90,17 @@ export default function Hospital_DeathCertificateList(){
 
       <div className="overflow-auto border rounded-md">
         <table className="min-w-[800px] w-full">
-          <thead>
-            <tr className="bg-slate-100 text-left text-sm text-slate-700">
-              <th className="px-3 py-2">Sr #</th>
-              <th className="px-3 py-2">Patient</th>
-              <th className="px-3 py-2">MRN</th>
-              <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Department</th>
-              <th className="px-3 py-2">CNIC</th>
-              <th className="px-3 py-2">Phone</th>
-              <th className="px-3 py-2">Created</th>
-              <th className="px-3 py-2">Actions</th>
+          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+            <tr className="text-left">
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Sr #</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">MRN</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Type</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Department</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">CNIC</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Phone</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Created</th>
+              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="text-sm">

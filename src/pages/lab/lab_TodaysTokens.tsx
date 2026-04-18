@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Clock, FlaskConical, CheckCircle2, FileText, Stamp, RefreshCw, Calendar, Download, Pencil, XCircle, Trash2 } from 'lucide-react'
+import { Search, Clock, FlaskConical, CheckCircle2, FileText, Stamp, RefreshCw, Calendar, Download, Pencil, XCircle, Trash2, Printer } from 'lucide-react'
 import { labApi } from '../../utils/api'
+import { printLabTokenSlip } from '../../utils/printLabToken'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 
@@ -32,6 +33,11 @@ type LabToken = {
   approvedBy?: string
   orderId?: string
   resultId?: string
+  subtotal?: number
+  discount?: number
+  net?: number
+  receivedAmount?: number
+  receivableAmount?: number
 }
 
 type LabTest = { id: string; name: string }
@@ -113,20 +119,6 @@ export default function Lab_TodaysTokens() {
       setToast({ type: 'error', message: e?.message || 'Failed to delete token' })
     }
   }
-
-  const today = useMemo(() => {
-    const d = new Date()
-    // Use local date (Pakistan timezone) instead of UTC
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }, [])
-
-  useEffect(() => {
-    if (!from) setFrom(today)
-    if (!to) setTo(today)
-  }, [today])
 
   const refresh = async () => {
     setLoading(true)
@@ -246,8 +238,15 @@ export default function Lab_TodaysTokens() {
     return counts
   }, [tokens])
 
-  const getTestNames = (testIds: string[]) => {
-    return testIds.map(id => testsMap[id] || id).join(', ')
+  const getTestNames = (tests: Array<string | { testId?: string; testName?: string }>) => {
+    return tests.map(t => {
+      if (typeof t === 'object' && t?.testId) {
+        return t.testName || testsMap[t.testId] || t.testId
+      }
+      // At this point, t must be a string
+      const id = String(t)
+      return testsMap[id] || id
+    }).join(', ')
   }
 
   return (
@@ -379,17 +378,17 @@ export default function Lab_TodaysTokens() {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
-                  <th className="px-3 py-2">Token No</th>
-                  <th className="px-3 py-2">Time</th>
-                  <th className="px-3 py-2">Patient</th>
-                  <th className="px-3 py-2">MR No</th>
-                  <th className="px-3 py-2">Phone</th>
-                  <th className="px-3 py-2">Tests</th>
-                  <th className="px-3 py-2">Barcode</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Actions</th>
+              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+                <tr className="text-left">
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Token No</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Time</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">MR No</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Phone</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Tests</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Barcode</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -462,6 +461,81 @@ export default function Lab_TodaysTokens() {
                               <Trash2 className="h-3 w-3" />
                             </button>
                           )}
+                          <button
+                            onClick={async () => {
+                              try {
+                                // Always print with latest tracking/totals (supports returned tests)
+                                const tl: any = await labApi.getTokenTimeline(token._id || token.tokenNo)
+                                const tlToken = tl?.token || token
+                                const testStatuses: any[] = Array.isArray(tl?.testStatuses) ? tl.testStatuses : []
+
+                                const testRows = (testStatuses.length > 0 ? testStatuses : (tlToken.tests || token.tests || [])).map((t: any) => {
+                                  // timeline format
+                                  if (typeof t === 'object' && t !== null && (t.testName || t.testId)) {
+                                    const isReturned = Boolean(t.isReturned || t.status === 'returned')
+                                    const name = t.testName || testsMap[String(t.testId)] || String(t.testId)
+                                    const price = Number(t.price || 0)
+                                    return { name: isReturned ? `${name} (Returned)` : name, price }
+                                  }
+                                  // fallback string ids
+                                  const testId = String(t)
+                                  const testName = testsMap[testId] || testId
+                                  const testInfo = tests.find((x: any) => x.id === testId)
+                                  const price = Number((testInfo as any)?.price || 0)
+                                  return { name: testName, price }
+                                })
+
+                                // Calculate subtotal only from non-returned tests for the total display
+                                const activeSubtotal = (testStatuses.length > 0 ? testStatuses : []).reduce((sum: number, t: any) => {
+                                  const isReturned = Boolean(t.isReturned || t.status === 'returned')
+                                  return sum + (isReturned ? 0 : Number(t.price || 0))
+                                }, 0)
+
+                                const subtotal = activeSubtotal || Number(tlToken.subtotal || tl?.order?.subtotal || 0)
+                                const discount = Number(tlToken.discount || 0)
+                                const net = Number(tlToken.net || tl?.order?.net || Math.max(0, subtotal - discount))
+                                const receivedAmount = Number(tlToken.receivedAmount || tl?.order?.receivedAmount || 0)
+                                const receivableAmount = Number(tlToken.receivableAmount || tl?.order?.receivableAmount || Math.max(0, net - receivedAmount))
+
+                                let printedBy = ''
+                                try {
+                                  const raw = localStorage.getItem('lab.session')
+                                  if (raw){ const s = JSON.parse(raw||'{}'); printedBy = s?.username || s?.user?.username || '' }
+                                  if (!printedBy){
+                                    const d = localStorage.getItem('diagnostic.user'); if (d){ const u = JSON.parse(d||'{}'); printedBy = u?.username || u?.name || '' }
+                                  }
+                                  if (!printedBy){
+                                    const h = localStorage.getItem('hospital.session'); if (h){ const u = JSON.parse(h||'{}'); printedBy = u?.username || '' }
+                                  }
+                                } catch {}
+
+                                await printLabTokenSlip({
+                                  tokenNo: tlToken.tokenNo || token.tokenNo,
+                                  createdAt: tlToken.generatedAt || token.generatedAt,
+                                  patient: {
+                                    fullName: tlToken.patient?.fullName || token.patient?.fullName || '-',
+                                    mrn: tlToken.patient?.mrn || token.patient?.mrn,
+                                    phone: tlToken.patient?.phone || token.patient?.phone,
+                                    age: tlToken.patient?.age || token.patient?.age,
+                                    gender: tlToken.patient?.gender || token.patient?.gender
+                                  },
+                                  tests: testRows,
+                                  subtotal,
+                                  discount,
+                                  net,
+                                  receivedAmount,
+                                  receivableAmount,
+                                  printedBy
+                                })
+                              } catch (e: any) {
+                                setToast({ type: 'error', message: e?.message || 'Failed to reprint token' })
+                              }
+                            }}
+                            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                            title="Reprint Token"
+                          >
+                            <Printer className="h-3 w-3" />
+                          </button>
                           {token.status === 'token_generated' && (
                             <button
                               onClick={async () => {

@@ -20,6 +20,7 @@ export type LabReportInput = {
   createdAt: string
   sampleTime?: string
   reportingTime?: string
+  approvedAt?: string
   patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
   rows: LabReportRow[]
   interpretation?: string
@@ -64,7 +65,7 @@ async function ensurePngDataUrl(src: string): Promise<string> {
 }
 
 function fmtDateTime(iso?: string){
-  if (!iso) return '-'
+  if (!iso || iso === '-') return '-'
   if (/^\d{1,2}:\d{2}$/.test(String(iso))) return String(iso)
   try {
     const d = new Date(iso)
