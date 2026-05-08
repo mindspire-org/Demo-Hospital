@@ -176,15 +176,12 @@ export default function Lab_CollectionCenterPayments() {
   return (
     <div className="p-4 md:p-6 w-full min-h-[calc(100dvh-3.5rem)] bg-slate-50 dark:bg-slate-900/50">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
-              <CreditCard className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            Collection Center Payments
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage commission payments to collection centers</p>
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Collection Center Payments</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Manage commission payments to collection centers</div>
+          </div>
         </div>
       </div>
 

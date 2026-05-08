@@ -1,10 +1,11 @@
 import ModuleCard from '../components/ModuleCard'
-import { Stethoscope, FlaskConical, Pill, FileText, PhoneIncoming, Sparkles, Droplets } from 'lucide-react'
+import { Stethoscope, FlaskConical, Pill, FileText, PhoneIncoming, Droplets, Sparkles, Warehouse } from 'lucide-react'
 import { useRef } from 'react'
 import './home.css'
 
 export default function Home() {
   const heroRef = useRef<HTMLDivElement>(null)
+
   const onHeroMove = (e: React.MouseEvent) => {
     const el = heroRef.current
     if (!el) return
@@ -13,13 +14,14 @@ export default function Home() {
     const y = e.clientY - rect.top
     const midX = rect.width / 2
     const midY = rect.height / 2
-    const rotX = ((midY - y) / midY) * 6
-    const rotY = ((x - midX) / midX) * 6
-    el.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg)`
+    const rotX = ((midY - y) / midY) * 5
+    const rotY = ((x - midX) / midX) * 5
+    el.style.transform = `perspective(1200px) rotateX(${rotX}deg) rotateY(${rotY}deg)`
   }
+
   const onHeroLeave = () => {
     const el = heroRef.current
-    if (el) el.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg)'
+    if (el) el.style.transform = 'perspective(1200px) rotateX(0deg) rotateY(0deg)'
   }
 
   const modules = [
@@ -27,48 +29,81 @@ export default function Home() {
     { to: '/lab/login', title: 'Lab', description: 'Lab orders, tests, and results management.', icon: <FlaskConical className="size-7 text-emerald-600" />, tone: 'emerald' as const },
     { to: '/diagnostic/login', title: 'Diagnostics', description: 'Diagnostic tokens, tests, tracking, and reports.', icon: <FlaskConical className="size-7 text-teal-600" />, tone: 'teal' as const },
     { to: '/dialysis/login', title: 'Dialysis', description: 'Dialysis sessions, patients, and machine management.', icon: <Droplets className="size-7 text-cyan-600" />, tone: 'teal' as const },
-    { to: '/indoor-pharmacy/login', title: 'Indoor Pharmacy', description: 'Internal hospital prescriptions and dispensing.', icon: <Pill className="size-7 text-blue-600" />, tone: 'sky' as const },
     { to: '/pharmacy/login', title: 'Pharmacy', description: 'Prescriptions, inventory, and POS.', icon: <Pill className="size-7 text-violet-600" />, tone: 'violet' as const },
-    { to: '/aesthetic/login', title: 'Aesthetic', description: 'Aesthetic treatments, bookings, and billing.', icon: <Sparkles className="size-7 text-violet-600" />, tone: 'violet' as const },
-    { to: '/finance', title: 'Finance', description: 'Financial management and accounting.', icon: <FileText className="size-7 text-amber-600" />, tone: 'amber' as const },
+    { to: '/indoor-pharmacy/login', title: 'Indoor Pharmacy', description: 'Inpatient pharmacy dispensing and inventory.', icon: <Warehouse className="size-7 text-indigo-600" />, tone: 'indigo' as const },
+    { to: '/finance/login', title: 'Finance', description: 'Financial management and accounting.', icon: <FileText className="size-7 text-amber-600" />, tone: 'amber' as const },
     { to: '/reception/login', title: 'Reception', description: 'Front-desk, patient registration, and triage.', icon: <PhoneIncoming className="size-7 text-teal-600" />, tone: 'teal' as const },
+    { to: '/aesthetic/login', title: 'Aesthetic', description: 'Aesthetic procedures, patients, and billing.', icon: <Sparkles className="size-7 text-violet-600" />, tone: 'violet' as const },
   ]
 
   return (
-    <div className="min-h-dvh relative overflow-hidden">
+    <div className="min-h-dvh relative overflow-hidden bg-[#07101f]">
+      {/* Background layers */}
       <div className="home-grid" />
-      <div className="home-spotlight" />
-      <div className="home-orb" style={{ left: '-160px', top: '-120px' }} />
-      <div className="home-orb secondary" style={{ right: '-140px', bottom: '-160px' }} />
+      <div className="home-radial" />
+      <div className="home-orb primary" style={{ top: '-80px', right: '-60px' }} />
+      <div className="home-orb secondary" style={{ bottom: '-80px', left: '-80px' }} />
 
-      <header className="relative z-10 mx-auto max-w-6xl px-6 pt-12 text-center home-hero">
-        <div ref={heroRef} onMouseMove={onHeroMove} onMouseLeave={onHeroLeave} className="home-hero-tilt mx-auto">
+      {/* Hero */}
+      <header className="relative z-10 mx-auto max-w-2xl px-6 pt-14 text-center home-hero">
+        <div
+          ref={heroRef}
+          onMouseMove={onHeroMove}
+          onMouseLeave={onHeroLeave}
+          className="home-hero-tilt mx-auto"
+        >
+          {/* Status badge */}
+          <div className="flex justify-center mb-5">
+            <span className="home-badge">
+              <span className="home-badge-dot" />
+              System Online
+            </span>
+          </div>
+
           <h1
-            className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight"
-            style={{
-              transform: 'translateZ(60px)',
-              backgroundImage: 'linear-gradient(90deg, #0f2d5c 0%, #3b82f6 50%, #0f2d5c 100%)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              color: 'transparent',
-            }}
+            className="text-4xl sm:text-5xl font-bold tracking-tight leading-tight"
+            style={{ transform: 'translateZ(50px)', color: '#f0fdf4', letterSpacing: '-0.02em' }}
           >
-            Complete Hospital Management System
+            HealthSpire{' '}
+            <span className="text-emerald-400">HIMS</span>{' '}
+            Management
           </h1>
-          <p className="mt-3 text-slate-600 dark:text-slate-400" style={{ transform: 'translateZ(24px)' }}>Select a module to start</p>
+
+          <div className="home-title-divider" />
+
+          <p
+            className="text-xs font-medium tracking-widest uppercase text-slate-500"
+            style={{ transform: 'translateZ(20px)' }}
+          >
+            Complete Hospital Information Management System
+          </p>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl px-6 py-10">
+      {/* Module cards */}
+      <main className="relative z-10 mx-auto max-w-6xl px-6 py-10 home-modules">
         <div className="grid gap-6 md:grid-cols-2">
           {modules.map((m, i) => (
-            <div key={m.title} className="home-card-appear" style={{ animationDelay: `${i * 90}ms` }}>
+            <div key={m.to} className="home-card-appear" style={{ animationDelay: `${i * 90}ms` }}>
               <ModuleCard {...m} />
             </div>
           ))}
         </div>
       </main>
+
+      {/* Stats bar */}
+      <div className="relative z-10 home-stats">
+        {[
+          { value: '9', label: 'Modules' },
+          { value: '2,841', label: 'Tests Run' },
+          { value: '98.4%', label: 'Accuracy' },
+        ].map((s) => (
+          <div key={s.label} className="home-stat">
+            <div className="home-stat-value">{s.value}</div>
+            <div className="home-stat-label">{s.label}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
-

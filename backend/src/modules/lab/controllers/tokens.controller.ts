@@ -15,6 +15,41 @@ function resolveActor(req: Request) {
   return (req as any).user?.username || (req as any).user?.name || (req as any).user?.email || 'system'
 }
 
+// New: mark sample as received in the lab (image 9 — two-box icon)
+export async function markSampleReceived(req: Request, res: Response) {
+  const actor = (req as any).user?.username || 'system'
+  const token: any = await LabToken.findById(req.params.id)
+  if (!token) return res.status(404).json({ message: 'Token not found' })
+  token.sampleReceived = true
+  token.sampleReceivedAt = new Date().toISOString()
+  token.sampleReceivedBy = actor
+  if (token.status === 'token_generated' || token.status === 'converted_to_sample') {
+    token.status = 'sample_received'
+  }
+  await token.save()
+  // Sync to corresponding order if any
+  try {
+    if (token.orderId) {
+      await LabOrder.findByIdAndUpdate(token.orderId, {
+        $set: { status: 'in_progress', sampleCollectedAt: new Date() },
+      })
+    }
+  } catch {}
+  try {
+    await LabAuditLog.create({
+      actor,
+      action: 'sample.receive',
+      entity: 'token',
+      entityId: String(token._id),
+      label: token.tokenNo,
+      method: 'POST',
+      path: req.originalUrl,
+      at: new Date().toISOString(),
+    })
+  } catch {}
+  res.json(token)
+}
+
 // Generate next lab number (continuously growing)
 async function nextLabNumber(): Promise<number> {
   const key = 'lab_number_global'
@@ -79,6 +114,21 @@ const tokenCreateSchema = z.object({
   receivedAmount: z.number().default(0),
   paymentMethod: z.string().optional(),
   paymentNote: z.string().optional(),
+  // Registration enhancements
+  sampleType: z.enum(['normal', 'urgent', 'stat']).optional(),
+  sampleReceived: z.boolean().optional(),
+  sampleReceivedAtRegistration: z.boolean().optional(),
+  hospitalRegistrationNumber: z.string().optional(),
+  packageIds: z.array(z.string()).optional(),
+  patientCardId: z.string().optional(),
+  patientCardKind: z.string().optional(),
+  departmentId: z.string().optional(),
+  wardId: z.string().optional(),
+  emergencyDayId: z.string().optional(),
+  source: z.enum(['lab', 'reception', 'center', 'ward_import']).optional(),
+  email: z.string().optional(),
+  whatsapp: z.string().optional(),
+  printAction: z.enum(['save', 'save_invoice', 'save_invoice_barcode', 'save_barcode']).optional(),
 })
 
 const tokenQuerySchema = z.object({
@@ -87,6 +137,13 @@ const tokenQuerySchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
   collectionCenterId: z.string().optional(),
+  // Extended
+  sampleType: z.enum(['normal','urgent','stat']).optional(),
+  hospitalRegistrationNumber: z.string().optional(),
+  departmentId: z.string().optional(),
+  wardId: z.string().optional(),
+  source: z.enum(['lab','reception','center','ward_import']).optional(),
+  sampleReceived: z.enum(['true','false']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(500).default(20),
 })
@@ -187,6 +244,21 @@ export async function create(req: Request, res: Response) {
     net: data.net,
     receivedAmount: data.receivedAmount,
     receivableAmount: Math.max(0, data.net - data.receivedAmount),
+    // Registration extras
+    sampleType: (data as any).sampleType || 'normal',
+    sampleReceived: (data as any).sampleReceived ?? ((data as any).sampleReceivedAtRegistration ?? (portal === 'lab')),
+    sampleReceivedAtRegistration: (data as any).sampleReceivedAtRegistration ?? (portal === 'lab'),
+    hospitalRegistrationNumber: (data as any).hospitalRegistrationNumber,
+    packageIds: (data as any).packageIds || [],
+    patientCardId: (data as any).patientCardId,
+    patientCardKind: (data as any).patientCardKind,
+    departmentId: (data as any).departmentId,
+    wardId: (data as any).wardId,
+    emergencyDayId: (data as any).emergencyDayId,
+    source: (data as any).source || (portal === 'reception' ? 'reception' : 'lab'),
+    email: (data as any).email,
+    whatsapp: (data as any).whatsapp,
+    printAction: (data as any).printAction || 'save',
   })
 
   try {
@@ -220,7 +292,7 @@ export async function create(req: Request, res: Response) {
 // List tokens with filters
 export async function list(req: Request, res: Response) {
   const parsed = tokenQuerySchema.safeParse(req.query)
-  const { q, status, from, to, collectionCenterId, page, limit } = parsed.success ? parsed.data as any : {}
+  const { q, status, from, to, collectionCenterId, sampleType, hospitalRegistrationNumber, departmentId, wardId, source, sampleReceived, page, limit } = parsed.success ? parsed.data as any : {}
   
   const filter: any = {}
   if (q) {
@@ -230,9 +302,17 @@ export async function list(req: Request, res: Response) {
       { 'patient.phone': rx },
       { tokenNo: rx },
       { 'patient.mrn': rx },
+      { hospitalRegistrationNumber: rx },
     ]
   }
   if (status) filter.status = status
+  if (sampleType) filter.sampleType = sampleType
+  if (hospitalRegistrationNumber) filter.hospitalRegistrationNumber = hospitalRegistrationNumber
+  if (departmentId) filter.departmentId = departmentId
+  if (wardId) filter.wardId = wardId
+  if (source) filter.source = source
+  if (sampleReceived === 'true') filter.sampleReceived = true
+  if (sampleReceived === 'false') filter.sampleReceived = false
   if (collectionCenterId) {
     if (collectionCenterId === 'internal') {
       // Main lab tokens - no collection center assigned
@@ -356,6 +436,15 @@ export async function getTimeline(req: Request, res: Response) {
       event: 'Report Approved',
       at: token.approvedAt,
       by: token.approvedBy,
+    })
+  }
+
+  // Report Printed
+  if (token.reportPrintedAt && token.reportPrintedBy) {
+    events.push({
+      event: 'Report Printed',
+      at: token.reportPrintedAt,
+      by: token.reportPrintedBy,
     })
   }
 
@@ -719,6 +808,23 @@ export async function updateStatus(req: Request, res: Response) {
   } catch {}
 
   res.json(updated)
+}
+
+// Mark report as printed
+export async function markReportPrinted(req: Request, res: Response) {
+  const { id } = req.params
+  const actor = (req as any).user?.username || 'system'
+  const now = new Date().toISOString()
+
+  const isObjectId = /^[a-f\d]{24}$/i.test(String(id || ''))
+  let token: any = isObjectId ? await LabToken.findById(id) : null
+  if (!token) token = await LabToken.findOne({ tokenNo: id })
+  if (!token) return res.status(404).json({ error: 'Token not found' })
+
+  token.reportPrintedAt = now
+  token.reportPrintedBy = actor
+  await token.save()
+  res.json({ reportPrintedAt: now, reportPrintedBy: actor })
 }
 
 // Update token details (only while token_generated)

@@ -1,5 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import PortalSwitcher from '../PortalSwitcher'
 import { hospitalApi } from '../../utils/api'
+import { useEffect, useState } from 'react'
 import { LayoutDashboard, Users, Stethoscope, ScrollText, Bell, Search, FileText, Settings as SettingsIcon, Copy, Share2, BedDouble } from 'lucide-react'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: any }
@@ -20,6 +22,18 @@ const nav: NavItem[] = [
 
 export default function Doctor_Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate()
+  const [role, setRole] = useState<string>('doctor')
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('doctor.session')
+      if (raw) {
+        const u = JSON.parse(raw)
+        if (u?.role) setRole(String(u.role).toLowerCase())
+      }
+    } catch {}
+  }, [])
+
   const logout = async () => {
     try {
       const raw = localStorage.getItem('doctor.session')
@@ -64,7 +78,8 @@ export default function Doctor_Sidebar({ collapsed = false }: { collapsed?: bool
           )
         })}
       </nav>
-      <div className={collapsed ? 'p-2' : 'p-3'}>
+      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
+        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
         <button
           onClick={logout}
           title={collapsed ? 'Logout' : undefined}

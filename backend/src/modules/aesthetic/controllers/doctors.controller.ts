@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { AestheticDoctor } from '../models/Doctor'
 import { doctorCreateSchema, doctorQuerySchema, doctorUpdateSchema } from '../validators/doctor'
 import { AuditLog } from '../models/AuditLog'
+import { createDoctorAccount } from '../../finance/services/accountAutoCreate'
 
 function getActor(req: Request){
   const u: any = (req as any).user || {}
@@ -30,6 +31,8 @@ export async function list(req: Request, res: Response){
 export async function create(req: Request, res: Response){
   const data = doctorCreateSchema.parse(req.body)
   const doc = await AestheticDoctor.create(data)
+  // Auto-create Chart of Accounts entry for this doctor
+  try { await createDoctorAccount(String(doc._id), doc.name) } catch {}
   try {
     const actor = getActor(req) as any
     await AuditLog.create({ actor: String(actor.actorUsername||'unknown'), action: 'aesthetic.doctor.create', label: 'AESTHETIC_DOCTOR_CREATE', path: req.path, method: req.method, at: new Date().toISOString(), detail: JSON.stringify({ id: String(doc._id), name: doc.name }) })

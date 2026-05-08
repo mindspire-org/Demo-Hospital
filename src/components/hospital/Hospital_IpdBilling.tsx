@@ -33,7 +33,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-[100] mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+        <div className="absolute z-100 mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id || svc.label}
@@ -272,7 +272,6 @@ export default function Billing({ encounterId }: { encounterId: string }){
 }
 
 function ChargeDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void; onSave: (d: { label: string; amount: number })=>void }){
-  if(!open) return null
   const [svcCatalog, setSvcCatalog] = useState<any[]>([])
 
   useEffect(() => {
@@ -290,6 +289,8 @@ function ChargeDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>v
     loadSvc()
     return ()=>{ cancelled = true }
   }, [])
+
+  if(!open) return null
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { ReceptionUser } from '../models/User'
 import { userCreateSchema, userUpdateSchema } from '../validators/user'
+import { createUserAccount } from '../../finance/services/accountAutoCreate'
 
 export async function list(_req: Request, res: Response){
   const items = await ReceptionUser.find().sort({ username: 1 }).lean()
@@ -22,6 +23,8 @@ export async function create(req: Request, res: Response){
     shiftId: data.shiftId || undefined,
     shiftRestricted: data.shiftRestricted || false,
   })
+  // Auto-create Chart of Accounts entry for this user
+  try { await createUserAccount(String(u._id), u.username, 'reception') } catch {}
   res.status(201).json(u)
 }
 

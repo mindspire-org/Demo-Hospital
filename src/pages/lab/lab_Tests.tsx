@@ -1,20 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DollarSign, Search, Edit2, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Plus } from 'lucide-react'
+import { Search, Edit2, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Plus, Database, RefreshCw, LayoutGrid, List as ListIcon, ToggleLeft, ToggleRight } from 'lucide-react'
 import Lab_AddTestModal from '../../components/lab/lab_AddTestModal'
 import type { LabTestFormValues } from '../../components/lab/lab_AddTestModal'
 import { labApi } from '../../utils/api'
+import { useLabSession } from '../../hooks/useLabSession'
 
 type LabTest = {
   id: string
   name: string
+  isActive?: boolean
   price: number
   parameter?: string
   unit?: string
   normalRangeMale?: string
   normalRangeFemale?: string
   normalRangePediatric?: string
-  parameters?: Array<{ name: string; unit?: string; normalRangeMale?: string; normalRangeFemale?: string; normalRangePediatric?: string }>
+  criticalMin?: number
+  criticalMax?: number
+  parameters?: Array<{ name: string; unit?: string; normalRangeMale?: string; normalRangeFemale?: string; normalRangePediatric?: string; formula?: string; dependsOn?: string[]; kind?: 'quantitative'|'qualitative'; criticalMin?: number; criticalMax?: number; sectionKey?: string; order?: number }>
   consumables?: Array<{ item: string; qty: number }>
+  category?: string
+  template?: string
+  sections?: Array<{ key: string; title: string; order?: number }>
+  turnaroundTime?: number
   createdAt: string
 }
 
@@ -27,16 +35,23 @@ export default function Lab_Tests() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
+  const session = useLabSession()
+
+  const [viewMode, setViewMode] = useState<'grid'|'list'>('grid')
+
   const [openModal, setOpenModal] = useState(false)
   const [editing, setEditing] = useState<LabTest | null>(null)
 
   const [q, setQ] = useState('')
+  const [catFilter, setCatFilter] = useState('')
   const [pageSize, setPageSize] = useState(12)
   const [page, setPage] = useState(1)
   const [tick, setTick] = useState(0)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ text: string; kind: 'success'|'error' } | null>(null)
+  const [seeding, setSeeding] = useState(false)
+  const [seedStatus, setSeedStatus] = useState<{ total: number } | null>(null)
 
   useEffect(()=>{
     let mounted = true
@@ -47,25 +62,35 @@ export default function Lab_Tests() {
         const list: LabTest[] = (res.items||[]).map((x:any)=>({
           id: x._id,
           name: x.name,
+          isActive: (x.isActive !== false),
           price: Number(x.price||0),
           parameter: x.parameter,
           unit: x.unit,
           normalRangeMale: x.normalRangeMale,
           normalRangeFemale: x.normalRangeFemale,
           normalRangePediatric: x.normalRangePediatric,
+          criticalMin: x.criticalMin,
+          criticalMax: x.criticalMax,
           parameters: Array.isArray(x.parameters)? x.parameters : [],
           consumables: Array.isArray(x.consumables)? x.consumables : [],
+          category: x.category || 'Other',
+          template: x.template || 'general',
+          sections: Array.isArray(x.sections)? x.sections : [],
+          turnaroundTime: x.turnaroundTime || 0,
           createdAt: x.createdAt || new Date().toISOString(),
         }))
-        setTests(list)
+        setTests(list.sort((a, b) => a.name.localeCompare(b.name)))
         setTotal(Number(res.total||list.length||0))
         setTotalPages(Number(res.totalPages||1))
       } catch (e){ console.error(e); setTests([]); setTotal(0); setTotalPages(1) }
     })()
     return ()=>{ mounted = false }
-  }, [q, page, pageSize, tick])
+  }, [q, catFilter, page, pageSize, tick])
 
-  const filtered = useMemo(() => tests, [tests])
+  const filtered = useMemo(() => {
+    const base = catFilter ? tests.filter(t => t.category === catFilter) : tests
+    return base.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }))
+  }, [tests, catFilter])
 
   const pageCount = totalPages
   const currentPage = Math.min(page, pageCount)
@@ -74,43 +99,90 @@ export default function Lab_Tests() {
   const pageItems = filtered
 
   const onSave = async (values: LabTestFormValues) => {
+    const payload = {
+      name: values.name,
+      price: Number(values.price || 0),
+      parameter: values.parameter,
+      unit: values.unit,
+      normalRangeMale: values.normalRangeMale,
+      normalRangeFemale: values.normalRangeFemale,
+      normalRangePediatric: values.normalRangePediatric,
+      criticalMin: values.criticalMin ? Number(values.criticalMin) : undefined,
+      criticalMax: values.criticalMax ? Number(values.criticalMax) : undefined,
+      parameters: (values.parameters || []).map(p => ({ ...p, criticalMin: p.criticalMin ? Number(p.criticalMin) : undefined, criticalMax: p.criticalMax ? Number(p.criticalMax) : undefined })),
+      consumables: values.consumables || [],
+      category: values.category,
+      template: values.template,
+      sections: values.sections,
+    }
     if (editing) {
-      await labApi.updateTest(editing.id, {
-        name: values.name,
-        price: Number(values.price || 0),
-        parameter: values.parameter,
-        unit: values.unit,
-        normalRangeMale: values.normalRangeMale,
-        normalRangeFemale: values.normalRangeFemale,
-        normalRangePediatric: values.normalRangePediatric,
-        parameters: values.parameters || [],
-        consumables: values.consumables || [],
-      })
+      await labApi.updateTest(editing.id, payload)
       setEditing(null)
     } else {
-      await labApi.createTest({
-        name: values.name,
-        price: Number(values.price || 0),
-        parameter: values.parameter,
-        unit: values.unit,
-        normalRangeMale: values.normalRangeMale,
-        normalRangeFemale: values.normalRangeFemale,
-        normalRangePediatric: values.normalRangePediatric,
-        parameters: values.parameters || [],
-        consumables: values.consumables || [],
-      })
+      await labApi.createTest(payload)
     }
     setOpenModal(false)
     setTick(t=>t+1)
   }
 
   const requestDelete = (id: string) => { setDeleteId(id); setDeleteOpen(true) }
+
+  const toggleActive = async (t: LabTest) => {
+    try {
+      await labApi.updateTest(t.id, { isActive: !(t.isActive !== false) })
+      setTick(x => x + 1)
+      setNotice({ text: (t.isActive !== false) ? 'Test deactivated' : 'Test activated', kind: 'success' })
+      try { setTimeout(() => setNotice(null), 2500) } catch {}
+    } catch (e) {
+      console.error(e)
+      setNotice({ text: 'Failed to update status', kind: 'error' })
+      try { setTimeout(() => setNotice(null), 2500) } catch {}
+    }
+  }
   const performDelete = async () => {
     const id = deleteId; if (!id) { setDeleteOpen(false); return }
     try { await labApi.deleteTest(id); setTick(t=>t+1); setNotice({ text: 'Test deleted', kind: 'success' }) }
     catch(e){ console.error(e); setNotice({ text: 'Failed to delete test', kind: 'error' }) }
     finally { setDeleteOpen(false); setDeleteId(null); try { setTimeout(()=> setNotice(null), 2500) } catch {} }
   }
+
+  const handleSeedTests = async () => {
+    if (!session.isAdmin) return
+    if (seeding) return
+
+    const first = window.confirm('Seed Tests will add/update the test catalog. Do you want to continue?')
+    if (!first) return
+    const second = window.confirm('This action can modify existing tests. Are you absolutely sure?')
+    if (!second) return
+
+    setSeeding(true)
+    try {
+      const res = await labApi.seedTests()
+      if (res.success) {
+        const { summary } = res as any
+        setNotice({ text: `Seeded ${summary?.totalCreated || 0} tests (${summary?.totalUpdated || 0} updated)`, kind: 'success' })
+        setTick(t => t + 1)
+        setSeedStatus({ total: summary?.totalTests || 0 })
+      }
+    } catch (e) {
+      console.error(e)
+      setNotice({ text: 'Failed to seed tests', kind: 'error' })
+    } finally {
+      setSeeding(false)
+      try { setTimeout(() => setNotice(null), 3500) } catch {}
+    }
+  }
+
+  const loadSeedStatus = async () => {
+    try {
+      const res = await labApi.getSeedStatus()
+      setSeedStatus({ total: res.total || 0 })
+    } catch {}
+  }
+
+  useEffect(() => {
+    loadSeedStatus()
+  }, [])
 
   const loadAllForExport = async (): Promise<LabTest[]> => {
     const limit = 200
@@ -129,6 +201,8 @@ export default function Lab_Tests() {
           normalRangeMale: x.normalRangeMale,
           normalRangeFemale: x.normalRangeFemale,
           normalRangePediatric: x.normalRangePediatric,
+          criticalMin: x.criticalMin,
+          criticalMax: x.criticalMax,
           parameters: Array.isArray(x.parameters) ? x.parameters : [],
           createdAt: x.createdAt || new Date().toISOString(),
         }))
@@ -148,7 +222,10 @@ export default function Lab_Tests() {
       const s = String(v ?? '')
       return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
     }
-    const data = await loadAllForExport().then(r=> r.length? r : pageItems).catch(()=> pageItems)
+    const data = await loadAllForExport()
+      .then(r => (r.length ? r : pageItems))
+      .catch(() => pageItems)
+      .then(r => r.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })))
     const header = ['Name','Parameter','Unit','Price','Created At'].map(escape).join(',')
     const lines = data.map(t => [t.name, t.parameter || '', t.unit || '', (t.price ?? 0).toFixed(2), new Date(t.createdAt).toLocaleString()].map(escape).join(',')).join('\n')
     const csv = header + '\n' + lines
@@ -199,7 +276,10 @@ export default function Lab_Tests() {
     }
     let y = drawHeader(margin)
     doc.setFontSize(8)
-    const dataRows: LabTest[] = await loadAllForExport().then(r=> r.length? r : pageItems).catch(()=> pageItems)
+    const dataRows: LabTest[] = await loadAllForExport()
+      .then(r => (r.length ? r : pageItems))
+      .catch(() => pageItems)
+      .then(r => r.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })))
     for (const t of dataRows) {
       const data = [t.name, t.parameter || '', t.unit || '', `Rs ${(t.price ?? 0).toFixed(2)}`, new Date(t.createdAt).toLocaleString()]
       const lines = data.map((v, i) => (doc as any).splitTextToSize(v, cols[i].width - 2)) as string[][]
@@ -234,12 +314,39 @@ export default function Lab_Tests() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }} placeholder="Search tests.." className="w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 py-2 text-slate-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
           </div>
+          <select value={catFilter} onChange={e=>{ setCatFilter(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
+            <option value="">All Categories</option>
+            <option>Hematology</option><option>Chemistry</option><option>SpecialChemistry</option><option>Serology</option><option>Microbiology</option><option>Molecular</option><option>Cytology</option><option>Histopathology</option><option>Radiology</option><option>Endocrinology</option><option>Immunology</option><option>Other</option>
+          </select>
           <select value={pageSize} onChange={e=>{ setPageSize(Number(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
             <option value={12}>12</option>
             <option value={24}>24</option>
             <option value={48}>48</option>
           </select>
+          <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white p-1">
+            <button type="button" onClick={() => setViewMode('grid')} className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium ${viewMode==='grid' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}>
+              <LayoutGrid className="h-4 w-4" /> Grid
+            </button>
+            <button type="button" onClick={() => setViewMode('list')} className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium ${viewMode==='list' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}>
+              <ListIcon className="h-4 w-4" /> List
+            </button>
+          </div>
           <div className="ml-auto flex items-center gap-2">
+            {seedStatus && (
+              <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                {seedStatus.total} tests in catalog
+              </span>
+            )}
+            {session.isAdmin && (
+              <button
+                onClick={handleSeedTests}
+                disabled={seeding}
+                className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
+              >
+                {seeding ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                {seeding ? 'Seeding...' : 'Seed Tests'}
+              </button>
+            )}
             <button onClick={exportCSV} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50">Download CSV</button>
             <button onClick={exportPDF} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50">Download PDF</button>
             <button onClick={()=>{ setEditing(null); setOpenModal(true) }} className="inline-flex items-center gap-2 rounded-md bg-violet-700 px-3 py-2 text-sm font-medium text-white hover:bg-violet-800">
@@ -249,27 +356,112 @@ export default function Lab_Tests() {
         </div>
       </div>
 
+      {viewMode === 'grid' ? (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {pageItems.map(t => (
-          <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-4">
+          <div key={t.id} className={`rounded-xl border bg-white p-4 ${t.isActive === false ? 'border-rose-200' : 'border-slate-200'}`}>
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-base font-semibold text-slate-900">{t.name}</div>
-                <div className="text-xs text-slate-500">{t.parameter || '—'}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {t.isActive === false ? <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">Inactive</span> : <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">Active</span>}
+                  {t.category && <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">{t.category}</span>}
+                  {t.template && t.template !== 'general' && <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">{t.template}</span>}
+                </div>
               </div>
+              <div className="text-sm font-semibold text-slate-700">{formatPKR(t.price)}</div>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-700">
-              <div className="inline-flex items-center gap-2"><DollarSign className="h-4 w-4" /> {formatPKR(t.price)}</div>
-            </div>
+            {(t.sections || []).length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {t.sections!.map(s => (
+                  <span key={s.key} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{s.title}</span>
+                ))}
+              </div>
+            )}
 
-            <div className="mt-3 flex gap-2">
+            {t.parameters && t.parameters.length > 0 && (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-500">
+                      <th className="py-1 text-left font-medium">Param</th>
+                      <th className="py-1 text-left font-medium">Unit</th>
+                      <th className="py-1 text-left font-medium">Range (M)</th>
+                      <th className="py-1 text-left font-medium">Crit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {t.parameters.slice(0, 5).map((p, i) => (
+                      <tr key={i} className="border-b border-slate-50 text-slate-700">
+                        <td className="py-1">{p.name}{p.formula ? ' ✱' : ''}</td>
+                        <td className="py-1">{p.unit || '—'}</td>
+                        <td className="py-1">{p.normalRangeMale || '—'}</td>
+                        <td className="py-1">{(p.criticalMin != null || p.criticalMax != null) ? <span className="text-rose-600">{p.criticalMin ?? '−'}–{p.criticalMax ?? '−'}</span> : '—'}</td>
+                      </tr>
+                    ))}
+                    {t.parameters.length > 5 && (
+                      <tr><td colSpan={4} className="py-1 text-slate-400">+{t.parameters.length - 5} more</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {(!t.parameters || t.parameters.length === 0) && t.parameter && (
+              <div className="mt-2 text-xs text-slate-500">{t.parameter} · {t.unit || '—'} · M: {t.normalRangeMale || '—'}{(t.criticalMin != null || t.criticalMax != null) ? <> · Crit: <span className="text-rose-600">{t.criticalMin ?? '−'}–{t.criticalMax ?? '−'}</span></> : null}</div>
+            )}
+
+            <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={()=>{ setEditing(t); setOpenModal(true) }} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"><Edit2 className="h-4 w-4" /> Edit</button>
+              <button onClick={()=> toggleActive(t)} className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium ${t.isActive === false ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
+                {t.isActive === false ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                {t.isActive === false ? 'Activate' : 'Deactivate'}
+              </button>
               <button onClick={()=> requestDelete(t.id)} className="inline-flex items-center gap-2 rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700"><Trash2 className="h-4 w-4" /> Delete</button>
             </div>
           </div>
         ))}
       </div>
+      ) : (
+        <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Category</th>
+                <th className="px-4 py-3">Template</th>
+                <th className="px-4 py-3 text-right">Price</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {pageItems.map(t => (
+                <tr key={t.id} className={t.isActive === false ? 'bg-rose-50/40' : ''}>
+                  <td className="px-4 py-3 font-medium text-slate-900">{t.name}</td>
+                  <td className="px-4 py-3">
+                    {t.isActive === false ? <span className="rounded bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">Inactive</span> : <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Active</span>}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">{t.category || '—'}</td>
+                  <td className="px-4 py-3 text-slate-700">{t.template || 'general'}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-700">{formatPKR(t.price)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={()=>{ setEditing(t); setOpenModal(true) }} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"><Edit2 className="h-4 w-4" /> Edit</button>
+                      <button onClick={()=> toggleActive(t)} className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium ${t.isActive === false ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
+                        {t.isActive === false ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                        {t.isActive === false ? 'Activate' : 'Deactivate'}
+                      </button>
+                      <button onClick={()=> requestDelete(t.id)} className="inline-flex items-center gap-2 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"><Trash2 className="h-4 w-4" /> Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="flex items-center justify-between text-sm text-slate-600">
         <div>{total === 0 ? '0' : `${start}-${end}`} of {total}</div>
@@ -294,8 +486,13 @@ export default function Lab_Tests() {
           normalRangeMale: editing.normalRangeMale,
           normalRangeFemale: editing.normalRangeFemale,
           normalRangePediatric: editing.normalRangePediatric,
-          parameters: editing.parameters || [],
+          criticalMin: editing.criticalMin != null ? String(editing.criticalMin) : '',
+          criticalMax: editing.criticalMax != null ? String(editing.criticalMax) : '',
+          parameters: (editing.parameters || []).map(p => ({ ...p, criticalMin: p.criticalMin != null ? String(p.criticalMin) : '', criticalMax: p.criticalMax != null ? String(p.criticalMax) : '', sectionKey: p.sectionKey || '', order: p.order || 0 })),
           consumables: editing.consumables || [],
+          category: editing.category,
+          template: editing.template,
+          sections: editing.sections || [],
         } : undefined}
       />
 

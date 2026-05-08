@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { labApi } from '../../utils/api'
+import MiniDashboard from '../../components/common/MiniDashboard'
+import { BookOpen, Banknote, TrendingUp, AlertTriangle } from 'lucide-react'
 
 type Summary = {
   totalIncome: number
@@ -97,6 +99,24 @@ export default function Lab_IncomeLedger() {
 
   return (
     <div className="w-full px-4 md:px-6 py-6 space-y-4">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Income Ledger</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Track lab income, payments, and receivables</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mini Dashboard */}
+      <MiniDashboard cards={[
+        { label: 'Total Income', value: `PKR ${fmtMoney(summary.totalIncome)}`, icon: Banknote, color: 'bg-emerald-500' },
+        { label: 'Received', value: `PKR ${fmtMoney(summary.amountReceived)}`, icon: TrendingUp, color: 'bg-sky-500' },
+        { label: 'Receivable', value: `PKR ${fmtMoney(summary.receivableAmount)}`, icon: AlertTriangle, color: 'bg-amber-500' },
+        { label: 'Tokens', value: summary.tokens, icon: BookOpen, color: 'bg-indigo-500' },
+      ]} />
+
       <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <div>

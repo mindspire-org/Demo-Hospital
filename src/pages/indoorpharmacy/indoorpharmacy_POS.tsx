@@ -534,9 +534,9 @@ export default function IndoorPharmacy_POS() {
   // Process pending add lines (if navigated from prescription page)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('pharmacy.pos.pendingAddLines')
+      const raw = localStorage.getItem('indoorpharmacy.pos.pendingAddLines')
       if (!raw) return
-      localStorage.removeItem('pharmacy.pos.pendingAddLines')
+      localStorage.removeItem('indoorpharmacy.pos.pendingAddLines')
       const lines = JSON.parse(raw) as Array<{ name: string; productId?: string; qty: number }>
       const ev = new CustomEvent('pharmacy:pos:add', { detail: { lines } })
       window.dispatchEvent(ev)

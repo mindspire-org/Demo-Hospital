@@ -475,7 +475,11 @@ export default function Hospital_CorporateClaims(){
       await load()
       setSelectedTxIds(new Set())
       setToast({ type: 'success', message: `Claim generated with ${selectedTxIds.size} transactions` })
-    } catch (e: any){ setToast({ type: 'error', message: e?.message || 'Failed to generate claim' }) }
+    } catch (e: any){
+      let msg = e?.message || 'Failed to generate claim'
+      try { const j = JSON.parse(msg); if (j?.error) msg = j.error } catch {}
+      setToast({ type: 'error', message: msg })
+    }
   }
 
   function openEditClaim(c: ClaimRow){

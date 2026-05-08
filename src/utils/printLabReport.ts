@@ -1,6 +1,6 @@
 import { labApi } from './api'
 
-export type ReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'critical'; comment?: string }
+export type ReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'abnormal_low'|'abnormal_high'|'critical'|'critical_low'|'critical_high'; comment?: string }
 
 async function makeBarcodeDataUrl(value: string): Promise<string> {
   try {
@@ -15,13 +15,10 @@ async function makeBarcodeDataUrl(value: string): Promise<string> {
 }
 
 function pickReportColumns(rows: ReportRow[]) {
+  // Only include rows that have a result value entered — skip parameters with no value
+  // so patients don't see blank results and think the report is incomplete
   const nonEmptyRows = (rows || []).filter((r) =>
-    (r.value || '').trim().length > 0 ||
-    (r.normal || '').trim().length > 0 ||
-    (r.unit || '').trim().length > 0 ||
-    (r.prevValue || '').trim().length > 0 ||
-    (r.flag || '').trim().length > 0 ||
-    (r.comment || '').trim().length > 0
+    (r.value || '').trim().length > 0
   )
 
   const hasNormal = nonEmptyRows.some((r) => (r.normal || '').trim().length > 0)
@@ -65,6 +62,7 @@ export async function downloadLabReportPdf(input: {
   submittedBy?: string
   approvedBy?: string
   printedBy?: string
+  reportPrintedAt?: string
   referringConsultant?: string
   profileLabel?: string
 }){
@@ -91,6 +89,18 @@ export async function downloadLabReportPdf(input: {
       const mod = await import('./labReport/templates/receiptStyle')
       return mod.downloadLabReportPdfReceiptStyle(input as any)
     }
+    if ((s?.reportTemplate || 'classic') === 'clinicalPro'){
+      const mod = await import('./labReport/templates/clinicalPro')
+      return mod.downloadLabReportPdfClinicalPro(input as any)
+    }
+    if ((s?.reportTemplate || 'classic') === 'minimalist'){
+      const mod = await import('./labReport/templates/minimalist')
+      return mod.downloadLabReportPdfMinimalist(input as any)
+    }
+    if ((s?.reportTemplate || 'classic') === 'royalBlue'){
+      const mod = await import('./labReport/templates/royalBlue')
+      return mod.downloadLabReportPdfRoyalBlue(input as any)
+    }
   } catch {}
   const labName = s?.labName || 'Laboratory'
   const address = s?.address || '-'
@@ -102,30 +112,45 @@ export async function downloadLabReportPdf(input: {
   const extraConsultants: Array<{ name?: string; degrees?: string; title?: string }> = Array.isArray(s?.consultants) ? s.consultants : []
   const consultantsList = [primaryConsultant, ...extraConsultants]
     .filter(c => (c?.name||'').trim() || (c?.degrees||'').trim() || (c?.title||'').trim())
-    .slice(0,3)
+
 
   const { jsPDF } = await import('jspdf')
   const autoTable = (await import('jspdf-autotable')).default as any
 
   const doc = new jsPDF('p','pt','a4')
-  doc.setFont('helvetica','normal')
+  const reportFont = s?.reportFont || 'helvetica'
+  let fontName = 'helvetica'
+  if (reportFont === 'times') fontName = 'times'
+  else if (reportFont === 'courier') fontName = 'courier'
+  doc.setFont(fontName,'normal')
   let y = 40
 
-  // Header (logo + lab info centered)
-  if (logo) {
+  // Custom header image support
+  const useCustomHF = !!s?.useCustomHeaderFooter
+  const headerImg = s?.headerImageUrl || ''
+  const footerImgDl = s?.footerImageUrl || ''
+  if (useCustomHF && headerImg) {
+    try {
+      const normalized = await ensurePngDataUrl(headerImg)
+      doc.addImage(normalized, 'PNG' as any, 40, 10, 515, 80, undefined, 'FAST')
+      y = 100
+    } catch {}
+  } else if (logo) {
     try {
       const normalized = await ensurePngDataUrl(logo)
       // raise logo slightly more so it aligns visually with centered title
       doc.addImage(normalized, 'PNG' as any, 40, y - 32, 70, 70, undefined, 'FAST')
     } catch {}
   }
-  doc.setFont('helvetica','bold')
-  doc.setFontSize(16)
-  doc.text(String(labName), 297.5, y, { align: 'center' }); y += 16
-  doc.setFont('helvetica','bold')
-  doc.setFontSize(10)
-  doc.text(String(address), 297.5, y, { align: 'center' }); y += 12
-  doc.text(`Ph: ${phone || ''}${email? ' • '+email : ''}`, 297.5, y, { align: 'center' }); y += 16
+  if (!(useCustomHF && headerImg)) {
+    doc.setFont(fontName,'bold')
+    doc.setFontSize(16)
+    doc.text(String(labName), 297.5, y, { align: 'center' }); y += 16
+    doc.setFont(fontName,'bold')
+    doc.setFontSize(10)
+    doc.text(String(address), 297.5, y, { align: 'center' }); y += 12
+    doc.text(`Ph: ${phone || ''}${email? ' • '+email : ''}`, 297.5, y, { align: 'center' }); y += 16
+  }
 
   if ((input.barcode || '').trim()) {
     try {
@@ -136,7 +161,7 @@ export async function downloadLabReportPdf(input: {
         const bh = 34
         const bx = (595 - bw) / 2
         doc.addImage(png, 'PNG' as any, bx, y - 6, bw, bh, undefined, 'FAST')
-        doc.setFont('helvetica','normal')
+        doc.setFont(fontName,'normal')
         doc.setFontSize(9)
         doc.text(b, 297.5, y + bh + 6, { align: 'center' })
         doc.setFontSize(10)
@@ -145,7 +170,7 @@ export async function downloadLabReportPdf(input: {
     } catch {}
   }
 
-  doc.setFont('helvetica','normal')
+  doc.setFont(fontName,'normal')
   doc.setDrawColor(15); doc.line(40, y, 555, y); y += 10
   doc.setFontSize(11)
   doc.text(String(department), 297.5, y, { align: 'center' }); y += 16
@@ -155,10 +180,10 @@ export async function downloadLabReportPdf(input: {
   const L = 40, R = 300
   const dt = (iso?: string)=> fmtDateTime(iso)
   const drawKV = (label: string, value: string, x: number, yy: number) => {
-    doc.setFont('helvetica','bold');
+    doc.setFont(fontName,'bold');
     doc.text(label, x, yy)
     const w = doc.getTextWidth(label + ' ')
-    doc.setFont('helvetica','normal');
+    doc.setFont(fontName,'normal');
     doc.text(value, x + w, yy)
   }
   drawKV('Medical Record No :', String(input.patient.mrn || '-'), L, y)
@@ -167,6 +192,8 @@ export async function downloadLabReportPdf(input: {
   drawKV('Age / Gender :', `${input.patient.age || ''} / ${input.patient.gender || ''}`, R, y); y += 14
   drawKV('Reg. & Sample Time :', String(dt(input.createdAt)), L, y)
   drawKV('Reporting Time :', String(dt(input.approvedAt) || input.reportingTime || '-'), R, y); y += 14
+  drawKV('Approved At :', input.approvedAt ? String(dt(input.approvedAt)) + (input.approvedBy ? ` by ${input.approvedBy}` : '') : '-', L, y)
+  drawKV('Report Printed At :', input.reportPrintedAt ? String(dt(input.reportPrintedAt)) : '-', R, y); y += 14
   drawKV('Contact No :', String(input.patient.phone || '-'), L, y)
   drawKV('Referring Consultant :', String(input.referringConsultant || '-'), R, y); y += 14
   drawKV('Address :', String(input.patient.address || '-'), L, y); y += 8
@@ -188,13 +215,16 @@ export async function downloadLabReportPdf(input: {
         const x = 40 + i * colW + 4
         let yy = baseY + 26
         doc.setFontSize(11)
-        doc.setFont('helvetica', 'bold')
+        doc.setFont(fontName, 'bold')
         if ((c.name||'').trim()) { doc.text(String(c.name), x, yy); yy += 12 }
         doc.setFontSize(10)
         if ((c.degrees||'').trim()) { doc.text(String(c.degrees), x, yy); yy += 12 }
         if ((c.title||'').trim()) { doc.text(String(c.title), x, yy) }
-        doc.setFont('helvetica', 'normal')
+        doc.setFont(fontName, 'normal')
       })
+    }
+    if (useCustomHF && footerImgDl) {
+      try { doc.addImage(footerImgDl, 'PNG' as any, 40, baseY - 20, 515, 50, undefined, 'FAST') } catch {}
     }
   }
 
@@ -243,6 +273,20 @@ export async function downloadLabReportPdf(input: {
   const pageCount1 = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= pageCount1; i++) { (doc as any).setPage(i); drawFooter() }
 
+  // Watermark
+  const wm1 = String(s?.watermark || '').trim()
+  if (wm1) {
+    const wmOpacity1 = Number(s?.watermarkOpacity ?? 0.08)
+    const wmAngle1 = Number(s?.watermarkAngle ?? -45)
+    for (let i = 1; i <= pageCount1; i++) {
+      ;(doc as any).setPage(i)
+      try { doc.saveGraphicsState?.(); doc.setGState?.(new ((doc as any).GState)({ opacity: wmOpacity1 })) } catch {}
+      doc.setFontSize(60); doc.setTextColor(180,180,180)
+      doc.text(wm1, 297.5, 421, { angle: wmAngle1, align: 'center' })
+      try { doc.restoreGraphicsState?.() } catch {}
+    }
+  }
+
   const fileName = `lab-report-${(input.patient.mrn || '').replace(/\s+/g,'') || input.tokenNo}.pdf`
   doc.save(fileName)
 }
@@ -260,6 +304,7 @@ export async function previewLabReportPdf(input: {
   submittedBy?: string
   approvedBy?: string
   printedBy?: string
+  reportPrintedAt?: string
   referringConsultant?: string
   profileLabel?: string
 }){
@@ -286,6 +331,18 @@ export async function previewLabReportPdf(input: {
       const mod = await import('./labReport/templates/receiptStyle')
       return mod.previewLabReportPdfReceiptStyle(input as any)
     }
+    if ((s?.reportTemplate || 'classic') === 'clinicalPro'){
+      const mod = await import('./labReport/templates/clinicalPro')
+      return mod.previewLabReportPdfClinicalPro(input as any)
+    }
+    if ((s?.reportTemplate || 'classic') === 'minimalist'){
+      const mod = await import('./labReport/templates/minimalist')
+      return mod.previewLabReportPdfMinimalist(input as any)
+    }
+    if ((s?.reportTemplate || 'classic') === 'royalBlue'){
+      const mod = await import('./labReport/templates/royalBlue')
+      return mod.previewLabReportPdfRoyalBlue(input as any)
+    }
   } catch {}
   const labName = s?.labName || 'Laboratory'
   const address = s?.address || '-'
@@ -297,16 +354,30 @@ export async function previewLabReportPdf(input: {
   const extraConsultants: Array<{ name?: string; degrees?: string; title?: string }> = Array.isArray(s?.consultants) ? s.consultants : []
   const consultantsList = [primaryConsultant, ...extraConsultants]
     .filter(c => (c?.name||'').trim() || (c?.degrees||'').trim() || (c?.title||'').trim())
-    .slice(0,3)
+
 
   const { jsPDF } = await import('jspdf')
   const autoTable = (await import('jspdf-autotable')).default as any
 
   const doc = new jsPDF('p','pt','a4')
-  doc.setFont('helvetica','normal')
+  const reportFont = s?.reportFont || 'helvetica'
+  let fontName = 'helvetica'
+  if (reportFont === 'times') fontName = 'times'
+  else if (reportFont === 'courier') fontName = 'courier'
+  doc.setFont(fontName,'normal')
   let y = 40
 
-  if (logo) {
+  // Custom header image support
+  const useCustomHF = !!s?.useCustomHeaderFooter
+  const headerImg = s?.headerImageUrl || ''
+  const footerImg = s?.footerImageUrl || ''
+  if (useCustomHF && headerImg) {
+    try {
+      const normalized = await ensurePngDataUrl(headerImg)
+      doc.addImage(normalized, 'PNG' as any, 40, 10, 515, 80, undefined, 'FAST')
+      y = 100
+    } catch {}
+  } else if (logo) {
     try {
       const normalized = await ensurePngDataUrl(logo)
       doc.addImage(normalized, 'PNG' as any, 40, y - 32, 70, 70, undefined, 'FAST')
@@ -360,6 +431,8 @@ export async function previewLabReportPdf(input: {
   drawKV('Age / Gender :', `${input.patient.age || ''} / ${input.patient.gender || ''}`, R, y); y += 14
   drawKV('Reg. & Sample Time :', String(dt(input.createdAt)), L, y)
   drawKV('Reporting Time :', String(dt(input.approvedAt) || input.reportingTime || '-'), R, y); y += 14
+  drawKV('Approved At :', input.approvedAt ? String(dt(input.approvedAt)) + (input.approvedBy ? ` by ${input.approvedBy}` : '') : '-', L, y)
+  drawKV('Report Printed At :', input.reportPrintedAt ? String(dt(input.reportPrintedAt)) : '-', R, y); y += 14
   drawKV('Contact No :', String(input.patient.phone || '-'), L, y)
   drawKV('Referring Consultant :', String(input.referringConsultant || '-'), R, y); y += 14
   drawKV('Address :', String(input.patient.address || '-'), L, y); y += 8
@@ -382,8 +455,11 @@ export async function previewLabReportPdf(input: {
         if ((c.name||'').trim()) { doc.text(String(c.name), x, yy); yy += 12 }
         doc.setFontSize(10)
         if ((c.degrees||'').trim()) { doc.text(String(c.degrees), x, yy); yy += 12 }
-        if ((c.title||'').trim()) { doc.setFont('helvetica', 'bold'); doc.text(String(c.title), x, yy); doc.setFont('helvetica', 'normal'); }
+        if ((c.title||'').trim()) { doc.setFont(fontName, 'bold'); doc.text(String(c.title), x, yy); doc.setFont(fontName, 'normal'); }
       })
+    }
+    if (useCustomHF && footerImg) {
+      try { doc.addImage(footerImg, 'PNG' as any, 40, baseY - 20, 515, 50, undefined, 'FAST') } catch {}
     }
   }
 
@@ -431,6 +507,21 @@ export async function previewLabReportPdf(input: {
 
   const pageCount2 = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= pageCount2; i++) { (doc as any).setPage(i); drawFooter() }
+
+  // Watermark
+  const wm = String(s?.watermark || '').trim()
+  if (wm) {
+    const wmOpacity = Number(s?.watermarkOpacity ?? 0.08)
+    const wmAngle = Number(s?.watermarkAngle ?? -45)
+    const pageW2 = 595, pageH2 = 842
+    for (let i = 1; i <= pageCount2; i++) {
+      ;(doc as any).setPage(i)
+      try { doc.saveGraphicsState?.(); doc.setGState?.(new ((doc as any).GState)({ opacity: wmOpacity })) } catch {}
+      doc.setFontSize(60); doc.setTextColor(180,180,180)
+      doc.text(wm, pageW2/2, pageH2/2, { angle: wmAngle, align: 'center' })
+      try { doc.restoreGraphicsState?.() } catch {}
+    }
+  }
 
   // Prefer Electron in-app preview when available
   try{
@@ -514,10 +605,12 @@ export async function printLabReport(input: {
   sampleTime?: string
   reportingTime?: string
   approvedAt?: string
+  approvedBy?: string
   patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
   rows: ReportRow[]
   interpretation?: string
   printedBy?: string
+  reportPrintedAt?: string
   referringConsultant?: string
 }){
   const s: any = await labApi.getSettings().catch(()=>({}))
@@ -531,7 +624,7 @@ export async function printLabReport(input: {
   const extraConsultants: Array<{ name?: string; degrees?: string; title?: string }> = Array.isArray(s?.consultants) ? s.consultants : []
   const consultantsList = [primaryConsultant, ...extraConsultants]
     .filter(c => (c?.name||'').trim() || (c?.degrees||'').trim() || (c?.title||'').trim())
-    .slice(0,3)
+
 
   const { nonEmptyRows, hasPrev, hasFlag, hasComment, hasNormal, hasUnit } = pickReportColumns(input.rows || [])
   const hasInterpretation = (input.interpretation || '').trim().length > 0
@@ -627,6 +720,8 @@ export async function printLabReport(input: {
           <div>Age / Gender :</div><div>${esc(input.patient.age || '')} / ${esc(input.patient.gender || '')}</div>
           <div>Reg. & Sample Time :</div><div>${fmtDateTime(input.createdAt)}</div>
           <div>Reporting Time :</div><div>${fmtDateTime(input.approvedAt || input.reportingTime || new Date().toISOString())}</div>
+          <div>Approved At :</div><div>${input.approvedAt ? fmtDateTime(input.approvedAt) + (input.approvedBy ? ` by ${esc(input.approvedBy)}` : '') : '-'}</div>
+          <div>Report Printed At :</div><div>${input.reportPrintedAt ? fmtDateTime(input.reportPrintedAt) : '-'}</div>
           <div>Contact No :</div><div>${esc(input.patient.phone || '-')}</div>
           <div>Referring Consultant :</div><div>${esc(input.referringConsultant || '-')}</div>
           <div>Address :</div><div>${esc(input.patient.address || '-')}</div>

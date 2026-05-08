@@ -3,7 +3,7 @@ import { Schema, model, models } from 'mongoose'
 const IpdClinicalNoteSchema = new Schema({
   patientId: { type: Schema.Types.ObjectId, ref: 'Lab_Patient', required: true, index: true },
   encounterId: { type: Schema.Types.ObjectId, ref: 'Hospital_Encounter', required: true },
-  type: { type: String, enum: ['preop','operation','postop','consultant','anes-pre','anes-intra','anes-recovery','anes-post-recovery','anes-adverse','consent-form','infection-control','blood-transfusion','operation-consent','history-exam','surgical-signin','surgical-timeout','surgical-signout'], required: true, index: true },
+  type: { type: String, enum: ['preop','operation','postop','consultant','anes-pre','anes-intra','anes-recovery','anes-post-recovery','anes-adverse','consent-form','infection-control','blood-transfusion','operation-consent','history-exam','surgical-signin','surgical-timeout','surgical-signout','icu-monitoring'], required: true, index: true },
   recordedAt: { type: Date, default: Date.now, index: true },
   createdBy: { type: String },
   createdByRole: { type: String },
@@ -18,7 +18,7 @@ export type HospitalIpdClinicalNoteDoc = {
   _id: string
   patientId: string
   encounterId: string
-  type: 'preop'|'operation'|'postop'|'consultant'|'anes-pre'|'anes-intra'|'anes-recovery'|'anes-post-recovery'|'anes-adverse'|'consent-form'|'infection-control'|'blood-transfusion'|'operation-consent'|'history-exam'|'surgical-signin'|'surgical-timeout'|'surgical-signout'
+  type: 'preop'|'operation'|'postop'|'consultant'|'anes-pre'|'anes-intra'|'anes-recovery'|'anes-post-recovery'|'anes-adverse'|'consent-form'|'infection-control'|'blood-transfusion'|'operation-consent'|'history-exam'|'surgical-signin'|'surgical-timeout'|'surgical-signout'|'icu-monitoring'
   recordedAt: Date
   createdBy?: string
   createdByRole?: string

@@ -26,7 +26,6 @@ type Props = {
 }
 
 export default function Hospital_AddStaffDialog({ open, onClose, onSave, initial = null, title, submitLabel }: Props) {
-  if (!open) return null
   const [shifts, setShifts] = useState<Shift[]>([])
   const [selectedShiftId, setSelectedShiftId] = useState<string>(initial?.shiftId || '')
 
@@ -46,6 +45,8 @@ export default function Hospital_AddStaffDialog({ open, onClose, onSave, initial
   useEffect(() => {
     setSelectedShiftId(initial?.shiftId || '')
   }, [initial])
+
+  if (!open) return null
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

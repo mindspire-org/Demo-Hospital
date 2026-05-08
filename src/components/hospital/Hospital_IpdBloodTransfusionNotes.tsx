@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
+import { useEncounterDefaults } from '../../hooks/useEncounterDefaults'
+import { ClinicalDialogShell, clinicalInp, clinicalLbl } from '../ui/ClinicalDialog'
 
 type RecordItem = {
   id: string
@@ -14,6 +16,7 @@ export default function Hospital_IpdBloodTransfusionNotes({ encounterId }: { enc
   const [error, setError] = useState<string | null>(null)
   const [items, setItems] = useState<RecordItem[]>([])
   const [open, setOpen] = useState(false)
+  const encDefaults = useEncounterDefaults(encounterId)
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -56,6 +59,7 @@ export default function Hospital_IpdBloodTransfusionNotes({ encounterId }: { enc
     try {
       await hospitalApi.createIpdClinicalNote(encounterId, {
         type: 'blood-transfusion',
+        recordedAt: new Date().toISOString(),
         data: form,
         sign: form?.doctorSign || form?.nurseSign || '',
       })
@@ -141,7 +145,7 @@ export default function Hospital_IpdBloodTransfusionNotes({ encounterId }: { enc
         </div>
       </div>
 
-      <BloodTransfusionNotesDialog open={open} onClose={() => setOpen(false)} onSave={save} />
+      <BloodTransfusionNotesDialog open={open} onClose={() => setOpen(false)} onSave={save} defaults={encDefaults} />
     </div>
   )
 }
@@ -159,10 +163,12 @@ function BloodTransfusionNotesDialog({
   open,
   onClose,
   onSave,
+  defaults,
 }: {
   open: boolean
   onClose: () => void
   onSave: (d: any) => void
+  defaults?: any
 }) {
   const [form, setForm] = useState({
     patientName: '',
@@ -196,78 +202,81 @@ function BloodTransfusionNotesDialog({
     signatureThumb: '',
   })
 
+  useEffect(()=>{
+    if (!open) return
+    setForm(prev => ({
+      ...prev,
+      patientName: prev.patientName || defaults?.patientName || '',
+      mrn: prev.mrn || defaults?.mrn || '',
+      bedNo: prev.bedNo || defaults?.bedLabel || '',
+      cnicNumber: prev.cnicNumber || defaults?.cnic || '',
+    }))
+  }, [open, defaults])
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold">Blood Transfusion Notes</h3>
-
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          <div className="font-semibold">Before and during TRANSFUSION please ensure the following:</div>
-          <div className="mt-2 space-y-1 text-xs">
-            <div>1. Start infusion within 30 minutes of issuance from the blood bank and complete it within 4 hours (or less in hot weather).</div>
-            <div>2. Do not add any medicine or infusion solution other than normal saline to any blood/blood component.</div>
-            <div>3. Use a separate IV line if an intravenous fluid other than normal saline or a medicine has to be given at the same time as for blood or blood components.</div>
-            <div>4. Encourage the patient to notify a Nurse or Doctor immediately if he/she becomes aware of any reaction such as shivering, flushing, pain or shortness of breath etc.</div>
-            <div>5. Ensure that the patient is in a setting where he or she can be directly observed.</div>
-            <div>6. All unused blood products should be returned to the blood bank immediately so that their reuse or safe disposal can be ensured.</div>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          <Input label="Patient Name" value={form.patientName} onChange={(v) => setForm({ ...form, patientName: v })} />
-          <Input label="MRN" value={form.mrn} onChange={(v) => setForm({ ...form, mrn: v })} />
-          <Input label="Bed No" value={form.bedNo} onChange={(v) => setForm({ ...form, bedNo: v })} />
-          <Input label="Blood Group" value={form.bloodGroup} onChange={(v) => setForm({ ...form, bloodGroup: v })} />
-
-          <Input label="Date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} type="date" />
-          <Input label="Donor Name" value={form.donorName} onChange={(v) => setForm({ ...form, donorName: v })} />
-          <Input label="Lab No" value={form.labNo} onChange={(v) => setForm({ ...form, labNo: v })} />
-          <Input label="Issue Date/Time" value={form.issueDateTime} onChange={(v) => setForm({ ...form, issueDateTime: v })} />
-          <Input label="Screening Results" value={form.screeningResults} onChange={(v) => setForm({ ...form, screeningResults: v })} />
-
-          <Input label="Pre-transfusion Vitals: Pulse" value={form.prePulse} onChange={(v) => setForm({ ...form, prePulse: v })} />
-          <Input label="Pre-transfusion Vitals: BP" value={form.preBP} onChange={(v) => setForm({ ...form, preBP: v })} />
-          <Input label="Pre-transfusion Vitals: Temp" value={form.preTemp} onChange={(v) => setForm({ ...form, preTemp: v })} />
-          <Input label="Pre-transfusion Vitals: Resp. Rate" value={form.preRespRate} onChange={(v) => setForm({ ...form, preRespRate: v })} />
-          <Input label="Pre-transfusion Vitals: Chest" value={form.preChest} onChange={(v) => setForm({ ...form, preChest: v })} />
-
-          <Input label="Blood Cross Match Saline Phase" value={form.crossMatchSalinePhase} onChange={(v) => setForm({ ...form, crossMatchSalinePhase: v })} />
-          <Input label="Blood Cross Match Albumin Phase" value={form.crossMatchAlbuminPhase} onChange={(v) => setForm({ ...form, crossMatchAlbuminPhase: v })} />
-          <Input label="Received In Ward (Date/Time AM/PM)" value={form.receivedInWard} onChange={(v) => setForm({ ...form, receivedInWard: v })} />
-          <Input label="Transfusion Started At (Date/Time AM/PM)" value={form.transfusionStartedAt} onChange={(v) => setForm({ ...form, transfusionStartedAt: v })} />
-
-          <Input label="Post-transfusion Vitals: Pulse" value={form.postPulse} onChange={(v) => setForm({ ...form, postPulse: v })} />
-          <Input label="Post-transfusion Vitals: BP" value={form.postBP} onChange={(v) => setForm({ ...form, postBP: v })} />
-          <Input label="Post-transfusion Vitals: Temp" value={form.postTemp} onChange={(v) => setForm({ ...form, postTemp: v })} />
-          <Input label="Post-transfusion Vitals: Resp. Rate" value={form.postRespRate} onChange={(v) => setForm({ ...form, postRespRate: v })} />
-          <Input label="Post-transfusion Vitals: Chest" value={form.postChest} onChange={(v) => setForm({ ...form, postChest: v })} />
-          <Input label="Transfusion Completed At (Date/Time AM/PM)" value={form.transfusionCompletedAt} onChange={(v) => setForm({ ...form, transfusionCompletedAt: v })} />
-          <Input label="Any Adverse Reaction" value={form.adverseReaction} onChange={(v) => setForm({ ...form, adverseReaction: v })} />
-
-          <div className="col-span-2">
-            <Textarea label="Any Medications given during transfusion" value={form.medications} onChange={(v) => setForm({ ...form, medications: v })} />
-          </div>
-
-          <Input label="Name/Relative/Signature/Stamp/Doctor" value={form.doctorStamp} onChange={(v) => setForm({ ...form, doctorStamp: v })} />
-          <Input label="CNIC Number" value={form.cnicNumber} onChange={(v) => setForm({ ...form, cnicNumber: v })} />
-          <Input label="Signature/Thumb Impression" value={form.signatureThumb} onChange={(v) => setForm({ ...form, signatureThumb: v })} />
-        </div>
-
-        <div className="mt-6 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            Cancel
-          </button>
-          <button
-            onClick={() => onSave(form)}
-            className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900"
-          >
-            Save
-          </button>
+    <ClinicalDialogShell
+      open={open}
+      title="Blood Transfusion Notes"
+      onClose={onClose}
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave(form)
+      }}
+    >
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <div className="font-semibold">Before and during TRANSFUSION please ensure the following:</div>
+        <div className="mt-2 space-y-1 text-xs">
+          <div>1. Start infusion within 30 minutes of issuance from the blood bank and complete it within 4 hours (or less in hot weather).</div>
+          <div>2. Do not add any medicine or infusion solution other than normal saline to any blood/blood component.</div>
+          <div>3. Use a separate IV line if an intravenous fluid other than normal saline or a medicine has to be given at the same time as for blood or blood components.</div>
+          <div>4. Encourage the patient to notify a Nurse or Doctor immediately if he/she becomes aware of any reaction such as shivering, flushing, pain or shortness of breath etc.</div>
+          <div>5. Ensure that the patient is in a setting where he or she can be directly observed.</div>
+          <div>6. All unused blood products should be returned to the blood bank immediately so that their reuse or safe disposal can be ensured.</div>
         </div>
       </div>
-    </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        <Input label="Patient Name" value={form.patientName} onChange={(v) => setForm({ ...form, patientName: v })} />
+        <Input label="MRN" value={form.mrn} onChange={(v) => setForm({ ...form, mrn: v })} />
+        <Input label="Bed No" value={form.bedNo} onChange={(v) => setForm({ ...form, bedNo: v })} />
+        <Input label="Blood Group" value={form.bloodGroup} onChange={(v) => setForm({ ...form, bloodGroup: v })} />
+
+        <Input label="Date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} type="date" />
+        <Input label="Donor Name" value={form.donorName} onChange={(v) => setForm({ ...form, donorName: v })} />
+        <Input label="Lab No" value={form.labNo} onChange={(v) => setForm({ ...form, labNo: v })} />
+        <Input label="Issue Date/Time" value={form.issueDateTime} onChange={(v) => setForm({ ...form, issueDateTime: v })} />
+        <Input label="Screening Results" value={form.screeningResults} onChange={(v) => setForm({ ...form, screeningResults: v })} />
+
+        <Input label="Pre-transfusion Vitals: Pulse" value={form.prePulse} onChange={(v) => setForm({ ...form, prePulse: v })} />
+        <Input label="Pre-transfusion Vitals: BP" value={form.preBP} onChange={(v) => setForm({ ...form, preBP: v })} />
+        <Input label="Pre-transfusion Vitals: Temp" value={form.preTemp} onChange={(v) => setForm({ ...form, preTemp: v })} />
+        <Input label="Pre-transfusion Vitals: Resp. Rate" value={form.preRespRate} onChange={(v) => setForm({ ...form, preRespRate: v })} />
+        <Input label="Pre-transfusion Vitals: Chest" value={form.preChest} onChange={(v) => setForm({ ...form, preChest: v })} />
+
+        <Input label="Blood Cross Match Saline Phase" value={form.crossMatchSalinePhase} onChange={(v) => setForm({ ...form, crossMatchSalinePhase: v })} />
+        <Input label="Blood Cross Match Albumin Phase" value={form.crossMatchAlbuminPhase} onChange={(v) => setForm({ ...form, crossMatchAlbuminPhase: v })} />
+        <Input label="Received In Ward (Date/Time AM/PM)" value={form.receivedInWard} onChange={(v) => setForm({ ...form, receivedInWard: v })} />
+        <Input label="Transfusion Started At (Date/Time AM/PM)" value={form.transfusionStartedAt} onChange={(v) => setForm({ ...form, transfusionStartedAt: v })} />
+
+        <Input label="Post-transfusion Vitals: Pulse" value={form.postPulse} onChange={(v) => setForm({ ...form, postPulse: v })} />
+        <Input label="Post-transfusion Vitals: BP" value={form.postBP} onChange={(v) => setForm({ ...form, postBP: v })} />
+        <Input label="Post-transfusion Vitals: Temp" value={form.postTemp} onChange={(v) => setForm({ ...form, postTemp: v })} />
+        <Input label="Post-transfusion Vitals: Resp. Rate" value={form.postRespRate} onChange={(v) => setForm({ ...form, postRespRate: v })} />
+        <Input label="Post-transfusion Vitals: Chest" value={form.postChest} onChange={(v) => setForm({ ...form, postChest: v })} />
+        <Input label="Transfusion Completed At (Date/Time AM/PM)" value={form.transfusionCompletedAt} onChange={(v) => setForm({ ...form, transfusionCompletedAt: v })} />
+        <Input label="Any Adverse Reaction" value={form.adverseReaction} onChange={(v) => setForm({ ...form, adverseReaction: v })} />
+
+        <div className="col-span-2">
+          <Textarea label="Any Medications given during transfusion" value={form.medications} onChange={(v) => setForm({ ...form, medications: v })} />
+        </div>
+
+        <Input label="Name/Relative/Signature/Stamp/Doctor" value={form.doctorStamp} onChange={(v) => setForm({ ...form, doctorStamp: v })} />
+        <Input label="CNIC Number" value={form.cnicNumber} onChange={(v) => setForm({ ...form, cnicNumber: v })} />
+        <Input label="Signature/Thumb Impression" value={form.signatureThumb} onChange={(v) => setForm({ ...form, signatureThumb: v })} />
+      </div>
+    </ClinicalDialogShell>
   )
 }
 
@@ -284,10 +293,10 @@ function Input({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
+      <label className={clinicalLbl}>{label}</label>
       <input
         type={type || 'text'}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className={clinicalInp}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -306,9 +315,9 @@ function Textarea({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
+      <label className={clinicalLbl}>{label}</label>
       <textarea
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className={clinicalInp}
         rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}

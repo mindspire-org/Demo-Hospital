@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import PortalSwitcher from '../PortalSwitcher'
 import { aestheticApi } from '../../utils/api'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
@@ -233,7 +234,8 @@ export default function Aesthetic_Sidebar({ collapsed = false }: { collapsed?: b
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2' : 'p-3'}>
+      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
+        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
         <button
           onClick={logout}
           title={collapsed ? 'Logout' : undefined}

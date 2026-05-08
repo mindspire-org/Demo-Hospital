@@ -13,3 +13,6 @@ createRoot(container).render(
     </Router>
   </React.StrictMode>
 )
+
+// Preloader is now hidden by App component after content renders
+// to avoid white-screen flash between preloader and app content

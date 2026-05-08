@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { Supplier } from './pharmacy_AddSupplierDialog'
-import { pharmacyApi } from '../../utils/api'
+import type { Supplier } from './indoorpharmacy_AddSupplierDialog'
+import { indoorPharmacyApi } from '../../utils/api'
 
 export default function Pharmacy_AssignSupplierCompaniesDialog({ open, onClose, supplier }: { open: boolean; onClose: ()=>void; supplier: Supplier | null }){
   const [companies, setCompanies] = useState<Array<{ _id: string; name: string; distributorId?: string; distributorName?: string }>>([])
@@ -14,7 +14,7 @@ export default function Pharmacy_AssignSupplierCompaniesDialog({ open, onClose, 
     if (!open || !supplier?.id){ setCompanies([]); setChecked({}); return }
     ;(async () => {
       try {
-        const all: any = await pharmacyApi.listCompanies({})
+        const all: any = await indoorPharmacyApi.listCompanies({})
         const arr = (all?.items || all || []) as any[]
         if (!mounted) return
         setCompanies(arr)
@@ -28,7 +28,7 @@ export default function Pharmacy_AssignSupplierCompaniesDialog({ open, onClose, 
           .filter(id => id && id !== supplier.id)))
         if (ids.length){
           try {
-            const res: any = await pharmacyApi.listSuppliers()
+            const res: any = await indoorPharmacyApi.listSuppliers()
             const items: any[] = res?.items || res || []
             const nameMap: Record<string, string> = {}
             for (const s of items){
@@ -65,7 +65,7 @@ export default function Pharmacy_AssignSupplierCompaniesDialog({ open, onClose, 
       const toUnassign: string[] = []
       for (const id of nextAssigned){ if (!currentAssigned.has(id)) toAssign.push(id) }
       for (const id of currentAssigned){ if (!nextAssigned.has(id)) toUnassign.push(id) }
-      await pharmacyApi.assignSupplierCompanies(supplier.id, { companyIds: toAssign, unassignIds: toUnassign })
+      await indoorPharmacyApi.assignSupplierCompanies(supplier.id, { companyIds: toAssign, unassignIds: toUnassign })
       try { window.dispatchEvent(new Event('pharmacy:companies:refresh')) } catch {}
       onClose()
     } catch { setSaving(false) }

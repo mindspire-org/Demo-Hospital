@@ -531,8 +531,11 @@ export async function previewSpecialistClinicPdf(data: SpecialistClinicPdfData) 
   pdf.text(`Address: ${String(settings.address || '-')}`, W / 2, cbY + 5, { align: 'center' })
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 7.  OUTPUT
+  // 7.  OVERLAY + OUTPUT
   // ══════════════════════════════════════════════════════════════════════════
+  const { applyOverlayBeforeOutput } = await import('./applyOverlay')
+  await applyOverlayBeforeOutput(pdf)
+
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {

@@ -56,6 +56,10 @@ const TokenSchema = new Schema({
   approvedAt: { type: String },
   approvedBy: { type: String },
 
+  // Report print tracking
+  reportPrintedAt: { type: String },
+  reportPrintedBy: { type: String },
+
   // Cancellation tracking
   cancelledAt: { type: String },
   cancelledBy: { type: String },
@@ -92,7 +96,31 @@ const TokenSchema = new Schema({
       resultId: String
     }, { _id: false })],
     default: []
-  }
+  },
+
+  // Registration enhancements
+  sampleType: { type: String, enum: ['normal', 'urgent', 'stat'], default: 'normal', index: true },
+  sampleReceived: { type: Boolean, default: false },
+  sampleReceivedAtRegistration: { type: Boolean, default: false },
+  hospitalRegistrationNumber: { type: String, index: true },
+  packageIds: { type: [String], default: [] },
+  patientCardId: { type: Schema.Types.ObjectId, ref: 'Lab_PatientCard' },
+  patientCardKind: { type: String },
+
+  // Department / ward / emergency day routing
+  departmentId: { type: String, index: true },
+  wardId: { type: String, index: true },
+  emergencyDayId: { type: String, index: true },
+
+  // Source: lab | reception | center | ward_import
+  source: { type: String, enum: ['lab', 'reception', 'center', 'ward_import'], default: 'lab', index: true },
+
+  // Contact for report dispatch
+  email: { type: String },
+  whatsapp: { type: String },
+
+  // Print action selected at registration
+  printAction: { type: String, enum: ['save', 'save_invoice', 'save_invoice_barcode', 'save_barcode'], default: 'save' },
 }, { timestamps: true })
 
 export type LabTokenDoc = {
@@ -125,6 +153,8 @@ export type LabTokenDoc = {
   resultId?: string
   approvedAt?: string
   approvedBy?: string
+  reportPrintedAt?: string
+  reportPrintedBy?: string
   cancelledAt?: string
   cancelledBy?: string
   barcode?: string
@@ -152,6 +182,22 @@ export type LabTokenDoc = {
   net?: number
   receivedAmount?: number
   receivableAmount?: number
+
+  // Registration extras
+  sampleType?: 'normal' | 'urgent' | 'stat'
+  sampleReceived?: boolean
+  sampleReceivedAtRegistration?: boolean
+  hospitalRegistrationNumber?: string
+  packageIds?: string[]
+  patientCardId?: string
+  patientCardKind?: string
+  departmentId?: string
+  wardId?: string
+  emergencyDayId?: string
+  source?: 'lab' | 'reception' | 'center' | 'ward_import'
+  email?: string
+  whatsapp?: string
+  printAction?: 'save' | 'save_invoice' | 'save_invoice_barcode' | 'save_barcode'
 }
 
 export const LabToken = models.Lab_Token || model('Lab_Token', TokenSchema)

@@ -5,6 +5,8 @@ const itemSchema = z.object({
   dose: z.string().optional(),
   frequency: z.string().optional(),
   duration: z.string().optional(),
+  route: z.string().optional(),
+  instruction: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -16,6 +18,7 @@ const manualAttachmentSchema = z.object({
 
 const baseSchema = z.object({
   encounterId: z.string().min(1),
+  tokenNo: z.string().optional(),
   prescriptionMode: z.enum(['electronic','manual']).optional(),
   manualAttachment: manualAttachmentSchema.optional(),
   labTests: z.array(z.string().min(1)).optional(),
@@ -57,13 +60,16 @@ export const createPrescriptionSchema = z.union([
 ])
 
 export const updatePrescriptionSchema = z.object({
+  tokenNo: z.string().optional(),
   items: z.array(z.object({
     name: z.string().min(1),
     dose: z.string().optional(),
     frequency: z.string().optional(),
     duration: z.string().optional(),
+    route: z.string().optional(),
+    instruction: z.string().optional(),
     notes: z.string().optional(),
-  })).min(1).optional(),
+  })).optional(),
   prescriptionMode: z.enum(['electronic','manual']).optional(),
   manualAttachment: manualAttachmentSchema.optional(),
   labTests: z.array(z.string().min(1)).optional(),

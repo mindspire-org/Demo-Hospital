@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import PortalSwitcher from '../PortalSwitcher'
 import { indoorPharmacyApi } from '../../utils/api'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
@@ -194,7 +195,8 @@ export default function IndoorPharmacy_Sidebar({ collapsed = false }: { collapse
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2' : 'p-3'}>
+      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
+        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
         <button
           onClick={async () => {
             try { await indoorPharmacyApi.logoutUser(username || undefined) } catch {}

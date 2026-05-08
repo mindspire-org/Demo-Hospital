@@ -23,6 +23,17 @@ export default function Hospital_BirthCertificateForm({ encounterId, docId, pati
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPatientHeader, patient?.name, patient?.mrn, patient?.phone, patient?.address])
 
+  useEffect(() => {
+    const onAction = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as any
+      if (!detail || detail.key !== 'BirthCertificate') return
+      if (detail.action === 'save') { void save() }
+      if (detail.action === 'print') { void printOnly() }
+    }
+    window.addEventListener('dw:form-action', onAction as any)
+    return () => window.removeEventListener('dw:form-action', onAction as any)
+  }, [encounterId, docId, currentId, form, loading])
+
   useEffect(()=>{ (async()=>{
     if (!encounterId || docId) return
     try {

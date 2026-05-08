@@ -469,6 +469,10 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   pdf.text(`Phone: ${String(settings.phone   || '+92-xxx-xxxxxx')}`,                    W / 2, cbY + 4,   { align: 'center' })
   pdf.text(`Address: ${String(settings.address || 'Hospital Address, City, Country')}`, W / 2, cbY + 8, { align: 'center' })
 
+  // ── Overlay (header/footer/watermark) ────────────────────────────────────
+  const { applyOverlayBeforeOutput } = await import('./applyOverlay')
+  await applyOverlayBeforeOutput(pdf)
+
   // ── Output ───────────────────────────────────────────────────────────────
   try {
     const api = (window as any).electronAPI

@@ -48,7 +48,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-[70] mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute z-70 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id}
@@ -209,7 +209,7 @@ export default function Reception_ERBilling(){
       const tRes: any = await hospitalApi.getToken(id)
       const t = tRes?.token
       setToken(t || null)
-      const encId = String(t?.encounterId || '')
+      const encId = String(t?.encounterId?._id || t?.encounterId || '')
       setEncounterId(encId)
       if (encId){
         const [ch, pay] = await Promise.all([

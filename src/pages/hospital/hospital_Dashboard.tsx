@@ -1,38 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { TrendingUp, DollarSign, Users, BedSingle, Activity, RefreshCw, Clock, CalendarClock, Filter, RotateCcw, BarChart3, X } from 'lucide-react'
+import { TrendingUp, DollarSign, Users, BedSingle, Activity, RefreshCw, Clock, CalendarClock, Filter, RotateCcw, BarChart3, X, HeartPulse, Stethoscope, Ambulance, Building2, UserCheck, AlertTriangle, ChevronDown } from 'lucide-react'
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { hospitalApi, financeApi, labApi } from '../../utils/api'
 import { fmt12 } from '../../utils/timeFormat'
+import ModernDatePicker from '../../components/common/ModernDatePicker'
+import ModernTimePicker from '../../components/common/ModernTimePicker'
 
 function iso(d: Date){ return d.toISOString().slice(0,10) }
 function startOfMonth(d: Date){ const x = new Date(d); x.setDate(1); return x }
 function money(x: any){ const n = Number(x||0); return isFinite(n) ? n : 0 }
-// (Removed salaries range calc util per request)
+function fmtRs(n: number){ return `Rs ${Math.round(n).toLocaleString('en-PK')}` }
 
-// Daily grouped bars removed; simplified to two-bars component below.
-
-function TwoBars({ revenue, expense }: { revenue: number; expense: number }){
-  const w = 320
-  const h = 160
-  const pad = 24
-  const max = Math.max(1, revenue, expense)
-  const bw = (w - pad*2 - 16) / 2
-  const base = h - pad
-  const rh = (revenue/max) * (h - pad*2)
-  const eh = (expense/max) * (h - pad*2)
-  const rx = pad
-  const ex = pad + bw + 16
-  const fmt = (n:number)=> `Rs ${Math.round(n).toLocaleString('en-PK')}`
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="block">
-      <rect x={rx} y={base - rh} width={bw} height={rh} fill="#10b981" rx={3}>
-        <title>{fmt(revenue)}</title>
-      </rect>
-      <rect x={ex} y={base - eh} width={bw} height={eh} fill="#ef4444" rx={3}>
-        <title>{fmt(expense)}</title>
-      </rect>
-    </svg>
-  )
-}
+const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316']
 
 export default function Hospital_Dashboard() {
   const [loading, setLoading] = useState(false)
@@ -290,35 +269,75 @@ export default function Hospital_Dashboard() {
   const doctorPayoutsCard = useMemo(()=> doctorPayoutsTotal>0 ? doctorPayoutsTotal : doctorPayouts, [doctorPayoutsTotal, doctorPayouts])
   // Salaries widget removed per request
 
-  const totalRevenue = useMemo(()=> opdRevenueAmt + ipdRevenueAmt + erRevenueAmt, [opdRevenueAmt, ipdRevenueAmt, erRevenueAmt])
   const totalRevenueByMethod = useMemo(()=> revByMethod.cash + revByMethod.card, [revByMethod])
   const recentIpdPayments = useMemo(()=> {
     const getDate = (p:any)=> new Date(String(p.receivedAt||p.dateIso||p.date||p.createdAt||'') || 0).getTime()
     return [...ipdPayments].sort((a,b)=> getDate(b) - getDate(a)).slice(0, 10)
   }, [ipdPayments])
 
-  // Removed per request: day-wise arrays for grouped bars
+  // Chart data: Revenue breakdown by source (OPD / IPD / ER)
+  const revenueBreakdownData = useMemo(() => [
+    { name: 'OPD', value: opdRevenueAmt, color: '#6366f1' },
+    { name: 'IPD', value: ipdRevenueAmt, color: '#10b981' },
+    { name: 'ER', value: erRevenueAmt, color: '#f59e0b' },
+  ].filter(d => d.value > 0), [opdRevenueAmt, ipdRevenueAmt, erRevenueAmt])
 
-  const cards = [
-    { title: 'Tokens', value: String(stats.tokens), tone: 'bg-emerald-50 border-emerald-200', icon: Activity },
-    { title: 'Admissions', value: String(stats.admissions), tone: 'bg-violet-50 border-violet-200', icon: TrendingUp },
-    { title: 'Discharges', value: String(stats.discharges), tone: 'bg-amber-50 border-amber-200', icon: CalendarClock },
-    { title: 'Active IPD Patients', value: String(stats.activeIpd), tone: 'bg-sky-50 border-sky-200', icon: Users },
-    { title: 'Beds Available', value: String(stats.bedsAvailable), tone: 'bg-cyan-50 border-cyan-200', icon: BedSingle },
-    { title: 'Cash Revenue', value: `Rs ${revByMethod.cash.toFixed(0)}`, tone: 'bg-green-50 border-green-200', icon: DollarSign },
-    { title: 'Card Revenue', value: `Rs ${revByMethod.card.toFixed(0)}`, tone: 'bg-green-50 border-green-200', icon: DollarSign },
-    { title: 'Total Revenue', value: `Rs ${totalRevenueByMethod.toFixed(0)}`, tone: 'bg-green-50 border-green-200', icon: DollarSign },
-    { title: 'OPD Revenue', value: `Rs ${opdRevenueAmt.toFixed(0)}`, tone: 'bg-green-50 border-green-200', icon: DollarSign },
-    { title: 'IPD Revenue', value: `Rs ${ipdRevenueAmt.toFixed(0)}`, tone: 'bg-green-50 border-green-200', icon: DollarSign },
-    { title: 'ER Revenue', value: `Rs ${erRevenueAmt.toFixed(0)}`, tone: 'bg-green-50 border-green-200', icon: DollarSign },
-    { title: 'Corporate AR Balance', value: `Rs ${corporateArAmt.toFixed(0)}`, tone: 'bg-indigo-50 border-indigo-200', icon: DollarSign, onClick: () => setShowArModal(true), clickable: true },
-    { title: 'Total Revenue (TB)', value: `Rs ${totalRevenue.toFixed(0)}`, tone: 'bg-green-50 border-green-200', icon: DollarSign },
-    { title: 'Expenses', value: `Rs ${expensesTotal.toFixed(0)}`, tone: 'bg-rose-50 border-rose-200', icon: DollarSign },
-    { title: 'Doctor Payouts', value: `Rs ${doctorPayoutsCard.toFixed(0)}`, tone: 'bg-amber-50 border-amber-200', icon: DollarSign },
-    { title: 'Staff Present (Today)', value: String(stats.present), tone: 'bg-yellow-50 border-yellow-200', icon: Users },
-    { title: 'Late Staff (Today)', value: String(stats.late), tone: 'bg-slate-50 border-slate-200', icon: Clock },
-  ]
+  // Chart data: Cash vs Card revenue
+  const paymentMethodData = useMemo(() => [
+    { name: 'Cash', value: revByMethod.cash, color: '#10b981' },
+    { name: 'Card/Bank', value: revByMethod.card, color: '#6366f1' },
+  ].filter(d => d.value > 0), [revByMethod])
 
+  // Chart data: Bed occupancy donut
+  const bedOccupancyData = useMemo(() => {
+    const occupied = stats.activeIpd
+    const available = stats.bedsAvailable
+    return [
+      { name: 'Occupied', value: occupied, color: '#ef4444' },
+      { name: 'Available', value: available, color: '#10b981' },
+    ].filter(d => d.value > 0)
+  }, [stats.activeIpd, stats.bedsAvailable])
+
+  // Chart data: Department revenue for bar chart
+  const deptRevenueChartData = useMemo(() => {
+    const byDept: Record<string, number> = {}
+    for (const d of departments) byDept[d.id] = 0
+    for (const t of tokens){
+      const depId = String(t?.departmentId?._id || t?.departmentId || '')
+      if (!depId) continue
+      const fee = Number(t?.fee || t?.amount || 0)
+      if (byDept[depId] == null) byDept[depId] = 0
+      byDept[depId] += fee
+    }
+    for (const a of ipdAdmissions){
+      const depId = String(a?.departmentId?._id || a?.departmentId || '')
+      if (!depId) continue
+      const totalBill = Number(a?.totalBill || a?.totalAmount || a?.billTotal || 0)
+      const deposit = Number(a?.deposit || a?.totalPaid || 0)
+      const ipdRevenue = totalBill > 0 ? totalBill : deposit
+      if (byDept[depId] == null) byDept[depId] = 0
+      byDept[depId] += ipdRevenue
+    }
+    for (const t of erTransactions){
+      const depId = String(t?.departmentId || '')
+      if (!depId) continue
+      const amount = Number(t?.fee || t?.totalAmount || 0)
+      if (byDept[depId] == null) byDept[depId] = 0
+      byDept[depId] += amount
+    }
+    return departments
+      .map((d, i) => ({ name: d.name.length > 12 ? d.name.slice(0, 11) + '…' : d.name, revenue: byDept[d.id] || 0, color: CHART_COLORS[i % CHART_COLORS.length] }))
+      .filter(d => d.revenue > 0)
+  }, [departments, tokens, ipdAdmissions, erTransactions])
+
+  // Chart data: Revenue vs Expenses comparison
+  const revenueVsExpenseData = useMemo(() => [
+    { name: 'Revenue', value: totalRevenueByMethod, fill: '#10b981' },
+    { name: 'Expenses', value: expensesTotal, fill: '#ef4444' },
+    { name: 'Doctor Payouts', value: doctorPayoutsCard, fill: '#f59e0b' },
+  ], [totalRevenueByMethod, expensesTotal, doctorPayoutsCard])
+
+  
   // Department revenue cards - calculate OPD + IPD + ER revenue per department
   const deptRevenueCards = useMemo(() => {
     const byDept: Record<string, number> = {}
@@ -418,62 +437,270 @@ export default function Hospital_Dashboard() {
 
   
 
+  // Key metric cards with gradient backgrounds
+  const keyCards = [
+    { title: 'Total Revenue', value: fmtRs(totalRevenueByMethod), icon: DollarSign, gradient: 'from-emerald-500 to-teal-600', iconBg: 'bg-emerald-400/30' },
+    { title: 'Expenses', value: fmtRs(expensesTotal), icon: TrendingUp, gradient: 'from-rose-500 to-pink-600', iconBg: 'bg-rose-400/30' },
+    { title: 'Tokens Today', value: String(stats.tokens), icon: Activity, gradient: 'from-violet-500 to-purple-600', iconBg: 'bg-violet-400/30' },
+    { title: 'Active IPD', value: String(stats.activeIpd), icon: BedSingle, gradient: 'from-sky-500 to-blue-600', iconBg: 'bg-sky-400/30' },
+  ]
+
+  // Secondary stat cards
+  const secondaryCards = [
+    { title: 'Admissions', value: String(stats.admissions), icon: Users, color: 'text-violet-600', bg: 'bg-violet-50' },
+    { title: 'Discharges', value: String(stats.discharges), icon: CalendarClock, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { title: 'Beds Available', value: String(stats.bedsAvailable), icon: BedSingle, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+    { title: 'OPD Revenue', value: fmtRs(opdRevenueAmt), icon: Stethoscope, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { title: 'IPD Revenue', value: fmtRs(ipdRevenueAmt), icon: HeartPulse, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { title: 'ER Revenue', value: fmtRs(erRevenueAmt), icon: Ambulance, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { title: 'Doctor Payouts', value: fmtRs(doctorPayoutsCard), icon: DollarSign, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { title: 'Corporate AR', value: fmtRs(corporateArAmt), icon: Building2, color: 'text-indigo-600', bg: 'bg-indigo-50', onClick: () => setShowArModal(true) },
+    { title: 'Staff Present', value: String(stats.present), icon: UserCheck, color: 'text-green-600', bg: 'bg-green-50' },
+    { title: 'Late Staff', value: String(stats.late), icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+  ]
+
   return (
     <div className="space-y-6">
-      
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="mb-3 flex items-center gap-2 text-slate-800 font-semibold"><Filter className="h-4 w-4" /> Filters</div>
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-          <label className="flex items-center gap-2 text-sm"><span className="w-16 text-slate-600">From</span>
-            <input type="date" value={fromDate} onChange={e=> setFromDate(e.target.value)} className="input" />
-          </label>
-          <label className="flex items-center gap-2 text-sm"><span className="w-16 text-slate-600">To</span>
-            <input type="date" value={toDate} onChange={e=> setToDate(e.target.value)} className="input" />
-          </label>
-          <label className="flex items-center gap-2 text-sm"><span className="w-20 text-slate-600">Shift</span>
-            <select value={filterShiftId} onChange={e=> setFilterShiftId(e.target.value)} className="input min-w-[160px]">
-              <option value="">All day</option>
-              {shifts.map(s=> <option key={s.id} value={s.id}>{s.name} ({fmt12(s.start)}-{fmt12(s.end)})</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm"><span className="w-20 text-slate-600">From Time</span>
-            <input type="time" value={fromTime} onChange={e=>{ setFromTime(e.target.value); if (e.target.value) setFilterShiftId('') }} className="input" />
-          </label>
-          <label className="flex items-center gap-2 text-sm"><span className="w-20 text-slate-600">To Time</span>
-            <input type="time" value={toTime} onChange={e=>{ setToTime(e.target.value); if (e.target.value) setFilterShiftId('') }} className="input" />
-          </label>
-          <div className="flex items-center gap-2">
-            <button onClick={()=>{ setFromDate(iso(startOfMonth(new Date()))); setToDate(iso(new Date())); setFilterShiftId(''); setFromTime(''); setToTime('') }} className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"><RotateCcw className="h-4 w-4" /> Reset</button>
+      {/* Enhanced Filters */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm overflow-visible">
+        <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2.5 text-slate-900 font-bold">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+              <Filter className="h-4 w-4" />
+            </div>
+            <span className="text-base uppercase tracking-wider">Dashboard Filters</span>
           </div>
+          <button 
+            onClick={()=>{ setFromDate(iso(startOfMonth(new Date()))); setToDate(iso(new Date())); setFilterShiftId(''); setFromTime(''); setToTime('') }} 
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:shadow-sm active:scale-95"
+          >
+            <RotateCcw className="h-4 w-4" /> Reset All
+          </button>
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+          <ModernDatePicker
+            label="Date From"
+            value={fromDate}
+            onChange={v => setFromDate(v)}
+          />
+
+          <ModernDatePicker
+            label="Date To"
+            value={toDate}
+            onChange={v => setToDate(v)}
+          />
+
+          {/* Shift */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Working Shift</label>
+            <div className="relative group">
+              <select 
+                value={filterShiftId} 
+                onChange={e=> setFilterShiftId(e.target.value)} 
+                className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pl-11 text-sm font-medium transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none hover:border-slate-300 cursor-pointer"
+              >
+                <option value="">Full Day (24h)</option>
+                {shifts.map(s=> <option key={s.id} value={s.id}>{s.name} ({fmt12(s.start)}-{fmt12(s.end)})</option>)}
+              </select>
+              <Clock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+              <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            </div>
+          </div>
+
+          {/* Manual Time From */}
+          <ModernTimePicker
+            label="Manual Time From"
+            value={fromTime}
+            onChange={v => { setFromTime(v); if (v) setFilterShiftId('') }}
+          />
+
+          {/* Manual Time To */}
+          <ModernTimePicker
+            label="Manual Time To"
+            value={toTime}
+            onChange={v => { setToTime(v); if (v) setFilterShiftId('') }}
+          />
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {cards.map(({ title, value, tone, icon: Icon, onClick, clickable }) => (
-          <div 
-            key={title} 
-            className={`rounded-xl border ${tone} p-4 ${clickable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      {/* Key Metric Cards - Gradient */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {keyCards.map(({ title, value, icon: Icon, gradient, iconBg }) => (
+          <div key={title} className={`relative overflow-hidden rounded-2xl bg-linear-to-br ${gradient} p-5 text-white shadow-lg`}>
+            <div className="relative z-10">
+              <div className="text-sm font-medium text-white/80">{title}</div>
+              <div className="mt-2 text-2xl font-bold tracking-tight">{value}</div>
+            </div>
+            <div className={`absolute right-3 top-3 rounded-xl ${iconBg} p-2.5`}>
+              <Icon className="h-6 w-6 text-white" />
+            </div>
+            {/* Decorative circle */}
+            <div className="absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-white/10" />
+          </div>
+        ))}
+      </div>
+
+      {/* Secondary Stat Cards */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
+        {secondaryCards.map(({ title, value, icon: Icon, color, bg, onClick }) => (
+          <div
+            key={title}
+            className={`rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition-all hover:shadow-md ${onClick ? 'cursor-pointer' : ''}`}
             onClick={onClick}
           >
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-sm text-slate-600">{title}</div>
-                <div className="mt-1 text-xl font-semibold text-slate-900">{value}</div>
+            <div className="flex items-center gap-3">
+              <div className={`rounded-lg ${bg} p-2`}>
+                <Icon className={`h-4 w-4 ${color}`} />
               </div>
-              <div className="rounded-md bg-white/60 p-2 text-slate-700 shadow-sm">
-                <Icon className="h-4 w-4" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-xs text-slate-500">{title}</div>
+                <div className="text-sm font-semibold text-slate-900">{value}</div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
+      {/* Charts Row 1: Revenue Breakdown + Cash vs Card + Bed Occupancy */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Revenue Breakdown Donut */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <BarChart3 className="h-4 w-4 text-indigo-500" /> Revenue Breakdown
+          </div>
+          {revenueBreakdownData.length === 0 ? (
+            <div className="flex h-[200px] items-center justify-center text-sm text-slate-400">No revenue data</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie data={revenueBreakdownData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={50} paddingAngle={3} strokeWidth={0}>
+                  {revenueBreakdownData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <Tooltip formatter={(v) => fmtRs(Number(v ?? 0))} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+          <div className="mt-3 flex flex-wrap justify-center gap-4 text-xs text-slate-600">
+            {revenueBreakdownData.map(d => (
+              <span key={d.name} className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />
+                {d.name}: {fmtRs(d.value)}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Cash vs Card Bar Chart */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <DollarSign className="h-4 w-4 text-emerald-500" /> Payment Methods
+          </div>
+          {paymentMethodData.length === 0 ? (
+            <div className="flex h-[200px] items-center justify-center text-sm text-slate-400">No payment data</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={paymentMethodData} barSize={48}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
+                <Tooltip formatter={(v) => fmtRs(Number(v ?? 0))} />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  {paymentMethodData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Bed Occupancy Donut */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <BedSingle className="h-4 w-4 text-sky-500" /> Bed Occupancy
+          </div>
+          {bedOccupancyData.length === 0 ? (
+            <div className="flex h-[200px] items-center justify-center text-sm text-slate-400">No bed data</div>
+          ) : (
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={bedOccupancyData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={55} paddingAngle={3} strokeWidth={0}>
+                    {bedOccupancyData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              {/* Center label */}
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-slate-900">{stats.occupancy}%</div>
+                  <div className="text-xs text-slate-500">Occupied</div>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="mt-3 flex flex-wrap justify-center gap-4 text-xs text-slate-600">
+            {bedOccupancyData.map(d => (
+              <span key={d.name} className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />
+                {d.name}: {d.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Row 2: Revenue vs Expenses + Department Revenue */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Revenue vs Expenses Bar Chart */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <BarChart3 className="h-4 w-4 text-amber-500" /> Revenue vs Expenses
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={revenueVsExpenseData} barSize={56}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+              <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
+              <Tooltip formatter={(v: any) => fmtRs(Number(v ?? 0))} />
+              <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                {revenueVsExpenseData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Department Revenue Bar Chart */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <Building2 className="h-4 w-4 text-violet-500" /> Department Revenue
+          </div>
+          {deptRevenueChartData.length === 0 ? (
+            <div className="flex h-[240px] items-center justify-center text-sm text-slate-400">No department revenue data</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={deptRevenueChartData} layout="vertical" barSize={20}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" width={100} />
+                <Tooltip formatter={(v) => fmtRs(Number(v ?? 0))} />
+                <Bar dataKey="revenue" radius={[0, 6, 6, 0]}>
+                  {deptRevenueChartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* Corporate AR Section */}
       {corporateArItems.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-slate-800 font-semibold">Corporate AR by Company</div>
-            <button 
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Building2 className="h-4 w-4 text-indigo-500" /> Corporate AR by Company
+            </div>
+            <button
               onClick={() => setShowArModal(true)}
               className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
             >
@@ -482,14 +709,14 @@ export default function Hospital_Dashboard() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {corporateArItems.slice(0, 8).map((item) => (
-              <div key={item.companyId} className="rounded-xl border bg-indigo-50/50 border-indigo-200 p-3">
+              <div key={item.companyId} className="rounded-xl border bg-linear-to-br from-indigo-50 to-white border-indigo-200 p-3.5 transition-all hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-slate-600 truncate" title={item.companyName}>{item.companyName}</div>
                     <div className="mt-1 text-lg font-semibold text-slate-900">Rs {item.balance.toFixed(0)}</div>
                     <div className="text-xs text-slate-500">Outstanding</div>
                   </div>
-                  <div className="rounded-md bg-white/60 p-2 text-slate-700 shadow-sm flex-shrink-0">
+                  <div className="rounded-lg bg-indigo-100 p-2 text-indigo-600 shrink-0">
                     <DollarSign className="h-4 w-4" />
                   </div>
                 </div>
@@ -499,8 +726,9 @@ export default function Hospital_Dashboard() {
         </div>
       )}
 
-      {deptRevenueCards.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+      {/* Department Revenue Cards (fallback if no chart data) */}
+      {deptRevenueCards.length > 0 && deptRevenueChartData.length === 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-3 text-slate-800 font-semibold">Departments Revenue</div>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {deptRevenueCards.map(({ title, value, tone, icon: Icon }) => (
@@ -521,38 +749,38 @@ export default function Hospital_Dashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="mb-2 flex items-center gap-2 text-slate-800 font-semibold"><BarChart3 className="h-4 w-4" /> Revenue vs Expenses</div>
-          <div className="overflow-x-auto">
-            <TwoBars revenue={totalRevenueByMethod} expense={expensesTotal} />
-          </div>
-          <div className="mt-2 text-xs text-slate-600">Green: Revenue, Red: Expenses</div>
+      {/* Recent IPD Transactions */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <HeartPulse className="h-4 w-4 text-emerald-500" /> Recent IPD Transactions
         </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="mb-2 text-slate-800 font-semibold">Recent IPD Transactions</div>
-          <div className="divide-y">
-            {recentIpdPayments.length === 0 && (
-              <div className="text-sm text-slate-500">No IPD payments in the selected range.</div>
-            )}
-            {recentIpdPayments.map((p:any, i:number)=>{
-              const when = String(p.receivedAt||p.dateIso||p.date||p.createdAt||'').replace('T',' ').slice(0,19)
-              const method = p.method || p.paymentMethod || '—'
-              const ref = p.refNo || p.ref || ''
-              return (
-                <div key={i} className="flex items-center justify-between py-2 text-sm">
+        <div className="divide-y divide-slate-100">
+          {recentIpdPayments.length === 0 && (
+            <div className="py-6 text-center text-sm text-slate-400">No IPD payments in the selected range.</div>
+          )}
+          {recentIpdPayments.map((p:any, i:number)=>{
+            const when = String(p.receivedAt||p.dateIso||p.date||p.createdAt||'').replace('T',' ').slice(0,19)
+            const method = p.method || p.paymentMethod || '—'
+            const ref = p.refNo || p.ref || ''
+            return (
+              <div key={i} className="flex items-center justify-between py-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+                    <DollarSign className="h-4 w-4" />
+                  </div>
                   <div>
                     <div className="font-medium text-slate-800">Rs {money(p.amount).toFixed(0)}</div>
                     <div className="text-xs text-slate-500">{when} • {method}{ref?` • ${ref}`:''}</div>
                   </div>
                 </div>
-              )
-            })}
-          </div>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">{method}</span>
+              </div>
+            )
+          })}
         </div>
       </div>
 
+      {/* Footer */}
       <div className="flex items-center justify-end gap-3 text-xs text-slate-500">
         <Clock className="h-4 w-4" />
         <span>Last updated: {updatedAt}</span>

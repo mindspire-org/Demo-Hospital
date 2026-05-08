@@ -4,7 +4,7 @@ export type LabSlipOrderInput = {
   tokenNo: string
   createdAt?: string
   patient: { fullName: string; mrn?: string; phone?: string; age?: string; gender?: string }
-  tests: Array<{ name: string; price: number }>
+  tests: Array<{ name: string; price: number; turnaroundTime?: number }>
   subtotal: number
   discount: number
   net: number
@@ -44,22 +44,22 @@ export async function printLabTokenSlip(order: LabSlipOrderInput){
 
   const fbrStatus = String(order?.fbr?.status || '').toUpperCase().trim()
   const isFbrSuccess = fbrStatus === 'SUCCESS' && Boolean(order?.fbr?.qrCode)
-  const isFbrDisabled = !order?.fbr || !fbrStatus
-  const fbrHtml = isFbrDisabled ? '' : `
+  const fbrHtml = isFbrSuccess ? `
     <div class="section-title">FBR</div>
     <div style="text-align:center;margin-top:6px">
-      ${isFbrSuccess && order?.fbr?.qrCode ? `<img src="${esc(order.fbr.qrCode)}" alt="FBR QR" style="height:96px;width:96px;object-fit:contain"/>` : `<div style="font-weight:700;color:#e11d48">FBR FAILED</div>`}
+      <img src="${esc(order.fbr!.qrCode!)}" alt="FBR QR" style="height:96px;width:96px;object-fit:contain"/>
     </div>
     <div style="margin-top:6px;font-size:11px;color:#334155">
       <div>FBR No: ${esc(order?.fbr?.fbrInvoiceNo || '—')}</div>
       <div>Mode: ${esc(order?.fbr?.mode || '—')}</div>
-      <div>Error: ${esc(order?.fbr?.error || '—')}</div>
     </div>
-  `
+  ` : ''
 
+  const fmtTAT = (m?: number) => { if (!m) return '-'; if (m < 60) return `${m}m`; if (m < 1440) return `${Math.floor(m/60)}h ${m%60}m`; return `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h` }
   const rowsHtml = order.tests.map((t, i)=> `<tr>
     <td style="padding:6px 8px;border-bottom:1px dashed #cbd5e1">${i+1}</td>
     <td style="padding:6px 8px;border-bottom:1px dashed #cbd5e1">${esc(t.name)}</td>
+    <td style="padding:6px 8px;border-bottom:1px dashed #cbd5e1;text-align:right">${fmtTAT(t.turnaroundTime)}</td>
     <td style="padding:6px 8px;border-bottom:1px dashed #cbd5e1;text-align:right">${t.price.toFixed(2)}</td>
   </tr>`).join('')
   // Build overlay modal inside the app
@@ -146,7 +146,7 @@ export async function printLabTokenSlip(order: LabSlipOrderInput){
       </div>
       <div class="token">${esc(order.tokenNo)}</div>
       <table>
-        <thead><tr><th style="text-align:left">Sr</th><th style="text-align:left">Test Name</th><th style="text-align:right">Charges</th></tr></thead>
+        <thead><tr><th style="text-align:left">Sr</th><th style="text-align:left">Test Name</th><th style="text-align:right">TAT</th><th style="text-align:right">Charges</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
       <div class="frow"><div>Total Amount:</div><div style="text-align:left">${order.subtotal.toFixed(2)}</div></div>
@@ -232,8 +232,11 @@ async function printLabTokenSlipA4(order: LabSlipOrderInput, settings: any){
   drawKV('Patient Name :', String(order.patient.fullName||'-'), R, y); y += 14
   drawKV('Age / Sex :', `${order.patient.age||''} / ${order.patient.gender||''}`, L, y)
   drawKV('Mobile # :', String(order.patient.phone||'-'), R, y); y += 14
-  const head = [['Sr.','Test Name','Reporting Date & Time','Rate']]
-  const body = order.tests.map((t, i)=> [String(i+1), String(t.name||''), `${dtDate} - ${dtTime}`, (Number(t.price||0)).toFixed(2)])
+  const head = [['Sr.','Test Name','Expected TAT','Reporting Date & Time','Rate']]
+  const body = order.tests.map((t, i)=> {
+    const tat = t.turnaroundTime ? (t.turnaroundTime < 60 ? `${t.turnaroundTime}m` : t.turnaroundTime < 1440 ? `${Math.floor(t.turnaroundTime/60)}h ${t.turnaroundTime%60}m` : `${Math.floor(t.turnaroundTime/1440)}d`) : '-'
+    return [String(i+1), String(t.name||''), tat, `${dtDate} - ${dtTime}`, (Number(t.price||0)).toFixed(2)]
+  })
   autoTable(doc, {
     startY: y + 12,
     head,

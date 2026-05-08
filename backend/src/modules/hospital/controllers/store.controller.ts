@@ -8,6 +8,7 @@ import { StoreIssueModel } from '../models/StoreIssue'
 import { HospitalCounter } from '../models/Counter'
 import { StoreSupplierPaymentModel } from '../models/StoreSupplierPayment'
 import { HospitalDepartment } from '../models/Department'
+import { createSupplierAccount } from '../../finance/services/accountAutoCreate'
 
 // Generate next sequential issue number (e.g., IS-0001)
 async function nextIssueNo(): Promise<string> {
@@ -222,6 +223,10 @@ export const createSupplier = async (req: Request, res: Response) => {
   try {
     const { name, company, phone, address, taxId, status } = req.body
     const sup = await StoreSupplierModel.create({ name, company, phone, address, taxId, status: status || 'Active' })
+    // Auto-create account in Chart of Accounts
+    try {
+      await createSupplierAccount(String(sup._id), name || company || 'Supplier', 'hospital')
+    } catch {}
     res.status(201).json({ supplier: sup })
   } catch (err: any) {
     res.status(400).json({ error: err.message })

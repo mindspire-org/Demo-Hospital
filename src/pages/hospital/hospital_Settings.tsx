@@ -7,6 +7,7 @@ type Settings = {
   phone: string
   address: string
   logoDataUrl?: string
+  code?: string
   slipFooter?: string
   mrnFormat?: string
 }
@@ -17,6 +18,7 @@ export default function Hospital_Settings() {
     phone: '+92-320-4090604',
     address: 'Hospital Address, City, Country',
     logoDataUrl: undefined,
+    code: '',
     slipFooter: 'Powered by Hospital MIS',
     mrnFormat: '',
   })
@@ -35,6 +37,13 @@ export default function Hospital_Settings() {
   }, [])
 
   const update = (k: keyof Settings, v: string) => setSettings(s => ({ ...s, [k]: v }))
+
+  const mrnPresets = [
+    { label: 'HOSP-YYYY-001 (serial 3)', value: '{HOSP}-{YYYY}-{SERIAL3}' },
+    { label: 'HOSP-YYMM-000001 (serial 6)', value: '{HOSP}-{YY}{MM}-{SERIAL6}' },
+    { label: 'MR-000001 (serial 6)', value: 'MR-{SERIAL6}' },
+    { label: 'YYYYMM-000001 (serial 6)', value: '{YYYY}{MM}-{SERIAL6}' },
+  ]
 
   const onUploadLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -70,7 +79,7 @@ export default function Hospital_Settings() {
     const seq = 12345
     if (!fmt) return `MR-${seq}`
     let s = fmt
-    s = s.replace(/\{HOSP\}/gi, '')
+    s = s.replace(/\{HOSP\}/gi, String(settings.code || '').trim())
     s = s.replace(/\{YEAR\}|\{YYYY\}/gi, YYYY)
     s = s.replace(/\{YY\}/g, YY)
     s = s.replace(/\{MONTH\}|\{MM\}/gi, MM)
@@ -85,7 +94,7 @@ export default function Hospital_Settings() {
 
   return (
     <div>
-      <div className="rounded-2xl bg-gradient-to-r from-violet-500 via-pink-500 to-cyan-500 p-6 text-white shadow">
+      <div className="rounded-2xl bg-linear-to-r from-violet-500 via-pink-500 to-cyan-500 p-6 text-white shadow">
         <h2 className="text-2xl font-bold">Hospital Settings</h2>
         <p className="opacity-90">Manage hospital information, security, and data.</p>
       </div>
@@ -121,6 +130,40 @@ export default function Hospital_Settings() {
 
             <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-medium text-slate-700">MR Number Format</label>
+              <div className="mb-2 grid gap-2 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">Quick Formats</label>
+                  <select
+                    value={''}
+                    onChange={e => { const v = String(e.target.value || ''); if (v) update('mrnFormat', v) }}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+                  >
+                    <option value="">Select a format…</option>
+                    {mrnPresets.map(p => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">Tips</label>
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    Use <span className="font-mono">{'{SERIAL3}'}</span>/<span className="font-mono">{'{SERIAL6}'}</span> for counter.
+                    Example: <span className="font-mono">{'{HOSP}'}-{'{YYYY}'}-{'{SERIAL3}'}</span>
+                  </div>
+                </div>
+              </div>
+              {String(settings.mrnFormat || '').toUpperCase().includes('{HOSP}') ? (
+                <div className="mb-2">
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Hospital Abbreviation (MR Prefix)</label>
+                  <input
+                    value={settings.code || ''}
+                    onChange={e=>update('code', e.target.value.toUpperCase())}
+                    placeholder="e.g., CHCH"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Used when MR format contains <span className="font-mono">{'{HOSP}'}</span>.</p>
+                </div>
+              ) : null}
               <input
                 value={settings.mrnFormat || ''}
                 onChange={e=>update('mrnFormat', e.target.value)}

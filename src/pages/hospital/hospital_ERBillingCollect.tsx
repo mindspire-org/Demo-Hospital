@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { hospitalApi } from '../../utils/api'
+import { getLocalDate } from '../../utils/date'
 import { fmtDateTime12 } from '../../utils/timeFormat'
 import Hospital_ErPaymentSlip from '../../components/hospital/Hospital_ErPaymentSlip'
 import Toast, { type ToastState } from '../../components/ui/Toast'
@@ -23,6 +24,18 @@ function getReceptionUser(){
 }
 
 function currency(n: number){ return `Rs ${Number(n||0).toFixed(2)}` }
+
+type BedLocation = {
+  floor: string
+  type: 'room' | 'ward'
+  location: string
+  bed: string
+}
+
+function formatBedLocation(bedLoc?: BedLocation) {
+  if (!bedLoc) return '-'
+  return `${bedLoc.floor} / ${bedLoc.location} / Bed: ${bedLoc.bed}` 
+}
 
 function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog: any[], onSelect: (svc: any) => void, initialValue?: string }) {
   const [q, setQ] = useState(initialValue)
@@ -55,7 +68,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-[70] mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute z-70 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id}
@@ -84,6 +97,10 @@ export default function Reception_ERBillingCollect(){
   const [q, setQ] = useState('')
   const [list, setList] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Date filters - default to today
+  const [fromDate, setFromDate] = useState<string>(() => getLocalDate())
+  const [toDate, setToDate] = useState<string>(() => getLocalDate())
 
   const [tokenId, setTokenId] = useState<string>(preTokenId)
   const [token, setToken] = useState<any|null>(null)
@@ -157,35 +174,47 @@ export default function Reception_ERBillingCollect(){
   async function search(){
     setLoading(true)
     try{
-      const depRes: any = await hospitalApi.listDepartments().catch(()=>({ departments: [] }))
-      const deps: any[] = depRes?.departments || []
-      const erDep = deps.find(d => String(d?.name||'').trim().toLowerCase() === 'emergency')
-      const departmentId = erDep ? String(erDep._id) : ''
+      const res: any = await hospitalApi.listEREncounters({ status: 'admitted' as any, limit: 500 })
+      let rows: any[] = res?.encounters || []
 
-      const res: any = await hospitalApi.listTokens({ departmentId })
-      const rows: any[] = res?.tokens || []
-      
+      // Filter by date range only if dates are set
+      if (fromDate && toDate) {
+        const from = new Date(fromDate)
+        from.setHours(0, 0, 0, 0)
+        const to = new Date(toDate)
+        to.setHours(23, 59, 59, 999)
+        rows = rows.filter((enc: any) => {
+          const encDate = new Date(enc.startAt || enc.createdAt || 0)
+          return encDate >= from && encDate <= to
+        })
+      }
+
       const filtered = q.trim()
-        ? rows.filter(t => {
+        ? rows.filter(enc => {
           const s = q.trim().toLowerCase()
-          const pat = t.patientId || {}
-          return String(t.tokenNo||'').toLowerCase().includes(s) ||
+          const pat = enc.patientId || {}
+          const bedLoc = enc.bedLocation || enc.bedId
+          const tokenNo = String(enc.tokenId?.tokenNo || enc.tokenNo || '')
+          return tokenNo.toLowerCase().includes(s) ||
             String(pat.fullName||'').toLowerCase().includes(s) ||
-            String(pat.mrn||'').toLowerCase().includes(s)
+            String(pat.mrn||'').toLowerCase().includes(s) ||
+            formatBedLocation(bedLoc).toLowerCase().includes(s)
         })
         : rows
 
-      setList(filtered.map(t => ({
-        id: String(t._id),
-        tokenNo: t.tokenNo || '-',
-        patientName: t.patientId?.fullName || t.patientName || '-',
-        mrn: t.patientId?.mrn || t.mrn || '-',
-        createdAt: t.createdAt || t.dateIso,
+      setList(filtered.map(enc => ({
+        id: String(enc.tokenId?._id || enc.tokenId || enc._id),
+        encounterId: String(enc._id),
+        tokenNo: enc.tokenId?.tokenNo || enc.tokenNo || '-',
+        patientName: enc.patientId?.fullName || enc.patientName || '-',
+        mrn: enc.patientId?.mrn || enc.mrn || '-',
+        createdAt: enc.startAt || enc.createdAt,
+        bedLocation: enc.bedLocation || enc.bedId,
       })))
 
       // Only auto-select first patient on initial load when no patient is selected
       if (!tokenIdRef.current && filtered.length){
-        setTokenId(String(filtered[0]._id))
+        setTokenId(String(filtered[0].tokenId?._id || filtered[0].tokenId || filtered[0]._id))
       }
     }catch{ setList([]) }
     setLoading(false)
@@ -275,7 +304,7 @@ export default function Reception_ERBillingCollect(){
         }
       }
       
-      const res: any = await hospitalApi.erCreatePayment(encounterId, { amount: amt, method, refNo, receivedBy: getReceptionUser(), portal, allocations } as any)
+      const res: any = await hospitalApi.erCreatePayment(encounterId, { amount: amt, method, paymentMode: method, refNo, receivedBy: getReceptionUser(), portal, allocations } as any)
       const pay = res?.payment
 
       const [ch2, pay2, summary] = await Promise.all([
@@ -333,6 +362,7 @@ export default function Reception_ERBillingCollect(){
       const res: any = await hospitalApi.erCreatePayment(encounterId, {
         amount: amt,
         method: 'Advance',
+        paymentMode: d.method,
         refNo: d.refNo || '',
         notes: d.notes || '',
         receivedBy: getReceptionUser(),
@@ -435,8 +465,30 @@ export default function Reception_ERBillingCollect(){
     <div className="space-y-4 p-4">
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="text-lg font-semibold">ER Billing</div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by Token, MRN or Patient Name" className="min-w-[320px] flex-1 rounded-md border border-slate-300 px-3 py-2" />
+        {/* Date Filters */}
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-600">From Date</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-600">To Date</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-xs font-medium text-slate-600">Search (Name, MR No, Token No)</label>
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by Token, MRN or Patient Name" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </div>
           <button onClick={search} className="btn" disabled={loading}>{loading? 'Searching...' : 'Search'}</button>
         </div>
 
@@ -447,17 +499,19 @@ export default function Reception_ERBillingCollect(){
                 <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Patient</th>
                 <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">MRN</th>
                 <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Token</th>
+                <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Bed</th>
                 <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {list.length===0 ? (
-                <tr><td colSpan={4} className="px-2 py-6 text-center text-slate-500">{loading ? 'Loading...' : 'No ER billing records found. Tokens will appear here once billing charges are added.'}</td></tr>
+                <tr><td colSpan={5} className="px-2 py-6 text-center text-slate-500">{loading ? 'Loading...' : 'No ER billing records found. Tokens will appear here once billing charges are added.'}</td></tr>
               ) : list.map(r => (
                 <tr key={r.id}>
                   <td className="px-2 py-2">{r.patientName}</td>
                   <td className="px-2 py-2">{r.mrn}</td>
                   <td className="px-2 py-2 font-medium">{r.tokenNo}</td>
+                  <td className="px-2 py-2">{formatBedLocation(r.bedLocation)}</td>
                   <td className="px-2 py-2"><button className="btn-outline-navy" onClick={()=>openCart(r.id)}>Collect</button></td>
                 </tr>
               ))}
@@ -548,8 +602,7 @@ export default function Reception_ERBillingCollect(){
                     <div className="text-xs text-slate-600">Method</div>
                     <select value={method} onChange={e=>setMethod(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2">
                       <option>Cash</option>
-                      <option>Card</option>
-                      <option>Online</option>
+                      <option>Bank</option>
                     </select>
                   </div>
                   <div>
@@ -747,7 +800,7 @@ function AdvanceDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>
 
           <label htmlFor="adv-method" className="block text-xs font-medium text-slate-600">Payment Mode</label>
           <select id="adv-method" name="method" className="w-full rounded-md border border-slate-300 px-3 py-2">
-            {['Cash','Card','Bank','Online'].map(m => (<option key={m} value={m}>{m}</option>))}
+            {['Cash','Bank'].map(m => (<option key={m} value={m}>{m}</option>))}
           </select>
 
           <label htmlFor="adv-ref" className="block text-xs font-medium text-slate-600">Ref No</label>
@@ -799,7 +852,7 @@ function ReturnAdvanceDialog({ open, onClose, onSave, maxAmount }: { open: boole
 
           <label htmlFor="ret-method" className="block text-xs font-medium text-slate-600">Return Method</label>
           <select id="ret-method" name="method" className="w-full rounded-md border border-slate-300 px-3 py-2">
-            {['Cash','Card','Bank','Online'].map(m => (<option key={m} value={m}>{m}</option>))}
+            {['Cash','Bank'].map(m => (<option key={m} value={m}>{m}</option>))}
           </select>
 
           <label htmlFor="ret-ref" className="block text-xs font-medium text-slate-600">Ref No</label>

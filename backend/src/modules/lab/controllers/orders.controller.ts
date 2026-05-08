@@ -526,6 +526,10 @@ export async function updateTrack(req: Request, res: Response){
     if (otherFields.status !== undefined) updateData.status = otherFields.status
     if (otherFields.isReturned !== undefined) updateData.isReturned = otherFields.isReturned
     if (otherFields.returnReason !== undefined) updateData.returnReason = otherFields.returnReason
+    // Track who performed the sample collection or status change
+    if (updateData.sampleTime !== undefined || updateData.status !== undefined) {
+      updateData.performedBy = actor
+    }
     
     let testDoc: any = null
     if (orderTestId) {

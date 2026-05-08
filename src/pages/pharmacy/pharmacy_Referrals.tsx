@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import MiniDashboard from '../../components/common/MiniDashboard'
+import { ArrowRightLeft, Clock, CheckCircle, XCircle, List } from 'lucide-react'
 
 export default function Pharmacy_Referrals(){
   const [list, setList] = useState<any[]>([])
@@ -48,27 +50,57 @@ export default function Pharmacy_Referrals(){
     return (list||[]).filter((r: any)=> !s || `${r.encounterId?.patientId?.fullName||''} ${r.encounterId?.patientId?.mrn||''} ${r.doctorId?.name||''}`.toLowerCase().includes(s))
   }, [list, q])
 
+  const pendingCount = list.filter((r: any) => r.status === 'pending').length
+  const completedCount = list.filter((r: any) => r.status === 'completed').length
+  const cancelledCount = list.filter((r: any) => r.status === 'cancelled').length
+
   return (
     <>
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="text-xl font-semibold text-slate-800">Pharmacy Referrals</div>
-        <div className="flex items-center gap-2">
-          <input type="date" value={from} onChange={e=>{ setPage(1); setFrom(e.target.value) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <span className="text-slate-500 text-sm">to</span>
-          <input type="date" value={to} onChange={e=>{ setPage(1); setTo(e.target.value) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <select value={status} onChange={e=>{ setPage(1); setStatus(e.target.value as any) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
-            <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="all">All</option>
-          </select>
-          <select value={limit} onChange={e=>{ setPage(1); setLimit(parseInt(e.target.value)||20) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-600"><ArrowRightLeft className="h-5 w-5" /></div>
+        <h1 className="text-xl font-bold text-slate-800">Pharmacy Referrals</h1>
+      </div>
+
+      <MiniDashboard cards={[
+        { label: 'Total', value: total, icon: List, color: 'bg-indigo-500' },
+        { label: 'Pending', value: pendingCount, icon: Clock, color: 'bg-amber-500' },
+        { label: 'Completed', value: completedCount, icon: CheckCircle, color: 'bg-emerald-500' },
+        { label: 'Cancelled', value: cancelledCount, icon: XCircle, color: 'bg-rose-500' },
+      ]} />
+
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">Filters</div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">From</label>
+            <input type="date" value={from} onChange={e=>{ setPage(1); setFrom(e.target.value) }} className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">To</label>
+            <input type="date" value={to} onChange={e=>{ setPage(1); setTo(e.target.value) }} className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Status</label>
+            <select value={status} onChange={e=>{ setPage(1); setStatus(e.target.value as any) }} className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 outline-none">
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Per Page</label>
+            <select value={limit} onChange={e=>{ setPage(1); setLimit(parseInt(e.target.value)||20) }} className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 outline-none">
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+          <div className="flex-1 min-w-[180px]">
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Search</label>
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Patient, doctor, MRN" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" />
+          </div>
         </div>
       </div>
 

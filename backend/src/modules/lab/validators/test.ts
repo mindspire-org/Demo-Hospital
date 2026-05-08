@@ -14,6 +14,8 @@ export const testCreateSchema = z.object({
     normalRangeMale: z.string().optional(),
     normalRangeFemale: z.string().optional(),
     normalRangePediatric: z.string().optional(),
+    formula: z.string().optional(),
+    dependsOn: z.array(z.string()).optional().default([]),
   })).optional().default([]),
   consumables: z.array(z.object({ item: z.string().min(1), qty: z.coerce.number().int().positive() })).optional().default([]),
 })

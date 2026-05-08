@@ -1,6 +1,6 @@
 import { labApi } from '../../api'
 
-export type LabReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'critical'; comment?: string; profile?: string; details?: string }
+export type LabReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'abnormal_low'|'abnormal_high'|'critical'|'critical_low'|'critical_high'; comment?: string; profile?: string; details?: string }
 
 export type LabReportInput = {
   tokenNo: string
@@ -300,7 +300,9 @@ async function buildReceiptStyleDoc(input: LabReportInput, mode: 'preview'|'down
     return groups
   }
 
-  const profileGroups = groupByProfile(input.rows || [])
+  // Only include rows that have a result value — skip parameters with no value
+  const filteredRows = (input.rows || []).filter(r => (r.value || '').trim().length > 0)
+  const profileGroups = groupByProfile(filteredRows)
   const profiles = Object.keys(profileGroups)
 
   // Check which columns have data across all rows

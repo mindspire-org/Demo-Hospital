@@ -275,6 +275,7 @@ export async function createNote(req: Request, res: Response){
       patientId: enc.patientId,
       recordedAt: new Date(),
       note: data.text,
+      noteType: data.noteType,
       recordedBy: data.createdBy,
     })
     res.status(201).json({ note: row })
@@ -288,6 +289,7 @@ export async function listNotes(req: Request, res: Response){
     const page = Math.max(1, parseInt(String(q.page || '1')) || 1)
     const limit = Math.max(1, Math.min(200, parseInt(String(q.limit || '50')) || 50))
     const crit: any = { encounterId: enc._id, note: { $exists: true, $ne: '' } }
+    if (q.noteType) crit.noteType = String(q.noteType)
     const total = await HospitalIpdVital.countDocuments(crit)
     const rows = await HospitalIpdVital.find(crit).sort({ recordedAt: -1, createdAt: -1 }).skip((page-1)*limit).limit(limit)
     res.json({ notes: rows, total, page, limit })
@@ -299,6 +301,7 @@ export async function updateNote(req: Request, res: Response){
     const data = updateIpdNoteSchema.parse(req.body)
     const set: any = {}
     if (data.text !== undefined) set.note = data.text
+    if (data.noteType !== undefined) set.noteType = data.noteType
     if (data.createdBy !== undefined) set.recordedBy = data.createdBy
     const row = await HospitalIpdVital.findByIdAndUpdate(String(id), { $set: set }, { new: true })
     if (!row) return res.status(404).json({ error: 'Note not found (vital)' })

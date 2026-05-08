@@ -35,6 +35,7 @@ export default function Pharmacy_Returns() {
   const [searchTick, setSearchTick] = useState(0)
   const [rows, setRows] = useState<Row[]>([])
   const [, setLoading] = useState(false)
+  const [billError, setBillError] = useState('')
   const [selectedSale, setSelectedSale] = useState<any|null>(null)
   const [slip, setSlip] = useState<{ open:boolean; billNo:string; customer?:string; lines:{ name:string; qty:number; amount:number }[]; total:number }>({ open:false, billNo:'', customer:'', lines:[], total:0 })
 
@@ -85,8 +86,9 @@ export default function Pharmacy_Returns() {
         <div className="mb-3 font-medium text-slate-800">Search</div>
         <div className="grid gap-3 md:grid-cols-6 items-end">
           <div>
-            <label className="mb-1 block text-sm text-slate-700">Invoice ID</label>
-            <input value={invoiceId} onChange={e=>setInvoiceId(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Exact bill/invoice" />
+            <label className="mb-1 block text-sm text-slate-700">Invoice ID <span className="text-red-500">*</span></label>
+            <input value={invoiceId} onChange={e=>{ setInvoiceId(e.target.value); if(e.target.value.trim()) setBillError('') }} className={`w-full rounded-md border px-3 py-2 text-sm ${billError ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} placeholder="Enter bill/invoice number" />
+            {billError && <div className="mt-1 text-xs text-red-600">{billError}</div>}
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-700">Customer</label>
@@ -105,7 +107,7 @@ export default function Pharmacy_Returns() {
             <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </div>
           <div className="flex items-end">
-            <button onClick={()=>{ setPage(1); setSearchTick(t=>t+1) }} className="btn">Search</button>
+            <button onClick={()=>{ if(!invoiceId.trim()){ setBillError('Bill number is required to process a return'); return } setBillError(''); setPage(1); setSearchTick(t=>t+1) }} className="btn">Search</button>
           </div>
           <div className="flex items-end">
             <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700">

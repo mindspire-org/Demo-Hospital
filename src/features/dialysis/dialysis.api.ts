@@ -146,6 +146,18 @@ export const dialysisApi = {
     api(`/dialysis/appointments/${encodeURIComponent(id)}/convert-to-token`, { method: 'POST', body: JSON.stringify(data || {}) }),
 
   // -------------------------------------------------------------------------
+  // Discharge
+  // -------------------------------------------------------------------------
+  dischargePatient: (dialysisPatientId: string, data?: { dischargeReason?: string; dischargeNotes?: string }) =>
+    api(`/dialysis/dialysis-patients/${encodeURIComponent(dialysisPatientId)}/discharge`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  reactivatePatient: (dialysisPatientId: string) =>
+    api(`/dialysis/dialysis-patients/${encodeURIComponent(dialysisPatientId)}/reactivate`, { method: 'POST' }),
+  listDischargedPatients: (params?: { q?: string; page?: number; limit?: number }) =>
+    api(withQuery('/dialysis/dialysis-patients/discharged', params)),
+  getPatientHistory: (dialysisPatientId: string) =>
+    api(`/dialysis/dialysis-patients/${encodeURIComponent(dialysisPatientId)}/history`),
+
+  // -------------------------------------------------------------------------
   // Dashboard
   // -------------------------------------------------------------------------
   getDashboardStats: () => api('/dialysis/dashboard/stats'),

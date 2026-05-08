@@ -100,8 +100,16 @@ export default function Lab_PurchaseHistory() {
 
 
   return (
-    <div className="space-y-4">
-      <div className="text-xl font-bold text-slate-800">Purchase History</div>
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Purchase History</h2>
+            <div className="mt-0.5 text-sm text-sky-100">View past purchase orders and receipts</div>
+          </div>
+        </div>
+      </div>
       {notice && (
         <div className={`rounded-md border px-3 py-2 text-sm ${notice.kind==='success'? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>{notice.text}</div>
       )}

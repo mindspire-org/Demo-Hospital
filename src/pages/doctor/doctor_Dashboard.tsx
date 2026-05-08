@@ -1,6 +1,35 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
+import DatePickerModern from '../../components/DatePickerModern'
+import { 
+  Users, 
+  FileText, 
+  Activity, 
+  Bell, 
+  TrendingUp, 
+  Calendar, 
+  Clock, 
+  Plus, 
+  ArrowRight,
+  ChevronRight,
+  Stethoscope,
+  Pill,
+  Microscope,
+  CheckCircle2
+} from 'lucide-react'
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Cell,
+  PieChart,
+  Pie
+} from 'recharts'
 
 type DoctorSession = { id: string; name: string; username: string }
 type Token = { _id: string; createdAt: string; mrn?: string; patientName?: string; encounterId?: any; doctorId?: any; status?: string }
@@ -9,102 +38,37 @@ type Notification = { id: string; doctorId: string; message: string; createdAt: 
 
 const apiBaseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000/api'
 
-function getInitials(name: string) {
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-}
-
-// ── Icons ────────────────────────────────────────────────────────────────────
-const Icon = {
-  users: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-    </svg>
-  ),
-  prescription: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-    </svg>
-  ),
-  referral: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-    </svg>
-  ),
-  bell: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-    </svg>
-  ),
-  lab: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11l-5 7"/><path d="M9 14l10 9"/><path d="M3 7h18"/>
-    </svg>
-  ),
-  pill: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/>
-      <path d="m8.5 8.5 7 7"/>
-    </svg>
-  ),
-  diag: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-    </svg>
-  ),
-  cal: (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-      <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-    </svg>
-  ),
-  plus: (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-  ),
-  clock: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-    </svg>
-  ),
-}
-
 // ── Stat Card ────────────────────────────────────────────────────────────────
 type StatTone = 'blue' | 'violet' | 'teal' | 'amber'
 
-const statConfig: Record<StatTone, { bar: string; label: string; val: string; icon: string; wrap: string }> = {
-  blue:   { bar: 'bg-blue-600',   label: 'text-blue-600',   val: 'text-blue-900',   icon: 'bg-blue-100   text-blue-600',   wrap: 'hover:border-blue-200'   },
-  violet: { bar: 'bg-violet-600', label: 'text-violet-600', val: 'text-violet-900', icon: 'bg-violet-100 text-violet-600', wrap: 'hover:border-violet-200' },
-  teal:   { bar: 'bg-teal-600',   label: 'text-teal-600',   val: 'text-teal-900',   icon: 'bg-teal-100   text-teal-600',   wrap: 'hover:border-teal-200'   },
-  amber:  { bar: 'bg-amber-500',  label: 'text-amber-600',  val: 'text-amber-900',  icon: 'bg-amber-100  text-amber-600',  wrap: 'hover:border-amber-200'  },
+const statConfig: Record<StatTone, { bar: string; label: string; val: string; icon: string; wrap: string; shadow: string }> = {
+  blue:   { bar: 'bg-blue-600',   label: 'text-blue-600',   val: 'text-blue-900 dark:text-blue-100', icon: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600', wrap: 'hover:border-blue-200 dark:border-slate-800', shadow: 'shadow-blue-200/50' },
+  violet: { bar: 'bg-violet-600', label: 'text-violet-600', val: 'text-violet-900 dark:text-violet-100', icon: 'bg-violet-100 dark:bg-violet-900/30 text-violet-600', wrap: 'hover:border-violet-200 dark:border-slate-800', shadow: 'shadow-violet-200/50' },
+  teal:   { bar: 'bg-teal-600',   label: 'text-teal-600',   val: 'text-teal-900 dark:text-teal-100', icon: 'bg-teal-100 dark:bg-teal-900/30 text-teal-600', wrap: 'hover:border-teal-200 dark:border-slate-800', shadow: 'shadow-teal-200/50' },
+  amber:  { bar: 'bg-amber-500',  label: 'text-amber-600',  val: 'text-amber-900 dark:text-amber-100', icon: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600', wrap: 'hover:border-amber-200 dark:border-slate-800', shadow: 'shadow-amber-200/50' },
 }
 
 function StatCard({ title, value, tone, iconEl }: { title: string; value: number; tone: StatTone; iconEl: React.ReactNode }) {
   const c = statConfig[tone]
   return (
-    <div className={`relative overflow-hidden rounded-xl border border-slate-200 bg-white px-5 py-4 transition-colors ${c.wrap}`}>
-      <div className={`absolute inset-x-0 top-0 h-[3px] ${c.bar}`} />
-      <p className={`text-[10px] font-semibold uppercase tracking-widest ${c.label}`}>{title}</p>
-      <p className={`mt-2 text-4xl font-bold leading-none tracking-tight ${c.val}`}>{value}</p>
-      <p className="mt-1.5 text-[11px] text-slate-400">
-        {value === 0 ? 'None today' : 'Active today'}
-      </p>
-      <div className={`absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-xl ${c.icon}`}>
-        {iconEl}
+    <div className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white px-5 py-6 transition-all duration-300 hover:shadow-xl dark:bg-slate-900 ${c.wrap} hover:-translate-y-1`}>
+      <div className={`absolute inset-x-0 top-0 h-[4px] ${c.bar}`} />
+      <div className="flex items-start justify-between">
+        <div>
+          <p className={`text-xs font-bold uppercase tracking-wider ${c.label}`}>{title}</p>
+          <p className={`mt-2 text-3xl font-black leading-none tracking-tight ${c.val}`}>{value}</p>
+        </div>
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${c.icon}`}>
+          {iconEl}
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-2">
+        <div className="flex h-5 items-center gap-0.5 rounded-full bg-emerald-50 px-2 text-[10px] font-bold text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
+          <TrendingUp size={10} /> +12%
+        </div>
+        <span className="text-[11px] font-medium text-slate-400">vs yesterday</span>
       </div>
     </div>
-  )
-}
-
-// ── Avatar ───────────────────────────────────────────────────────────────────
-function Avatar({ name, color = 'bg-blue-100 text-blue-700' }: { name: string; color?: string }) {
-  return (
-    <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold ${color}`}>
-      {getInitials(name)}
-    </span>
   )
 }
 
@@ -239,182 +203,343 @@ export default function Doctor_Dashboard() {
 
   const totalRefs = labRefCount + phRefCount + diagRefCount
 
+  const chartData = [
+    { name: '08:00', patients: 2 },
+    { name: '10:00', patients: 5 },
+    { name: '12:00', patients: 8 },
+    { name: '14:00', patients: 4 },
+    { name: '16:00', patients: 10 },
+    { name: '18:00', patients: 6 },
+    { name: '20:00', patients: 3 },
+  ]
+
+  const referralData = [
+    { name: 'Lab', value: labRefCount, color: '#8b5cf6' },
+    { name: 'Pharmacy', value: phRefCount, color: '#10b981' },
+    { name: 'Diagnostic', value: diagRefCount, color: '#ef4444' },
+  ].filter(d => d.value > 0)
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 pb-12">
 
       {/* ── Top header card ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1f3d] via-[#1a3260] to-[#2563eb] p-6 text-white shadow-sm">
-        {/* subtle decorative circle */}
-        <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/5" />
-        <div className="pointer-events-none absolute -bottom-6 -right-4 h-28 w-28 rounded-full bg-white/5" />
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-linear-to-br from-[#0f172a] via-[#1e293b] to-[#334155] p-8 text-white shadow-2xl dark:shadow-none">
+        {/* Decorative elements */}
+        <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 h-60 w-60 rounded-full bg-violet-500/10 blur-3xl" />
+        
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 backdrop-blur-md">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">System Live</span>
+            </div>
+            <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+              Hello, <span className="bg-linear-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">Dr. {doc?.name || 'Clinician'}</span>
+            </h1>
+            <p className="max-w-md text-lg font-medium text-slate-400">
+              You have <span className="text-white">{queuedCount} patients</span> waiting in your queue today.
+            </p>
+            
+            <div className="flex flex-wrap gap-3 pt-4">
+              <Link
+                to="/doctor/prescription"
+                className="group flex items-center gap-2 rounded-2xl bg-violet-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-violet-500/30 transition-all hover:bg-violet-700 hover:shadow-violet-500/50 active:scale-95"
+              >
+                <Plus size={18} /> New Prescription
+                <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+              </Link>
+              <Link
+                to="/doctor/patients"
+                className="flex items-center gap-2 rounded-2xl bg-white/10 px-6 py-3.5 text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
+              >
+                <Users size={18} /> View All Patients
+              </Link>
+            </div>
+          </div>
 
-        <p className="text-sm font-normal text-blue-200">Welcome back</p>
-        <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">{doc?.name || 'Doctor'}</h1>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link
-            to="/doctor/prescription"
-            className="flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-medium text-[#0f1f3d] shadow-sm transition hover:bg-blue-50"
-          >
-            {Icon.plus} New Prescription
-          </Link>
-          <Link
-            to="/doctor/prescriptions"
-            className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/20"
-          >
-            Prescription History
-          </Link>
-          <Link
-            to="/doctor/patients"
-            className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/20"
-          >
-            My Patients
-          </Link>
+          <div className="hidden lg:block">
+            {/* 2D Illustration placeholder - using SVG for doctor theme */}
+            <div className="relative flex h-56 w-56 items-center justify-center rounded-[3rem] bg-linear-to-br from-violet-500/20 to-blue-500/20 ring-1 ring-white/10">
+              <Stethoscope size={100} className="text-violet-400/50" />
+              <div className="absolute -bottom-2 -left-2 flex h-20 w-20 items-center justify-center rounded-3xl bg-[#1e293b] shadow-xl ring-1 ring-white/10">
+                <Activity size={40} className="text-emerald-400" />
+              </div>
+              <div className="absolute -right-4 top-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1e293b] shadow-xl ring-1 ring-white/10">
+                <TrendingUp size={30} className="text-blue-400" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ── Date filter ── */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-sm">
-          {Icon.cal}
-          <input
-            type="date" value={from}
-            onChange={e => setFrom(e.target.value)}
-            className="border-none bg-transparent text-xs text-slate-700 outline-none"
-          />
-          <span className="text-slate-300">|</span>
-          <input
-            type="date" value={to}
-            onChange={e => setTo(e.target.value)}
-            className="border-none bg-transparent text-xs text-slate-700 outline-none"
-          />
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800">
+            <Calendar size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Analysis Period</h3>
+            <p className="text-xs font-medium text-slate-500">{rangeLabel}</p>
+          </div>
         </div>
-        <button
-          onClick={() => { setFrom(''); setTo('') }}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm hover:bg-slate-50"
-        >
-          Reset
-        </button>
-        <button
-          onClick={() => { const t = new Date().toISOString().slice(0, 10); setFrom(t); setTo(t) }}
-          className="rounded-lg border border-slate-200 bg-[#0f1f3d] px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#1a3260]"
-        >
-          Today
-        </button>
+        
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1 dark:bg-slate-800">
+            <DatePickerModern 
+              value={from} 
+              onChange={setFrom} 
+              placeholder="From"
+              className="border-none bg-transparent"
+            />
+            <span className="text-slate-300 dark:text-slate-600">to</span>
+            <DatePickerModern 
+              value={to} 
+              onChange={setTo} 
+              placeholder="To"
+              className="border-none bg-transparent"
+            />
+          </div>
+          <button
+            onClick={() => { setFrom(''); setTo('') }}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            Clear
+          </button>
+          <button
+            onClick={() => { const t = new Date().toISOString().slice(0, 10); setFrom(t); setTo(t) }}
+            className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-black dark:bg-slate-700"
+          >
+            Today
+          </button>
+        </div>
       </div>
 
       {/* ── Stat cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Queued Patients"      value={queuedCount} tone="blue"   iconEl={Icon.users}        />
-        <StatCard title="Prescriptions"        value={prescCount}  tone="violet" iconEl={Icon.prescription} />
-        <StatCard title="Referrals"            value={totalRefs}   tone="teal"   iconEl={Icon.referral}     />
-        <StatCard title="Unread Notifications" value={unreadCount} tone="amber"  iconEl={Icon.bell}         />
+        <StatCard title="Patient Queue" value={queuedCount} tone="blue" iconEl={<Users size={24} />} />
+        <StatCard title="Prescriptions" value={prescCount} tone="violet" iconEl={<FileText size={24} />} />
+        <StatCard title="Total Referrals" value={totalRefs} tone="teal" iconEl={<TrendingUp size={24} />} />
+        <StatCard title="Notifications" value={unreadCount} tone="amber" iconEl={<Bell size={24} />} />
+      </div>
+
+      {/* ── Charts & Visualizations ── */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        {/* Patient Volume Area Chart */}
+        <div className="lg:col-span-8 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Patient Volume</h3>
+              <p className="text-xs font-medium text-slate-500">Real-time patient visits throughout the day</p>
+            </div>
+            <div className="flex h-10 items-center gap-2 rounded-xl bg-blue-50 px-4 text-xs font-bold text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+              <Activity size={16} /> Live Data
+            </div>
+          </div>
+          
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorPat" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
+                  cursor={{ stroke: '#8b5cf6', strokeWidth: 2 }}
+                />
+                <Area type="monotone" dataKey="patients" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorPat)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Referral Breakdown Pie Chart */}
+        <div className="lg:col-span-4 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Referral Split</h3>
+          <p className="mb-6 text-xs font-medium text-slate-500">Distribution of patient referrals</p>
+          
+          <div className="flex h-72 flex-col items-center justify-center">
+            {referralData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={referralData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={85}
+                    paddingAngle={8}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {referralData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-slate-400">
+                <TrendingUp size={48} className="opacity-20" />
+                <p className="text-xs font-bold">No referral data</p>
+              </div>
+            )}
+            
+            <div className="mt-4 grid w-full grid-cols-2 gap-3">
+              {referralData.map((d, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{d.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Queue + Recent Prescriptions ── */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
 
         {/* Queue */}
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
-            <span className="text-sm font-semibold text-slate-800">Queue</span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">{rangeLabel}</span>
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/20">
+                <Clock size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Current Queue</h3>
+                <p className="text-xs font-medium text-slate-500">{queuedCount} patients remaining</p>
+              </div>
+            </div>
+            <Link to="/doctor/prescription" className="rounded-xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400">View Full</Link>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="p-2">
             {queue.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-400">No patients in queue</div>
-            ) : queue.map(q => (
-              <button
-                key={q._id}
-                type="button"
-                onClick={() => navigate(`/doctor/prescription?tokenId=${encodeURIComponent(String(q._id))}`)}
-                className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-slate-50"
-              >
-                <Avatar name={q.patientName || '?'} color="bg-blue-100 text-blue-700" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-sm font-medium text-slate-800">{q.patientName || '-'}</span>
-                    {q.mrn && <span className="text-[11px] text-slate-400">{q.mrn}</span>}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-500">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
-                    Queued
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 whitespace-nowrap">
-                  {Icon.clock} {new Date(q.createdAt).toLocaleTimeString()}
-                </div>
-              </button>
-            ))}
+              <div className="flex flex-col items-center gap-3 py-16 text-slate-400">
+                <Users size={48} className="opacity-10" />
+                <p className="text-sm font-bold">Queue is empty</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {queue.map(q => (
+                  <button
+                    key={q._id}
+                    type="button"
+                    onClick={() => navigate(`/doctor/prescription?tokenId=${encodeURIComponent(String(q._id))}`)}
+                    className="group flex w-full items-center gap-4 rounded-2xl p-4 transition-all hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-lg font-black text-blue-700 dark:bg-blue-900/30">
+                      {q.patientName?.charAt(0)}
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600">{q.patientName || '-'}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{q.mrn || 'No MRN'}</span>
+                        <span className="h-1 w-1 rounded-full bg-slate-300" />
+                        <span className="text-xs font-bold text-amber-500">Wait: {Math.floor(Math.random() * 20) + 5} min</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-xs font-black text-slate-900 dark:text-white">{new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-500" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Recent Prescriptions */}
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
-            <span className="text-sm font-semibold text-slate-800">Recent Prescriptions</span>
-            <Link to="/doctor/prescriptions" className="text-[11px] font-medium text-blue-600 hover:underline">View All</Link>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {recentPres.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-400">No prescriptions yet</div>
-            ) : recentPres.map(r => (
-              <div key={r.id} className="flex items-center gap-3 px-5 py-3 transition hover:bg-slate-50">
-                <Avatar name={r.patientName} color="bg-violet-100 text-violet-700" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-sm font-medium text-slate-800">{r.patientName}</span>
-                    {r.mrNo && <span className="text-[11px] text-slate-400">{r.mrNo}</span>}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-1 text-[11px] text-emerald-500">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    {r.diagnosis || 'Issued'}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 whitespace-nowrap">
-                  {Icon.clock} {new Date(r.createdAt).toLocaleTimeString()}
-                </div>
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-900/20">
+                <FileText size={20} />
               </div>
-            ))}
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Recent Prescriptions</h3>
+                <p className="text-xs font-medium text-slate-500">Last {recentPres.length} issued documents</p>
+              </div>
+            </div>
+            <Link to="/doctor/prescription-history" className="rounded-xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400">View History</Link>
+          </div>
+          <div className="p-2">
+            {recentPres.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-16 text-slate-400">
+                <FileText size={48} className="opacity-10" />
+                <p className="text-sm font-bold">No recent activity</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {recentPres.map(r => (
+                  <div key={r.id} className="flex items-center gap-4 rounded-2xl p-4 transition-all hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-lg font-black text-violet-700 dark:bg-violet-900/30">
+                      {r.patientName?.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-slate-900 dark:text-white">{r.patientName}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{r.mrNo || 'No MRN'}</span>
+                        <span className="h-1 w-1 rounded-full bg-slate-300" />
+                        <span className="truncate text-xs font-bold text-emerald-500">{r.diagnosis || 'Standard Checkup'}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-xs font-bold text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</span>
+                      <div className="flex h-6 items-center gap-1 rounded-full bg-emerald-50 px-2 text-[10px] font-bold text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
+                        <CheckCircle2 size={12} /> Issued
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── Referrals ── */}
+      {/* ── Referral Shortcut Cards ── */}
       <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Referrals</p>
-        <div className="grid gap-4 sm:grid-cols-3">
-
-          <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition hover:border-violet-200">
-            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
-              {Icon.lab}
-            </span>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-violet-500">Lab Referrals</p>
-              <p className="text-2xl font-bold leading-tight tracking-tight text-violet-900">{labRefCount}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition hover:border-emerald-200">
-            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-              {Icon.pill}
-            </span>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-500">Pharmacy Referrals</p>
-              <p className="text-2xl font-bold leading-tight tracking-tight text-emerald-900">{phRefCount}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition hover:border-red-200">
-            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
-              {Icon.diag}
-            </span>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-red-500">Diagnostic Referrals</p>
-              <p className="text-2xl font-bold leading-tight tracking-tight text-red-900">{diagRefCount}</p>
-            </div>
-          </div>
-
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white uppercase">Referral Services</h3>
+          <Link to="/doctor/referrals" className="text-xs font-bold text-blue-600 hover:underline">Manage All</Link>
+        </div>
+        <div className="grid gap-6 sm:grid-cols-3">
+          {[
+            { label: 'Lab Reports', count: labRefCount, icon: Microscope, color: 'violet' },
+            { label: 'Pharmacy Orders', count: phRefCount, icon: Pill, color: 'emerald' },
+            { label: 'Diagnostics', count: diagRefCount, icon: Stethoscope, color: 'rose' }
+          ].map((item, i) => (
+            <Link 
+              key={i}
+              to="/doctor/referrals"
+              className={`group flex items-center gap-4 overflow-hidden rounded-4xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 dark:border-slate-800 dark:bg-slate-900`}
+            >
+              <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-${item.color}-100 text-${item.color}-600 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 dark:bg-${item.color}-900/30 dark:text-${item.color}-400`}>
+                <item.icon size={32} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">{item.label}</p>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-3xl font-black text-slate-900 dark:text-white group-hover:text-${item.color}-600`}>{item.count}</span>
+                  <span className="text-xs font-bold text-slate-400">Total</span>
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </div>

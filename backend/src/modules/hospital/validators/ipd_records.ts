@@ -13,7 +13,7 @@ export const createIpdVitalSchema = z.object({
   recordedBy: z.string().optional(),
   note: z.string().optional(),
   // Daily Monitoring Chart additions
-  shift: z.enum(['morning','evening','night']).optional(),
+  shift: z.enum(['morning','evening','night']).optional().or(z.literal('').transform(() => undefined)),
   bsr: z.coerce.number().optional(),
   intakeIV: z.string().optional(),
   urine: z.string().optional(),
@@ -129,7 +129,7 @@ export const updateIpdPaymentSchema = z.object({
 })
 
 // Clinical Notes (Preop / Operation / Postop / Consultant / Anesthesia* / Forms)
-const clinicalNoteType = z.enum(['preop','operation','postop','consultant','anes-pre','anes-intra','anes-recovery','anes-post-recovery','anes-adverse','consent-form','infection-control','blood-transfusion','operation-consent','history-exam','surgical-signin','surgical-timeout','surgical-signout'])
+const clinicalNoteType = z.enum(['preop','operation','postop','consultant','anes-pre','anes-intra','anes-recovery','anes-post-recovery','anes-adverse','consent-form','infection-control','blood-transfusion','operation-consent','history-exam','surgical-signin','surgical-timeout','surgical-signout','icu-monitoring'])
 const preopDataSchema = z.object({
   npoFrom: z.string().optional(),
   maintainIV: z.string().optional(),
@@ -519,6 +519,16 @@ export const createIpdClinicalNoteSchema = z.discriminatedUnion('type', [
     doctorName: z.string().optional(),
     sign: z.string().optional(),
     data: surgicalSignOutDataSchema,
+  }),
+
+  z.object({
+    type: z.literal('icu-monitoring'),
+    recordedAt: z.coerce.date().optional(),
+    createdBy: z.string().optional(),
+    createdByRole: z.string().optional(),
+    doctorName: z.string().optional(),
+    sign: z.string().optional(),
+    data: z.any().optional(),
   }),
 ])
 

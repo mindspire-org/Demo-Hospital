@@ -46,8 +46,8 @@ export default function Pharmacy_PrescriptionIntake(){
   const process = () => {
     try {
       const lines = items.map(it => ({ name: it.name, qty: Math.max(1, it.qty|0) }))
-      localStorage.setItem('pharmacy.pos.pendingAddLines', JSON.stringify(lines))
-      navigate('/pharmacy/pos')
+      localStorage.setItem('indoorpharmacy.pos.pendingAddLines', JSON.stringify(lines))
+      navigate('/indoor-pharmacy/pos')
     } catch (e) {
       setToast({ type: 'error', message: 'Failed to forward to POS' })
     }

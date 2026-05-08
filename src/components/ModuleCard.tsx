@@ -13,7 +13,7 @@ export default function ModuleCard({
   title: string
   description: string
   icon: ReactNode
-  tone?: 'sky' | 'emerald' | 'violet' | 'amber' | 'teal' | 'slate'
+  tone?: 'sky' | 'emerald' | 'violet' | 'amber' | 'teal' | 'indigo' | 'slate'
 }) {
   const toneMap: Record<string, string> = {
     sky: 'bg-sky-50 border-sky-100 dark:bg-sky-900/20 dark:border-sky-800/50',
@@ -21,6 +21,7 @@ export default function ModuleCard({
     violet: 'bg-violet-50 border-violet-100 dark:bg-violet-900/20 dark:border-violet-800/50',
     amber: 'bg-amber-50 border-amber-100 dark:bg-amber-900/20 dark:border-amber-800/50',
     teal: 'bg-teal-50 border-teal-100 dark:bg-teal-900/20 dark:border-teal-800/50',
+    indigo: 'bg-indigo-50 border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800/50',
     slate: 'bg-slate-50 border-slate-100 dark:bg-slate-900/20 dark:border-slate-800/50',
   }
 

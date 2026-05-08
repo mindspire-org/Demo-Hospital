@@ -20,10 +20,8 @@ export default function Doctor_Layout() {
   return (
     <div className={theme === 'dark' ? 'doctor-scope dark' : 'doctor-scope'}>
       <div className={shell}>
-        <div className="sticky top-0 z-20 w-full md:border-b" style={{ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)', borderColor: 'rgba(255,255,255,0.12)' }}>
-          <div className="flex h-14">
-            <Doctor_Header onToggle={() => setCollapsed(c=>!c)} onToggleTheme={() => setTheme(t=>t==='dark'?'light':'dark')} theme={theme} variant="navy" />
-          </div>
+        <div className="sticky top-0 z-20 w-full border-b border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <Doctor_Header onToggle={() => setCollapsed(c=>!c)} onToggleTheme={() => setTheme(t=>t==='dark'?'light':'dark')} theme={theme} />
         </div>
 
         <div className="flex">

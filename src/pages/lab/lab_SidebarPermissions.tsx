@@ -328,9 +328,13 @@ export default function Lab_SidebarPermissions() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Sidebar Permissions</h1>
-        <p className="text-slate-600 mt-1">Manage which sidebar pages are visible to different user roles</p>
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Sidebar Permissions</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Manage which sidebar pages are visible to different user roles</div>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-6">

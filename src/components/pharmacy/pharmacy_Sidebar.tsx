@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import PortalSwitcher from '../PortalSwitcher'
 import { pharmacyApi } from '../../utils/api'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
@@ -154,29 +155,30 @@ export default function Pharmacy_Sidebar({ collapsed = false }: { collapsed?: bo
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon
     return (
-      <NavLink
-        key={item.to}
-        to={item.to}
-        title={collapsed ? item.label : undefined}
-        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)' } as any) : undefined)}
-        className={({ isActive }) => {
-          const base = collapsed
-            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center'
-            : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2'
-          const active = isActive
-            ? 'text-white'
-            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-          return `${base} ${active}`
-        }}
-        end={item.end}
-      >
-        {({ isActive }) => (
-          <>
-            <Icon className={collapsed ? (isActive ? 'h-5 w-5 text-white' : 'h-5 w-5 text-slate-700') : (isActive ? 'h-4 w-4 text-white' : 'h-4 w-4 text-slate-700')} />
-            {!collapsed && <span className="truncate">{item.label}</span>}
-          </>
-        )}
-      </NavLink>
+          <NavLink
+            key={item.to}
+            to={item.to}
+            title={collapsed ? item.label : undefined}
+            className={({ isActive }) => `
+              relative flex items-center transition-all duration-200 group
+              ${collapsed ? 'justify-center p-2.5 mx-2 my-1' : 'gap-3 px-3 py-2.5 mx-3 my-0.5'}
+              ${isActive 
+                ? 'bg-slate-900 text-white shadow-md shadow-slate-200 ring-1 ring-slate-800' 
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}
+              rounded-xl
+            `}
+            end={item.end}
+          >
+            {({ isActive }) => (
+              <>
+                <Icon className={`shrink-0 transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'h-5 w-5' : 'h-4.5 w-4.5'} ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-900'}`} />
+                {!collapsed && <span className="font-medium tracking-tight truncate">{item.label}</span>}
+                {!collapsed && isActive && (
+                  <div className="absolute right-2 h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
+                )}
+              </>
+            )}
+          </NavLink>
     )
   }
 
@@ -187,7 +189,7 @@ export default function Pharmacy_Sidebar({ collapsed = false }: { collapsed?: bo
     return (
       <div key={section.label} className="space-y-1">
         {!collapsed && (
-          <div className="px-3 py-2 text-base font-bold uppercase tracking-wider" style={{ color: 'var(--navy)' }}>
+          <div className="px-6 py-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
             {section.label}
           </div>
         )}
@@ -198,16 +200,19 @@ export default function Pharmacy_Sidebar({ collapsed = false }: { collapsed?: bo
 
   return (
     <aside
-      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col md:border-r bg-white/80 backdrop-blur-md shadow-sm dark:bg-slate-900/60 dark:border-slate-700`}
+      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col border-r border-slate-100 bg-white dark:bg-slate-950 dark:border-slate-800 transition-all duration-300 ease-in-out`}
     >
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2' : 'p-3'} space-y-4`}>
+      <nav className={`flex-1 overflow-y-auto scrollbar-hide space-y-6 pt-4`}>
         {/* Dashboard at top */}
-        {canShow(dashboardItem.to) && renderNavItem(dashboardItem)}
+        <div className="px-3">
+          {canShow(dashboardItem.to) && renderNavItem(dashboardItem)}
+        </div>
 
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2' : 'p-3'}>
+      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
+        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
         <button
           onClick={async () => {
             try { await pharmacyApi.logoutUser(username || undefined) } catch {}

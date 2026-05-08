@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { labApi, financeApi } from '../../utils/api'
 import { fmt12 } from '../../utils/timeFormat'
+import MiniDashboard from '../../components/common/MiniDashboard'
+import { useLabSession } from '../../hooks/useLabSession'
+import { Users, Shield, RefreshCw } from 'lucide-react'
 
 type Shift = { _id: string; name: string; start: string; end: string }
 type User = { _id: string; username: string; role: string; shiftId?: string; shiftRestricted?: boolean }
@@ -23,6 +26,8 @@ export default function Lab_UserManagement() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [shifts, setShifts] = useState<Shift[]>([])
   const [addUserError, setAddUserError] = useState('')
+
+  const session = useLabSession()
 
   useEffect(() => {
     let mounted = true
@@ -140,7 +145,34 @@ export default function Lab_UserManagement() {
   }
 
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-indigo-500/30 via-fuchsia-300/30 to-cyan-300/30 p-6">
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">User Management</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Manage lab users, roles, and permissions</div>
+          </div>
+          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${loading? 'border-white/30 bg-white/10 text-white/70':'border-white/30 bg-white/20 text-white backdrop-blur-sm'}`}>
+            <span className={`h-2 w-2 rounded-full ${loading? 'bg-white/50':'bg-emerald-300'}`} />
+            {loading? 'Loading…' : `${users.length} user${users.length===1?'':'s'}`}
+          </div>
+        </div>
+      </div>
+
+      {/* Mini Dashboard */}
+      <MiniDashboard cards={[
+        { label: 'Total Users', value: users.length, icon: Users, color: 'bg-sky-500' },
+        { label: 'Roles', value: roles.length, icon: Shield, color: 'bg-violet-500' },
+        { label: 'Shifts', value: shifts.length, icon: RefreshCw, color: 'bg-amber-500' },
+      ]} />
+
+      {!session.isAdmin && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Only administrators can manage users and roles.
+        </div>
+      )}
+
       <div className="mx-auto w-full max-w-7xl rounded-xl bg-white p-6 shadow">
         <div className="mb-4 flex items-center justify-between">
           <div className="text-xl font-bold text-slate-800">User Management</div>

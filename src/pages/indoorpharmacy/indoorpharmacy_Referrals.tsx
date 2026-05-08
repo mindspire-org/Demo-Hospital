@@ -84,7 +84,7 @@ export default function Pharmacy_Referrals(){
               <div className="text-xs text-slate-600">{new Date(r.createdAt).toLocaleString()} • Status: {r.status} • By: Dr. {r.doctorId?.name || '-'}</div>
               {r.notes && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Notes:</span> {r.notes}</div>}
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button className="btn" disabled={!r.prescriptionId} onClick={()=>navigate(`/pharmacy/prescriptions/${r.prescriptionId}`)}>Open Intake</button>
+                <button className="btn" disabled={!r.prescriptionId} onClick={()=>navigate(`/indoor-pharmacy/prescriptions/${r.prescriptionId}`)}>Open Intake</button>
                 <button className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm text-emerald-700" onClick={()=>mark(r._id, 'completed')}>Mark Completed</button>
                 <button className="rounded-md border border-slate-300 px-3 py-1 text-sm" onClick={()=>mark(r._id, 'pending')}>Mark Pending</button>
                 <button className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1 text-sm text-rose-700" onClick={()=>remove(r._id)}>Delete</button>

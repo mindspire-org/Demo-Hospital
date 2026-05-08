@@ -159,6 +159,9 @@ export async function listER(req: Request, res: Response){
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .populate('patientId', 'mrn fullName fatherName phoneNormalized gender age')
+      .populate('doctorId', 'name')
+      .populate('bedId', 'label')
       .lean()
 
     res.json({ encounters: rows })

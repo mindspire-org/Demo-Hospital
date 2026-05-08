@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
-import { Search, Calendar, Printer, RotateCcw, Barcode, Clock, DollarSign } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Search, Calendar, Printer, RotateCcw, Barcode, Clock, DollarSign, ListChecks, FlaskConical, CheckCircle2, RefreshCw } from 'lucide-react'
 import { labApi } from '../../utils/api'
 import Lab_ReasonDialog from '../../components/lab/lab_ReasonDialog'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
 import { printLabTokenSlip } from '../../utils/printLabToken'
+import MiniDashboard from '../../components/common/MiniDashboard'
+import { useLabSession } from '../../hooks/useLabSession'
 
 type OrderTest = {
   _id: string
@@ -15,6 +17,7 @@ type OrderTest = {
   isReturned: boolean
   returnedAt?: string
   resultId?: string
+  performedBy?: string
 }
 
 type Order = {
@@ -57,12 +60,15 @@ export default function Lab_Tracking() {
   const [q, setQ] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [status, setStatus] = useState<'all' | 'received' | 'completed'>('all')
+  const [status, setStatus] = useState<'all' | 'received' | 'completed' | 'pending_lab' | 'pending_dues' | 'outsource' | 'deleted' | 'approved' | 'whatsapp_pending' | 'whatsapp_sent'>('all')
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'normal' | 'urgent' | 'stat'>('all')
   const [collectionCenters, setCollectionCenters] = useState<{_id: string, name: string}[]>([])
   const [selectedCenterId, setSelectedCenterId] = useState('')
   const [rows, setRows] = useState(20)
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState<{ text: string; kind: 'success'|'error' } | null>(null)
+
+  const session = useLabSession()
 
   // Reason dialog state
   const [reasonOpen, setReasonOpen] = useState(false)
@@ -93,11 +99,19 @@ export default function Lab_Tracking() {
     let mounted = true
     ;(async()=>{
       try {
+        const apiStatus = status === 'all' ? undefined
+          : status === 'pending_lab' ? 'received'
+          : status === 'pending_dues' ? 'received'
+          : status === 'deleted' ? 'cancelled'
+          : status === 'approved' ? 'completed'
+          : status === 'whatsapp_pending' ? 'completed'
+          : status === 'whatsapp_sent' ? 'completed'
+          : status
         const ordRes: any = await labApi.listOrders({ 
           q: q || undefined, 
           from: from || undefined, 
           to: to || undefined, 
-          status: status==='all'? undefined : status, 
+          status: apiStatus as any,
           collectionCenterId: selectedCenterId || undefined,
           page, 
           limit: rows 
@@ -145,7 +159,7 @@ export default function Lab_Tracking() {
           <td>${o.patient.phone || '-'}</td>
           <td>${t.sampleTime || '-'}</td>
           <td>${t.status}</td>
-          <td>-</td>
+          <td>${(t as any).performedBy || '-'}</td>
         </tr>`
       }).join('')
     }).join('')
@@ -350,10 +364,45 @@ export default function Lab_Tracking() {
     await printLabTokenSlip({ tokenNo, createdAt: o.createdAt, patient: { fullName: o.patient.fullName, mrn: o.patient.mrn, phone: o.patient.phone, gender, age }, tests: rows, subtotal, discount, net, receivedAmount, receivableAmount, printedBy })
   }
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { pending: 0, sample_collected: 0, in_progress: 0, result_entered: 0, approved: 0, returned: 0 }
+    for (const o of orders) {
+      for (const t of o.tests) {
+        const s = String(t.status || 'pending')
+        counts[s] = (counts[s] || 0) + 1
+      }
+    }
+    return counts
+  }, [orders])
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Sample Tracking</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Track sample status, returns, and payments</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setPage(1) }}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/30"
+          >
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Mini Dashboard */}
+      <MiniDashboard cards={[
+        { label: 'Total Samples', value: orders.reduce((s, o) => s + o.tests.length, 0), icon: ListChecks, color: 'bg-sky-500' },
+        { label: 'Pending', value: statusCounts['pending'] || 0, icon: Clock, color: 'bg-amber-500' },
+        { label: 'Collected', value: statusCounts['sample_collected'] || 0, icon: FlaskConical, color: 'bg-blue-500' },
+        { label: 'Approved', value: statusCounts['approved'] || 0, icon: CheckCircle2, color: 'bg-emerald-500' },
+      ]} />
+
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="text-2xl font-bold text-slate-900">Sample Tracking</div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <div className="relative min-w-[260px] flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -365,10 +414,25 @@ export default function Lab_Tracking() {
             <input type="date" value={from} onChange={e=>{ setFrom(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-slate-900" />
             <input type="date" value={to} onChange={e=>{ setTo(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-slate-900" />
           </div>
+          <div className="flex flex-wrap items-center gap-1 text-sm">
+            {([
+              ['all', 'All'],
+              ['pending_lab', 'Pending at Lab'],
+              ['pending_dues', 'Pending Dues'],
+              ['outsource', 'Outsource'],
+              ['deleted', 'Deleted'],
+              ['approved', 'Approved'],
+              ['whatsapp_pending', 'Approved & Pending WhatsApp'],
+              ['whatsapp_sent', 'WhatsApp Sent'],
+            ] as const).map(([val, label]) => (
+              <button key={val} type="button" onClick={()=>{setStatus(val as any); setPage(1)}} className={`rounded-md px-3 py-1.5 border text-xs ${status===val?'bg-sky-600 text-white border-sky-600':'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>{label}</button>
+            ))}
+          </div>
           <div className="flex items-center gap-1 text-sm">
-            <button type="button" onClick={()=>setStatus('all')} className={`rounded-md px-3 py-1.5 border ${status==='all'?'bg-sky-600 text-white border-sky-600':'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>All</button>
-            <button type="button" onClick={()=>setStatus('received')} className={`rounded-md px-3 py-1.5 border ${status==='received'?'bg-sky-600 text-white border-sky-600':'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>Received</button>
-            <button type="button" onClick={()=>setStatus('completed')} className={`rounded-md px-3 py-1.5 border ${status==='completed'?'bg-sky-600 text-white border-sky-600':'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>Completed</button>
+            <span className="text-xs text-slate-500">Priority:</span>
+            {(['all', 'normal', 'urgent', 'stat'] as const).map(p => (
+              <button key={p} type="button" onClick={()=>{setPriorityFilter(p); setPage(1)}} className={`rounded-md px-2 py-1 border text-xs ${priorityFilter===p?'bg-violet-600 text-white border-violet-600':'border-slate-300 text-slate-700 hover:bg-slate-50'} ${p==='urgent'?'border-amber-300':''} ${p==='stat'?'border-rose-300':''}`}>{p === 'all' ? 'All' : p.charAt(0).toUpperCase() + p.slice(1)}</button>
+            ))}
           </div>
           <div className="flex items-center gap-2 text-sm">
             <select
@@ -409,6 +473,7 @@ export default function Lab_Tracking() {
               <th className="px-4 py-2">Test(s)</th>
               <th className="px-4 py-2">Sample Time</th>
               <th className="px-4 py-2">Status</th>
+              <th className="px-4 py-2">Performed By</th>
               <th className="px-4 py-2 text-right">Actions</th>
             </tr>
           </thead>
@@ -444,9 +509,13 @@ export default function Lab_Tracking() {
                           rowStatus === 'sample_collected' ? 'bg-blue-100 text-blue-700' :
                           rowStatus === 'returned' ? 'bg-rose-100 text-rose-700' :
                           rowStatus === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                          rowStatus === 'pending' ? 'bg-slate-100 text-slate-500' :
                           'bg-slate-100 text-slate-700'
                         }`}>{rowStatus}</span>
+                        {(o as any).sampleType === 'urgent' && <span className="ml-1 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">URG</span>}
+                        {(o as any).sampleType === 'stat' && <span className="ml-1 rounded bg-rose-700 px-1.5 py-0.5 text-[10px] font-bold text-white">STAT</span>}
                       </td>
+                      <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-600">{t.performedBy || '—'}</td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <button type="button" onClick={()=>printToken(o.id)} title="Print Token" className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"><Printer className="h-4 w-4" /></button>
@@ -459,8 +528,8 @@ export default function Lab_Tracking() {
                             <Clock className="h-4 w-4" />
                           </button>
                           <button type="button" onClick={()=>openReceive(token)} title="Receive Payment" className="inline-flex items-center justify-center rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"><DollarSign className="h-4 w-4" /></button>
-                          <button type="button" onClick={()=>openReturn(o.id, String(tid))} title="Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><RotateCcw className="h-4 w-4" /></button>
-                          <button type="button" onClick={()=>openUndo(o.id, String(tid))} title="Undo Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-violet-600 hover:bg-violet-50 hover:text-violet-700"><RotateCcw className="h-4 w-4" /></button>
+                          {session.isMainLab && <button type="button" onClick={()=>openReturn(o.id, String(tid))} title="Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><RotateCcw className="h-4 w-4" /></button>}
+                          {session.isMainLab && <button type="button" onClick={()=>openUndo(o.id, String(tid))} title="Undo Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-violet-600 hover:bg-violet-50 hover:text-violet-700"><RotateCcw className="h-4 w-4" /></button>}
                         </div>
                       </td>
                     </tr>

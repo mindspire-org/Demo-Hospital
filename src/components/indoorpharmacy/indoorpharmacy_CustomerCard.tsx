@@ -1,5 +1,5 @@
 import { Phone, MapPin, User, Building2, CalendarDays, ClipboardList } from 'lucide-react'
-import type { Customer } from './pharmacy_AddCustomer'
+import type { Customer } from './indoorpharmacy_AddCustomer'
 
 export default function Pharmacy_CustomerCard({ c, onPayBill, onEdit, onDelete }: { c: Customer; onPayBill?: (c: Customer) => void; onEdit?: (c: Customer) => void; onDelete?: (c: Customer) => void }) {
   return (

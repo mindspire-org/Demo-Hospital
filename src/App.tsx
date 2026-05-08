@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
+import ErrorBoundary from './components/ui/ErrorBoundary'
 import Home from './pages/Home'
 import Hospital_Login from './pages/hospital/hospital_Login'
 import Hospital_Layout from './pages/hospital/hospital_Layout'
@@ -25,6 +26,7 @@ import Hospital_PatientList from './pages/hospital/hospital_PatientList.tsx'
 import Hospital_PatientProfile from './pages/hospital/hospital_PatientProfile.tsx'
 import Hospital_DischargeWizard from './pages/hospital/hospital_DischargeWizard.tsx'
 import Hospital_Discharged from './pages/hospital/hospital_Discharged.tsx'
+import Hospital_ERDischarged from './pages/hospital/hospital_ERDischarged.tsx'
 import Hospital_StaffAttendance from './pages/hospital/hospital_StaffAttendance.tsx'
 import Hospital_StaffManagement from './pages/hospital/hospital_StaffManagement.tsx'
 import Hospital_StaffSettings from './pages/hospital/hospital_StaffSettings.tsx'
@@ -40,6 +42,7 @@ import Hospital_IPDServiceAdd from './pages/hospital/hospital_IPDServiceAdd.tsx'
 import Hospital_DoctorSchedules from './pages/hospital/hospital_DoctorSchedules'
 import Hospital_Appointments from './pages/hospital/hospital_Appointments'
 import { EquipmentDashboard, EquipmentList, EquipmentSuppliers, EquipmentPurchases, SupplierLedger, EquipmentDetail } from './features/hospital'
+import Hospital_ConsentFormList from './pages/hospital/forms/Hospital_ConsentFormList.tsx'
 import Hospital_ReceivedDeathList from './pages/hospital/forms/Hospital_ReceivedDeathList.tsx'
 import Hospital_DeathCertificateList from './pages/hospital/forms/Hospital_DeathCertificateList.tsx'
 import Hospital_BirthCertificateList from './pages/hospital/forms/Hospital_BirthCertificateList.tsx'
@@ -101,6 +104,18 @@ import Lab_Barcodes from './pages/lab/lab_Barcodes'
 import Lab_ReportApproval from './pages/lab/lab_ReportApproval'
 import Lab_ReportGenerator from './pages/lab/lab_ReportGenerator'
 import Lab_Settings from './pages/lab/lab_Settings'
+import Lab_CriticalValues from './pages/lab/lab_CriticalValues'
+import Lab_TotalTests from './pages/lab/lab_TotalTests'
+import Lab_TestPackages from './pages/lab/lab_TestPackages'
+import Lab_OutsourceLabs from './pages/lab/lab_OutsourceLabs'
+import Lab_OutsourceRateList from './pages/lab/lab_OutsourceRateList'
+import Lab_OutsourceDispatch from './pages/lab/lab_OutsourceDispatch'
+import Lab_CenterRateList from './pages/lab/lab_CenterRateList'
+import Lab_PatientCards from './pages/lab/lab_PatientCards'
+import Lab_WardImports from './pages/lab/lab_WardImports'
+import Lab_DailyWorksheet from './pages/lab/lab_DailyWorksheet'
+import Lab_MainRegister from './pages/lab/lab_MainRegister'
+import Lab_TAT from './pages/lab/lab_TAT'
 import Lab_IncomeLedger from './pages/lab/lab_IncomeLedger'
 import Lab_Inventory from './pages/lab/lab_Inventory'
 import Lab_AddInvoicePage from './components/lab/lab_AddInvoicePage'
@@ -130,7 +145,6 @@ import Lab_CollectionCenters from './pages/lab/lab_CollectionCenters'
 import Lab_CollectionCenterRevenue from './pages/lab/lab_CollectionCenterRevenue'
 import Lab_CollectionCenterPayments from './pages/lab/lab_CollectionCenterPayments'
 // Removed BB Labels and Settings pages (deleted)
-import Finance from './pages/Finance'
 import Finance_Transactions from './pages/hospital/hospital_Transactions.tsx'
 import Finance_ExpenseHistory from './pages/hospital/hospital_ExpenseHistory.tsx'
 import Finance_Login from './pages/finance/finance_Login.tsx'
@@ -138,11 +152,26 @@ import Finance_Layout from './pages/finance/finance_Layout.tsx'
 import Finance_UserManagement from './pages/finance/finance_UserManagement'
 import Finance_SidebarPermissions from './pages/finance/finance_SidebarPermissions'
 import Finance_AuditLogs from './pages/finance/finance_AuditLogs'
-import Finance_ChartOfAccounts from './pages/finance/finance_ChartOfAccounts'
 import Finance_AccountLedger from './pages/finance/finance_AccountLedger'
 import Finance_CashHandover from './pages/finance/finance_CashHandover'
 import Finance_PendingHandovers from './pages/finance/finance_PendingHandovers'
 import Finance_UserAccounts from './pages/finance/finance_UserAccounts'
+// ERP pages (new)
+import Finance_Dashboard from './pages/finance/finance_Dashboard'
+import Finance_ChartOfAccounts2 from './pages/finance/finance_ChartOfAccounts2'
+import Finance_Expenses from './pages/finance/finance_Expenses'
+import Finance_JournalVouchers from './pages/finance/finance_JournalVouchers'
+import Finance_LedgerExplorer from './pages/finance/finance_LedgerExplorer'
+import Finance_TrialBalance from './pages/finance/finance_TrialBalance'
+import Finance_ProfitLoss from './pages/finance/finance_ProfitLoss'
+import Finance_BalanceSheet from './pages/finance/finance_BalanceSheet'
+import Finance_PettyCash from './pages/finance/finance_PettyCash'
+import { Finance_PatientAR, Finance_ARAging } from './pages/finance/finance_Receivables'
+import { Finance_Vendors, Finance_Bills, Finance_VendorPayments, Finance_APAging } from './pages/finance/finance_Payables'
+import { Finance_StaffPayroll, Finance_DoctorPayroll, Finance_AttendanceFinance, Finance_EarningsDeductions } from './pages/finance/finance_Payroll'
+import Finance_ModuleIntegration from './pages/finance/finance_ModuleIntegration'
+import Finance_Reconciliation from './pages/finance/finance_Reconciliation'
+import Finance_Settings from './pages/finance/finance_Settings'
 import Hospital_DoctorPayouts from './pages/hospital/hospital_DoctorPayouts'
 import Hospital_CashSessions from './pages/hospital/hospital_CashSessions'
 import Pharmacy_Login from './pages/pharmacy/pharmacy_Login'
@@ -245,6 +274,8 @@ import Dialysis_SidebarPermissions from './pages/dialysis/dialysis_SidebarPermis
 import Dialysis_AuditLogs from './pages/dialysis/dialysis_AuditLogs'
 import Dialysis_Settings from './pages/dialysis/dialysis_Settings'
 import Dialysis_MasterData from './pages/dialysis/dialysis_MasterData'
+import Dialysis_PatientHistory from './pages/dialysis/dialysis_PatientHistory'
+import Dialysis_DischargedPatients from './pages/dialysis/dialysis_DischargedPatients'
 import Aesthetic_Login from './pages/aesthetic/aesthetic_Login'
 import Aesthetic_Layout from './pages/aesthetic/aesthetic_Layout'
 import Aesthetic_Dashboard from './pages/aesthetic/aesthetic_Dashboard'
@@ -278,7 +309,22 @@ import Aesthetic_DoctorPayouts from './pages/aesthetic/aesthetic_DoctorPayouts'
 import Aesthetic_DoctorSchedules from './pages/aesthetic/aesthetic_DoctorSchedules'
 import Aesthetic_Appointments from './pages/aesthetic/aesthetic_Appointments'
 import Aesthetic_SidebarPermissions from './pages/aesthetic/aesthetic_SidebarPermissions'
+import NotFound from './pages/NotFound'
+import { useEffect } from 'react'
+
 export default function App() {
+  // Hide the initial HTML preloader only after React has rendered content,
+  // so there's no white-screen gap between preloader and app.
+  useEffect(() => {
+    // Double requestAnimationFrame ensures the browser has painted the DOM
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const hide = (window as any).__hidePreloader
+        if (typeof hide === 'function') hide()
+      })
+    })
+  }, [])
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
@@ -316,6 +362,7 @@ export default function App() {
         <Route path="patient/:id/print" element={<Hospital_IpdPrintReport />} />
         <Route path="ipd-referrals" element={<Hospital_IPDReferrals />} />
         <Route path="er-referrals" element={<Hospital_ERReferrals />} />
+        <Route path="er-discharged" element={<Hospital_ERDischarged />} />
         <Route path="ipd-services" element={<Hospital_IPDServices />} />
         <Route path="ipd-services/add" element={<Hospital_IPDServiceAdd />} />
         <Route path="discharge/:id" element={<Hospital_DischargeWizard />} />
@@ -340,6 +387,7 @@ export default function App() {
         <Route path="doctors" element={<Hospital_Doctors />} />
         <Route path="doctor-schedules" element={<Hospital_DoctorSchedules />} />
         <Route path="appointments" element={<Hospital_Appointments />} />
+        <Route path="forms/consent-forms" element={<Hospital_ConsentFormList />} />
         <Route path="forms/received-deaths" element={<Hospital_ReceivedDeathList />} />
         <Route path="forms/death-certificates" element={<Hospital_DeathCertificateList />} />
         <Route path="forms/birth-certificates" element={<Hospital_BirthCertificateList />} />
@@ -382,6 +430,7 @@ export default function App() {
         <Route path="ambulance/fuel" element={<Ambulance_Fuel />} />
         <Route path="ambulance/expenses" element={<Ambulance_Expenses />} />
         <Route path="ambulance/reports" element={<Ambulance_Reports />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/aesthetic" element={<Aesthetic_Layout />}>
         <Route index element={<Aesthetic_Dashboard />} />
@@ -415,6 +464,7 @@ export default function App() {
         <Route path="staff-monthly" element={<Aesthetic_StaffMonthly />} />
         <Route path="staff-dashboard" element={<Aesthetic_StaffDashboard />} />
         <Route path="settings" element={<Aesthetic_Settings />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/diagnostic/login" element={<Diagnostic_Login />} />
       <Route path="/diagnostic" element={<Diagnostic_Layout />}>
@@ -430,6 +480,7 @@ export default function App() {
         <Route path="user-management" element={<Diagnostic_UserManagement />} />
         <Route path="audit-logs" element={<Diagnostic_AuditLogs />} />
         <Route path="settings" element={<Diagnostic_Settings />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/doctor" element={<Doctor_Layout />}>
         <Route index element={<Doctor_Dashboard />} />
@@ -445,51 +496,66 @@ export default function App() {
         <Route path="referrals" element={<Doctor_Referrals />} />
         <Route path="notifications" element={<Doctor_Notifications />} />
         <Route path="settings" element={<Doctor_Settings />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/lab/login" element={<Lab_Login />} />
       <Route path="/lab" element={<Lab_Layout />}>
-        <Route index element={<Lab_Dashboard />} />
-        <Route path="today-tokens" element={<Lab_TodaysTokens />} />
-        <Route path="orders" element={<Lab_Orders />} />
-        <Route path="tracking" element={<Lab_Tracking />} />
-        <Route path="barcodes" element={<Lab_Barcodes />} />
-        <Route path="appointments" element={<Lab_Appointments />} />
-        <Route path="tests" element={<Lab_Tests />} />
-        <Route path="results" element={<Lab_Results />} />
-        <Route path="referrals" element={<Lab_Referrals />} />
-        <Route path="report-approval" element={<Lab_ReportApproval />} />
-        <Route path="reports" element={<Lab_ReportGenerator />} />
-        <Route path="income-ledger" element={<Lab_IncomeLedger />} />
-        <Route path="reports-summary" element={<Lab_Reports />} />
-        <Route path="inventory" element={<Lab_Inventory />} />
-        <Route path="inventory/add-invoice" element={<Lab_AddInvoicePage />} />
-        <Route path="inventory/edit-invoice/:id" element={<Lab_AddInvoicePage />} />
-        <Route path="suppliers" element={<Lab_Suppliers />} />
-        <Route path="companies" element={<Lab_Companies />} />
-        <Route path="supplier-returns" element={<Lab_SupplierReturns />} />
-        <Route path="return-history" element={<Lab_ReturnHistory />} />
-        <Route path="purchase-orders" element={<Lab_PurchaseOrders />} />
-        <Route path="purchase-history" element={<Lab_PurchaseHistory />} />
-        <Route path="user-management" element={<Lab_UserManagement />} />
-        <Route path="sidebar-permissions" element={<Lab_SidebarPermissions />} />
-        <Route path="staff-attendance" element={<Lab_StaffAttendance />} />
-        <Route path="staff-management" element={<Lab_StaffManagement />} />
-        <Route path="staff-settings" element={<Lab_StaffSettings />} />
-        <Route path="staff-monthly" element={<Lab_StaffMonthly />} />
-        <Route path="expenses" element={<Lab_Expenses />} />
-        <Route path="audit-logs" element={<Lab_AuditLogs />} />
-        <Route path="pay-in-out" element={<Lab_PayInOut />} />
-        <Route path="manager-cash-count" element={<Lab_ManagerCashCount />} />
-        <Route path="settings" element={<Lab_Settings />} />
+        <Route index element={<ErrorBoundary name="Dashboard"><Lab_Dashboard /></ErrorBoundary>} />
+        <Route path="today-tokens" element={<ErrorBoundary name="Today's Tokens"><Lab_TodaysTokens /></ErrorBoundary>} />
+        <Route path="orders" element={<ErrorBoundary name="Orders"><Lab_Orders /></ErrorBoundary>} />
+        <Route path="tracking" element={<ErrorBoundary name="Tracking"><Lab_Tracking /></ErrorBoundary>} />
+        <Route path="barcodes" element={<ErrorBoundary name="Barcodes"><Lab_Barcodes /></ErrorBoundary>} />
+        <Route path="appointments" element={<ErrorBoundary name="Appointments"><Lab_Appointments /></ErrorBoundary>} />
+        <Route path="tests" element={<ErrorBoundary name="Tests"><Lab_Tests /></ErrorBoundary>} />
+        <Route path="results" element={<ErrorBoundary name="Results"><Lab_Results /></ErrorBoundary>} />
+        <Route path="referrals" element={<ErrorBoundary name="Referrals"><Lab_Referrals /></ErrorBoundary>} />
+        <Route path="report-approval" element={<ErrorBoundary name="Report Approval"><Lab_ReportApproval /></ErrorBoundary>} />
+        <Route path="reports" element={<ErrorBoundary name="Reports"><Lab_ReportGenerator /></ErrorBoundary>} />
+        <Route path="income-ledger" element={<ErrorBoundary name="Income Ledger"><Lab_IncomeLedger /></ErrorBoundary>} />
+        <Route path="reports-summary" element={<ErrorBoundary name="Reports Summary"><Lab_Reports /></ErrorBoundary>} />
+        <Route path="inventory" element={<ErrorBoundary name="Inventory"><Lab_Inventory /></ErrorBoundary>} />
+        <Route path="inventory/add-invoice" element={<ErrorBoundary name="Add Invoice"><Lab_AddInvoicePage /></ErrorBoundary>} />
+        <Route path="inventory/edit-invoice/:id" element={<ErrorBoundary name="Edit Invoice"><Lab_AddInvoicePage /></ErrorBoundary>} />
+        <Route path="suppliers" element={<ErrorBoundary name="Suppliers"><Lab_Suppliers /></ErrorBoundary>} />
+        <Route path="companies" element={<ErrorBoundary name="Companies"><Lab_Companies /></ErrorBoundary>} />
+        <Route path="supplier-returns" element={<ErrorBoundary name="Supplier Returns"><Lab_SupplierReturns /></ErrorBoundary>} />
+        <Route path="return-history" element={<ErrorBoundary name="Return History"><Lab_ReturnHistory /></ErrorBoundary>} />
+        <Route path="purchase-orders" element={<ErrorBoundary name="Purchase Orders"><Lab_PurchaseOrders /></ErrorBoundary>} />
+        <Route path="purchase-history" element={<ErrorBoundary name="Purchase History"><Lab_PurchaseHistory /></ErrorBoundary>} />
+        <Route path="user-management" element={<ErrorBoundary name="User Management"><Lab_UserManagement /></ErrorBoundary>} />
+        <Route path="sidebar-permissions" element={<ErrorBoundary name="Sidebar Permissions"><Lab_SidebarPermissions /></ErrorBoundary>} />
+        <Route path="staff-attendance" element={<ErrorBoundary name="Staff Attendance"><Lab_StaffAttendance /></ErrorBoundary>} />
+        <Route path="staff-management" element={<ErrorBoundary name="Staff Management"><Lab_StaffManagement /></ErrorBoundary>} />
+        <Route path="staff-settings" element={<ErrorBoundary name="Staff Settings"><Lab_StaffSettings /></ErrorBoundary>} />
+        <Route path="staff-monthly" element={<ErrorBoundary name="Staff Monthly"><Lab_StaffMonthly /></ErrorBoundary>} />
+        <Route path="expenses" element={<ErrorBoundary name="Expenses"><Lab_Expenses /></ErrorBoundary>} />
+        <Route path="audit-logs" element={<ErrorBoundary name="Audit Logs"><Lab_AuditLogs /></ErrorBoundary>} />
+        <Route path="pay-in-out" element={<ErrorBoundary name="Pay In/Out"><Lab_PayInOut /></ErrorBoundary>} />
+        <Route path="manager-cash-count" element={<ErrorBoundary name="Cash Count"><Lab_ManagerCashCount /></ErrorBoundary>} />
+        <Route path="settings" element={<ErrorBoundary name="Settings"><Lab_Settings /></ErrorBoundary>} />
         {/* Collection Centers */}
-        <Route path="collection-centers" element={<Lab_CollectionCenters />} />
-        <Route path="center-revenue" element={<Lab_CollectionCenterRevenue />} />
-        <Route path="center-payments" element={<Lab_CollectionCenterPayments />} />
+        <Route path="collection-centers" element={<ErrorBoundary name="Collection Centers"><Lab_CollectionCenters /></ErrorBoundary>} />
+        <Route path="center-revenue" element={<ErrorBoundary name="Center Revenue"><Lab_CollectionCenterRevenue /></ErrorBoundary>} />
+        <Route path="center-payments" element={<ErrorBoundary name="Center Payments"><Lab_CollectionCenterPayments /></ErrorBoundary>} />
+        <Route path="center-rate-list" element={<ErrorBoundary name="Center Rate List"><Lab_CenterRateList /></ErrorBoundary>} />
+        {/* Mega-upgrade additions */}
+        <Route path="critical-values" element={<ErrorBoundary name="Critical Values"><Lab_CriticalValues /></ErrorBoundary>} />
+        <Route path="total-tests" element={<ErrorBoundary name="Total Tests"><Lab_TotalTests /></ErrorBoundary>} />
+        <Route path="test-packages" element={<ErrorBoundary name="Test Packages"><Lab_TestPackages /></ErrorBoundary>} />
+        <Route path="outsource-labs" element={<ErrorBoundary name="Outsource Labs"><Lab_OutsourceLabs /></ErrorBoundary>} />
+        <Route path="outsource-rates" element={<ErrorBoundary name="Outsource Rates"><Lab_OutsourceRateList /></ErrorBoundary>} />
+        <Route path="outsource-dispatch" element={<ErrorBoundary name="Outsource Dispatch"><Lab_OutsourceDispatch /></ErrorBoundary>} />
+        <Route path="patient-cards" element={<ErrorBoundary name="Patient Cards"><Lab_PatientCards /></ErrorBoundary>} />
+        <Route path="ward-imports" element={<ErrorBoundary name="Ward Imports"><Lab_WardImports /></ErrorBoundary>} />
+        <Route path="daily-worksheet" element={<ErrorBoundary name="Daily Worksheet"><Lab_DailyWorksheet /></ErrorBoundary>} />
+        <Route path="main-register" element={<ErrorBoundary name="Main Register"><Lab_MainRegister /></ErrorBoundary>} />
+        <Route path="tat" element={<ErrorBoundary name="TAT"><Lab_TAT /></ErrorBoundary>} />
         {/* Blood Bank */}
-        <Route path="bb/donors" element={<Lab_BB_Donors />} />
-        <Route path="bb/inventory" element={<Lab_BB_Inventory />} />
-        <Route path="bb/receivers" element={<Lab_BB_Receivers />} />
+        <Route path="bb/donors" element={<ErrorBoundary name="BB Donors"><Lab_BB_Donors /></ErrorBoundary>} />
+        <Route path="bb/inventory" element={<ErrorBoundary name="BB Inventory"><Lab_BB_Inventory /></ErrorBoundary>} />
+        <Route path="bb/receivers" element={<ErrorBoundary name="BB Receivers"><Lab_BB_Receivers /></ErrorBoundary>} />
         {/* BB reports-labels and settings routes removed */}
+        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/pharmacy/login" element={<Pharmacy_Login />} />
       <Route path="/pharmacy" element={<Pharmacy_Layout />}>
@@ -525,6 +591,7 @@ export default function App() {
         <Route path="pay-in-out" element={<Pharmacy_PayInOut />} />
         <Route path="manager-cash-count" element={<Pharmacy_ManagerCashCount />} />
         <Route path="returns" element={<Pharmacy_CustomerReturns />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
       {/* Indoor Pharmacy Routes */}
       <Route path="/indoor-pharmacy/login" element={<IndoorPharmacy_Login />} />
@@ -558,27 +625,62 @@ export default function App() {
         <Route path="pay-in-out" element={<IndoorPharmacy_PayInOut />} />
         <Route path="manager-cash-count" element={<IndoorPharmacy_ManagerCashCount />} />
         <Route path="returns" element={<IndoorPharmacy_CustomerReturns />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/finance/login" element={<Finance_Login />} />
       <Route path="/finance" element={<Finance_Layout />}>
-        <Route index element={<Finance />} />
-        <Route path="add-expense" element={<Finance_ExpenseHistory />} />
-        <Route path="transactions" element={<Finance_Transactions />} />
-        <Route path="expenses" element={<Finance_ExpenseHistory />} />
-        <Route path="doctor-payouts" element={<Hospital_DoctorPayouts />} />
-        <Route path="pharmacy-reports" element={<Pharmacy_Reports />} />
-        <Route path="lab-reports" element={<Lab_Reports />} />
-        <Route path="diagnostics-dashboard" element={<Diagnostic_Dashboard />} />
-        <Route path="staff-dashboard" element={<Hospital_StaffDashboard />} />
-        <Route path="hospital-dashboard" element={<Hospital_Dashboard />} />
-        <Route path="audit-logs" element={<Finance_AuditLogs />} />
-        <Route path="chart-of-accounts" element={<Finance_ChartOfAccounts />} />
-        <Route path="ledger/:accountId" element={<Finance_AccountLedger />} />
-        <Route path="cash-handover" element={<Finance_CashHandover />} />
-        <Route path="pending-handovers" element={<Finance_PendingHandovers />} />
-        <Route path="user-accounts" element={<Finance_UserAccounts />} />
-        <Route path="sidebar-permissions" element={<Finance_SidebarPermissions />} />
-        <Route path="user-management" element={<Finance_UserManagement />} />
+        {/* Dashboard */}
+        <Route index element={<Finance_Dashboard />} />
+
+        {/* General Ledger */}
+        <Route path="chart-of-accounts"  element={<Finance_ChartOfAccounts2 />} />
+        <Route path="journal-vouchers"   element={<Finance_JournalVouchers />} />
+        <Route path="ledger-explorer"    element={<Finance_LedgerExplorer />} />
+        <Route path="trial-balance"      element={<Finance_TrialBalance />} />
+        <Route path="profit-loss"        element={<Finance_ProfitLoss />} />
+        <Route path="balance-sheet"      element={<Finance_BalanceSheet />} />
+        <Route path="petty-cash"         element={<Finance_PettyCash />} />
+        <Route path="ledger/:accountId"  element={<Finance_AccountLedger />} />
+
+        {/* Receivables */}
+        <Route path="receivables/patient"   element={<Finance_PatientAR />} />
+        {/* <Route path="receivables/corporate" element={<Finance_CorporateAR />} /> */}
+        <Route path="receivables/aging"     element={<Finance_ARAging />} />
+
+        {/* Payables */}
+        <Route path="vendors"          element={<Finance_Vendors />} />
+        <Route path="bills"            element={<Finance_Bills />} />
+        <Route path="vendor-payments"  element={<Finance_VendorPayments />} />
+        <Route path="payables/aging"   element={<Finance_APAging />} />
+
+        {/* Expenses */}
+        <Route path="expenses" element={<Finance_Expenses />} />
+
+        {/* Payroll & HR */}
+        <Route path="payroll/staff"                element={<Finance_StaffPayroll />} />
+        <Route path="payroll/doctors"              element={<Finance_DoctorPayroll />} />
+        <Route path="payroll/attendance"           element={<Finance_AttendanceFinance />} />
+        <Route path="payroll/earnings-deductions"  element={<Finance_EarningsDeductions />} />
+
+        {/* Module Integrations */}
+        <Route path="integrations/:module" element={<Finance_ModuleIntegration />} />
+
+        {/* Reconciliation & admin */}
+        <Route path="reconciliation"       element={<Finance_Reconciliation />} />
+        <Route path="audit-logs"           element={<Finance_AuditLogs />} />
+        <Route path="sidebar-permissions"  element={<Finance_SidebarPermissions />} />
+        <Route path="user-management"      element={<Finance_UserManagement />} />
+        <Route path="settings"             element={<Finance_Settings />} />
+
+        {/* Legacy routes — still reachable if bookmarked */}
+        <Route path="cash-handover"        element={<Finance_CashHandover />} />
+        <Route path="pending-handovers"    element={<Finance_PendingHandovers />} />
+        <Route path="user-accounts"        element={<Finance_UserAccounts />} />
+        <Route path="transactions"         element={<Finance_Transactions />} />
+        <Route path="add-expense"          element={<Finance_ExpenseHistory />} />
+        <Route path="doctor-payouts"       element={<Hospital_DoctorPayouts />} />
+        <Route path="cash-sessions"        element={<Hospital_CashSessions />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/reception/login" element={<Reception_Login />} />
       <Route path="/reception" element={<Reception_Layout />}>
@@ -602,6 +704,7 @@ export default function App() {
         <Route path="lab/tokens" element={<Lab_TodaysTokens />} />
         <Route path="lab/sample-tracking" element={<Lab_Tracking />} />
         <Route path="lab/manager-cash-count" element={<Lab_ManagerCashCount />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/dialysis/login" element={<Dialysis_Login />} />
       <Route path="/dialysis" element={<Dialysis_Layout />}>
@@ -616,7 +719,11 @@ export default function App() {
         <Route path="audit" element={<Dialysis_AuditLogs />} />
         <Route path="settings" element={<Dialysis_Settings />} />
         <Route path="master-data" element={<Dialysis_MasterData />} />
+        <Route path="patient-history" element={<Dialysis_PatientHistory />} />
+        <Route path="discharged-patients" element={<Dialysis_DischargedPatients />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

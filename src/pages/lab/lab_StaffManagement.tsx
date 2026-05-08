@@ -81,12 +81,21 @@ export default function Pharmacy_StaffManagement(){
   const pageRows = useMemo(()=> staff, [staff])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 md:p-6">
       {notice && (
         <div className={`rounded-md border px-3 py-2 text-sm ${notice.kind==='success'? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>{notice.text}</div>
       )}
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Staff Management</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Manage lab staff and roles</div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
-        <div className="text-xl font-bold text-slate-800">Staff Management</div>
         <div className="flex items-center gap-2">
           <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700">
             <option value={10}>10</option>

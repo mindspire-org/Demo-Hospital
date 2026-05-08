@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Menu, Sun, Moon, LogOut } from 'lucide-react'
+import HeaderDateTimeChip from '../HeaderDateTimeChip'
 
 type Props = { onToggleSidebar?: () => void; onToggleTheme?: () => void; theme?: 'light'|'dark'; variant?: 'default' | 'navy' }
 
@@ -35,7 +36,6 @@ export default function Finance_Header({ onToggleSidebar, onToggleTheme, theme, 
     : 'mr-1 inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
   const titleCls = isNavy ? 'font-semibold text-white' : 'font-semibold text-slate-900 dark:text-slate-200'
   const pillCls = isNavy ? 'ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-white/90' : 'ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700'
-  const metaTextCls = isNavy ? 'hidden items-center gap-2 text-white/80 sm:flex' : 'hidden items-center gap-2 text-slate-600 sm:flex dark:text-slate-300'
   
   const chipWrapCls = isNavy
     ? 'hidden sm:flex items-center rounded-full border border-white/15 bg-white/5 shadow-sm backdrop-blur overflow-hidden'
@@ -64,19 +64,27 @@ export default function Finance_Header({ onToggleSidebar, onToggleTheme, theme, 
           <Menu className="h-5 w-5" />
         </button>
         <Link to="/finance" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' className='h-5 w-5'><path d='M4 6.75A2.75 2.75 0 0 1 6.75 4h10.5A2.75 2.75 0 0 1 20 6.75v10.5A2.75 2.75 0 0 1 17.25 20H6.75A2.75 2.75 0 0 1 4 17.25V6.75Zm5.25.75a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7Zm-.75 4.5c0-.414.336-.75.75-.75h7a.75.75 0 0 1 0 1.5h-7a.75.75 0 0 1-.75-.75Zm.75 3a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5H9.25Z'/></svg>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-sm">
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='h-5 w-5'>
+              <path d='M3 21h18' />
+              <path d='M5 21V7l8-4v18' />
+              <path d='M19 21V11l-6-4' />
+              <path d='M9 9h.01' />
+              <path d='M9 13h.01' />
+              <path d='M9 17h.01' />
+            </svg>
           </div>
-          <div className={titleCls}>Finance</div>
-          <span className={pillCls}>Online</span>
+          <div className="flex flex-col leading-tight">
+            <div className="flex items-center gap-2">
+              <span className={titleCls}>Finance ERP</span>
+              <span className={`${pillCls} !bg-emerald-500/15 !text-emerald-500`}>● Online</span>
+            </div>
+            <span className={isNavy ? 'text-[11px] text-white/70' : 'text-[11px] text-slate-500 dark:text-slate-400'}>Hospital finance control center</span>
+          </div>
         </Link>
 
         <div className="ml-auto flex items-center gap-3 text-sm">
-          <div className={metaTextCls}>
-            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' className='h-4 w-4'><path d='M6.75 3A2.75 2.75 0 0 0 4 5.75v12.5A2.75 2.75 0 0 0 6.75 21h10.5A2.75 2.75 0 0 0 20 18.25V5.75A2.75 2.75 0 0 0 17.25 3H6.75Zm0 1.5h10.5c.69 0 1.25.56 1.25 1.25v12.5c0 .69-.56 1.25-1.25 1.25H6.75c-.69 0-1.25-.56-1.25-1.25V5.75c0-.69.56-1.25 1.25-1.25Z'/></svg>
-            <span>{new Date().toLocaleDateString()}</span>
-            <span className="opacity-60">{new Date().toLocaleTimeString()}</span>
-          </div>
+          <HeaderDateTimeChip variant={isNavy ? 'navy' : 'default'} />
 
           {showThemeToggle ? (
             <button

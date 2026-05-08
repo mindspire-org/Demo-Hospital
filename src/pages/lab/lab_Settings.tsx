@@ -1,26 +1,54 @@
 import { useEffect, useState } from 'react'
 import { labApi } from '../../utils/api'
+import { api } from '../../api'
+
+type HeaderHistoryEntry = { url: string; uploadedAt: string; uploadedBy?: string; note?: string }
 
 export default function Lab_Settings() {
-  const [activeTab, setActiveTab] = useState<'lab' | 'system'>('lab')
-
-  // Lab Settings form state
+  const [activeTab, setActiveTab] = useState<'lab' | 'system' | 'reportDesign' | 'headerFooter' | 'seeds'>('lab')
   const [labName, setLabName] = useState('')
+  const [parentLab, setParentLab] = useState('')
+  const [slogan, setSlogan] = useState('')
+  const [code, setCode] = useState('')
   const [phone, setPhone] = useState('')
-  const [address, setAddress] = useState('')
+  const [landlineNumber, setLandlineNumber] = useState('')
+  const [mobileNumber, setMobileNumber] = useState('')
+  const [whatsappNumber, setWhatsappNumber] = useState('')
+  const [addressLine1, setAddressLine1] = useState('')
+  const [addressLine2, setAddressLine2] = useState('')
+  const [addressLine3, setAddressLine3] = useState('')
   const [email, setEmail] = useState('')
+  const [website, setWebsite] = useState('')
   const [reportFooter, setReportFooter] = useState('')
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [department, setDepartment] = useState('')
-  const [reportTemplate, setReportTemplate] = useState<'classic'|'tealGradient'|'modern'|'adl'|'skmch'|'receiptStyle'>('classic')
+  const [reportTemplate, setReportTemplate] = useState<'classic'|'tealGradient'|'modern'|'adl'|'skmch'|'receiptStyle'|'clinicalPro'|'minimalist'|'royalBlue'>('classic')
   const [slipTemplate, setSlipTemplate] = useState<'thermal'|'a4Bill'>('thermal')
   const [consultantName, setConsultantName] = useState('')
   const [consultantDegrees, setConsultantDegrees] = useState('')
   const [consultantTitle, setConsultantTitle] = useState('')
   const [consultants, setConsultants] = useState<Array<{ name?: string; degrees?: string; title?: string }>>([])
   const [qrUrl, setQrUrl] = useState('')
+  const [restrictCollectionDate, setRestrictCollectionDate] = useState(false)
+  const [paymentOnInstance, setPaymentOnInstance] = useState(false)
+  const [validateStock, setValidateStock] = useState(false)
+  const [smsActive, setSmsActive] = useState(false)
+  const [hijriOffset, setHijriOffset] = useState(0)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
+  const [headerImageUrl, setHeaderImageUrl] = useState('')
+  const [footerImageUrl, setFooterImageUrl] = useState('')
+  const [headerHistory, setHeaderHistory] = useState<HeaderHistoryEntry[]>([])
+  const [uploadingHeader, setUploadingHeader] = useState(false)
+  const [uploadingFooter, setUploadingFooter] = useState(false)
+  const [watermark, setWatermark] = useState('')
+  const [watermarkOpacity, setWatermarkOpacity] = useState(0.08)
+  const [watermarkAngle, setWatermarkAngle] = useState(-45)
+  const [reportFont, setReportFont] = useState<'poppins'|'helvetica'|'times'|'courier'>('poppins')
+  const [useCustomHeaderFooter, setUseCustomHeaderFooter] = useState(false)
+  const [mergeReportsByPatient, setMergeReportsByPatient] = useState(false)
+  const [seedBusy, setSeedBusy] = useState(false)
+  const [seedResult, setSeedResult] = useState('')
 
   useEffect(()=>{
     let mounted = true
@@ -29,19 +57,43 @@ export default function Lab_Settings() {
         const s = await labApi.getSettings()
         if (!mounted) return
         setLabName(s.labName || '')
+        setParentLab(s.parentLab || '')
+        setSlogan(s.slogan || '')
+        setCode(s.code || '')
         setPhone(s.phone || '')
-        setAddress(s.address || '')
+        setLandlineNumber(s.landlineNumber || '')
+        setMobileNumber(s.mobileNumber || '')
+        setWhatsappNumber(s.whatsappNumber || '')
+        setAddressLine1(s.addressLine1 || s.address || '')
+        setAddressLine2(s.addressLine2 || '')
+        setAddressLine3(s.addressLine3 || '')
         setEmail(s.email || '')
+        setWebsite(s.website || '')
         setReportFooter(s.reportFooter || '')
         setLogoDataUrl(s.logoDataUrl || null)
         setDepartment(s.department || '')
-        setReportTemplate((s.reportTemplate === 'tealGradient' ? 'tealGradient' : (s.reportTemplate === 'modern' ? 'modern' : (s.reportTemplate === 'adl' ? 'adl' : (s.reportTemplate === 'skmch' ? 'skmch' : (s.reportTemplate === 'receiptStyle' ? 'receiptStyle' : 'classic'))))))
+        const validTemplates = ['classic','tealGradient','modern','adl','skmch','receiptStyle','clinicalPro','minimalist','royalBlue']
+        setReportTemplate(validTemplates.includes(s.reportTemplate) ? s.reportTemplate : 'classic')
         setSlipTemplate((s.slipTemplate === 'a4Bill' ? 'a4Bill' : 'thermal'))
         setConsultantName(s.consultantName || '')
         setConsultantDegrees(s.consultantDegrees || '')
         setConsultantTitle(s.consultantTitle || '')
         setConsultants(Array.isArray(s.consultants) ? s.consultants : [])
         setQrUrl(s.qrUrl || '')
+        setRestrictCollectionDate(!!s.restrictEmployeesToChangeCollectionDate)
+        setPaymentOnInstance(!!s.paymentReceiveOnTestInstanceLevel)
+        setValidateStock(!!s.validateStock)
+        setSmsActive(!!s.smsActive)
+        setHijriOffset(s.labHijriDateOffset || 0)
+        setHeaderImageUrl(s.headerImageUrl || '')
+        setFooterImageUrl(s.footerImageUrl || '')
+        setHeaderHistory(Array.isArray(s.headerHistory) ? s.headerHistory : [])
+        setWatermark(s.watermark || '')
+        setWatermarkOpacity(s.watermarkOpacity ?? 0.08)
+        setWatermarkAngle(s.watermarkAngle ?? -45)
+        setReportFont(s.reportFont || 'poppins')
+        setUseCustomHeaderFooter(!!s.useCustomHeaderFooter)
+        setMergeReportsByPatient(!!s.mergeReportsByPatient)
       } catch (e) { /* ignore */ }
     })()
     return ()=>{ mounted = false }
@@ -56,9 +108,18 @@ export default function Lab_Settings() {
     try {
       await labApi.updateSettings({
         labName,
+        parentLab,
+        slogan,
+        code,
         phone,
-        address,
+        landlineNumber,
+        mobileNumber,
+        whatsappNumber,
+        addressLine1,
+        addressLine2,
+        addressLine3,
         email,
+        website,
         reportFooter,
         logoDataUrl: logoDataUrl || undefined,
         department,
@@ -67,12 +128,23 @@ export default function Lab_Settings() {
         consultantName,
         consultantDegrees,
         consultantTitle,
-        consultants: consultants?.slice(0,3)?.map(c=>({
+        consultants: consultants?.map(c=>({
           name: (c.name||'').trim() || undefined,
           degrees: (c.degrees||'').trim() || undefined,
           title: (c.title||'').trim() || undefined,
         })).filter(c => c.name || c.degrees || c.title),
         qrUrl,
+        restrictEmployeesToChangeCollectionDate: restrictCollectionDate,
+        paymentReceiveOnTestInstanceLevel: paymentOnInstance,
+        validateStock,
+        smsActive,
+        labHijriDateOffset: hijriOffset,
+        watermark,
+        watermarkOpacity,
+        watermarkAngle,
+        reportFont,
+        useCustomHeaderFooter,
+        mergeReportsByPatient,
       })
       setNotice('Lab settings saved')
       try { setTimeout(()=> setNotice(''), 2500) } catch {}
@@ -89,6 +161,56 @@ export default function Lab_Settings() {
     } catch {}
   }
 
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((res, rej) => {
+      const r = new FileReader()
+      r.onload = () => res(String(r.result || ''))
+      r.onerror = rej
+      r.readAsDataURL(file)
+    })
+  }
+
+  async function uploadHeader(file: File) {
+    setUploadingHeader(true)
+    try {
+      const base64 = await fileToBase64(file)
+      const r: any = await api('/lab/settings/header', { method: 'POST', body: JSON.stringify({ base64, type: 'header', note: `Upload ${file.name}` }) })
+      setHeaderImageUrl(r.headerImageUrl || '')
+      if (r.headerHistory) setHeaderHistory(r.headerHistory)
+      setNotice('Header uploaded'); setTimeout(() => setNotice(''), 2500)
+    } catch (e: any) { setNotice(e?.message || 'Upload failed') }
+    finally { setUploadingHeader(false) }
+  }
+
+  async function uploadFooter(file: File) {
+    setUploadingFooter(true)
+    try {
+      const base64 = await fileToBase64(file)
+      const r: any = await api('/lab/settings/footer', { method: 'POST', body: JSON.stringify({ base64, type: 'footer', note: `Upload ${file.name}` }) })
+      setFooterImageUrl(r.footerImageUrl || '')
+      setNotice('Footer uploaded'); setTimeout(() => setNotice(''), 2500)
+    } catch (e: any) { setNotice(e?.message || 'Upload failed') }
+    finally { setUploadingFooter(false) }
+  }
+
+  async function revertHeader(url: string) {
+    try {
+      const r: any = await api('/lab/settings/header/revert', { method: 'POST', body: JSON.stringify({ url }) })
+      setHeaderImageUrl(r.headerImageUrl || url)
+      if (r.headerHistory) setHeaderHistory(r.headerHistory)
+      setNotice('Header reverted'); setTimeout(() => setNotice(''), 2500)
+    } catch (e: any) { setNotice(e?.message || 'Revert failed') }
+  }
+
+  async function runSeed(endpoint: string, label: string) {
+    setSeedBusy(true); setSeedResult('')
+    try {
+      const r: any = await api(`/lab/seed/${endpoint}`, { method: 'POST', body: JSON.stringify({}) })
+      setSeedResult(`${label}: ${r.ok ? 'OK' : 'Failed'} — ${JSON.stringify(r)}`)
+    } catch (e: any) { setSeedResult(`${label} failed: ${e?.message || e}`) }
+    finally { setSeedBusy(false) }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-slate-800">
@@ -99,9 +221,10 @@ export default function Lab_Settings() {
         <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</div>
       )}
 
-      <div className="flex items-center gap-2">
-        <button onClick={() => setActiveTab('lab')} className={`rounded-md border px-3 py-1.5 text-sm ${activeTab==='lab' ? 'border-slate-300 bg-white text-slate-900' : 'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>Lab Settings</button>
-        <button onClick={() => setActiveTab('system')} className={`rounded-md border px-3 py-1.5 text-sm ${activeTab==='system' ? 'border-slate-300 bg-white text-slate-900' : 'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>System Settings</button>
+      <div className="flex items-center gap-2 flex-wrap">
+        {(['lab','system','headerFooter','seeds'] as const).map(t=>(
+          <button key={t} onClick={()=>setActiveTab(t)} className={`rounded-md border px-3 py-1.5 text-sm ${activeTab===t?'border-slate-300 bg-white text-slate-900':'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{t==='lab'?'Lab Profile':t==='system'?'System':t==='headerFooter'?'Header / Footer':'Data Seeds'}</button>
+        ))}
       </div>
 
       {activeTab === 'lab' && (
@@ -114,35 +237,86 @@ export default function Lab_Settings() {
                 <input value={labName} onChange={e=>setLabName(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="mb-1 block text-sm text-slate-700">Phone Number</label>
+                <label className="mb-1 block text-sm text-slate-700">Parent Lab / Branch</label>
+                <input value={parentLab} onChange={e=>setParentLab(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Main branch name" />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Slogan / Tagline</label>
+                <input value={slogan} onChange={e=>setSlogan(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Lab Code</label>
+                <input value={code} onChange={e=>setCode(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Department</label>
+                <input value={department} onChange={e=>setDepartment(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Department of Pathology" />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Phone</label>
                 <input value={phone} onChange={e=>setPhone(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="+92-21-1234567" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Landline</label>
+                <input value={landlineNumber} onChange={e=>setLandlineNumber(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Mobile</label>
+                <input value={mobileNumber} onChange={e=>setMobileNumber(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">WhatsApp</label>
+                <input value={whatsappNumber} onChange={e=>setWhatsappNumber(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
               </div>
             </div>
 
             <div>
-              <label className="mb-1 block text-sm text-slate-700">Lab Address</label>
-              <textarea value={address} onChange={e=>setAddress(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} />
+              <label className="mb-1 block text-sm text-slate-700">Address Line 1</label>
+              <input value={addressLine1} onChange={e=>setAddressLine1(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Address Line 2</label>
+                <input value={addressLine2} onChange={e=>setAddressLine2(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Address Line 3</label>
+                <input value={addressLine3} onChange={e=>setAddressLine3(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm text-slate-700">Email Address</label>
-              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm text-slate-700">Department (e.g., Department of Pathology)</label>
-              <input value={department} onChange={e=>setDepartment(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Department of Pathology" />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Email</label>
+                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Website</label>
+                <input value={website} onChange={e=>setWebsite(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="https://..." />
+              </div>
             </div>
 
             <div>
               <label className="mb-1 block text-sm text-slate-700">Report Template</label>
-              <select value={reportTemplate} onChange={e=> setReportTemplate((e.target.value as 'classic'|'tealGradient'|'modern'|'adl'|'skmch'|'receiptStyle') || 'classic')} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <select value={reportTemplate} onChange={e=> setReportTemplate(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 <option value="classic">Classic</option>
                 <option value="tealGradient">Teal Gradient</option>
                 <option value="modern">Modern (International)</option>
                 <option value="adl">ADL</option>
                 <option value="skmch">SKMCH</option>
                 <option value="receiptStyle">Receipt Style</option>
+                <option value="clinicalPro">Clinical Pro</option>
+                <option value="minimalist">Minimalist</option>
+                <option value="royalBlue">Royal Blue</option>
               </select>
             </div>
 
@@ -170,26 +344,32 @@ export default function Lab_Settings() {
             </div>
 
             <div className="mt-2 rounded-lg border border-slate-200 p-3">
-              <div className="mb-2 text-sm font-medium text-slate-800">Additional Consultants (max 2)</div>
-              {[0,1].map((i)=>{
-                const c = consultants[i] || { name: '', degrees: '', title: '' }
-                return (
-                  <div key={i} className="mb-3 grid gap-3 md:grid-cols-3">
-                    <div>
-                      <label className="mb-1 block text-xs text-slate-600">Name</label>
-                      <input value={c.name || ''} onChange={e=>setConsultants(prev=>{ const arr=[...(prev||[])]; arr[i] = { ...(arr[i]||{}), name: e.target.value }; return arr })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-slate-600">Degrees</label>
-                      <input value={c.degrees || ''} onChange={e=>setConsultants(prev=>{ const arr=[...(prev||[])]; arr[i] = { ...(arr[i]||{}), degrees: e.target.value }; return arr })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g., M.B.B.S, FCPS" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-slate-600">Title</label>
-                      <input value={c.title || ''} onChange={e=>setConsultants(prev=>{ const arr=[...(prev||[])]; arr[i] = { ...(arr[i]||{}), title: e.target.value }; return arr })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Consultant Pathologist" />
-                    </div>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-sm font-medium text-slate-800">Additional Consultants ({consultants.length})</div>
+                <button type="button" onClick={()=>setConsultants(prev=>[...(prev||[]), { name: '', degrees: '', title: '' }])} className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700">
+                  <span className="text-sm leading-none">+</span> Add Consultant
+                </button>
+              </div>
+              {(consultants||[]).map((c, i)=>(
+                <div key={i} className="mb-3 grid gap-3 md:grid-cols-4 items-end">
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-600">Name</label>
+                    <input value={c.name || ''} onChange={e=>setConsultants(prev=>{ const arr=[...(prev||[])]; arr[i] = { ...(arr[i]||{}), name: e.target.value }; return arr })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
                   </div>
-                )
-              })}
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-600">Degrees</label>
+                    <input value={c.degrees || ''} onChange={e=>setConsultants(prev=>{ const arr=[...(prev||[])]; arr[i] = { ...(arr[i]||{}), degrees: e.target.value }; return arr })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g., M.B.B.S, FCPS" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-600">Title</label>
+                    <input value={c.title || ''} onChange={e=>setConsultants(prev=>{ const arr=[...(prev||[])]; arr[i] = { ...(arr[i]||{}), title: e.target.value }; return arr })} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Consultant Pathologist" />
+                  </div>
+                  <button type="button" onClick={()=>setConsultants(prev=>prev.filter((_,idx)=>idx!==i))} className="rounded-md border border-rose-300 px-2 py-2 text-xs text-rose-600 hover:bg-rose-50">Remove</button>
+                </div>
+              ))}
+              {(consultants||[]).length === 0 && (
+                <div className="text-xs text-slate-500">No additional consultants. Click "+ Add Consultant" to add.</div>
+              )}
             </div>
 
             <div>
@@ -225,6 +405,32 @@ export default function Lab_Settings() {
               <p className="mt-1 text-[11px] text-slate-500">Use {"{{tokenNo}}"} as a placeholder for the actual lab number.</p>
             </div>
 
+            <div className="rounded-lg border border-slate-200 p-3">
+              <div className="mb-2 text-sm font-medium text-slate-800">Behaviour Toggles</div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={restrictCollectionDate} onChange={e=>setRestrictCollectionDate(e.target.checked)} className="rounded border-slate-300" />
+                  Restrict employees from changing collection date
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={paymentOnInstance} onChange={e=>setPaymentOnInstance(e.target.checked)} className="rounded border-slate-300" />
+                  Payment receive on test-instance level
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={validateStock} onChange={e=>setValidateStock(e.target.checked)} className="rounded border-slate-300" />
+                  Validate stock before dispensing
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={smsActive} onChange={e=>setSmsActive(e.target.checked)} className="rounded border-slate-300" />
+                  SMS notifications active
+                </label>
+              </div>
+              <div className="mt-3">
+                <label className="mb-1 block text-sm text-slate-700">Hijri Date Offset (days)</label>
+                <input type="number" value={hijriOffset} onChange={e=>setHijriOffset(Number(e.target.value)||0)} className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+            </div>
+
             <div className="flex items-center justify-end">
               <button onClick={saveLab} disabled={saving} className="btn disabled:opacity-50">{saving? 'Saving...' : 'Save Settings'}</button>
             </div>
@@ -254,6 +460,55 @@ export default function Lab_Settings() {
             <div className="flex items-center justify-end">
               <button onClick={saveSystem} className="btn">Save Settings</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'headerFooter' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Report Header Image</div>
+            <div className="space-y-3 p-4">
+              <input type="file" accept="image/*" disabled={uploadingHeader} onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadHeader(f) }} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:text-slate-700" />
+              {uploadingHeader && <p className="text-xs text-slate-500">Uploading…</p>}
+              {headerImageUrl && <img src={headerImageUrl} alt="Current header" className="h-20 rounded border object-contain" />}
+              {headerHistory.length > 0 && (
+                <div className="mt-2">
+                  <div className="mb-1 text-xs font-medium text-slate-600">History (click to revert)</div>
+                  <div className="flex flex-wrap gap-2">
+                    {headerHistory.map((h,i)=>(
+                      <button key={i} onClick={()=>revertHeader(h.url)} className="group flex flex-col items-center rounded border border-slate-200 p-1 hover:border-blue-400" title={h.note || h.uploadedAt}>
+                        <img src={h.url} alt="" className="h-10 rounded object-contain" />
+                        <span className="text-[10px] text-slate-500 group-hover:text-blue-600">{new Date(h.uploadedAt).toLocaleDateString()}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Report Footer Image</div>
+            <div className="space-y-3 p-4">
+              <input type="file" accept="image/*" disabled={uploadingFooter} onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadFooter(f) }} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:text-slate-700" />
+              {uploadingFooter && <p className="text-xs text-slate-500">Uploading…</p>}
+              {footerImageUrl && <img src={footerImageUrl} alt="Current footer" className="h-20 rounded border object-contain" />}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'seeds' && (
+        <div className="rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Data Seeds</div>
+          <div className="space-y-3 p-4">
+            <p className="text-sm text-slate-600">Populate canonical reference data. These endpoints are idempotent — running them again will upsert without creating duplicates.</p>
+            <div className="flex flex-wrap gap-3">
+              <button onClick={()=>runSeed('test-templates','Test Templates')} disabled={seedBusy} className="btn disabled:opacity-50">Seed Test Templates</button>
+              <button onClick={()=>runSeed('critical-parameters','Critical Parameters')} disabled={seedBusy} className="btn disabled:opacity-50">Seed Critical Parameters</button>
+            </div>
+            {seedResult && <pre className="whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs text-slate-700">{seedResult}</pre>}
           </div>
         </div>
       )}

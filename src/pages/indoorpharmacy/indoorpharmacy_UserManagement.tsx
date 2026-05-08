@@ -343,7 +343,7 @@ export default function IndoorPharmacy_UserManagement() {
                 Create a role, then configure its module visibility in{' '}
                 <button
                   type="button"
-                  onClick={() => navigate('/pharmacy/sidebar-permissions')}
+                  onClick={() => navigate('/indoor-pharmacy/sidebar-permissions')}
                   className="font-semibold text-slate-900 underline decoration-slate-300 underline-offset-2 transition hover:decoration-slate-500 dark:text-slate-200 dark:decoration-slate-600 dark:hover:decoration-slate-400"
                 >
                   Sidebar Permissions

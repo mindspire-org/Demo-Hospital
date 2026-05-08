@@ -153,23 +153,17 @@ export default function Pharmacy_POSReceiptDialog({ open, onClose, receiptNo, me
               <hr className="my-3 border-dashed" />
               {(() => {
                 const st = String(fbr?.status || '').toUpperCase().trim()
-                const showFbr = Boolean(fbr) && Boolean(st)
                 const isSuccess = st === 'SUCCESS' && Boolean(fbr?.qrCode)
-                if (!showFbr) return null
+                if (!isSuccess) return null
                 return (
                   <div className="text-xs print:text-black">
                     <div className="text-center font-medium">FBR</div>
                     <div className="mt-1 text-center">
-                      {isSuccess ? (
-                        <img src={fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
-                      ) : (
-                        <div className="font-semibold text-rose-600 print:text-black">FBR FAILED</div>
-                      )}
+                      <img src={fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
                     </div>
                     <div className="mt-1 space-y-0.5 text-[11px] text-slate-700 print:text-black">
                       <div>FBR No: {fbr?.fbrInvoiceNo || '—'}</div>
                       <div>Mode: {fbr?.mode || '—'}</div>
-                      <div>Error: {fbr?.error || '—'}</div>
                     </div>
                   </div>
                 )

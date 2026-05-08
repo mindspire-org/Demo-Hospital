@@ -9,9 +9,10 @@ import { printColonoscopyReport } from '../../components/diagnostic/diagnostic_C
 import { printUpperGIEndoscopyReport } from '../../components/diagnostic/diagnostic_UpperGIEndoscopy'
 import { previewLabReportPdf } from '../../utils/printLabReport'
 import Toast, { type ToastState } from '../../components/ui/Toast'
-import { 
-  User, Phone, IdCard, MapPin, Calendar, Edit2, Save, X, 
-  FileText, FlaskConical, ScanLine, Sparkles, BedDouble, ChevronDown, ChevronUp
+import {
+  User, Phone, IdCard, MapPin, Calendar, Edit2, Save, X,
+  FileText, FlaskConical, ScanLine, Sparkles, BedDouble, ChevronDown, ChevronUp,
+  Search, RotateCcw, Users, Hash, UserCircle, PhoneCall
 } from 'lucide-react'
 
 interface PatientDetails {
@@ -775,9 +776,9 @@ export default function Hospital_SearchPatients() {
     const patientId = (formData as any)?._id || (formData as any)?.id || patient._id || patient.id || ''
 
     return (
-      <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+      <div className="bg-linear-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 dark:from-slate-900 dark:to-slate-800 px-6 py-4">
+        <div className="bg-linear-to-r from-slate-800 to-slate-700 dark:from-slate-900 dark:to-slate-800 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
@@ -987,84 +988,169 @@ export default function Hospital_SearchPatients() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Advanced Patient Search</h2>
-
-      <form onSubmit={onSearch} className="space-y-5">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">MR Number</label>
-            <input value={form.mrNo} onChange={e=>update('mrNo', e.target.value)} placeholder="MR123456" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+      {/* Gradient Header Banner */}
+      <div className="rounded-2xl bg-linear-to-r from-sky-600 via-violet-600 to-rose-500 p-6 text-white shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+            <Search className="h-6 w-6" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Patient Name</label>
-            <input value={form.name} onChange={e=>update('name', e.target.value)} placeholder="Full or partial name" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Father Name</label>
-            <input value={form.fatherName} onChange={e=>update('fatherName', e.target.value)} placeholder="Guardian's name" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Phone Number</label>
-            <input value={form.phone} onChange={e=>update('phone', e.target.value)} placeholder="03001234567" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+            <h2 className="text-2xl font-black tracking-tight">Advanced Patient Search</h2>
+            <p className="mt-0.5 text-sm font-medium text-white/80">Find patients by MR number, name, phone, or guardian</p>
           </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-2">
-          <button type="submit" className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50" disabled={loading}>{loading?'Searching...':'Search Patients'}</button>
-          <button type="button" onClick={onClear} className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Clear Filters</button>
+      {/* Search Form Card */}
+      <form onSubmit={onSearch}>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 bg-slate-50/60 px-5 py-3">
+            <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <Hash className="h-4 w-4 text-violet-500" />
+              Search Criteria
+            </div>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <Hash className="h-3.5 w-3.5" /> MR Number
+                </label>
+                <div className="relative">
+                  <input value={form.mrNo} onChange={e=>update('mrNo', e.target.value)} placeholder="e.g. CHCH-2026-001"
+                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3 pr-3 text-sm font-medium text-slate-800 outline-none transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <UserCircle className="h-3.5 w-3.5" /> Patient Name
+                </label>
+                <input value={form.name} onChange={e=>update('name', e.target.value)} placeholder="Full or partial name"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 outline-none transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <Users className="h-3.5 w-3.5" /> Father Name
+                </label>
+                <input value={form.fatherName} onChange={e=>update('fatherName', e.target.value)} placeholder="Guardian's name"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 outline-none transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <PhoneCall className="h-3.5 w-3.5" /> Phone Number
+                </label>
+                <input value={form.phone} onChange={e=>update('phone', e.target.value)} placeholder="03001234567"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 outline-none transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <button type="submit"
+                className="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-sky-600 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-sky-200 transition-all hover:shadow-lg hover:shadow-sky-300 disabled:opacity-50"
+                disabled={loading}>
+                {loading ? (
+                  <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Searching…</>
+                ) : (
+                  <><Search className="h-4 w-4" /> Search Patients</>
+                )}
+              </button>
+              <button type="button" onClick={onClear}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50">
+                <RotateCcw className="h-4 w-4" /> Clear
+              </button>
+            </div>
+          </div>
         </div>
       </form>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white py-16">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-sky-500" />
+          <p className="text-sm font-semibold text-slate-500">Searching patients…</p>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && patients.length === 0 && (form.mrNo || form.name || form.fatherName || form.phone) && (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 py-16">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+            <Users className="h-7 w-7 text-slate-400" />
+          </div>
+          <p className="text-sm font-bold text-slate-500">No patients found</p>
+          <p className="text-xs text-slate-400">Try adjusting your search criteria</p>
+        </div>
+      )}
+
+      {/* Initial Empty State */}
+      {!loading && patients.length === 0 && !form.mrNo && !form.name && !form.fatherName && !form.phone && (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 py-16">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50">
+            <Search className="h-7 w-7 text-violet-400" />
+          </div>
+          <p className="text-sm font-bold text-slate-500">Search for a patient</p>
+          <p className="text-xs text-slate-400">Enter MR number, name, phone, or guardian to begin</p>
+        </div>
+      )}
+
+      {/* Search Results */}
       {patients.length>0 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="font-medium text-slate-800 dark:text-slate-100">Search Results</div>
-            <div className="text-sm text-slate-600 dark:text-slate-400">{patients.length} patient{patients.length!==1?'s':''} found</div>
+          <div className="flex items-center justify-between rounded-xl bg-white px-4 py-2.5 border border-slate-200">
+            <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+              <Users className="h-4 w-4 text-violet-500" />
+              Search Results
+            </div>
+            <div className="rounded-full bg-violet-100 px-3 py-0.5 text-xs font-bold text-violet-700">
+              {patients.length} patient{patients.length!==1?'s':''} found
+            </div>
           </div>
           
           <div className="space-y-4">
-            {patients.map((p, idx) => (
-              <div key={String(p._id||idx)} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            {patients.map((p, idx) => {
+              const mrn = String(p.mrn||'')
+              const isExp = expanded[mrn]
+              return (
+              <div key={String(p._id||idx)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
                 {/* Patient Header Bar */}
-                <div 
-                  className="flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                <div
+                  className="flex items-center justify-between px-5 py-4 cursor-pointer transition-colors bg-linear-to-r from-slate-50 to-white hover:from-sky-50/40 hover:to-violet-50/30"
                   onClick={() => {
-                    const mrn = String(p.mrn||'')
                     setExpanded(prev => ({ ...prev, [mrn]: !prev[mrn] }))
                     if (!details[mrn]) loadDetails(mrn, String(p._id||''))
                   }}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-                      <User className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-linear-to-br from-sky-500 to-violet-500 shadow-sm">
+                      <User className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <div className="font-medium text-slate-800 dark:text-slate-100">{p.fullName || '-'}</div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400">
-                        MRN: {p.mrn || '-'} • Father: {p.fatherName || '-'} • Phone: {p.phoneNormalized || '-'}
+                      <div className="text-base font-bold text-slate-900">{p.fullName || '-'}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-medium text-slate-500">
+                        <span className="inline-flex items-center gap-1"><Hash className="h-3 w-3" />{p.mrn || '-'}</span>
+                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{p.fatherName || '-'}</span>
+                        <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" />{p.phoneNormalized || '-'}</span>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
-                      {expanded[String(p.mrn||'')] ? (
-                        <><ChevronUp className="w-4 h-4" /> Hide Details</>
-                      ) : (
-                        <><ChevronDown className="w-4 h-4" /> View Details</>
-                      )}
-                    </button>
+                    <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${isExp ? 'bg-violet-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-violet-100 hover:text-violet-700'}`}>
+                      {isExp ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      {isExp ? 'Hide' : 'Details'}
+                    </span>
                   </div>
                 </div>
 
                 {/* Expanded Patient Profile */}
-                {expanded[String(p.mrn||'')] && (
-                  <div className="p-6 border-t border-slate-200 dark:border-slate-700">
+                {isExp && (
+                  <div className="border-t border-slate-200 p-5">
                     {renderPatientInfoCard(p)}
-                    {renderMedicalRecords(String(p.mrn||''))}
+                    {renderMedicalRecords(mrn)}
                   </div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

@@ -134,6 +134,17 @@ export default function Hospital_ReceivedDeathForm({ encounterId, patient }: Rec
     }
   }
 
+  useEffect(() => {
+    const onAction = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as any
+      if (!detail || detail.key !== 'ReceivedDeath') return
+      if (detail.action === 'save') { void save() }
+      if (detail.action === 'print') { void printPreview() }
+    }
+    window.addEventListener('dw:form-action', onAction as any)
+    return () => window.removeEventListener('dw:form-action', onAction as any)
+  }, [encounterId, form])
+
   return (
     <div className="space-y-3">
       <Toast toast={toast} onClose={()=>setToast(null)} />

@@ -131,10 +131,14 @@ export const ipdApi = {
     api(withQuery(`/hospital/ipd/admissions/${encounterId}/notes`, params)),
   createIpdNote: (encounterId: string, data: { noteType: 'nursing' | 'progress' | 'discharge'; text: string; attachments?: string[]; createdBy?: string }) =>
     api(`/hospital/ipd/admissions/${encounterId}/notes`, { method: 'POST', body: JSON.stringify(data) }),
+  updateIpdNote: (_encounterId: string, id: string, data: { text?: string; noteType?: string }) =>
+    api(`/hospital/ipd/notes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteIpdNote: (_encounterId: string, id: string) =>
+    api(`/hospital/ipd/notes/${id}`, { method: 'DELETE' }),
 
-  listIpdClinicalNotes: (encounterId: string, params?: { type?: 'preop' | 'operation' | 'postop' | 'consultant' | 'anes-pre' | 'anes-intra' | 'anes-recovery' | 'anes-post-recovery' | 'anes-adverse' | 'consent-form' | 'infection-control' | 'blood-transfusion' | 'operation-consent' | 'history-exam' | 'surgical-signin' | 'surgical-timeout' | 'surgical-signout'; page?: number; limit?: number }) =>
+  listIpdClinicalNotes: (encounterId: string, params?: { type?: 'preop' | 'operation' | 'postop' | 'consultant' | 'anes-pre' | 'anes-intra' | 'anes-recovery' | 'anes-post-recovery' | 'anes-adverse' | 'consent-form' | 'infection-control' | 'blood-transfusion' | 'operation-consent' | 'history-exam' | 'surgical-signin' | 'surgical-timeout' | 'surgical-signout' | 'icu-monitoring'; page?: number; limit?: number }) =>
     api(withQuery(`/hospital/ipd/admissions/${encounterId}/clinical-notes`, params)),
-  createIpdClinicalNote: (encounterId: string, data: { type: 'preop' | 'operation' | 'postop' | 'consultant' | 'anes-pre' | 'anes-intra' | 'anes-recovery' | 'anes-post-recovery' | 'anes-adverse' | 'consent-form' | 'infection-control' | 'blood-transfusion' | 'operation-consent' | 'history-exam' | 'surgical-signin' | 'surgical-timeout' | 'surgical-signout'; recordedAt?: string; createdBy?: string; createdByRole?: string; doctorName?: string; sign?: string; data: any }) =>
+  createIpdClinicalNote: (encounterId: string, data: { type: 'preop' | 'operation' | 'postop' | 'consultant' | 'anes-pre' | 'anes-intra' | 'anes-recovery' | 'anes-post-recovery' | 'anes-adverse' | 'consent-form' | 'infection-control' | 'blood-transfusion' | 'operation-consent' | 'history-exam' | 'surgical-signin' | 'surgical-timeout' | 'surgical-signout' | 'icu-monitoring'; recordedAt?: string; createdBy?: string; createdByRole?: string; doctorName?: string; sign?: string; data: any }) =>
     api(`/hospital/ipd/admissions/${encounterId}/clinical-notes`, { method: 'POST', body: JSON.stringify(data) }),
   updateIpdClinicalNote: (id: string, data: any) =>
     api(`/hospital/ipd/clinical-notes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

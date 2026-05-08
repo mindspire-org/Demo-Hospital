@@ -11,6 +11,19 @@ const PatientSchema = new Schema({
   guardianRel: { type: String },
   address: { type: String },
   createdAtIso: { type: String },
+
+  // Extended fields
+  hospitalRegistrationNumber: { type: String, index: true },
+  patientImageUrl: { type: String },
+  bloodGroup: { type: String },
+  patientType: { type: String, enum: ['OPD', 'IPD', 'ER', 'OTHER'], default: 'OPD' },
+  email: { type: String },
+  whatsapp: { type: String },
+  departmentId: { type: String, index: true },
+  wardId: { type: String, index: true },
+  emergencyDayId: { type: String, index: true },
+  // Reference to active patient card
+  activeCardId: { type: Schema.Types.ObjectId, ref: 'Lab_PatientCard' },
 }, { timestamps: true })
 
 export type LabPatientDoc = {
@@ -25,6 +38,16 @@ export type LabPatientDoc = {
   guardianRel?: string
   address?: string
   createdAtIso?: string
+  hospitalRegistrationNumber?: string
+  patientImageUrl?: string
+  bloodGroup?: string
+  patientType?: 'OPD' | 'IPD' | 'ER' | 'OTHER'
+  email?: string
+  whatsapp?: string
+  departmentId?: string
+  wardId?: string
+  emergencyDayId?: string
+  activeCardId?: string
 }
 
 export const LabPatient = models.Lab_Patient || model('Lab_Patient', PatientSchema)

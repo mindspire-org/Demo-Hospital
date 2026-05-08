@@ -148,8 +148,6 @@ export default function Hospital_TokenSlip({
   const dt = data.createdAt ? new Date(data.createdAt) : new Date()
   const fbrStatus = String(data?.fbr?.status || '').toUpperCase().trim()
   const isFbrSuccess = fbrStatus === 'SUCCESS' && Boolean(data?.fbr?.qrCode)
-  const isFbrDisabled = !data?.fbr || !fbrStatus
-  const showFbrSection = !isFbrDisabled
 
   const slip = (
     <>
@@ -161,7 +159,7 @@ export default function Hospital_TokenSlip({
         >
           <SlipBody
             data={data} settings={settings} dt={dt}
-            showFbrSection={showFbrSection} isFbrSuccess={isFbrSuccess}
+            isFbrSuccess={isFbrSuccess}
             user={user}
           />
           <div className="mt-3 flex items-center justify-end gap-2">
@@ -177,7 +175,7 @@ export default function Hospital_TokenSlip({
         <div id="hospital-receipt">
           <SlipBody
             data={data} settings={settings} dt={dt}
-            showFbrSection={showFbrSection} isFbrSuccess={isFbrSuccess}
+            isFbrSuccess={isFbrSuccess}
             user={user}
           />
         </div>
@@ -255,11 +253,10 @@ export default function Hospital_TokenSlip({
 }
 
 /* ── Shared slip body (rendered twice: modal + print portal) ── */
-function SlipBody({ data, settings, dt, showFbrSection, isFbrSuccess, user }: {
+function SlipBody({ data, settings, dt, isFbrSuccess, user }: {
   data: TokenSlipData
-  settings: { name: string; phone: string; address: string; logoDataUrl: string; slipFooter: string }
+  settings: any
   dt: Date
-  showFbrSection: boolean
   isFbrSuccess: boolean
   user?: string
 }) {
@@ -315,25 +312,22 @@ function SlipBody({ data, settings, dt, showFbrSection, isFbrSuccess, user }: {
 
       <div className="space-y-1 text-sm text-slate-800">
         <Row label="Total Amount:" value={data.amount.toFixed(2)} />
-        <Row label="Discount:" value={(data.discount || 0).toFixed(2)} />
+        {Number(data.discount || 0) > 0 ? (
+          <Row label="Discount:" value={(data.discount || 0).toFixed(2)} />
+        ) : null}
         <Row label="Net Amount:" value={data.payable.toFixed(2)} boldValue />
       </div>
 
-      {showFbrSection && (
+      {isFbrSuccess && (
         <>
           <hr className="my-2 border-dashed" />
           <div className="text-center text-sm font-semibold underline">FBR</div>
           <div className="mt-2 text-center">
-            {isFbrSuccess ? (
-              <img src={data.fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
-            ) : (
-              <div className="text-sm font-semibold text-rose-600">FBR FAILED</div>
-            )}
+            <img src={data.fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
           </div>
           <div className="mt-1 space-y-0.5 text-[11px] text-slate-700">
             <div>FBR No: {data?.fbr?.fbrInvoiceNo || '—'}</div>
             <div>Mode: {data?.fbr?.mode || '—'}</div>
-            <div>Error: {data?.fbr?.error || '—'}</div>
           </div>
         </>
       )}

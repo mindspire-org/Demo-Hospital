@@ -11,6 +11,8 @@ import {
   CheckCircle,
   XCircle,
 } from 'lucide-react'
+import MiniDashboard from '../../components/common/MiniDashboard'
+import { useLabSession } from '../../hooks/useLabSession'
 
 type CollectionCenter = {
   _id: string
@@ -21,11 +23,16 @@ type CollectionCenter = {
   phone?: string
   email?: string
   status: 'Active' | 'Inactive'
+  allowedTestIds?: string[]
   commissionPercent: number
   totalTokens: number
   totalRevenue: number
   totalCommission: number
   balanceDue: number
+  parentCenterId?: string
+  pairedCenterIds?: string[]
+  isHead?: boolean
+  region?: string
   createdAt: string
 }
 
@@ -37,7 +44,11 @@ const initialFormData: {
   phone: string
   email: string
   status: 'Active' | 'Inactive'
+  allowedTestIds: string[]
   commissionPercent: number
+  parentCenterId: string
+  isHead: boolean
+  region: string
 } = {
   name: '',
   code: '',
@@ -46,11 +57,17 @@ const initialFormData: {
   phone: '',
   email: '',
   status: 'Active',
+  allowedTestIds: [],
   commissionPercent: 0,
+  parentCenterId: '',
+  isHead: false,
+  region: '',
 }
 
 export default function Lab_CollectionCenters() {
   const [centers, setCenters] = useState<CollectionCenter[]>([])
+  const [tests, setTests] = useState<Array<{ id: string; name: string; category?: string }>>([])
+  const [testQ, setTestQ] = useState('')
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
@@ -68,6 +85,20 @@ export default function Lab_CollectionCenters() {
   useEffect(() => {
     loadCenters()
   }, [searchQuery, statusFilter, page, limit])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const res: any = await labApi.listTests({ limit: 2000, activeOnly: 'true' as any })
+        if (!mounted) return
+        setTests((res.items || []).map((t: any) => ({ id: String(t._id), name: String(t.name || ''), category: t.category })))
+      } catch {
+        if (mounted) setTests([])
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
 
   async function loadCenters() {
     try {
@@ -112,7 +143,11 @@ export default function Lab_CollectionCenters() {
       phone: center.phone || '',
       email: center.email || '',
       status: center.status,
+      allowedTestIds: Array.isArray(center.allowedTestIds) ? center.allowedTestIds.map(String) : [],
       commissionPercent: center.commissionPercent || 0,
+      parentCenterId: center.parentCenterId || '',
+      isHead: !!center.isHead,
+      region: center.region || '',
     })
     setShowModal(true)
   }
@@ -121,6 +156,7 @@ export default function Lab_CollectionCenters() {
     setShowModal(false)
     setEditingCenter(null)
     setFormData(initialFormData)
+    setTestQ('')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -154,75 +190,36 @@ export default function Lab_CollectionCenters() {
     }
   }
 
+  const session = useLabSession()
+
   return (
     <div className="p-4 md:p-6 w-full min-h-[calc(100dvh-3.5rem)] bg-slate-50 dark:bg-slate-900/50">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
-            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-              <Building className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            Collection Centers
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage external collection centers and their commission rates</p>
-        </div>
-        <button
-          onClick={openAddModal}
-          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-white font-semibold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:-translate-y-0.5 transition-all"
-          style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)' }}
-        >
-          <Plus className="h-5 w-5" />
-          Add New Center
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-            <Building className="h-16 w-16" />
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Collection Centers</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Manage external collection centers and their commission rates</div>
           </div>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Centers</p>
-          <p className="text-3xl font-bold text-slate-800 dark:text-white mt-2">{stats.total}</p>
-          <div className="mt-3 h-1 w-full bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full" style={{ width: '100%' }} />
-          </div>
-        </div>
-        
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-            <CheckCircle className="h-16 w-16 text-green-500" />
-          </div>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Active Centers</p>
-          <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-2">{stats.active}</p>
-          <div className="mt-3 h-1 w-full bg-green-100 dark:bg-green-900/30 rounded-full overflow-hidden">
-            <div className="h-full bg-green-500 rounded-full" style={{ width: `${(stats.active / stats.total) * 100 || 0}%` }} />
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-            <TrendingUp className="h-16 w-16 text-purple-500" />
-          </div>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Revenue</p>
-          <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-2">Rs {stats.totalRevenue.toLocaleString()}</p>
-          <div className="mt-3 h-1 w-full bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden">
-            <div className="h-full bg-purple-500 rounded-full" style={{ width: '100%' }} />
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-            <Coins className="h-16 w-16 text-orange-500" />
-          </div>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Balance Due</p>
-          <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 mt-2">Rs {stats.totalBalanceDue.toLocaleString()}</p>
-          <div className="mt-3 h-1 w-full bg-orange-100 dark:bg-orange-900/30 rounded-full overflow-hidden">
-            <div className="h-full bg-orange-500 rounded-full" style={{ width: '100%' }} />
-          </div>
+          {session.isAdmin && (
+            <button
+              onClick={openAddModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/30"
+            >
+              <Plus className="h-4 w-4" />
+              Add New Center
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Mini Dashboard */}
+      <MiniDashboard cards={[
+        { label: 'Total Centers', value: stats.total, icon: Building, color: 'bg-sky-500' },
+        { label: 'Active', value: stats.active, icon: CheckCircle, color: 'bg-emerald-500' },
+        { label: 'Total Revenue', value: `PKR ${stats.totalRevenue.toLocaleString()}`, icon: TrendingUp, color: 'bg-violet-500' },
+        { label: 'Balance Due', value: `PKR ${stats.totalBalanceDue.toLocaleString()}`, icon: Coins, color: 'bg-amber-500' },
+      ]} />
 
       {/* Filters */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 mb-6 shadow-sm">
@@ -270,7 +267,7 @@ export default function Lab_CollectionCenters() {
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Code</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Contact Info</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Commission</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Stats</th>
+                <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Stats</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Financials</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
@@ -306,9 +303,14 @@ export default function Lab_CollectionCenters() {
                         </div>
                         <div>
                           <p className="font-bold text-slate-800 dark:text-white">{center.name}</p>
-                          {center.address && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-[200px] truncate">{center.address}</p>
-                          )}
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {center.isHead && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-bold">HEAD</span>}
+                            {center.parentCenterId && <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-bold">CHILD</span>}
+                            {center.region && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px] font-bold">{center.region}</span>}
+                            {center.address && (
+                              <span className="text-xs text-slate-500 dark:text-slate-400 max-w-[200px] truncate">{center.address}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -530,6 +532,43 @@ export default function Lab_CollectionCenters() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Parent Center (Head)
+                  </label>
+                  <select
+                    value={formData.parentCenterId}
+                    onChange={(e) => setFormData({ ...formData, parentCenterId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">None (Top-level)</option>
+                    {centers.filter(c => c.isHead || !c.parentCenterId).filter(c => c._id !== editingCenter?._id).map(c => (
+                      <option key={c._id} value={c._id}>{c.name} ({c.code})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Region
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.region}
+                    onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. North, South, Central"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="isHead"
+                    checked={formData.isHead}
+                    onChange={(e) => setFormData({ ...formData, isHead: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="isHead" className="text-sm font-medium text-slate-700">Is Head Center</label>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
                     Status
                   </label>
                   <select
@@ -542,6 +581,66 @@ export default function Lab_CollectionCenters() {
                   </select>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Allowed Tests (optional)
+                </label>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <input
+                    value={testQ}
+                    onChange={e => setTestQ(e.target.value)}
+                    placeholder="Search tests…"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="mt-2 max-h-56 overflow-y-auto rounded-md border border-slate-200">
+                    {tests
+                      .filter(t => !testQ || String(t.name || '').toLowerCase().includes(testQ.toLowerCase()))
+                      .map(t => {
+                        const checked = formData.allowedTestIds.includes(t.id)
+                        return (
+                          <label key={t.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={e => {
+                                const on = e.target.checked
+                                setFormData(prev => ({
+                                  ...prev,
+                                  allowedTestIds: on
+                                    ? Array.from(new Set([...(prev.allowedTestIds || []), t.id]))
+                                    : (prev.allowedTestIds || []).filter(x => x !== t.id),
+                                }))
+                              }}
+                              className="h-4 w-4"
+                            />
+                            <span className="flex-1 text-slate-800">{t.name}</span>
+                            {t.category && <span className="text-xs text-slate-400">{t.category}</span>}
+                          </label>
+                        )
+                      })}
+                    {tests.filter(t => !testQ || String(t.name || '').toLowerCase().includes(testQ.toLowerCase())).length === 0 && (
+                      <div className="px-3 py-3 text-sm text-slate-500">No tests found.</div>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                    <div>
+                      Selected: <span className="font-semibold text-slate-700">{formData.allowedTestIds.length}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, allowedTestIds: [] }))}
+                      className="text-rose-600 hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    If none selected, this center can use all active tests.
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center gap-3 pt-4">
                 <button
                   type="button"

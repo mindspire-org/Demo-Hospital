@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { DialysisUser } from '../models/User'
 import { DialysisAuditLog } from '../models/AuditLog'
 import bcrypt from 'bcryptjs'
+import { createUserAccount } from '../../finance/services/accountAutoCreate'
 
 const createSchema = z.object({
   username: z.string().min(1),
@@ -73,6 +74,8 @@ export async function create(req: Request, res: Response) {
       detail: `User ${doc.username} (${doc._id}) role ${doc.role}`,
     })
   } catch {}
+  // Auto-create Chart of Accounts entry for this user
+  try { await createUserAccount(String(doc._id), doc.username, 'dialysis') } catch {}
   res.status(201).json({
     user: {
       id: String(doc._id),

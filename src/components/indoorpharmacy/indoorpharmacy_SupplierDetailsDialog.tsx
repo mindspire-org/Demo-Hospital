@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { Supplier } from './pharmacy_AddSupplierDialog'
-import { pharmacyApi } from '../../utils/api'
+import type { Supplier } from './indoorpharmacy_AddSupplierDialog'
+import { indoorPharmacyApi } from '../../utils/api'
 
 type Props = {
   open: boolean
@@ -21,8 +21,8 @@ export default function Pharmacy_SupplierDetailsDialog({ open, onClose, supplier
         setLoading(true)
         let arr1: any[] = []
         let arr2: any[] = []
-        try { const r1 = await pharmacyApi.listSupplierPurchases(supplier.id); arr1 = r1.items || [] } catch {}
-        if (supplier.name){ try { const r2 = await pharmacyApi.listPurchases({ search: supplier.name, limit: 500 }); arr2 = r2.items || [] } catch {} }
+        try { const r1 = await indoorPharmacyApi.listSupplierPurchases(supplier.id); arr1 = r1.items || [] } catch {}
+        if (supplier.name){ try { const r2 = await indoorPharmacyApi.listPurchases({ search: supplier.name, limit: 500 }); arr2 = r2.items || [] } catch {} }
         if (!mounted) return
         const dedup = new Map<string, any>()
         for (const p of [...arr1, ...arr2]){

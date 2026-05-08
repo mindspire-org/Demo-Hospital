@@ -119,7 +119,7 @@ export default function Reception_IPDTransactions(){
       <div class="wrap">
         <div class="hdr">
           <div class="logo">${logo? `<img src="${escapeHtml(logo)}" alt="logo"/>` : ''}</div>
-          <div class="hinfo" style="flex:1">
+          <div style={{flex:1}}>
             <div class="title">${escapeHtml(name)}</div>
             <div class="muted">${escapeHtml(address)}</div>
             <div class="muted">Ph: ${escapeHtml(phone)}</div>
@@ -135,7 +135,7 @@ export default function Reception_IPDTransactions(){
           </div>
         </div>
         <div class="box">
-          <div style="font-weight:600;margin-bottom:4px">Charges</div>
+          <div style={{fontWeight:600,marginBottom:4px}}>Charges</div>
           <table>
             <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
             <tbody>${linesHtml}</tbody>
@@ -143,7 +143,7 @@ export default function Reception_IPDTransactions(){
           </table>
         </div>
         <div class="box">
-          <div style="font-weight:600;margin-bottom:4px">Payments</div>
+          <div style={{fontWeight:600,marginBottom:4px}}>Payments</div>
           <table>
             <thead><tr><th>Date/Time</th><th>Method</th><th>Ref</th><th class="right">Amount</th></tr></thead>
             <tbody>${paysHtml || `<tr><td colspan="4" style="padding:6px">No payments yet</td></tr>`}</tbody>
@@ -157,7 +157,7 @@ export default function Reception_IPDTransactions(){
             <tr><td style="padding:6px 0 3px 0;border-top:1px solid #e5e7eb"><strong>Net ${total > netPaid ? 'Due' : 'Credit'}</strong></td><td style="padding:6px 0 3px 0;border-top:1px solid #e5e7eb;text-align:right;color:${total > netPaid ? '#dc2626' : '#16a34a'}"><strong>${total > netPaid ? '-' : '+'}${currency(Math.abs(total - netPaid))}</strong></td></tr>
           </table>
         </div>
-        <div style="text-align:center;color:#475569;margin-top:6px;font-size:10px">System Generated Receipt</div>
+        <div style={{textAlign:'center',color:'#475569',marginTop:6px,fontSize:10px}}>System Generated Receipt</div>
       </div>
     </body></html>`
     try{

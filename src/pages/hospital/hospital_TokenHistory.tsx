@@ -1,9 +1,30 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Hospital_TokenSlip, { type TokenSlipData } from '../../components/hospital/Hospital_TokenSlip'
 import { hospitalApi, corporateApi } from '../../utils/api'
 import { previewHospitalRxPdf } from '../../utils/hospitalRxPdf'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { createCacheKey, getCache, setCache, invalidateCache } from '../../utils/apiCache'
+import {
+  Ticket,
+  Clock,
+  RefreshCw,
+  Filter,
+  Search,
+  FileSpreadsheet,
+  FileDown,
+  Wallet,
+  CreditCard,
+  TrendingUp,
+  ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
+  Printer,
+  LayoutDashboard,
+  UserCheck,
+  UserX,
+  CalendarDays,
+} from 'lucide-react'
 
 function escHtml(v: any){
   return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c] || c)
@@ -128,10 +149,14 @@ interface TokenRow {
 export default function Hospital_TokenHistory() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
-  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const [rowsPerPage, setRowsPerPage] = useState<number>(10)
   const [page, setPage] = useState(1)
   const [actioningId, setActioningId] = useState<string | null>(null)
   const [revByMethod, setRevByMethod] = useState<{ cash: number; card: number }>({ cash: 0, card: 0 })
+  const [backendTotal, setBackendTotal] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [forceRefresh, setForceRefresh] = useState(0)
+  const hasLoadedRef = useRef(false)
 
   const today = new Date().toISOString().slice(0,10)
   const [from, setFrom] = useState(today)
@@ -149,7 +174,6 @@ export default function Hospital_TokenHistory() {
   const [visitCategory, setVisitCategory] = useState<'All' | 'Public' | 'Private'>('All')
 
   useEffect(() => { loadFilters() }, [])
-  useEffect(() => { load() }, [from, to, department, doctor, tokenType, visitCategory])
 
   async function loadFilters(){
     try {
@@ -165,12 +189,42 @@ export default function Hospital_TokenHistory() {
     } catch {}
   }
 
-  async function load(){
-    const params: any = { from, to }
+  const load = useCallback(async (force: boolean = false) => {
+    const isAll = rowsPerPage === -1
+    const params: any = { from, to, page, limit: isAll ? 1000 : rowsPerPage }
     if (department !== 'All') params.departmentId = department
     if (doctor !== 'All') params.doctorId = doctor
-    const res = await hospitalApi.listTokens(params) as any
-    const items: TokenRow[] = (res.tokens || []).map((t: any) => ({
+    
+    // Check cache first (unless forcing refresh)
+    const cacheKey = createCacheKey('/hospital/tokens', params)
+    if (!force) {
+      const cached = getCache<{ tokens: any[], total: number }>(cacheKey)
+      if (cached) {
+        setBackendTotal(cached.total || 0)
+        processTokens(cached.tokens)
+        hasLoadedRef.current = true
+        return
+      }
+    }
+    
+    // Only show loading spinner if no existing data
+    if (!hasLoadedRef.current) setIsLoading(true)
+    try {
+      const res = await hospitalApi.listTokens(params) as any
+      setBackendTotal(res.total || 0)
+      
+      // Cache the response
+      setCache(cacheKey, { tokens: res.tokens || [], total: res.total || 0 })
+      
+      processTokens(res.tokens || [])
+      hasLoadedRef.current = true
+    } finally {
+      setIsLoading(false)
+    }
+  }, [from, to, department, doctor, page, rowsPerPage])
+  
+  function processTokens(tokens: any[]) {
+    const items: TokenRow[] = (tokens || []).map((t: any) => ({
       _id: t._id,
       date: t.dateIso,
       time: t.createdAt ? new Date(t.createdAt).toLocaleTimeString() : '',
@@ -199,7 +253,6 @@ export default function Hospital_TokenHistory() {
     }))
     const rowsClean = items.filter(r => r.status !== 'cancelled')
     setRows(rowsClean)
-    setPage(1)
 
     // Revenue split from tokens based on selected payment method at token creation
     let cash = 0
@@ -216,7 +269,16 @@ export default function Hospital_TokenHistory() {
     }
     setRevByMethod({ cash, card })
   }
-
+  
+  // Force refresh function
+  const refresh = useCallback(() => {
+    invalidateCache('/hospital/tokens')
+    setForceRefresh(v => v + 1)
+  }, [])
+  
+  // Trigger load when dependencies change
+  useEffect(() => { load(forceRefresh > 0) }, [load, forceRefresh])
+    
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const start = new Date(from)
@@ -256,18 +318,18 @@ export default function Hospital_TokenHistory() {
   // Revenue only from cash tokens (exclude corporate)
   const revenueRows = useMemo(() => filtered.filter(r => r.status !== 'returned' && !r.isCorporate), [filtered])
 
-  const totalTokens = filtered.length
+  const totalTokens = rowsPerPage === -1 ? filtered.length : backendTotal
   const totalRevenue = revByMethod.cash
   const cardRevenue = revByMethod.card
   const totalRevenueAll = revByMethod.cash + revByMethod.card
   const totalDiscount = revenueRows.reduce((s, r) => s + (r.discount || 0), 0)
-  const returnedPatients = filtered.filter(r=>r.status==='returned').length
 
   async function setStatus(row: TokenRow, next: TokenRow['status']){
     try{
       setActioningId(row._id)
       await hospitalApi.updateTokenStatus(row._id, next)
-      await load()
+      // Invalidate cache and force refresh after status change
+      refresh()
     } catch (e: any){
       setToast({ type: 'error', message: e?.message || 'Failed to update status' })
     } finally {
@@ -408,174 +470,298 @@ export default function Hospital_TokenHistory() {
     navigate(`/${portal}/token-generator?tokenId=${encodeURIComponent(r._id)}`)
   }
 
+  const exportCSV = () => {
+    const cols = ['Date','Time','Type','Token #','MR #','Patient','Phone','Doctor','Department','Fee','Discount','Status']
+    const lines = [cols.join(',')]
+    for (const r of filtered) {
+      const method = String(r.paidMethod || 'Cash').toLowerCase()
+      const t = r.isCorporate ? 'Corporate' : (method === 'bank' || method === 'card' ? 'Card' : 'Cash')
+      lines.push([
+        r.date,
+        r.time,
+        t,
+        r.tokenNo,
+        r.mrNo,
+        r.patient,
+        r.phone ?? '',
+        r.doctor ?? '',
+        r.department ?? '',
+        r.fee,
+        r.discount || 0,
+        r.status,
+      ].map(v => typeof v === 'string' && v.includes(',') ? `"${v.replace(/"/g,'""')}"` : String(v)).join(','))
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `token-history-${from}-to-${to}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
-    <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-800">Token History <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{filtered.length}</span></h2>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <input type="date" value={from} onChange={e=>{setFrom(e.target.value); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1" />
-          <span>to</span>
-          <input type="date" value={to} onChange={e=>{setTo(e.target.value); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1" />
-          <select value={department} onChange={e=>{setDepartment(e.target.value); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1">
-            <option value="All">All Departments</option>
-            {departments.map((d:any)=> <option key={d._id} value={d._id}>{d.name}</option>)}
-          </select>
-          <select value={doctor} onChange={e=>{setDoctor(e.target.value); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1">
-            <option value="All">All Doctors</option>
-            {doctors.map((d:any)=> <option key={d._id} value={d._id}>{d.name}</option>)}
-          </select>
-          <select value={tokenType} onChange={e=>{setTokenType(e.target.value as any); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1">
-            <option value="All">All Types</option>
-            <option value="Cash">Cash</option>
-            <option value="Corporate">Corporate</option>
-          </select>
-          <select value={visitCategory} onChange={e=>{setVisitCategory(e.target.value as any); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1">
-            <option value="All">All Categories</option>
-            <option value="Public">General</option>
-            <option value="Private">Private</option>
-          </select>
-          <button className="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-50">Export CSV</button>
-          <button onClick={exportPdf} className="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-50">Export PDF</button>
+    <div className="min-h-screen bg-slate-50/50 p-4 transition-colors duration-300 dark:bg-slate-950 lg:p-8">
+      {/* Header */}
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
+            <CalendarDays className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-white">Token History</h1>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Historical token records &amp; analytics</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 text-xs font-bold text-slate-400">
+          <Clock className="h-4 w-4" />
+          <span className="uppercase tracking-widest">{from === to ? from : `${from} → ${to}`}</span>
+          <button onClick={refresh} disabled={isLoading} className="ml-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800">
+            <RefreshCw className={`h-4 w-4 text-blue-600 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
-      <div className="mt-4">
-        <input
-          value={query}
-          onChange={(e)=>{setQuery(e.target.value); setPage(1)}}
-          placeholder="Search by name, token#, MR#, phone, doctor, department, age, gender, address, or time..."
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
-        />
-      </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Date" value={from === to ? from : `${from} → ${to}`} tone="amber" />
-        <StatCard title="Total Tokens" value={totalTokens} tone="green" />
-        <StatCard title="Cash Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} tone="violet" />
-        <StatCard title="Card Revenue" value={`Rs. ${cardRevenue.toLocaleString()}`} tone="indigo" />
-        <StatCard title="Total Revenue" value={`Rs. ${totalRevenueAll.toLocaleString()}`} tone="green" />
-        <StatCard title="Corporate Tokens" value={filtered.filter(r => r.isCorporate).length} tone="indigo" />
-        <StatCard title="Discount (PKR)" value={`Rs. ${totalDiscount.toLocaleString()}`} tone="violet" />
-        <StatCard title="Returned" value={returnedPatients} tone="amber" />
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
-            <tr className="text-left">
-              <Th>Date/Time</Th>
-              <Th>Type</Th>
-              <Th>Token #</Th>
-              <Th>MR #</Th>
-              <Th>Patient</Th>
-              <Th>Performed By</Th>
-              <Th>Token Type</Th>
-              <Th>Phone</Th>
-              <Th>Doctor</Th>
-              <Th>Department</Th>
-              <Th>Fee</Th>
-              <Th>Discount</Th>
-              <Th>Print</Th>
-              <Th>Actions</Th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {pageRows.map((r) => (
-              <tr key={r._id} className={`text-slate-700 ${r.status === 'returned' ? 'bg-amber-50' : ''} ${r.isCorporate ? 'bg-violet-50/30' : ''}`}>
-                <Td>{r.date} {r.time}</Td>
-                <Td>
-                  {r.isCorporate ? (
-                    <span className="inline-flex rounded bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">Corporate</span>
-                  ) : (
-                    (String(r.paidMethod || 'Cash').toLowerCase() === 'bank' || String(r.paidMethod || '').toLowerCase() === 'card') ? (
-                      <span className="inline-flex rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">Card</span>
-                    ) : (
-                      <span className="inline-flex rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Cash</span>
-                    )
-                  )}
-                </Td>
-                <Td className="font-semibold">{r.tokenNo}</Td>
-                <Td>{r.mrNo}</Td>
-                <Td>{r.patient}</Td>
-                <Td>{r.performedBy || '-'}</Td>
-                <Td>
-                  {r.visitCategory === 'private' ? (
-                    <span className="inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Private</span>
-                  ) : (
-                    <span className="inline-flex rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">General</span>
-                  )}
-                </Td>
-                <Td>{r.phone || '-'}</Td>
-                <Td>{r.doctor || '-'}</Td>
-                <Td>{r.department || '-'}</Td>
-                <Td>{r.fee.toFixed(0)}</Td>
-                <Td>{(r.discount || 0).toFixed(0)}</Td>
-                <Td>
-                  <div className="flex flex-col gap-1">
-                    <button onClick={() => printSlip(r)} className="text-sky-600 hover:underline text-left">Print Slip</button>
-                    <button onClick={() => printRx(r)} className="text-violet-700 hover:underline text-left">Print Rx</button>
-                  </div>
-                </Td>
-                <Td>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => openEdit(r)} title="Edit" className="text-sky-600 hover:text-sky-800">✏️</button>
-                    <button
-                      disabled={actioningId === r._id}
-                      onClick={() => setStatus(r, r.status === 'returned' ? 'queued' : 'returned')}
-                      title={r.status === 'returned' ? 'Undo Return' : 'Return'}
-                      className={`disabled:opacity-50 ${r.status === 'returned' ? 'text-amber-800 hover:text-amber-900' : 'text-amber-600 hover:text-amber-800'}`}
-                    >
-                      ↩️
-                    </button>
-                  </div>
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="flex items-center justify-between border-t border-slate-200 p-3 text-sm text-slate-700">
+      {/* Filters & Search */}
+      <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-50 pb-4 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <span>Rows per page</span>
-            <select value={rowsPerPage} onChange={e=>{setRowsPerPage(parseInt(e.target.value)); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1">
-              {[10,20,50].map(n => <option key={n} value={n}>{n}</option>)}
+            <Filter className="h-4 w-4 text-blue-600" />
+            <span className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">Filters &amp; Search</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={exportCSV} className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/20">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Export CSV
+            </button>
+            <button onClick={exportPdf} className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-900/20">
+              <FileDown className="h-3.5 w-3.5" /> Export PDF
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">From Date</label>
+            <input type="date" value={from} onChange={e=>{setFrom(e.target.value); setPage(1)}} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">To Date</label>
+            <input type="date" value={to} onChange={e=>{setTo(e.target.value); setPage(1)}} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Department</label>
+            <select value={department} onChange={e=>{setDepartment(e.target.value); setPage(1)}} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+              <option value="All">All Departments</option>
+              {departments.map((d:any) => (
+                <option key={String(d._id || d.id)} value={String(d._id || d.id)}>{d.name}</option>
+              ))}
             </select>
           </div>
-          <div>Page {page} of {totalPages}</div>
-          <div className="flex items-center gap-2">
-            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-50">Prev</button>
-            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-50">Next</button>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Doctor</label>
+            <select value={doctor} onChange={e=>{setDoctor(e.target.value); setPage(1)}} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+              <option value="All">All Doctors</option>
+              {doctors.map((d:any) => (
+                <option key={String(d._id || d.id)} value={String(d._id || d.id)}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Billing Type</label>
+            <select value={tokenType} onChange={e=>{setTokenType(e.target.value as any); setPage(1)}} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+              <option value="All">All Types</option>
+              <option value="Cash">Cash</option>
+              <option value="Corporate">Corporate</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Category</label>
+            <select value={visitCategory} onChange={e=>{setVisitCategory(e.target.value as any); setPage(1)}} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+              <option value="All">All Categories</option>
+              <option value="Public">General</option>
+              <option value="Private">Private</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={query}
+              onChange={(e)=>{setQuery(e.target.value); setPage(1)}}
+              placeholder="Search by name, token#, MR#, phone, doctor, department, age, gender, address, or time..."
+              className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50"
+            />
           </div>
         </div>
       </div>
+
+      {/* Stats Grid */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <StatCard title="Total Tokens" value={totalTokens} icon={Ticket} color="bg-blue-600" />
+        <StatCard title="Total Revenue" value={`Rs. ${totalRevenueAll.toLocaleString()}`} icon={Wallet} color="bg-emerald-600" />
+        <StatCard title="Cash Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} icon={Wallet} color="bg-violet-600" />
+        <StatCard title="Card Revenue" value={`Rs. ${cardRevenue.toLocaleString()}`} icon={CreditCard} color="bg-indigo-600" />
+        <StatCard title="Corporate" value={filtered.filter(r => r.isCorporate).length} icon={ShieldCheck} color="bg-blue-800" />
+        <StatCard title="Discount" value={`Rs. ${totalDiscount.toLocaleString()}`} icon={TrendingUp} color="bg-amber-600" />
+      </div>
+
+      {/* Table Section */}
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800/50">
+                <Th>Date / Time</Th>
+                <Th>Token / MR #</Th>
+                <Th>Patient Info</Th>
+                <Th>Type / Category</Th>
+                <Th>Doctor / Dept</Th>
+                <Th>Financials</Th>
+                <Th className="text-right">Actions</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+              {pageRows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-20 text-center">
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <Search className="h-10 w-10 opacity-20" />
+                      <p className="font-bold">No tokens found for selected period</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                pageRows.map((r) => (
+                  <tr key={r._id} className={`group transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${r.status === 'returned' ? 'bg-amber-50/30' : ''} ${r.isCorporate ? 'bg-violet-50/20' : ''}`}>
+                    <Td>
+                      <div className="font-bold text-slate-800 dark:text-white">{r.date}</div>
+                      <div className="text-[10px] font-bold text-slate-400">{r.time}</div>
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-xs font-black text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          {r.tokenNo}
+                        </span>
+                        <div className="text-xs font-bold text-slate-500">{r.mrNo}</div>
+                      </div>
+                    </Td>
+                    <Td>
+                      <div className="font-bold text-slate-800 dark:text-white">{r.patient}</div>
+                      <div className="text-[10px] font-bold text-slate-400">{r.phone || '-'}{r.performedBy && r.performedBy !== '-' ? ` • by ${r.performedBy}` : ''}</div>
+                    </Td>
+                    <Td>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex gap-1">
+                          {r.isCorporate ? (
+                            <span className="rounded-md bg-violet-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">Corporate</span>
+                          ) : (
+                            <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter ${
+                              String(r.paidMethod || 'Cash').toLowerCase() === 'cash' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                            }`}>
+                              {r.paidMethod || 'Cash'}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`w-fit rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter ${
+                          r.visitCategory === 'private' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                        }`}>
+                          {r.visitCategory === 'private' ? 'Private' : 'General'}
+                        </span>
+                      </div>
+                    </Td>
+                    <Td>
+                      <div className="font-bold text-slate-700 dark:text-slate-200">{r.doctor}</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{r.department}</div>
+                    </Td>
+                    <Td>
+                      <div className="font-black text-slate-800 dark:text-white">Rs. {r.fee.toLocaleString()}</div>
+                      {r.discount > 0 && <div className="text-[10px] font-bold text-rose-500">Disc: Rs. {r.discount.toLocaleString()}</div>}
+                    </Td>
+                    <Td className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={()=>printSlip(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Print Slip">
+                          <Ticket className="h-4 w-4" />
+                        </button>
+                        <button onClick={()=>printRx(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Print Rx">
+                          <Printer className="h-4 w-4" />
+                        </button>
+                        <button disabled={actioningId===r._id} onClick={()=>openEdit(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Edit">
+                          <LayoutDashboard className="h-4 w-4" />
+                        </button>
+                        <button
+                          disabled={actioningId===r._id}
+                          onClick={()=>setStatus(r, r.status === 'returned' ? 'queued' : 'returned')}
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                            r.status === 'returned' ? 'bg-amber-100 text-amber-700' : 'bg-slate-50 text-slate-600 hover:bg-amber-50 hover:text-amber-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-amber-900/30'
+                          }`}
+                          title={r.status === 'returned' ? 'Undo Return' : 'Mark Return'}
+                        >
+                          {r.status === 'returned' ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </Td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Show</span>
+              <select value={rowsPerPage} onChange={e=>{setRowsPerPage(parseInt(e.target.value)); setPage(1)}} className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800">
+                {[10,20,50,100,200].map(n => <option key={n} value={n}>{n}</option>)}
+                <option value={-1}>All</option>
+              </select>
+            </div>
+            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+              Page {page} of {totalPages}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 disabled:opacity-30 dark:bg-slate-800">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 disabled:opacity-30 dark:bg-slate-800">
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {showSlip && slipData && (
         <Hospital_TokenSlip open={showSlip} onClose={()=>setShowSlip(false)} data={slipData as TokenSlipData} autoPrint={false} />
       )}
       <Toast toast={toast} onClose={()=>setToast(null)} />
-    </>
+    </div>
   )
 }
 
-function Th({ children }: { children: ReactNode }) {
-  return <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">{children}</th>
+function Th({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <th className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 ${className}`}>{children}</th>
 }
 function Td({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <td className={`px-4 py-2 ${className}`}>{children}</td>
+  return <td className={`px-4 py-4 ${className}`}>{children}</td>
 }
 
-function StatCard({ title, value, tone }: { title: string; value: ReactNode; tone: 'blue'|'green'|'violet'|'amber'|'indigo' }) {
-  const tones: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    green: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    violet: 'bg-violet-50 text-violet-700 border-violet-100',
-    amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
-  }
+function StatCard({ title, value, icon: Icon, color }: { title: string; value: ReactNode; icon: any; color: string }) {
   return (
-    <div className={`rounded-xl border p-4 ${tones[tone]}`}>
-      <div className="text-sm opacity-80">{title}</div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
-      <div className="text-xs opacity-60">Real-time data</div>
+    <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all duration-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+      <div className={`absolute -right-3 -top-3 h-16 w-16 rounded-full opacity-[0.07] ${color}`} />
+      <div className="flex items-center gap-3">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color} bg-opacity-10`}>
+          <Icon className={`h-5 w-5 ${color.replace('bg-', 'text-')}`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">{title}</p>
+          <p className="text-lg font-black text-slate-800 dark:text-white">{value}</p>
+        </div>
+      </div>
     </div>
   )
 }

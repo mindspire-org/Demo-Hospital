@@ -5,7 +5,7 @@ const resultRowSchema = z.object({
   normal: z.string().optional(),
   unit: z.string().optional(),
   prevValue: z.string().optional(),
-  flag: z.enum(['normal','abnormal','critical']).optional(),
+  flag: z.enum(['normal','abnormal','abnormal_low','abnormal_high','critical','critical_low','critical_high']).optional(),
   value: z.string().optional(),
   comment: z.string().optional(),
 })

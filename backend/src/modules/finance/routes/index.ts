@@ -6,8 +6,55 @@ import * as FinanceSidebarPerms from '../controllers/finance_sidebarPermission.c
 import { list as financeUsersList, create as financeUsersCreate, update as financeUsersUpdate, remove as financeUsersRemove, login as financeUsersLogin, logout as financeUsersLogout } from '../controllers/finance_users.controller'
 import * as FinanceAudit from '../controllers/finance_audit.controller'
 import * as CashCounts from '../controllers/cash_count.controller'
+import * as Reports from '../controllers/reports.controller'
+import * as Ops from '../controllers/operations.controller'
+import { auth } from '../../../common/middleware/auth'
 
 const r = Router()
+
+// Public routes (no auth required)
+r.post('/users/login', financeUsersLogin)
+
+// All routes below require authentication
+r.use(auth)
+
+// ---------- Dashboard & Reports (derive from unified journal) ----------
+r.get('/dashboard',                  Reports.dashboard)
+r.get('/reports/trial-balance',      Reports.trialBalance)
+r.get('/reports/profit-loss',        Reports.profitLoss)
+r.get('/reports/balance-sheet',      Reports.balanceSheet)
+r.get('/ledger-explorer',            Reports.ledgerExplorer)
+r.get('/receivables/aging',          Reports.receivablesAging)
+r.get('/payables/aging',             Reports.payablesAging)
+r.get('/module-integrations/:module',Reports.moduleIntegration)
+r.get('/reconciliation',             Reports.reconciliation)
+
+// Journal vouchers
+r.get('/journal-vouchers',           Reports.listJournalVouchers)
+r.post('/journal-vouchers',          Reports.createJournalVoucher)
+
+// ---------- Centralized Expenses ----------
+r.get('/expenses',                   Ops.listExpenses)
+r.get('/expenses/by-department',     Ops.listExpensesByDepartment)
+r.post('/expenses',                  Ops.createExpense)
+r.delete('/expenses/:id',            Ops.removeExpense)
+
+// ---------- Vendors / Bills / Payments ----------
+r.get('/vendors',                    Ops.listVendors)
+r.post('/vendors',                   Ops.createVendor)
+r.get('/vendors/:id',                Ops.getVendor)
+r.get('/bills',                      Ops.listBills)
+r.post('/bills',                     Ops.createBill)
+r.get('/vendor-payments',            Ops.listVendorPayments)
+r.post('/vendor-payments',           Ops.createVendorPayment)
+
+// ---------- Payroll ----------
+r.get('/payroll/staff',              Ops.payrollStaff)
+r.post('/payroll/staff/:id/pay',     Ops.payStaff)
+r.get('/payroll/doctors',            Ops.payrollDoctors)
+r.post('/payroll/doctors/:id/pay',   Ops.payDoctor)
+r.get('/payroll/attendance',         Ops.payrollAttendance)
+r.get('/payroll/earnings-deductions',Ops.payrollEarningsDeductions)
 
 // Chart of Accounts
 r.get('/chart-of-accounts', ChartOfAccount.list)
@@ -50,7 +97,6 @@ r.get('/users', financeUsersList)
 r.post('/users', financeUsersCreate)
 r.put('/users/:id', financeUsersUpdate)
 r.delete('/users/:id', financeUsersRemove)
-r.post('/users/login', financeUsersLogin)
 r.post('/users/logout', financeUsersLogout)
 
 // Finance Sidebar Permissions

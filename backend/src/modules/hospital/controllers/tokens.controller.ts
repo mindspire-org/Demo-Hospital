@@ -455,6 +455,7 @@ export async function list(req: Request, res: Response){
   const from = q.from ? String(q.from) : ''
   const to = q.to ? String(q.to) : ''
   const status = q.status ? String(q.status) : ''
+  const encounterId = q.encounterId ? String(q.encounterId) : ''
   const doctorId = q.doctorId ? String(q.doctorId) : ''
   const scheduleId = q.scheduleId ? String(q.scheduleId) : ''
   const departmentId = q.departmentId ? String(q.departmentId) : ''
@@ -469,6 +470,7 @@ export async function list(req: Request, res: Response){
   if (status) crit.status = status
   else crit.status = { $ne: 'cancelled' }
   if (doctorId) crit.doctorId = doctorId
+  if (encounterId) crit.encounterId = encounterId
   if (departmentId) crit.departmentId = departmentId
   if (scheduleId) crit.scheduleId = scheduleId
 
@@ -479,13 +481,13 @@ export async function list(req: Request, res: Response){
 
   const [rows, total] = await Promise.all([
     HospitalToken.find(crit)
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .populate('doctorId', 'name')
       .populate('departmentId', 'name')
       .populate('patientId', 'mrn fullName fatherName gender age guardianRel phoneNormalized cnicNormalized address')
-      .populate('encounterId', 'triage arrivalMode chiefComplaint')
+      .populate('encounterId', 'triage arrivalMode chiefComplaint status')
       .lean(),
     HospitalToken.countDocuments(crit)
   ])

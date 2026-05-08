@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Customer } from './pharmacy_AddCustomer'
+import type { Customer } from './indoorpharmacy_AddCustomer'
 
 type Props = {
   open: boolean

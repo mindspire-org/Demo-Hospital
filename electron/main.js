@@ -143,11 +143,35 @@ function startBackend() {
   const nodeExec = process.execPath;
   if (!isDev) env.ELECTRON_RUN_AS_NODE = '1';
 
+  // Spawn as detached so the backend survives app closure (essential for network setups)
   backendProcess = spawn(nodeExec, [entry], {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
     cwd,
+    detached: true,
+  });
+
+  // Register ALL event handlers BEFORE unref() to avoid missing events
+  backendProcess.on('error', (err) => {
+    console.error('[backend] failed to start:', err);
+    // Retry on spawn failure
+    if (!app.isQuitting) {
+      console.log('[backend] spawn error, retrying in 3s...');
+      setTimeout(() => { if (!app.isQuitting) startBackend(); }, 3000);
+    }
+  });
+
+  backendProcess.on('exit', (code, signal) => {
+    console.log('[backend] exited', { code, signal });
+    // Auto-restart on ANY exit unless the app is deliberately quitting
+    if (!app.isQuitting) {
+      const reason = code === 0 ? 'clean-exit' : code !== null ? `crash(code=${code})` : `signal(${signal})`;
+      console.log(`[backend] exited (${reason}), restarting in 2s...`);
+      setTimeout(() => {
+        if (!app.isQuitting) startBackend();
+      }, 2000);
+    }
   });
 
   // Write backend logs to file for diagnostics in production
@@ -165,13 +189,9 @@ function startBackend() {
     backendProcess.stderr?.on('data', (d) => append('ERR', d));
   } catch {}
 
-
-  backendProcess.on('error', (err) => {
-    console.error('[backend] failed to start:', err);
-  });
-  backendProcess.on('exit', (code, signal) => {
-    console.log('[backend] exited', { code, signal });
-  });
+  // Allow the parent process to exit independently of the backend
+  // IMPORTANT: unref() is called AFTER all event handlers are registered
+  backendProcess.unref();
 }
 
 function waitForBackend(port, timeoutMs = 20000) {
@@ -221,6 +241,7 @@ function createMainWindow() {
     width: 1280,
     height: 800,
     show: false,
+    title: 'HealthSpire Lab Management System',
     backgroundColor: '#ffffff',
     icon: resolveIconPath(),
     webPreferences: {
@@ -518,15 +539,59 @@ app.whenReady().then(async () => {
     });
   } catch {}
 
-  // Start backend by default, but allow disabling via ELECTRON_NO_BACKEND=1.
-  // Splash/UI are fully decoupled and will not wait for the backend.
-  {
-    const allowLocal = process.env.ELECTRON_NO_BACKEND === '1' ? false : (appConfig && appConfig.startLocalBackend === false ? false : true);
-    if (allowLocal) startBackend();
+  // Auto-start the app on device boot so the backend is always available on the network
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: false,
+      name: 'HealthSpire Lab',
+    });
+  } catch (e) {
+    console.warn('[main] Could not set auto-start:', e?.message || e);
   }
 
-  // Always show splash (dev and prod). In prod, briefly wait for backend.
+  // Start backend by default, but allow disabling via ELECTRON_NO_BACKEND=1.
+  const allowLocal = process.env.ELECTRON_NO_BACKEND === '1' ? false : (appConfig && appConfig.startLocalBackend === false ? false : true);
+
+  // Show splash immediately for user feedback while backend starts
   createSplash();
+
+  if (allowLocal) {
+    const port = Number(process.env.PORT) || 4000;
+    // Check if backend is already running (e.g. from a previous session)
+    const alreadyRunning = await waitForBackend(port, 2000);
+    if (alreadyRunning) {
+      console.log('[main] Backend already running — reusing existing instance.');
+    } else {
+      console.log('[main] Starting backend...');
+      startBackend();
+      console.log('[main] Waiting for backend to become ready...');
+      const ok = await waitForBackend(port, 30000);
+      if (ok) {
+        console.log('[main] Backend is ready.');
+      } else {
+        console.warn('[main] Backend health check timed out — will retry via health monitor.');
+      }
+    }
+
+    // Periodic health monitor: ensure the backend is ALWAYS running.
+    // If it dies silently or the health check fails, restart it automatically.
+    const HEALTH_CHECK_INTERVAL_MS = 15000; // check every 15 seconds
+    setInterval(async () => {
+      if (app.isQuitting) return;
+      try {
+        const alive = await waitForBackend(port, 3000);
+        if (!alive) {
+          console.warn('[health-monitor] Backend not responding — restarting...');
+          startBackend();
+        }
+      } catch {
+        console.warn('[health-monitor] Health check error — restarting backend...');
+        startBackend();
+      }
+    }, HEALTH_CHECK_INTERVAL_MS);
+  }
+
   createMainWindow();
 
   // Force-close splash and show main after MIN_SPLASH_MS even if UI load events
@@ -563,13 +628,9 @@ app.on('window-all-closed', function () {
 });
 
 app.on('before-quit', () => {
-  try {
-    if (backendProcess && !backendProcess.killed) {
-      backendProcess.kill(process.platform === 'win32' ? 'SIGTERM' : 'SIGINT');
-    }
-  } catch (e) {
-    // ignore
-  }
+  app.isQuitting = true;
+  // Do NOT kill the backend process — it must keep running for network access
+  // even after the Electron app is closed. The detached process survives on its own.
 });
 
 // Optional: allow splash to request closing itself earlier

@@ -4,12 +4,81 @@ import { logAudit } from '../../utils/hospital_audit'
 import { corporateApi, hospitalApi } from '../../utils/api'
 import { getLocalDate } from '../../utils/date'
 import Hospital_TokenSlip, { type TokenSlipData } from '../../components/hospital/Hospital_TokenSlip'
+import { printConsentForm } from '../../utils/printConsentForm'
+import { FileText } from 'lucide-react'
 
 type SearchOption = { value: string; label: string }
-function SearchSelect({ options, value, onChange, placeholder }: { options: SearchOption[]; value: string; onChange: (v: string) => void; placeholder?: string }) {
+function MultiSearchSelect({ options, selected, onToggle, placeholder }: { options: SearchOption[]; selected: string[]; onToggle: (v: string) => void; placeholder?: string }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current) return
+      if (!ref.current.contains(e.target as any)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return options.filter(o => !q || o.label.toLowerCase().includes(q)).slice(0, 100)
+  }, [options, query])
+  const selectedLabels = useMemo(() => {
+    return selected.map(id => options.find(o => String(o.value) === String(id))?.label).filter(Boolean) as string[]
+  }, [options, selected])
+  return (
+    <div ref={ref} className="relative">
+      <div
+        className="w-full min-h-[42px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition-shadow focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:focus-within:border-violet-500 dark:focus-within:ring-violet-900/40 cursor-text flex flex-wrap gap-1.5 items-center"
+        onClick={() => { setOpen(true); (ref.current?.querySelector('input') as HTMLElement)?.focus() }}
+      >
+        {selectedLabels.length > 0 ? selectedLabels.map(label => (
+          <span key={label} className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
+            {label}
+            <button type="button" onClick={(e) => { e.stopPropagation(); const opt = options.find(o => o.label === label); if (opt) onToggle(String(opt.value)) }} className="text-violet-400 hover:text-violet-700 dark:hover:text-violet-300">×</button>
+          </span>
+        )) : (
+          <span className="text-slate-400 dark:text-slate-500">{placeholder || 'Select...'}</span>
+        )}
+        <input
+          value={open ? query : ''}
+          onFocus={() => { setOpen(true); setQuery('') }}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); setQuery('') } }}
+          className="min-w-[60px] flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
+          placeholder={selectedLabels.length > 0 ? 'Add more...' : ''}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:bg-slate-800 dark:border-slate-700">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No results</div>
+          ) : filtered.map(opt => {
+            const isSelected = selected.includes(String(opt.value))
+            return (
+              <button
+                type="button"
+                key={String(opt.value)}
+                onClick={() => { onToggle(String(opt.value)); setQuery('') }}
+                className={`flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/60 ${isSelected ? 'bg-violet-50 dark:bg-slate-700/40' : ''}`}
+              >
+                <div className="text-sm text-slate-800 dark:text-slate-200">{opt.label}</div>
+                {isSelected && <span className="text-xs text-violet-600 dark:text-violet-400">✓</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+function SearchSelect({ options, value, onChange, placeholder }: { options: SearchOption[]; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [highlightIdx, setHighlightIdx] = useState(-1)
+  const ref = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!ref.current) return
@@ -23,26 +92,48 @@ function SearchSelect({ options, value, onChange, placeholder }: { options: Sear
     const q = query.trim().toLowerCase()
     return options.filter(o => !q || o.label.toLowerCase().includes(q)).slice(0, 100)
   }, [options, query])
+  // Reset highlight when filtered list changes
+  useEffect(() => { setHighlightIdx(-1) }, [filtered])
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (highlightIdx < 0 || !listRef.current) return
+    const el = listRef.current.children[highlightIdx] as HTMLElement | undefined
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [highlightIdx])
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') { setOpen(true); setQuery(''); e.preventDefault() }
+      return
+    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIdx(i => Math.min(i + 1, filtered.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIdx(i => Math.max(i - 1, 0)) }
+    else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (highlightIdx >= 0 && highlightIdx < filtered.length) { onChange(String(filtered[highlightIdx].value)); setOpen(false); setQuery('') }
+    }
+    else if (e.key === 'Escape') { setOpen(false); setQuery('') }
+  }
   return (
     <div ref={ref} className="relative">
       <input
         value={open ? query : selectedLabel}
         onFocus={() => { setOpen(true); setQuery('') }}
-        onChange={e => setQuery(e.target.value)}
+        onChange={e => { setQuery(e.target.value); setHighlightIdx(-1) }}
+        onKeyDown={onKeyDown}
         placeholder={placeholder}
         className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
       />
       <button type="button" onClick={() => setOpen(o => !o)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500">▾</button>
       {open && (
-        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+        <div ref={listRef} className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
           {filtered.length === 0 ? (
             <div className="px-3 py-2 text-sm text-slate-500">No results</div>
-          ) : filtered.map(opt => (
+          ) : filtered.map((opt, idx) => (
             <button
               type="button"
               key={String(opt.value)}
-              onClick={() => { onChange(String(opt.value)); setOpen(false) }}
-              className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
+              onClick={() => { onChange(String(opt.value)); setOpen(false); setQuery('') }}
+              className={`flex w-full items-center justify-between px-3 py-2 text-left ${idx === highlightIdx ? 'bg-violet-50' : 'hover:bg-slate-50'}`}
             >
               <div className="text-sm text-slate-800">{opt.label}</div>
               {String(opt.value) === String(value) ? <span className="text-xs text-violet-600">✓</span> : null}
@@ -61,6 +152,7 @@ export default function Hospital_TokenGenerator() {
   const [departments, setDepartments] = useState<Array<{ id: string; name: string; fee?: number }>>([])
   const [doctors, setDoctors] = useState<Array<{ id: string; name: string; publicFee?: number; privateFee?: number; fee?: number }>>([])
   const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([])
+  const [erServices, setErServices] = useState<Array<{ id: string; name: string; category?: string; price?: number }>>([])
   const lastAutoConsultationFeeRef = useRef<string | null>(null)
   const feeManuallyEditedRef = useRef(false)
   useEffect(() => {
@@ -83,7 +175,13 @@ export default function Hospital_TokenGenerator() {
           const cRes = await corporateApi.listCompanies() as any
           comps = (cRes?.companies || []).map((c: any) => ({ id: String(c._id || c.id), name: c.name }))
         } catch { }
-        if (!cancelled) { setDepartments(deps); setDoctors(docs); setCompanies(comps) }
+        // load ER services
+        let srvs: Array<{ id: string; name: string; category?: string; price?: number }> = []
+        try {
+          const sRes = await hospitalApi.listErServices({ active: true, limit: 200 }) as any
+          srvs = (sRes?.services || sRes || []).map((s: any) => ({ id: String(s._id || s.id), name: s.name, category: s.category, price: Number(s.price ?? 0) }))
+        } catch { }
+        if (!cancelled) { setDepartments(deps); setDoctors(docs); setCompanies(comps); setErServices(srvs) }
       } catch { }
     }
 
@@ -114,6 +212,7 @@ export default function Hospital_TokenGenerator() {
     triage: 'red' | 'yellow' | 'green'
     arrivalMode: 'walk-in' | 'ambulance' | 'referral'
     chiefComplaint: string
+    procedures: string[]
   }>({
     phone: '',
     mrNumber: '',
@@ -138,6 +237,7 @@ export default function Hospital_TokenGenerator() {
     triage: 'green',
     arrivalMode: 'walk-in',
     chiefComplaint: '',
+    procedures: [],
   })
 
   const [loadingToken, setLoadingToken] = useState(false)
@@ -185,14 +285,16 @@ export default function Hospital_TokenGenerator() {
 
 
 
-  const finalFee = useMemo(() => {
-    const fee = parseFloat(form.consultationFee || '0')
-    const discount = parseFloat(form.discount || '0')
-    const f = Math.max(fee - discount, 0)
-    return isNaN(f) ? 0 : f
-  }, [form.consultationFee, form.discount])
+  // procedureFees and finalFee are defined after isER (below)
 
   const update = (key: keyof typeof form, value: string) => setForm(prev => ({ ...prev, [key]: value }))
+
+  const toggleProcedure = (id: string) => {
+    setForm(prev => {
+      const exists = prev.procedures.includes(id)
+      return { ...prev, procedures: exists ? prev.procedures.filter(p => p !== id) : [...prev.procedures, id] }
+    })
+  }
 
   const reset = () => {
     lastAutoConsultationFeeRef.current = null
@@ -221,11 +323,43 @@ export default function Hospital_TokenGenerator() {
       triage: 'green',
       arrivalMode: 'walk-in',
       chiefComplaint: '',
+      procedures: [],
     })
   }
 
   const [showSlip, setShowSlip] = useState(false)
   const [slipData, setSlipData] = useState<TokenSlipData | null>(null)
+
+  const printQuickConsent = async (data: any) => {
+    if (!data) return
+    const now = new Date()
+    void printConsentForm({
+      patientName: data.patientName || '',
+      mrn: data.mrn || '',
+      age: data.age || '',
+      gender: data.gender || '',
+      address: data.address || '',
+      bedLabel: data.bedLabel || '',
+      doctorName: data.doctorName || '',
+      cnic: data.cnic || '',
+      contact: data.phone || '',
+      doa: now.toLocaleString(),
+      panel: data.corporateCompanyName || '',
+      guardianName: data.guardianName || '',
+      relation: data.guardianRel || '',
+      patientOrGuardianName: data.guardianName || '',
+      patientRelation: data.guardianRel || '',
+      patientTelephone: data.phone || '',
+      patientAddress: data.address || '',
+      patientCnic: data.cnic || '',
+      doctorOnDutyName: '',
+      doctorOnDutyDesignation: '',
+      nurseOnDutyName: '',
+      nurseOnDutyDesignation: '',
+      date: now.toISOString().slice(0, 10),
+      time: now.toTimeString().slice(0, 5),
+    })
+  }
 
   // IPD inline admit state
   const isIPD = useMemo(() => {
@@ -239,6 +373,22 @@ export default function Hospital_TokenGenerator() {
     const name = (dep?.name || '').trim().toLowerCase()
     return name === 'emergency' || name === 'er'
   }, [departments, form.departmentId])
+
+  const procedureFees = useMemo(() => {
+    if (!isER || form.procedures.length === 0) return { total: 0, items: [] as Array<{ id: string; name: string; price: number }> }
+    const items = form.procedures
+      .map(id => { const svc = erServices.find(s => s.id === id); return svc ? { id: svc.id, name: svc.name, price: svc.price || 0 } : null })
+      .filter(Boolean) as Array<{ id: string; name: string; price: number }>
+    return { total: items.reduce((s, i) => s + i.price, 0), items }
+  }, [isER, form.procedures, erServices])
+
+  const finalFee = useMemo(() => {
+    const fee = parseFloat(form.consultationFee || '0') + procedureFees.total
+    const discount = parseFloat(form.discount || '0')
+    const f = Math.max(fee - discount, 0)
+    return isNaN(f) ? 0 : f
+  }, [form.consultationFee, form.discount, procedureFees.total])
+
   const [ipdBeds, setIpdBeds] = useState<Array<{ _id: string; label: string; charges?: number; floorName?: string; locationType?: 'room'|'ward'; locationName?: string }>>([])
   const [ipdBedId, setIpdBedId] = useState('')
   const [ipdDeposit, setIpdDeposit] = useState('')
@@ -406,17 +556,45 @@ export default function Hospital_TokenGenerator() {
   const [showPhonePicker, setShowPhonePicker] = useState(false)
   const [phoneSuggestOpen, setPhoneSuggestOpen] = useState(false)
   const [phoneSuggestItems, setPhoneSuggestItems] = useState<any[]>([])
+  const [phoneSuggestHighlightIdx, setPhoneSuggestHighlightIdx] = useState(-1)
   const phoneSuggestWrapRef = useRef<HTMLDivElement>(null)
   const phoneSuggestQueryRef = useRef<string>('')
   // Name search suggestions
   const [nameSuggestOpen, setNameSuggestOpen] = useState(false)
   const [nameSuggestItems, setNameSuggestItems] = useState<any[]>([])
+  const [nameSuggestHighlightIdx, setNameSuggestHighlightIdx] = useState(-1)
   const nameSuggestWrapRef = useRef<HTMLDivElement>(null)
   const nameSuggestQueryRef = useRef<string>('')
   const [toast, setToast] = useState<null | { type: 'success' | 'error'; message: string }>(null)
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message })
     setTimeout(() => setToast(null), 2500)
+  }
+
+  const focusNextField = (el: HTMLElement | null) => {
+    if (!el) return
+    const formEl = (el as any).form as HTMLFormElement | null
+    if (!formEl) return
+    const focusables = Array.from(
+      formEl.querySelectorAll<HTMLElement>('input, select, textarea, button, [tabindex]:not([tabindex="-1"])')
+    ).filter(x => {
+      if (!x) return false
+      if ((x as any).disabled) return false
+      if (x.getAttribute('aria-disabled') === 'true') return false
+      if (x.getAttribute('type') === 'hidden') return false
+      if (x.tabIndex < 0) return false
+      const rect = x.getBoundingClientRect?.()
+      if (rect && rect.width === 0 && rect.height === 0) return false
+      return true
+    })
+    const idx = focusables.indexOf(el)
+    if (idx < 0) return
+    for (let i = idx + 1; i < focusables.length; i++) {
+      const n = focusables[i]
+      if (!n) continue
+      n.focus?.()
+      break
+    }
   }
 
   useEffect(() => {
@@ -430,10 +608,8 @@ export default function Hospital_TokenGenerator() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
-  async function onMrnKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key !== 'Enter') return
-    e.preventDefault()
-    const mr = (form.mrNumber || '').trim()
+  const lookupMrnAndAutofill = async (mrRaw: string) => {
+    const mr = String(mrRaw || '').trim()
     if (!mr) return
     try {
       const r: any = await hospitalApi.searchPatients({ mrn: mr, limit: 5 })
@@ -456,6 +632,77 @@ export default function Hospital_TokenGenerator() {
       showToast('success', 'Patient found and autofilled')
     } catch {
       showToast('error', 'No patient found for this MR number')
+    }
+  }
+
+  async function onMrnKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const mr = (form.mrNumber || '').trim()
+    await lookupMrnAndAutofill(mr)
+    focusNextField(e.currentTarget)
+  }
+
+  const onMrnPaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = (e.clipboardData?.getData('text') || '').trim()
+    if (!text) return
+    e.preventDefault()
+    update('mrNumber', text)
+    await lookupMrnAndAutofill(text)
+    focusNextField(e.currentTarget)
+  }
+
+  const onPhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!phoneSuggestOpen || phoneSuggestItems.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setPhoneSuggestHighlightIdx(i => {
+        const next = i < 0 ? 0 : Math.min(i + 1, phoneSuggestItems.length - 1)
+        return next
+      })
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setPhoneSuggestHighlightIdx(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const idx = phoneSuggestHighlightIdx >= 0 ? phoneSuggestHighlightIdx : 0
+      const p = phoneSuggestItems[idx]
+      if (p) {
+        selectPhoneSuggestion(p)
+        setPhoneSuggestOpen(false)
+        setPhoneSuggestHighlightIdx(-1)
+        focusNextField(e.currentTarget)
+      }
+    } else if (e.key === 'Escape') {
+      setPhoneSuggestOpen(false)
+      setPhoneSuggestHighlightIdx(-1)
+    }
+  }
+
+  const onNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!nameSuggestOpen || nameSuggestItems.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setNameSuggestHighlightIdx(i => {
+        const next = i < 0 ? 0 : Math.min(i + 1, nameSuggestItems.length - 1)
+        return next
+      })
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setNameSuggestHighlightIdx(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const idx = nameSuggestHighlightIdx >= 0 ? nameSuggestHighlightIdx : 0
+      const p = nameSuggestItems[idx]
+      if (p) {
+        selectNameSuggestion(p)
+        setNameSuggestOpen(false)
+        setNameSuggestHighlightIdx(-1)
+        focusNextField(e.currentTarget)
+      }
+    } else if (e.key === 'Escape') {
+      setNameSuggestOpen(false)
+      setNameSuggestHighlightIdx(-1)
     }
   }
 
@@ -704,13 +951,14 @@ export default function Hospital_TokenGenerator() {
         logAudit('token_generate', `ipd_admit dept=IPD, bed=${ipdBedId}`)
         // Show print slip with full details
         const corpName = (form.billingType === 'Corporate' && form.corporateCompanyId) ? (companies.find(c => c.id === String(form.corporateCompanyId))?.name || '') : ''
+        const resolvedMrn = String(res?.token?.patientId?.mrn || res?.token?.mrn || form.mrNumber || '').trim()
         const slip: TokenSlipData = {
           tokenNo: res?.token?.tokenNo || 'N/A',
           departmentName: (departments.find(d => String(d.id) === String(form.departmentId))?.name) || '-',
           doctorName: (doctors.find(d => String(d.id) === String(form.doctor))?.name) || '-',
           patientName: res?.token?.patientName || form.patientName || '-',
           phone: form.phone || '',
-          mrn: (res?.token?.mrn || form.mrNumber || ''),
+          mrn: resolvedMrn,
           age: form.age || '',
           gender: form.gender || '',
           guardianRel: form.guardianRel || '',
@@ -769,6 +1017,11 @@ export default function Hospital_TokenGenerator() {
         payload.triage = form.triage
         payload.arrivalMode = form.arrivalMode
         payload.chiefComplaint = form.chiefComplaint
+        if (form.procedures.length > 0) {
+          payload.procedures = form.procedures
+          payload.procedureDetails = procedureFees.items.map(i => ({ serviceId: i.id, name: i.name, price: i.price }))
+          payload.procedureTotal = procedureFees.total
+        }
       }
       payload.portal = window.location.pathname.startsWith('/reception') ? 'reception' : 'hospital'
       const res = await hospitalApi.createOpdToken(payload) as any
@@ -808,110 +1061,130 @@ export default function Hospital_TokenGenerator() {
       setSlipData(slip)
       setShowSlip(true)
       logAudit('token_generate', `patient=${form.patientName || 'N/A'}, dept=${form.departmentId}, doctor=${selDoc?.name || 'N/A'}, fee=${res?.pricing?.finalFee ?? finalFee}`)
+      reset()
     } catch (err: any) {
       showToast('error', err?.message || 'Failed to generate token')
+      // Do NOT reset form on error — preserve user-entered data so they can fix and retry
     }
-    reset()
   }
+
+  const inp = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-shadow focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/40"
+  const sel = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-shadow focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:focus:border-violet-500 dark:focus:ring-violet-900/40"
+  const lbl = "mb-1.5 block text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400"
 
   return (
     <div className="hospital-scope min-h-dvh bg-slate-50 text-slate-900 dark:bg-[#0b1220] dark:text-slate-100">
-      <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Token Generator</h2>
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white">{isEditMode ? 'Edit Token' : 'Token Generator'}</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Fill patient details and generate token <span className="hidden sm:inline text-slate-400 dark:text-slate-500">• Tab between fields • ↑↓ in dropdowns • Enter to select</span></p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={reset} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">Reset</button>
+        </div>
+      </div>
+
       {loadingToken && (
-        <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">Loading token...</div>
+        <div className="mx-6 mt-4 flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm text-violet-700 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-400">
+          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          Loading token data…
+        </div>
       )}
-      <form onSubmit={generateToken} className="mt-6 space-y-8">
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="rounded-lg border border-slate-200 bg-white p-4 dark:bg-slate-800 dark:border-slate-700">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Patient Information</h3>
+
+      <form
+        onSubmit={generateToken}
+        className="space-y-0"
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter') return
+          if (e.defaultPrevented) return
+          const t = e.target as any
+          if (!t) return
+          const tag = String(t.tagName || '').toLowerCase()
+          if (tag === 'textarea') return
+          if (tag === 'button') return
+          if (tag === 'input') {
+            const type = String(t.type || '').toLowerCase()
+            if (type === 'submit' || type === 'button' || type === 'reset') return
+          }
+          e.preventDefault()
+          focusNextField(t as HTMLElement)
+        }}
+      >
+        {/* Two-column layout */}
+        <section className="grid grid-cols-1 gap-0 lg:grid-cols-2 lg:divide-x lg:divide-slate-200 dark:lg:divide-slate-800">
+          {/* LEFT: Patient Information */}
+          <div className="p-6">
+            <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">1</span>
+              Patient Information
+            </h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Phone</label>
+                <label className={lbl}>Phone</label>
                 <div ref={phoneSuggestWrapRef} className="relative">
-                  <div className="flex items-center gap-2">
-                    <input
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500"
-                      placeholder="Type phone to search"
-                      value={form.phone}
-                      maxLength={11}
-                      onChange={onPhoneChange}
-                      onBlur={onPhoneBlurNew}
-                      onFocus={() => { if (phoneSuggestItems.length > 0) setPhoneSuggestOpen(true) }}
-                      ref={phoneRef}
-                    />
-                  </div>
+                  <input className={inp} placeholder="03XXXXXXXXX" value={form.phone} maxLength={11} onChange={onPhoneChange} onBlur={onPhoneBlurNew} onFocus={() => { if (phoneSuggestItems.length > 0) { setPhoneSuggestOpen(true); setPhoneSuggestHighlightIdx(-1) } }} onKeyDown={onPhoneKeyDown} ref={phoneRef} />
                   {phoneSuggestOpen && (
-                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg dark:bg-slate-800 dark:border-slate-700">
+                    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:bg-slate-800 dark:border-slate-700">
                       {phoneSuggestItems.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No results</div>
-                      ) : (
-                        phoneSuggestItems.map((p: any, idx: number) => (
-                          <button
-                            type="button"
-                            key={p._id || idx}
-                            onClick={() => selectPhoneSuggestion(p)}
-                            className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                          >
-                            <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.fullName || 'Unnamed'} <span className="text-xs text-slate-500 dark:text-slate-400">{p.mrn || '-'}</span></div>
-                            <div className="text-xs text-slate-600 dark:text-slate-400">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
-                            {p.address && <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{p.address}</div>}
-                          </button>
-                        ))
-                      )}
+                      ) : phoneSuggestItems.map((p: any, idx: number) => (
+                        <button type="button" key={p._id || idx} onClick={() => { selectPhoneSuggestion(p); setPhoneSuggestHighlightIdx(-1) }} className={`flex w-full flex-col items-start px-3 py-2 text-left transition ${idx === phoneSuggestHighlightIdx ? 'bg-violet-50 dark:bg-slate-700/60' : 'hover:bg-violet-50 dark:hover:bg-slate-700/60'}`}>
+                          <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.fullName || 'Unnamed'} <span className="text-xs text-slate-500 dark:text-slate-400">{p.mrn || '-'}</span></div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Patient Name</label>
+                <label className={lbl}>Patient Name</label>
                 <div ref={nameSuggestWrapRef} className="relative">
-                  <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Type name to search" value={form.patientName} onChange={onNameChange} onFocus={() => { if (nameSuggestItems.length > 0) setNameSuggestOpen(true) }} ref={nameRef} />
+                  <input className={inp} placeholder="Full name" value={form.patientName} onChange={onNameChange} onFocus={() => { if (nameSuggestItems.length > 0) { setNameSuggestOpen(true); setNameSuggestHighlightIdx(-1) } }} onKeyDown={onNameKeyDown} ref={nameRef} />
                   {nameSuggestOpen && (
-                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg dark:bg-slate-800 dark:border-slate-700">
+                    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:bg-slate-800 dark:border-slate-700">
                       {nameSuggestItems.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No results</div>
-                      ) : (
-                        nameSuggestItems.map((p: any, idx: number) => (
-                          <button
-                            type="button"
-                            key={p._id || idx}
-                            onClick={() => selectNameSuggestion(p)}
-                            className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                          >
-                            <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.fullName || 'Unnamed'} <span className="text-xs text-slate-500 dark:text-slate-400">{p.mrn || '-'}</span></div>
-                            <div className="text-xs text-slate-600 dark:text-slate-400">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
-                            {p.address && <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{p.address}</div>}
-                          </button>
-                        ))
-                      )}
+                      ) : nameSuggestItems.map((p: any, idx: number) => (
+                        <button type="button" key={p._id || idx} onClick={() => { selectNameSuggestion(p); setNameSuggestHighlightIdx(-1) }} className={`flex w-full flex-col items-start px-3 py-2 text-left transition ${idx === nameSuggestHighlightIdx ? 'bg-violet-50 dark:bg-slate-700/60' : 'hover:bg-violet-50 dark:hover:bg-slate-700/60'}`}>
+                          <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.fullName || 'Unnamed'} <span className="text-xs text-slate-500 dark:text-slate-400">{p.mrn || '-'}</span></div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Search by MR Number</label>
-                <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Enter MR# (e.g., MR-15)" value={form.mrNumber} onChange={e => update('mrNumber', e.target.value)} onKeyDown={onMrnKeyDown} />
+                <label className={lbl}>MR Number <span className="normal-case text-slate-400 dark:text-slate-500">(Enter ↵ to search)</span></label>
+                <input className={inp} value={form.mrNumber} onChange={e => update('mrNumber', e.target.value)} onKeyDown={onMrnKeyDown} onPaste={onMrnPaste} />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Age</label>
-                <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="e.g., 25" value={form.age} onChange={e => update('age', e.target.value)} />
+                <label className={lbl}>Age</label>
+                <input className={inp} placeholder="25" value={form.age} onChange={e => update('age', e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
-                <select className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white" value={form.gender} onChange={e => update('gender', e.target.value)}>
-                  <option value="">Select gender</option>
+                <label className={lbl}>Gender</label>
+                <select className={sel} value={form.gender} onChange={e => update('gender', e.target.value)}>
+                  <option value="">Select</option>
                   <option className="dark:bg-slate-900">Male</option>
                   <option className="dark:bg-slate-900">Female</option>
                   <option className="dark:bg-slate-900">Other</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Guardian</label>
-                <select className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white" value={form.guardianRel} onChange={e => update('guardianRel', e.target.value)}>
+                <label className={lbl}>Guardian Relation</label>
+                <select className={sel} value={form.guardianRel} onChange={e => update('guardianRel', e.target.value)}>
                   <option value="">Select</option>
-                  <option className="dark:bg-slate-900" value="S/O">S/O (Son of)</option>
-                  <option className="dark:bg-slate-900" value="D/O">D/O (Daughter of)</option>
-                  <option className="dark:bg-slate-900" value="W/O">W/O (Wife of)</option>
+                  <option className="dark:bg-slate-900" value="S/O">S/O</option>
+                  <option className="dark:bg-slate-900" value="D/O">D/O</option>
+                  <option className="dark:bg-slate-900" value="W/O">W/O</option>
                   <option className="dark:bg-slate-900" value="Father">Father</option>
                   <option className="dark:bg-slate-900" value="Husband">Husband</option>
                   <option className="dark:bg-slate-900" value="Mother">Mother</option>
@@ -919,161 +1192,121 @@ export default function Hospital_TokenGenerator() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Guardian Name</label>
-                <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Father/Guardian Name" value={form.guardianName} onChange={e => update('guardianName', e.target.value)} />
+                <label className={lbl}>Guardian Name</label>
+                <input className={inp} placeholder="Father/Guardian" value={form.guardianName} onChange={e => update('guardianName', e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">CNIC</label>
-                <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="13-digit CNIC (no dashes)" value={form.cnic} onChange={e => update('cnic', e.target.value)} />
+                <label className={lbl}>CNIC</label>
+                <input className={inp} placeholder="13-digit CNIC" value={form.cnic} onChange={e => update('cnic', e.target.value)} />
               </div>
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Address</label>
-                <textarea className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" rows={3} placeholder="Residential Address" value={form.address} onChange={e => update('address', e.target.value)} />
+              <div>
+                <label className={lbl}>Address</label>
+                <input className={inp} placeholder="Residential address" value={form.address} onChange={e => update('address', e.target.value)} />
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4 dark:bg-slate-800 dark:border-slate-700">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Visit & Billing</h3>
-            <div className="grid grid-cols-1 gap-4">
+          {/* RIGHT: Visit & Billing */}
+          <div className="border-t border-slate-200 p-6 dark:border-slate-800 lg:border-t-0">
+            <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">2</span>
+              Visit & Billing
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className={lbl}>Doctor</label>
+                <SearchSelect options={doctors.map(d => ({ value: d.id, label: d.name }))} value={form.doctor} onChange={(v) => update('doctor', v)} placeholder="Type or ↓ to select doctor" />
+              </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Doctor</label>
-                <SearchSelect
-                  options={doctors.map(d => ({ value: d.id, label: d.name }))}
-                  value={form.doctor}
-                  onChange={(v) => update('doctor', v)}
-                  placeholder="Select doctor"
-                />
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Doctor selection is optional for IPD.</p>
+                <label className={lbl}>Department</label>
+                <SearchSelect options={departments.map(d => ({ value: d.id, label: d.name }))} value={form.departmentId} onChange={(v) => update('departmentId', v)} placeholder="Type or ↓ to select" />
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {!isIPD && (
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
-                  <SearchSelect
-                    options={departments.map(d => ({ value: d.id, label: d.name }))}
-                    value={form.departmentId}
-                    onChange={(v) => update('departmentId', v)}
-                    placeholder="Select department"
-                  />
-                </div>
-                {!isIPD && (
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Token Type</label>
-                    <select
-                      value={form.visitCategory}
-                      onChange={e => {
-                        lastAutoConsultationFeeRef.current = null
-                        feeManuallyEditedRef.current = false
-                        update('visitCategory', e.target.value as any)
-                      }}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
-                    >
-                      <option className="dark:bg-slate-900" value="public">General</option>
-                      <option className="dark:bg-slate-900" value="private">Private</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Billing Type</label>
-                  <select className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white" value={form.billingType} onChange={e => update('billingType', e.target.value)}>
-                    <option className="dark:bg-slate-900">Cash</option>
-                    <option className="dark:bg-slate-900">Card</option>
-                    <option className="dark:bg-slate-900">Corporate</option>
+                  <label className={lbl}>Token Type</label>
+                  <select value={form.visitCategory} onChange={e => { lastAutoConsultationFeeRef.current = null; feeManuallyEditedRef.current = false; update('visitCategory', e.target.value as any) }} className={sel}>
+                    <option className="dark:bg-slate-900" value="public">General</option>
+                    <option className="dark:bg-slate-900" value="private">Private</option>
                   </select>
                 </div>
-                {form.billingType === 'Corporate' && (
-                  <>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Corporate Company</label>
-                      <select value={form.corporateCompanyId} onChange={e => update('corporateCompanyId', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
-                        <option className="dark:bg-slate-900" value="">None</option>
-                        {companies.map(c => (
-                          <option className="dark:bg-slate-900" key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    {form.corporateCompanyId && (
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:col-span-2">
-                        <div>
-                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Pre-Auth No</label>
-                          <input value={form.corporatePreAuthNo} onChange={e => update('corporatePreAuthNo', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Optional" />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Co-Pay %</label>
-                          <input value={form.corporateCoPayPercent} onChange={e => update('corporateCoPayPercent', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="0-100" />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Coverage Cap</label>
-                          <input value={form.corporateCoverageCap} onChange={e => update('corporateCoverageCap', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="e.g., 5000" />
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
+              )}
+              <div>
+                <label className={lbl}>Billing Type</label>
+                <select className={sel} value={form.billingType} onChange={e => update('billingType', e.target.value)}>
+                  <option className="dark:bg-slate-900">Cash</option>
+                  <option className="dark:bg-slate-900">Card</option>
+                  <option className="dark:bg-slate-900">Corporate</option>
+                </select>
               </div>
+              {form.billingType === 'Corporate' && (
+                <div>
+                  <label className={lbl}>Corporate Company</label>
+                  <select value={form.corporateCompanyId} onChange={e => update('corporateCompanyId', e.target.value)} className={sel}>
+                    <option className="dark:bg-slate-900" value="">None</option>
+                    {companies.map(c => (<option className="dark:bg-slate-900" key={c.id} value={c.id}>{c.name}</option>))}
+                  </select>
+                </div>
+              )}
+              {form.billingType === 'Corporate' && form.corporateCompanyId && (
+                <>
+                  <div>
+                    <label className={lbl}>Pre-Auth No</label>
+                    <input value={form.corporatePreAuthNo} onChange={e => update('corporatePreAuthNo', e.target.value)} className={inp} placeholder="Optional" />
+                  </div>
+                  <div>
+                    <label className={lbl}>Co-Pay %</label>
+                    <input value={form.corporateCoPayPercent} onChange={e => update('corporateCoPayPercent', e.target.value)} className={inp} placeholder="0-100" />
+                  </div>
+                  <div>
+                    <label className={lbl}>Coverage Cap</label>
+                    <input value={form.corporateCoverageCap} onChange={e => update('corporateCoverageCap', e.target.value)} className={inp} placeholder="e.g., 5000" />
+                  </div>
+                </>
+              )}
               {isIPD && (
                 <>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Select Bed</label>
-                    <select
-                      value={ipdBedId}
-                      onChange={(e) => {
-                        setIpdBedId(e.target.value)
-                        const opt = (e.target as HTMLSelectElement).selectedOptions?.[0] as any
-                        const chargesAttr = opt?.getAttribute?.('data-charges')
-                        if (chargesAttr !== null && chargesAttr !== undefined) setIpdDeposit(chargesAttr)
-                      }}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
-                    >
+                    <label className={lbl}>Select Bed</label>
+                    <select value={ipdBedId} onChange={(e) => { setIpdBedId(e.target.value); const opt = (e.target as HTMLSelectElement).selectedOptions?.[0] as any; const chargesAttr = opt?.getAttribute?.('data-charges'); if (chargesAttr !== null && chargesAttr !== undefined) setIpdDeposit(chargesAttr) }} className={sel}>
                       <option className="dark:bg-slate-900" value="">Available beds</option>
-                      {ipdBedOptions.map(b => (
-                        <option className="dark:bg-slate-900" key={b._id} value={String(b._id)} data-charges={b.charges ?? ''}>
-                          {`${b.floorName ? `${b.floorName} / ` : ''}${b.locationName ? `${b.locationName} / ` : ''}${b.label}`}{b.charges != null ? ` - (Rs. ${b.charges})` : ''}
-                        </option>
-                      ))}
+                      {ipdBedOptions.map(b => (<option className="dark:bg-slate-900" key={b._id} value={String(b._id)} data-charges={b.charges ?? ''}>{`${b.floorName ? `${b.floorName} / ` : ''}${b.locationName ? `${b.locationName} / ` : ''}${b.label}`}{b.charges != null ? ` - (Rs. ${b.charges})` : ''}</option>))}
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Bed Charges</label>
-                    <input value={ipdDeposit} onChange={e => setIpdDeposit(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="e.g., Rs. 1000" />
+                    <label className={lbl}>Bed Charges</label>
+                    <input value={ipdDeposit} onChange={e => setIpdDeposit(e.target.value)} className={inp} placeholder="Rs. 1000" />
                   </div>
                 </>
               )}
               {isER && (
                 <>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Triage Level</label>
-                    <select
-                      value={form.triage}
-                      onChange={e => update('triage', e.target.value as any)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
-                    >
-                      <option className="dark:bg-slate-900" value="red">Red (Critical)</option>
-                      <option className="dark:bg-slate-900" value="yellow">Yellow (Urgent)</option>
-                      <option className="dark:bg-slate-900" value="green">Green (Minor)</option>
+                    <label className={lbl}>Triage Level</label>
+                    <select value={form.triage} onChange={e => update('triage', e.target.value as any)} className={sel}>
+                      <option className="dark:bg-slate-900" value="red">🔴 Red (Critical)</option>
+                      <option className="dark:bg-slate-900" value="yellow">🟡 Yellow (Urgent)</option>
+                      <option className="dark:bg-slate-900" value="green">🟢 Green (Minor)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Arrival Mode</label>
-                    <select
-                      value={form.arrivalMode}
-                      onChange={e => update('arrivalMode', e.target.value as any)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
-                    >
+                    <label className={lbl}>Arrival Mode</label>
+                    <select value={form.arrivalMode} onChange={e => update('arrivalMode', e.target.value as any)} className={sel}>
                       <option className="dark:bg-slate-900" value="walk-in">Walk-in</option>
                       <option className="dark:bg-slate-900" value="ambulance">Ambulance</option>
                       <option className="dark:bg-slate-900" value="referral">Referral</option>
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Chief Complaint</label>
-                    <input
-                      value={form.chiefComplaint}
-                      onChange={e => update('chiefComplaint', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500"
-                      placeholder="Describe the patient's main complaint"
+                    <label className={lbl}>Chief Complaint</label>
+                    <input value={form.chiefComplaint} onChange={e => update('chiefComplaint', e.target.value)} className={inp} placeholder="Describe the patient's main complaint" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className={lbl}>Procedures <span className="normal-case text-slate-400 dark:text-slate-500">(Emergency Services)</span></label>
+                    <MultiSearchSelect
+                      options={erServices.map(s => ({ value: s.id, label: s.name + (s.price ? ` — Rs. ${s.price}` : '') }))}
+                      selected={form.procedures}
+                      onToggle={toggleProcedure}
+                      placeholder="Select emergency services..."
                     />
                   </div>
                 </>
@@ -1082,45 +1315,81 @@ export default function Hospital_TokenGenerator() {
           </div>
         </section>
 
-        <section>
-          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Fee Details</h3>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Consultation Fee</label>
-              <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500"
-                placeholder="Fee"
-                value={form.consultationFee}
-                onChange={e => {
-                  feeManuallyEditedRef.current = true
-                  update('consultationFee', e.target.value)
-                }}
-              />
+        {/* Fee Summary Bar */}
+        <section className="border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-wrap items-end gap-6">
+              <div className="min-w-[120px]">
+                <label className={lbl}>Consultation Fee</label>
+                <input className={inp} placeholder="0" value={form.consultationFee} onChange={e => { feeManuallyEditedRef.current = true; update('consultationFee', e.target.value) }} />
+              </div>
+              {isER && procedureFees.items.length > 0 && (
+                <div className="min-w-[120px]">
+                  <label className={lbl}>Procedure Charges</label>
+                  <div className="flex h-[42px] items-center rounded-lg border border-violet-300 bg-violet-50 px-3 text-sm font-bold text-violet-700 dark:bg-violet-900/20 dark:border-violet-800 dark:text-violet-400">
+                    Rs. {procedureFees.total.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  </div>
+                  <div className="mt-1 space-y-0.5">
+                    {procedureFees.items.map(item => (
+                      <div key={item.id} className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                        <span className="truncate max-w-[100px]">{item.name}</span>
+                        <span>Rs. {item.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="min-w-[100px]">
+                <label className={lbl}>Discount</label>
+                <input className={inp} placeholder="0" value={form.discount} onChange={e => update('discount', e.target.value) } />
+              </div>
+              <div className="min-w-[140px]">
+                <label className={lbl}>Payable</label>
+                <div className="flex h-[42px] items-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-sm font-bold text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-400">
+                  Rs. {(isIPD ? (Number(ipdDeposit || '0') || 0).toFixed(0) : finalFee.toFixed(0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                </div>
+              </div>
+              <div className="flex-1" />
+              <div className="flex gap-2">
+                {isIPD && (
+                  <button 
+                    type="button" 
+                    onClick={() => void printQuickConsent({
+                      tokenNo: 'PRE-ADMIT',
+                      departmentName: 'IPD',
+                      doctorName: doctors.find(d => String(d.id) === String(form.doctor))?.name || '-',
+                      patientName: form.patientName,
+                      phone: form.phone,
+                      mrn: form.mrNumber,
+                      age: form.age,
+                      gender: form.gender,
+                      guardianRel: form.guardianRel,
+                      guardianName: form.guardianName,
+                      cnic: form.cnic,
+                      address: form.address,
+                      amount: Number(ipdDeposit || 0),
+                      discount: Number(form.discount || 0),
+                      payable: Number(ipdDeposit || 0) - Number(form.discount || 0),
+                      createdAt: new Date().toISOString(),
+                      tokenType: 'IPD Admission',
+                      bedLabel: ipdBeds.find(b => b._id === ipdBedId)?.label || '-'
+                    })}
+                    className="flex h-[42px] items-center gap-2 rounded-lg bg-sky-100 px-6 text-sm font-bold text-sky-700 shadow-sm transition hover:bg-sky-200 active:scale-95 dark:bg-sky-900/40 dark:text-sky-400"
+                  >
+                    <FileText size={16} className="stroke-3" />
+                    Print Consent
+                  </button>
+                )}
+                <button type="submit" className="flex h-[42px] items-center gap-2 rounded-lg bg-violet-600 px-6 text-sm font-bold text-white shadow-md shadow-violet-200 transition hover:bg-violet-700 active:scale-[0.98] dark:bg-violet-600 dark:shadow-none dark:hover:bg-violet-500">
+                  {isEditMode ? 'Update Token' : 'Generate Token'} <span className="ml-1 text-violet-200">↵</span>
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Discount</label>
-              <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="0" value={form.discount} onChange={e => update('discount', e.target.value)} />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Final Fee</label>
-              <div className="flex h-10 items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400">Rs. {(isIPD ? (Number(ipdDeposit || '0') || 0).toFixed(2) : finalFee.toFixed(2))}</div>
-            </div>
-          </div>
         </section>
-
-
-
-          <div className="flex items-center justify-end gap-3">
-            <button type="button" onClick={reset} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">Reset Form</button>
-            <button type="submit" className="rounded-md bg-violet-700 px-4 py-2 text-sm font-medium text-white hover:bg-violet-800 dark:bg-violet-600 dark:hover:bg-violet-700">
-              {isEditMode ? 'Update Token' : 'Generate Token'}
-            </button>
-          </div>
       </form>
+
       {showSlip && slipData && (
         <Hospital_TokenSlip open={showSlip} onClose={() => setShowSlip(false)} data={slipData} autoPrint={false} />
       )}
-
 
       {confirmPatient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
@@ -1128,24 +1397,11 @@ export default function Hospital_TokenGenerator() {
             <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800 dark:border-slate-800 dark:text-slate-100">Confirm Patient</div>
             <div className="px-5 py-4 text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-300">{confirmPatient.summary}</div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">
-              <button onClick={() => { if (confirmPatient) skipLookupKeyRef.current = confirmPatient.key; setConfirmPatient(null); setTimeout(() => { if (focusAfterConfirm === 'phone') phoneRef.current?.focus(); else if (focusAfterConfirm === 'name') nameRef.current?.focus(); setFocusAfterConfirm(null) }, 0) }} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-300">Cancel</button>
+              <button onClick={() => { if (confirmPatient) skipLookupKeyRef.current = confirmPatient.key; setConfirmPatient(null); setTimeout(() => { if (focusAfterConfirm === 'phone') phoneRef.current?.focus(); else if (focusAfterConfirm === 'name') nameRef.current?.focus(); setFocusAfterConfirm(null) }, 0) }} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">Cancel</button>
               <button onClick={() => {
                 const p = confirmPatient.patient
-                try {
-                  setForm(prev => ({
-                    ...prev,
-                    patientName: p.fullName || prev.patientName,
-                    guardianName: p.fatherName || prev.guardianName,
-                    guardianRel: p.guardianRel || prev.guardianRel,
-                    address: p.address || prev.address,
-                    gender: p.gender || prev.gender,
-                    age: p.age || prev.age,
-                    mrNumber: p.mrn || prev.mrNumber,
-                    phone: p.phoneNormalized || prev.phone,
-                    cnic: p.cnicNormalized || prev.cnic,
-                  }))
-                } finally { if (confirmPatient) skipLookupKeyRef.current = confirmPatient.key; setConfirmPatient(null) }
-              }} className="rounded-md bg-violet-700 px-3 py-1.5 text-sm font-medium text-white dark:bg-violet-600">Apply</button>
+                try { setForm(prev => ({ ...prev, patientName: p.fullName || prev.patientName, guardianName: p.fatherName || prev.guardianName, guardianRel: p.guardianRel || prev.guardianRel, address: p.address || prev.address, gender: p.gender || prev.gender, age: p.age || prev.age, mrNumber: p.mrn || prev.mrNumber, phone: p.phoneNormalized || prev.phone, cnic: p.cnicNormalized || prev.cnic })) } finally { if (confirmPatient) skipLookupKeyRef.current = confirmPatient.key; setConfirmPatient(null) }
+              }} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500">Apply</button>
             </div>
           </div>
         </div>
@@ -1153,45 +1409,28 @@ export default function Hospital_TokenGenerator() {
       {showPhonePicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-900 dark:ring-white/10">
-            <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800 dark:border-slate-800 dark:text-slate-100">Select Patient (Phone: {form.phone})</div>
-            <div className="max-h-96 overflow-y-auto p-2 dark:bg-slate-900">
+            <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800 dark:border-slate-800 dark:text-slate-100">Select Patient <span className="font-normal text-slate-500">(Phone: {form.phone})</span></div>
+            <div className="max-h-80 overflow-y-auto p-2 dark:bg-slate-900">
               {phonePatients.map((p, idx) => (
                 <button key={p._id || idx} onClick={() => {
-                  setForm(prev => ({
-                    ...prev,
-                    patientName: p.fullName || prev.patientName,
-                    guardianName: p.fatherName || prev.guardianName,
-                    guardianRel: p.guardianRel || prev.guardianRel,
-                    address: p.address || prev.address,
-                    gender: p.gender || prev.gender,
-                    age: p.age || prev.age,
-                    mrNumber: p.mrn || prev.mrNumber,
-                    phone: p.phoneNormalized || prev.phone,
-                    cnic: p.cnicNormalized || prev.cnic,
-                  }))
-                  setShowPhonePicker(false)
-                  showToast('success', 'Patient selected')
-                }} className="mb-2 w-full rounded-lg border border-slate-200 p-3 text-left hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
+                  setForm(prev => ({ ...prev, patientName: p.fullName || prev.patientName, guardianName: p.fatherName || prev.guardianName, guardianRel: p.guardianRel || prev.guardianRel, address: p.address || prev.address, gender: p.gender || prev.gender, age: p.age || prev.age, mrNumber: p.mrn || prev.mrNumber, phone: p.phoneNormalized || prev.phone, cnic: p.cnicNormalized || prev.cnic }))
+                  setShowPhonePicker(false); showToast('success', 'Patient selected')
+                }} className="mb-1.5 w-full rounded-lg border border-slate-100 p-3 text-left transition hover:border-violet-200 hover:bg-violet-50 dark:border-slate-800 dark:hover:border-violet-800 dark:hover:bg-slate-800">
                   <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.fullName || 'Unnamed'}</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">{p.mrn || '-'} • {p.phoneNormalized || ''}</div>
-                  {p.address && <div className="text-[11px] text-slate-400 dark:text-slate-500">{p.address}</div>}
                 </button>
               ))}
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">
-              <button onClick={() => { setShowPhonePicker(false); showToast('success', 'You can create a new patient under this phone') }} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600 dark:text-slate-300">Cancel</button>
-              <button onClick={() => {
-                // Create new patient under this phone number
-                clearPatientFieldsKeepPhone()
-                setShowPhonePicker(false)
-              }} className="rounded-md bg-violet-700 px-3 py-1.5 text-sm font-medium text-white dark:bg-violet-600">Create New Patient</button>
+              <button onClick={() => { setShowPhonePicker(false); showToast('success', 'You can create a new patient under this phone') }} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">Cancel</button>
+              <button onClick={() => { clearPatientFieldsKeepPhone(); setShowPhonePicker(false) }} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500">Create New Patient</button>
             </div>
           </div>
         </div>
       )}
       {toast && (
-        <div className={`fixed bottom-4 right-4 z-50 rounded-md px-4 py-2 text-sm shadow-lg ${toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-          {toast.message}
+        <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium shadow-lg transition-all ${toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
+          <span className="text-base">{toast.type === 'success' ? '✓' : '✕'}</span> {toast.message}
         </div>
       )}
     </div>

@@ -14,6 +14,8 @@ const allowedOrigins = [
   'http://127.0.0.1:8080',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
   env.CORS_ORIGIN,
 ].filter(Boolean)
 
@@ -21,6 +23,10 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, or server-to-server)
     if (!origin) return callback(null, true)
+    // Allow null origin (sent by file:// protocol in Electron)
+    if (origin === 'null') return callback(null, true)
+    // Allow file:// protocol (Electron packaged app)
+    if (origin.startsWith('file://')) return callback(null, true)
     
     // In development, allow all localhost origins
     if (env.NODE_ENV === 'development') {

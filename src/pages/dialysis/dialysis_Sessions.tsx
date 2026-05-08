@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { dialysisApi } from '../../utils/api'
 import { printDialysisSessionReport } from '../../utils/printDialysisSessionReport'
+import { UserMinus } from 'lucide-react'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
 type SessionRow = any
 
@@ -45,6 +47,11 @@ export default function Dialysis_Sessions() {
    const [center, setCenter] = useState<any>(null)
 
   const [editing, setEditing] = useState<SessionRow | null>(null)
+  const [showDischarge, setShowDischarge] = useState(false)
+  const [dischargeReason, setDischargeReason] = useState('')
+  const [dischargeNotes, setDischargeNotes] = useState('')
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const navigate = useNavigate()
 
   async function load() {
     if (!dialysisPatientId) return
@@ -99,7 +106,7 @@ export default function Dialysis_Sessions() {
 
   if (!dialysisPatientId) {
     return (
-      <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
+      <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
         <div className="w-full rounded-xl bg-white p-6 shadow-lg">
           <h2 className="text-xl font-bold text-slate-800">Dialysis Sessions</h2>
           <div className="mt-2 text-sm text-slate-600">Open a patient from the Dialysis Patients page.</div>
@@ -111,21 +118,30 @@ export default function Dialysis_Sessions() {
   const lp: any = patient?.labPatient || {}
 
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
+    <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
       <div className="w-full rounded-xl bg-white p-6 shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-800">{title}</h2>
             <div className="text-sm text-slate-500">Patient summary + session technical data</div>
           </div>
-          <button
-            onClick={load}
-            disabled={loading}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            type="button"
-          >
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDischarge(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+              type="button"
+            >
+              <UserMinus className="h-4 w-4" /> Discharge Patient
+            </button>
+            <button
+              onClick={load}
+              disabled={loading}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              type="button"
+            >
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 rounded-xl border border-slate-200 p-5">
@@ -236,7 +252,7 @@ export default function Dialysis_Sessions() {
 
         <div className="mt-6 overflow-hidden rounded-xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white">
+            <thead className="bg-linear-to-r from-teal-500 to-cyan-500 text-white">
               <tr className="text-left">
                 <th className="px-3 py-3 font-semibold">Date</th>
                 <th className="px-3 py-3 font-semibold">Token #</th>
@@ -298,6 +314,40 @@ export default function Dialysis_Sessions() {
           </table>
         </div>
       </div>
+
+      {/* Discharge Confirm Dialog */}
+      <ConfirmDialog
+        open={showDischarge}
+        title="Discharge Patient"
+        message="Are you sure you want to discharge this patient from the dialysis program? They will be moved to the Discharged Patients list."
+        confirmText="Discharge"
+        onCancel={() => { setShowDischarge(false); setDischargeReason(''); setDischargeNotes('') }}
+        onConfirm={async () => {
+          if (!dialysisPatientId) return
+          try {
+            await dialysisApi.dischargePatient(dialysisPatientId, { dischargeReason, dischargeNotes })
+            setToast({ type: 'success', message: 'Patient discharged successfully' })
+            setShowDischarge(false)
+            setDischargeReason('')
+            setDischargeNotes('')
+            setTimeout(() => navigate('/dialysis/discharged-patients'), 1200)
+          } catch (e: any) {
+            setToast({ type: 'error', message: e?.message || 'Failed to discharge patient' })
+          }
+        }}
+      />
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed right-4 top-16 z-60 max-w-sm">
+          <div className={`rounded-lg border px-4 py-3 text-sm shadow ${toast.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>{toast.message}</div>
+              <button type="button" className="text-slate-500 hover:text-slate-700" onClick={() => setToast(null)}>×</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

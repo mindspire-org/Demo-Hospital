@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { Customer } from './pharmacy_AddCustomer'
-import { pharmacyApi } from '../../utils/api'
+import type { Customer } from './indoorpharmacy_AddCustomer'
+import { indoorPharmacyApi } from '../../utils/api'
 
 type Props = {
   open: boolean
@@ -19,7 +19,7 @@ export default function Pharmacy_PayBill({ open, onClose, customer }: Props) {
     ;(async () => {
       try {
         setLoading(true)
-        const res = await pharmacyApi.listSales({ customerId: customer.id, payment: 'Credit', limit: 200 })
+        const res = await indoorPharmacyApi.listSales({ customerId: customer.id, payment: 'Credit', limit: 200 })
         if (!mounted) return
         const items = res.items || []
         setReceipts(items)

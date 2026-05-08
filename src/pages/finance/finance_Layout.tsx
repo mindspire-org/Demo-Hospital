@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 
 import { useEffect, useState } from 'react'
 
@@ -10,6 +10,20 @@ import Finance_Header from '../../components/finance/finance_Header'
 
 export default function Finance_Layout(){
 
+  const navigate = useNavigate()
+
+  const [authed, setAuthed] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('finance.session')
+      if (!raw) { navigate('/finance/login', { replace: true }); return }
+      setAuthed(true)
+    } catch {
+      navigate('/finance/login', { replace: true })
+    }
+  }, [navigate])
+
   const [collapsed, setCollapsed] = useState(false)
 
   const [theme, setTheme] = useState<'light'|'dark'>(()=>{
@@ -20,6 +34,8 @@ export default function Finance_Layout(){
 
   useEffect(()=>{ try { localStorage.setItem('finance.theme', theme) } catch {} }, [theme])
 
+  if (authed !== true) return null
+
   const shell = theme === 'dark' ? 'h-dvh bg-slate-900 text-slate-100' : 'h-dvh bg-slate-50 text-slate-900'
 
   return (
@@ -28,23 +44,17 @@ export default function Finance_Layout(){
 
       <div className={shell}>
 
-        <div className="sticky top-0 z-20 w-full md:border-b" style={{ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)', borderColor: 'rgba(255,255,255,0.12)' }}>
+        <div className="sticky top-0 z-20 w-full border-b border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
 
-          <div className="flex h-14">
+          <Finance_Header
 
-            <Finance_Header
+            onToggleSidebar={()=> setCollapsed(c=>!c)}
 
-              variant="navy"
+            onToggleTheme={()=> setTheme(t=> t==='dark'?'light':'dark')}
 
-              onToggleSidebar={()=> setCollapsed(c=>!c)}
+            theme={theme}
 
-              onToggleTheme={()=> setTheme(t=> t==='dark'?'light':'dark')}
-
-              theme={theme}
-
-            />
-
-          </div>
+          />
 
         </div>
 

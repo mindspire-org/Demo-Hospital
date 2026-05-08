@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CalendarDays, CheckCircle2, XCircle, ListChecks, RefreshCw, Plus, User, Clock, Phone, FlaskConical, Pencil, FileText, Search } from 'lucide-react'
 import { labApi } from '../../utils/api'
 import { getLocalDate } from '../../utils/date'
 import Lab_ConfirmDialog from '../../components/lab/lab_ConfirmDialog'
+import { useLabSession } from '../../hooks/useLabSession'
 
 function todayIso() { return getLocalDate() }
 
@@ -27,6 +29,7 @@ type AppointmentRow = {
 function normDigits(s?: string) { return String(s || '').replace(/\D+/g, '').slice(0, 11) }
 
 export default function Lab_Appointments() {
+  const session = useLabSession()
   const navigate = useNavigate()
   const [dateIso, setDateIso] = useState(todayIso())
   const [status, setStatus] = useState<'all' | AppointmentRow['status']>('all')
@@ -119,7 +122,6 @@ export default function Lab_Appointments() {
         notes: editForm.notes || undefined,
       }
 
-      // If appointment is NOT linked to an existing patient, allow editing patient snapshot fields
       if (!editRow.patientId) {
         payload.patientName = editForm.patientName.trim()
         payload.phone = editForm.phone ? normDigits(editForm.phone) : undefined
@@ -270,19 +272,14 @@ export default function Lab_Appointments() {
   async function convertToToken(id: string) {
     try {
       const res: any = await labApi.convertAppointmentToToken(id)
-
-      // If already converted, show message and reload
       if (res?.alreadyConverted) {
         const token = res?.order?.tokenNo || ''
         showNotice('success', token ? `Already converted to Token ${token}` : 'Already converted')
         await load()
         return
       }
-
-      // Navigate to Sample Intake page with pre-filled appointment data
       const patient = res?.patient
       const testDetails = res?.testDetails || []
-
       if (patient) {
         navigate('/lab/orders', {
           state: {
@@ -304,13 +301,6 @@ export default function Lab_Appointments() {
     } catch (e: any) {
       showNotice('error', e?.message || 'Failed to convert')
     }
-  }
-
-  function openDeleteConfirm(r: AppointmentRow) {
-    if (!r) return
-    if (r.status === 'converted' || r.orderId) { showNotice('error', 'Converted appointment cannot be deleted'); return }
-    setDeleteTarget(r)
-    setDeleteConfirmOpen(true)
   }
 
   async function confirmDelete(){
@@ -338,327 +328,242 @@ export default function Lab_Appointments() {
   }, [rows, query, testsMap])
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-2xl font-bold text-slate-900">Lab Appointments</div>
-            <div className="text-xs text-slate-500">Book, confirm, cancel, and convert appointments to lab tokens</div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <input type="date" value={dateIso} onChange={e => setDateIso(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1" />
-            <select value={status} onChange={e => setStatus(e.target.value as any)} className="rounded-md border border-slate-300 px-2 py-1">
-              <option value="all">All</option>
-              <option value="booked">Booked</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="converted">Converted</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-3">
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by patient, MR#, phone, time, status, tests..." className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
-        </div>
-        {notice && (
-          <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${notice.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>{notice.text}</div>
-        )}
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="text-base font-semibold text-slate-800">New Appointment</div>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Phone *</label>
-            <div ref={phoneSuggestWrapRef} className="relative">
-              <input value={form.phone} onChange={onPhoneChange} maxLength={11} className="w-full rounded-md border border-slate-300 px-3 py-2" placeholder="Type phone to search" />
-              {phoneSuggestOpen && (
-                <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
-                  {phoneSuggestItems.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-slate-500">No results</div>
-                  ) : (
-                    phoneSuggestItems.map((p: any, idx: number) => (
-                      <button key={p._id || idx} type="button" onClick={() => selectPhoneSuggestion(p)} className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-slate-50">
-                        <div className="text-sm font-medium text-slate-800">{p.fullName || 'Unnamed'} <span className="text-xs text-slate-500">{p.mrn || '-'}</span></div>
-                        <div className="text-xs text-slate-600">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
+    <div className="space-y-6 p-1">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-3xl bg-linear-to-r from-indigo-600 via-violet-700 to-purple-800 p-8 shadow-2xl text-white">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md shadow-inner ring-1 ring-white/30 transition-transform hover:scale-105">
+              <CalendarDays className="h-8 w-8 text-white" />
             </div>
-            {selectedPatient && (
-              <div className="mt-1 text-xs text-emerald-700">Existing patient selected: {selectedPatient.fullName || '-'} — MRN {selectedPatient.mrn || '-'}</div>
-            )}
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Patient Name *</label>
-            <input value={form.patientName} onChange={e => update('patientName', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" placeholder="Full Name" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Time</label>
-            <input type="time" value={form.time} onChange={e => update('time', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Age</label>
-            <input value={form.age} onChange={e => update('age', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" placeholder="e.g., 25" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Gender</label>
-            <select value={form.gender} onChange={e => update('gender', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2">
-              <option value="">Select gender</option>
-              <option>Male</option>
-              <option>Female</option>
-              <option>Other</option>
-            </select>
-          </div>
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-slate-600">Tests *</label>
-            <div ref={testSuggestWrapRef} className="relative">
-              <input 
-                value={form.testSearch} 
-                onChange={e => {
-                  update('testSearch', e.target.value)
-                  setTestSuggestOpen(e.target.value.trim().length > 0)
-                }} 
-                onFocus={() => { if (form.testSearch.trim().length > 0) setTestSuggestOpen(true) }}
-                className="w-full rounded-md border border-slate-300 px-3 py-2" 
-                placeholder="Type to search tests..." 
-              />
-              {testSuggestOpen && (
-                <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
-                  {tests.filter(t => !form.testIds.includes(t.id) && t.name.toLowerCase().includes(form.testSearch.toLowerCase())).length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-slate-500">No matching tests</div>
-                  ) : (
-                    tests.filter(t => !form.testIds.includes(t.id) && t.name.toLowerCase().includes(form.testSearch.toLowerCase())).slice(0, 20).map((t: any) => (
-                      <button 
-                        key={t.id} 
-                        type="button" 
-                        onClick={() => {
-                          update('testIds', [...form.testIds, t.id])
-                          update('testSearch', '')
-                          setTestSuggestOpen(false)
-                        }} 
-                        className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
-                      >
-                        <span className="text-sm text-slate-800">{t.name}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
+            <div>
+              <h1 className="text-3xl font-black tracking-tight text-white">Lab Appointments</h1>
+              <p className="mt-1 text-sm font-medium text-indigo-100 opacity-90">Streamlined booking & session management</p>
             </div>
-            {form.testIds.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {form.testIds.map(id => {
-                  const t = tests.find(x => x.id === id)
-                  return (
-                    <span key={id} className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-1 text-sm text-sky-700">
-                      {t?.name || id}
-                      <button 
-                        onClick={() => update('testIds', form.testIds.filter(x => x !== id))}
-                        className="ml-1 text-sky-600 hover:text-sky-800"
-                      >×</button>
-                    </span>
-                  )
-                })}
-              </div>
-            )}
           </div>
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-slate-600">Notes</label>
-            <input value={form.notes} onChange={e => update('notes', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" placeholder="Optional notes" />
-          </div>
-          <div className="md:col-span-3 flex items-center justify-end gap-2">
-            <button type="button" onClick={() => { setForm({ phone: '', patientName: '', gender: '', age: '', time: '', notes: '', testIds: [], testSearch: '' }); setSelectedPatient(null) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700">Clear</button>
-            <button type="button" onClick={createAppointment} className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700">Save Appointment</button>
+          <div className="flex flex-wrap items-center gap-3">
+             <div className="flex items-center gap-2 rounded-2xl bg-white/10 p-1.5 backdrop-blur-md ring-1 ring-white/20 shadow-lg">
+               <input 
+                type="date" 
+                value={dateIso} 
+                onChange={e => setDateIso(e.target.value)} 
+                className="bg-transparent px-4 py-2 text-sm font-black text-white outline-none scheme-dark cursor-pointer" 
+               />
+             </div>
+             <button 
+              onClick={load} 
+              disabled={loading}
+              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md hover:bg-white/30 transition-all active:scale-90 ring-1 ring-white/20 shadow-lg disabled:opacity-50"
+             >
+               <RefreshCw className={`h-6 w-6 ${loading ? 'animate-spin' : ''}`} />
+             </button>
           </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-sm">
-          <div className="font-medium text-slate-800">Appointments</div>
-          <div className="text-slate-600">{loading ? 'Loading...' : `${filtered.length} item(s)`}</div>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
-            <tr>
-              <th className="px-4 py-2">Time</th>
-              <th className="px-4 py-2">Patient</th>
-              <th className="px-4 py-2">MR #</th>
-              <th className="px-4 py-2">Phone</th>
-              <th className="px-4 py-2">Tests</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(r => (
-              <tr key={r.id} className="border-b border-slate-100 text-slate-700 hover:bg-slate-50/70">
-                <td className="px-4 py-2 whitespace-nowrap">{r.time || '-'}</td>
-                <td className="px-4 py-2 whitespace-nowrap">{r.patientName || '-'}</td>
-                <td className="px-4 py-2 whitespace-nowrap">{r.mrn || '-'}</td>
-                <td className="px-4 py-2 whitespace-nowrap">{r.phoneNormalized || '-'}</td>
-                <td className="px-4 py-2">{(r.tests || []).map(tid => testsMap[tid] || tid).join(', ')}</td>
-                <td className="px-4 py-2 whitespace-nowrap">{r.status}</td>
-                <td className="px-4 py-2 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    {r.status !== 'converted' && (
-                      <button type="button" onClick={() => openEdit(r)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700">Edit</button>
-                    )}
-                    {r.status !== 'confirmed' && r.status !== 'cancelled' && r.status !== 'converted' && (
-                      <button type="button" onClick={() => setRowStatus(r.id, 'confirmed')} className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">Confirm</button>
-                    )}
-                    {r.status !== 'cancelled' && r.status !== 'converted' && (
-                      <button type="button" onClick={() => setRowStatus(r.id, 'cancelled')} className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-700">Cancel</button>
-                    )}
-                    {!r.orderId && r.status !== 'cancelled' && (
-                      <button type="button" onClick={() => convertToToken(r.id)} className="rounded-md border border-violet-300 bg-violet-50 px-2 py-1 text-xs text-violet-700">Convert to Token</button>
-                    )}
-                    {r.status !== 'converted' && !r.orderId && (
-                      <button type="button" onClick={() => openDeleteConfirm(r)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700">Delete</button>
-                    )}
-                    {r.orderId && (
-                      <span className="text-xs text-slate-500">Converted</span>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!loading && filtered.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">No appointments</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {editOpen && editRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: 'Total', value: rows.length, icon: ListChecks, gradient: 'from-indigo-500 to-indigo-600', colorCls: 'text-indigo-600', bgCls: 'bg-indigo-50' },
+          { label: 'Confirmed', value: rows.filter(r => r.status === 'confirmed').length, icon: CheckCircle2, gradient: 'from-emerald-500 to-teal-600', colorCls: 'text-emerald-600', bgCls: 'bg-emerald-50' },
+          { label: 'Booked', value: rows.filter(r => r.status === 'booked').length, icon: Clock, gradient: 'from-amber-500 to-orange-600', colorCls: 'text-amber-600', bgCls: 'bg-amber-50' },
+          { label: 'Converted', value: rows.filter(r => r.status === 'converted').length, icon: FileText, gradient: 'from-violet-500 to-purple-600', colorCls: 'text-violet-600', bgCls: 'bg-violet-50' },
+        ].map((card, i) => (
+          <div key={i} className="group relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
+            <div className={`absolute -right-4 -top-4 h-24 w-24 rounded-full bg-linear-to-br ${card.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
+            <div className="relative flex items-center justify-between">
               <div>
-                <div className="text-base font-semibold text-slate-800">Edit Appointment</div>
-                <div className="text-xs text-slate-500">{editRow.patientId ? 'Linked patient: patient fields locked' : 'Patient fields editable (snapshot)'}</div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">{card.label}</p>
+                <p className="mt-1 text-3xl font-black text-slate-900">{card.value}</p>
               </div>
-              <button type="button" onClick={() => { setEditOpen(false); setEditRow(null) }} className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700">Close</button>
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${card.bgCls} ${card.colorCls} shadow-sm group-hover:scale-110 transition-transform duration-500`}>
+                <card.icon className="h-6 w-6" />
+              </div>
             </div>
+          </div>
+        ))}
+      </div>
 
-            <div className="p-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Date *</label>
-                  <input type="date" value={editForm.dateIso} onChange={e => editUpdate('dateIso', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Time</label>
-                  <input type="time" value={editForm.time} onChange={e => editUpdate('time', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Status</label>
-                  <input value={editRow.status} disabled className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600" />
-                </div>
+      {notice && (
+        <div className={`rounded-xl border p-4 shadow-sm animate-in slide-in-from-top-2 duration-300 ${notice.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+          <div className="flex items-center gap-2 font-bold text-sm">
+            {notice.kind === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+            {notice.text}
+          </div>
+        </div>
+      )}
 
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Patient Name *</label>
-                  <input value={editForm.patientName} disabled={!!editRow.patientId} onChange={e => editUpdate('patientName', e.target.value)} className={`w-full rounded-md border px-3 py-2 ${editRow.patientId ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-slate-300'}`} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Phone</label>
-                  <input value={editForm.phone} maxLength={11} disabled={!!editRow.patientId} onChange={e => editUpdate('phone', normDigits(e.target.value))} className={`w-full rounded-md border px-3 py-2 ${editRow.patientId ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-slate-300'}`} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Age</label>
-                  <input value={editForm.age} disabled={!!editRow.patientId} onChange={e => editUpdate('age', e.target.value)} className={`w-full rounded-md border px-3 py-2 ${editRow.patientId ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-slate-300'}`} />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Gender</label>
-                  <select value={editForm.gender} disabled={!!editRow.patientId} onChange={e => editUpdate('gender', e.target.value)} className={`w-full rounded-md border px-3 py-2 ${editRow.patientId ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-slate-300'}`}>
-                    <option value="">Select gender</option>
-                    <option>Male</option>
-                    <option>Female</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Tests *</label>
-                  <div className="relative">
-                    <input 
-                      value={editForm.testSearch} 
-                      onChange={e => {
-                        editUpdate('testSearch', e.target.value)
-                        setTestSuggestOpen(e.target.value.trim().length > 0)
-                      }} 
-                      onFocus={() => { if (editForm.testSearch.trim().length > 0) setTestSuggestOpen(true) }}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2" 
-                      placeholder="Type to search tests..." 
-                    />
-                    {testSuggestOpen && (
-                      <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
-                        {tests.filter(t => !editForm.testIds.includes(t.id) && t.name.toLowerCase().includes(editForm.testSearch.toLowerCase())).length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-slate-500">No matching tests</div>
-                        ) : (
-                          tests.filter(t => !editForm.testIds.includes(t.id) && t.name.toLowerCase().includes(editForm.testSearch.toLowerCase())).slice(0, 20).map((t: any) => (
-                            <button 
-                              key={t.id} 
-                              type="button" 
-                              onClick={() => {
-                                editUpdate('testIds', [...editForm.testIds, t.id])
-                                editUpdate('testSearch', '')
-                                setTestSuggestOpen(false)
-                              }} 
-                              className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
-                            >
-                              <span className="text-sm text-slate-800">{t.name}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {editForm.testIds.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {editForm.testIds.map(id => {
-                        const t = tests.find(x => x.id === id)
-                        return (
-                          <span key={id} className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-1 text-sm text-sky-700">
-                            {t?.name || id}
-                            <button 
-                              onClick={() => editUpdate('testIds', editForm.testIds.filter(x => x !== id))}
-                              className="ml-1 text-sky-600 hover:text-sky-800"
-                            >×</button>
-                          </span>
-                        )
-                      })}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-1">
+          <div className="sticky top-24 space-y-6 rounded-3xl border border-slate-200/60 bg-white p-7 shadow-sm">
+            <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 shadow-inner">
+                <Plus className="h-6 w-6" />
+              </div>
+              <h2 className="text-xl font-black text-slate-800 tracking-tight">New Appointment</h2>
+            </div>
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-1">Patient Phone *</label>
+                <div className="relative" ref={phoneSuggestWrapRef}>
+                  <Phone className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
+                  <input value={form.phone} onChange={onPhoneChange} placeholder="03xxxxxxxxx" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-12 pr-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner placeholder:text-slate-300" />
+                  {phoneSuggestOpen && (
+                    <div className="absolute z-40 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                      {phoneSuggestItems.map(p => (
+                        <button key={p._id} onClick={() => selectPhoneSuggestion(p)} className="flex w-full flex-col px-4 py-3 text-left hover:bg-indigo-50 rounded-xl transition-colors mb-1 last:mb-0 group">
+                          <span className="text-sm font-black text-slate-800 group-hover:text-indigo-700">{p.fullName}</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">MRN: {p.mrn} · Phone: {p.phoneNormalized}</span>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
-
-                <div className="md:col-span-3">
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Notes</label>
-                  <input value={editForm.notes} onChange={e => editUpdate('notes', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-1">Patient Name *</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
+                  <input value={form.patientName} onChange={e => update('patientName', e.target.value)} placeholder="Full name" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-12 pr-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner placeholder:text-slate-300" />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-1">Gender</label>
+                  <select value={form.gender} onChange={e => update('gender', e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner cursor-pointer">
+                    <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-1">Age</label>
+                  <input value={form.age} onChange={e => update('age', e.target.value)} placeholder="Years" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 px-4 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner placeholder:text-slate-300" />
+                </div>
+              </div>
+              <div className="space-y-2" ref={testSuggestWrapRef}>
+                <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-1">Select Tests *</label>
+                <div className="relative">
+                  <FlaskConical className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
+                  <input value={form.testSearch} onChange={e => { update('testSearch', e.target.value); setTestSuggestOpen(e.target.value.trim().length > 0) }} onFocus={() => { if (form.testSearch.trim().length > 0) setTestSuggestOpen(true) }} placeholder="Search diagnostic tests..." className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-12 pr-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner placeholder:text-slate-300" />
+                  {testSuggestOpen && (
+                    <div className="absolute z-40 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                      {tests.filter(t => !form.testIds.includes(t.id) && t.name.toLowerCase().includes(form.testSearch.toLowerCase())).length === 0 ? (
+                        <div className="px-4 py-6 text-center text-xs font-black text-slate-300 uppercase tracking-widest">No tests found</div>
+                      ) : (
+                        tests.filter(t => !form.testIds.includes(t.id) && t.name.toLowerCase().includes(form.testSearch.toLowerCase())).slice(0, 20).map(t => (
+                          <button key={t.id} onClick={() => { update('testIds', [...form.testIds, t.id]); update('testSearch', ''); setTestSuggestOpen(false) }} className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-indigo-50 rounded-xl transition-colors mb-1 last:mb-0 group">
+                            <span className="text-sm font-black text-slate-700 group-hover:text-indigo-700">{t.name}</span>
+                            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg ring-1 ring-emerald-100 uppercase">Rs {t.price}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                {form.testIds.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {form.testIds.map(id => {
+                      const t = tests.find(x => x.id === id)
+                      return (
+                        <span key={id} className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight text-indigo-700 ring-1 ring-indigo-100 shadow-sm">
+                          {t?.name || id}
+                          <button onClick={() => update('testIds', form.testIds.filter(x => x !== id))} className="ml-1 text-indigo-300 hover:text-indigo-600 transition-colors"><XCircle className="h-4 w-4" /></button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="pt-4">
+                <button onClick={createAppointment} className="w-full rounded-2xl bg-linear-to-r from-indigo-600 to-violet-700 py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all">Confirm Appointment</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button type="button" onClick={() => { setEditOpen(false); setEditRow(null) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700">Cancel</button>
-                <button type="button" onClick={saveEdit} className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700">Save Changes</button>
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-5 rounded-3xl border border-slate-200/60 bg-white p-5 shadow-sm">
+             <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar w-full md:w-auto">
+                {(['all', 'booked', 'confirmed', 'converted', 'cancelled'] as const).map(s => (
+                  <button key={s} onClick={() => setStatus(s)} className={`whitespace-nowrap rounded-xl px-5 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${status === s ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}>{s}</button>
+                ))}
+             </div>
+             <div className="relative w-full md:w-auto md:min-w-[280px]">
+                <Search className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
+                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Quick search..." className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3 pl-11 pr-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner" />
+             </div>
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm border-separate border-spacing-0">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200">
+                    <th className="px-6 py-5 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">Patient</th>
+                    <th className="px-6 py-5 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">Details</th>
+                    <th className="px-6 py-5 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">Tests</th>
+                    <th className="px-6 py-5 text-center text-[11px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                    <th className="px-6 py-5 text-right text-[11px] font-black uppercase tracking-widest text-slate-400">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading ? (
+                    <tr><td colSpan={5} className="px-6 py-24 text-center"><RefreshCw className="h-10 w-10 animate-spin text-indigo-500 opacity-50 mx-auto" /><p className="text-xs font-black text-slate-400 mt-4 uppercase tracking-widest">Refreshing...</p></td></tr>
+                  ) : filtered.length === 0 ? (
+                    <tr><td colSpan={5} className="px-6 py-24 text-center text-slate-400 font-black uppercase tracking-widest">No sessions</td></tr>
+                  ) : (
+                    filtered.map(r => (
+                      <tr key={r.id} className="group hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner"><User className="h-5 w-5" /></div>
+                            <div><div className="font-black text-slate-900 text-base">{r.patientName}</div><div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{r.mrn || 'WALK-IN'}</div></div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5"><div className="space-y-1.5"><div className="text-xs font-bold text-slate-600">{r.phoneNormalized}</div><div className="text-xs font-black text-indigo-600">{r.time || 'UNSCHEDULED'}</div></div></td>
+                        <td className="px-6 py-5"><div className="max-w-[200px]"><p className="truncate text-xs font-black text-slate-700">{(r.tests || []).map(tid => testsMap[tid] || tid).join(', ')}</p><p className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">{(r.tests || []).length} Tests</p></div></td>
+                        <td className="px-6 py-5 text-center"><span className={`inline-flex items-center rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border-2 ${r.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : r.status === 'converted' ? 'bg-violet-50 text-violet-700 border-violet-100' : r.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{r.status}</span></td>
+                        <td className="px-6 py-5">
+                          <div className="flex items-center justify-end gap-1">
+                            {r.status !== 'converted' && <button onClick={() => openEdit(r)} className="p-2 text-slate-400 hover:text-slate-900"><Pencil className="h-4 w-4" /></button>}
+                            {r.status === 'booked' && <button onClick={() => setRowStatus(r.id, 'confirmed')} className="p-2 text-emerald-400 hover:text-emerald-700"><CheckCircle2 className="h-4 w-4" /></button>}
+                            {r.status !== 'cancelled' && r.status !== 'converted' && <button onClick={() => setRowStatus(r.id, 'cancelled')} className="p-2 text-rose-400 hover:text-rose-700"><XCircle className="h-4 w-4" /></button>}
+                            {!r.orderId && r.status !== 'cancelled' && session.isMainLab && <button onClick={() => convertToToken(r.id)} className="p-2 text-indigo-500 hover:text-indigo-700"><FlaskConical className="h-4 w-4" /></button>}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {editOpen && editRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between bg-slate-50 border-b border-slate-100 px-6 py-4">
+              <h2 className="text-xl font-black text-slate-800 tracking-tight">Edit Appointment</h2>
+              <button onClick={() => { setEditOpen(false); setEditRow(null) }} className="p-2 rounded-xl text-slate-400 hover:bg-white transition-all"><XCircle className="h-6 w-6" /></button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5"><label className="text-[11px] font-black uppercase text-slate-400 tracking-widest">Date</label><input type="date" value={editForm.dateIso} onChange={e => editUpdate('dateIso', e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3 px-4 text-sm font-bold text-slate-700" /></div>
+                <div className="space-y-1.5"><label className="text-[11px] font-black uppercase text-slate-400 tracking-widest">Time</label><input type="time" value={editForm.time} onChange={e => editUpdate('time', e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3 px-4 text-sm font-bold text-slate-700" /></div>
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button onClick={() => { setEditOpen(false); setEditRow(null) }} className="rounded-xl px-6 py-3 text-sm font-black uppercase text-slate-400 hover:text-slate-600 transition-all">Cancel</button>
+                <button onClick={saveEdit} className="rounded-xl bg-indigo-600 px-8 py-3 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Update Session</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <Lab_ConfirmDialog
-        open={deleteConfirmOpen}
-        title="Delete Appointment"
-        message={deleteTarget ? `Are you sure you want to delete appointment for "${deleteTarget.patientName || 'Unknown Patient'}"?` : 'Are you sure you want to delete this appointment?'}
-        confirmText="Delete"
-        onCancel={() => { setDeleteConfirmOpen(false); setDeleteTarget(null) }}
-        onConfirm={confirmDelete}
-      />
+      <Lab_ConfirmDialog open={deleteConfirmOpen} title="Delete Appointment" message={deleteTarget ? `Are you sure you want to delete appointment for "${deleteTarget.patientName}"?` : 'Delete this session?'} confirmText="Delete" onCancel={() => { setDeleteConfirmOpen(false); setDeleteTarget(null) }} onConfirm={confirmDelete} />
     </div>
   )
 }

@@ -11,6 +11,8 @@ function MultiSelect({ options, selectedIds, onToggle, placeholder }: { options:
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!ref.current) return
@@ -19,53 +21,63 @@ function MultiSelect({ options, selectedIds, onToggle, placeholder }: { options:
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return options.filter(o => !q || o.label.toLowerCase().includes(q)).slice(0, 100)
   }, [options, query])
+
   const selectedLabels = useMemo(() => {
     return selectedIds.map(id => options.find(o => o.value === id)?.label).filter(Boolean)
   }, [options, selectedIds])
+
   return (
     <div ref={ref} className="relative">
       <div
-        onClick={() => setOpen(o => !o)}
-        className="w-full min-h-[42px] rounded-md border border-slate-300 px-3 py-2 cursor-pointer flex flex-wrap gap-1 items-center dark:bg-slate-900 dark:border-slate-700"
+        className="w-full min-h-[42px] rounded-xl border border-slate-200 bg-white px-3 py-2 cursor-text flex flex-wrap gap-1.5 items-center shadow-sm transition focus-within:border-violet-400 focus-within:ring-4 focus-within:ring-violet-100 dark:bg-slate-900/60 dark:border-slate-800 dark:focus-within:border-violet-500 dark:focus-within:ring-violet-900/30"
+        onClick={() => inputRef.current?.focus()}
       >
-        {selectedLabels.length > 0 ? (
-          selectedLabels.map((label, idx) => (
-            <span key={idx} className="inline-flex items-center gap-1 rounded bg-violet-100 px-2 py-0.5 text-xs dark:bg-violet-900/30 dark:text-violet-300">
-              {label}
-              <button type="button" onClick={e => { e.stopPropagation(); onToggle(selectedIds[idx]) }} className="hover:text-violet-700">×</button>
-            </span>
-          ))
-        ) : (
-          <span className="text-slate-400 dark:text-slate-500">{placeholder || 'Select...'}</span>
-        )}
-        <span className="ml-auto text-slate-500">▾</span>
-      </div>
-      {open && (
-        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg dark:bg-slate-800 dark:border-slate-700">
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search..."
-            className="w-full border-b border-slate-200 px-3 py-2 text-sm outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-white"
-            onClick={e => e.stopPropagation()}
-          />
-          {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No results</div>
-          ) : filtered.map(opt => (
-            <button
-              type="button"
-              key={String(opt.value)}
-              onClick={() => onToggle(String(opt.value))}
-              className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
-            >
-              <div className="text-sm text-slate-800 dark:text-slate-200">{opt.label}</div>
-              {selectedIds.includes(String(opt.value)) ? <span className="text-xs text-violet-600">✓</span> : null}
+        {selectedLabels.map((label, idx) => (
+          <span key={selectedIds[idx]} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2 py-1 text-xs font-bold text-white shadow-sm shadow-violet-200">
+            {label}
+            <button type="button" onClick={e => { e.stopPropagation(); onToggle(selectedIds[idx]) }} className="hover:text-violet-200 transition-colors">
+              <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-          ))}
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder={selectedIds.length === 0 ? (placeholder || 'Search tests...') : ''}
+          className="flex-1 min-w-[120px] bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 dark:text-white"
+        />
+        <span className="ml-auto text-slate-400">
+          <svg className={`size-4 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+        </span>
+      </div>
+
+      {open && (
+        <div className="absolute z-50 mt-1.5 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white/95 p-1 shadow-xl backdrop-blur-md dark:bg-slate-800 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-100">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">No results found</div>
+          ) : filtered.map(opt => {
+            const isSelected = selectedIds.includes(String(opt.value))
+            return (
+              <button
+                type="button"
+                key={String(opt.value)}
+                onClick={() => { onToggle(String(opt.value)); setQuery('') }}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors ${isSelected ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/50'}`}
+              >
+                <div className="text-sm font-semibold">{opt.label}</div>
+                {isSelected && (
+                  <svg className="size-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                )}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
@@ -206,7 +218,7 @@ export default function Lab_Orders() {
         const r = await corporateApi.listRateRules({ companyId: corpCompanyId, scope: 'LAB' }) as any
         const rules: any[] = (r?.rules || [])
           .filter((x:any)=> x && x.active !== false)
-        const today = new Date().toISOString().slice(0,10)
+        const d = new Date(); const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         const valid = rules.filter((x:any)=> (!x.effectiveFrom || String(x.effectiveFrom).slice(0,10) <= today) && (!x.effectiveTo || today <= String(x.effectiveTo).slice(0,10)))
         // Build a map of effective price per test using priority (lower first)
         const def = valid.filter(x=>x.ruleType==='default').sort((a:any,b:any)=> (a.priority??100) - (b.priority??100))[0] || null
@@ -704,20 +716,36 @@ export default function Lab_Orders() {
   }
 
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-[#0b1220] dark:text-slate-100">
-      <div className="p-4 sm:p-6">
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Sample Intake</h2>
-      <form onSubmit={e => { e.preventDefault(); onSubmit() }} className="mt-6 space-y-8">
+    <div className="min-h-dvh bg-linear-to-b from-slate-50 via-slate-50 to-violet-50/40 text-slate-900 dark:from-[#0b1220] dark:via-[#0b1220] dark:to-[#121a2e] dark:text-slate-100">
+      <div className="sticky top-0 z-40 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/40">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div>
+            <div className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400">Laboratory</div>
+            <div className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Sample Intake</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+              {billingType === 'Corporate' ? 'Corporate Billing' : billingType}
+            </div>
+            <div className="rounded-full bg-violet-600/10 px-3 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-900/40">
+              Net: {formatPKR(net)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl p-4 sm:p-6">
+      <form onSubmit={e => { e.preventDefault(); onSubmit() }} className="mt-4 space-y-8">
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Patient Information */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4 dark:bg-slate-800 dark:border-slate-700">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Patient Information</h3>
+          <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-5 shadow-sm shadow-slate-200/40 ring-1 ring-transparent backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/40 dark:shadow-none">
+            <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Patient Information</h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Phone</label>
                 <div ref={phoneSuggestWrapRef} className="relative">
                   <input
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30"
                     placeholder="Type phone to search"
                     value={phone}
                     maxLength={11}
@@ -727,7 +755,7 @@ export default function Lab_Orders() {
                     ref={phoneRef}
                   />
                   {phoneSuggestOpen && (
-                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg dark:bg-slate-800 dark:border-slate-700">
+                    <div className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
                       {phoneSuggestItems.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No results</div>
                       ) : (
@@ -736,10 +764,10 @@ export default function Lab_Orders() {
                             type="button"
                             key={p._id || idx}
                             onClick={() => selectPhoneSuggestion(p)}
-                            className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                            className="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition hover:bg-violet-50/60 dark:hover:bg-violet-900/20"
                           >
-                            <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.fullName || 'Unnamed'} <span className="text-xs text-slate-500 dark:text-slate-400">{p.mrn || '-'}</span></div>
-                            <div className="text-xs text-slate-600 dark:text-slate-400">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
+                            <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{p.fullName || 'Unnamed'} <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{p.mrn || '-'}</span></div>
+                            <div className="text-xs font-medium text-slate-600 dark:text-slate-400">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
                             {p.address && <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{p.address}</div>}
                           </button>
                         ))
@@ -751,9 +779,9 @@ export default function Lab_Orders() {
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Patient Name</label>
                 <div ref={nameSuggestWrapRef} className="relative">
-                  <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Type name to search" value={fullName} onChange={onNameChange} onBlur={() => lookupExistingByPhoneAndName('name')} onFocus={() => { if (nameSuggestItems.length > 0) setNameSuggestOpen(true) }} ref={nameRef} />
+                  <input className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" placeholder="Type name to search" value={fullName} onChange={onNameChange} onBlur={() => lookupExistingByPhoneAndName('name')} onFocus={() => { if (nameSuggestItems.length > 0) setNameSuggestOpen(true) }} ref={nameRef} />
                   {nameSuggestOpen && (
-                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg dark:bg-slate-800 dark:border-slate-700">
+                    <div className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
                       {nameSuggestItems.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No results</div>
                       ) : (
@@ -762,10 +790,10 @@ export default function Lab_Orders() {
                             type="button"
                             key={p._id || idx}
                             onClick={() => selectNameSuggestion(p)}
-                            className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                            className="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition hover:bg-violet-50/60 dark:hover:bg-violet-900/20"
                           >
-                            <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.fullName || 'Unnamed'} <span className="text-xs text-slate-500 dark:text-slate-400">{p.mrn || '-'}</span></div>
-                            <div className="text-xs text-slate-600 dark:text-slate-400">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
+                            <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{p.fullName || 'Unnamed'} <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{p.mrn || '-'}</span></div>
+                            <div className="text-xs font-medium text-slate-600 dark:text-slate-400">{p.phoneNormalized || ''} • Age: {p.age || '-'} • {p.gender || '-'}</div>
                             {p.address && <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{p.address}</div>}
                           </button>
                         ))
@@ -776,15 +804,15 @@ export default function Lab_Orders() {
               </div>
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Search by MR Number</label>
-                <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Enter MR# (e.g., MR-15)" value={mrNumber} onChange={e => setMrNumber(e.target.value)} onBlur={async () => { const mr = mrNumber.trim(); if (!mr) return; try { const r = await labApi.getPatientByMrn(mr); const p = r.patient; setFullName(p.fullName || ''); setPhone(p.phoneNormalized || ''); setAge(p.age ? String(p.age) : ''); setGender(p.gender || ''); setAddress(p.address || ''); { const rel = String(p.guardianRel || ''); setGuardianRelation(rel === 'S/O' ? 'Father' : (rel === 'D/O' ? 'Mother' : rel || '')); } setGuardianName(p.fatherName || ''); setCnic(p.cnicNormalized || ''); } catch {} }} onKeyDown={async (e) => { if (e.key !== 'Enter') return; e.preventDefault(); const mr = mrNumber.trim(); if (!mr) return; try { const r = await labApi.getPatientByMrn(mr); const p = r.patient; setFullName(p.fullName || ''); setPhone(p.phoneNormalized || ''); setAge(p.age ? String(p.age) : ''); setGender(p.gender || ''); setAddress(p.address || ''); { const rel = String(p.guardianRel || ''); setGuardianRelation(rel === 'S/O' ? 'Father' : (rel === 'D/O' ? 'Mother' : rel || '')); } setGuardianName(p.fatherName || ''); setCnic(p.cnicNormalized || ''); } catch {} }} />
+                <input className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-sky-500 dark:focus:ring-sky-900/30" placeholder="Enter MR# (e.g., MR-15)" value={mrNumber} onChange={e => setMrNumber(e.target.value)} onBlur={async () => { const mr = mrNumber.trim(); if (!mr) return; try { const r = await labApi.getPatientByMrn(mr); const p = r.patient; setFullName(p.fullName || ''); setPhone(p.phoneNormalized || ''); setAge(p.age ? String(p.age) : ''); setGender(p.gender || ''); setAddress(p.address || ''); { const rel = String(p.guardianRel || ''); setGuardianRelation(rel === 'S/O' ? 'Father' : (rel === 'D/O' ? 'Mother' : rel || '')); } setGuardianName(p.fatherName || ''); setCnic(p.cnicNormalized || ''); } catch {} }} onKeyDown={async (e) => { if (e.key !== 'Enter') return; e.preventDefault(); const mr = mrNumber.trim(); if (!mr) return; try { const r = await labApi.getPatientByMrn(mr); const p = r.patient; setFullName(p.fullName || ''); setPhone(p.phoneNormalized || ''); setAge(p.age ? String(p.age) : ''); setGender(p.gender || ''); setAddress(p.address || ''); { const rel = String(p.guardianRel || ''); setGuardianRelation(rel === 'S/O' ? 'Father' : (rel === 'D/O' ? 'Mother' : rel || '')); } setGuardianName(p.fatherName || ''); setCnic(p.cnicNormalized || ''); } catch {} }} />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Age</label>
-                <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="e.g., 25" value={age} onChange={e => setAge(e.target.value)} />
+                <input className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" placeholder="e.g., 25" value={age} onChange={e => setAge(e.target.value)} />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
-                <select className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white" value={gender} onChange={e => setGender(e.target.value)}>
+                <select className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:focus:border-violet-500 dark:focus:ring-violet-900/30" value={gender} onChange={e => setGender(e.target.value)}>
                   <option value="">Select gender</option>
                   <option className="dark:bg-slate-900">Male</option>
                   <option className="dark:bg-slate-900">Female</option>
@@ -793,7 +821,7 @@ export default function Lab_Orders() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Guardian</label>
-                <select className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white" value={guardianRelation} onChange={e => setGuardianRelation(e.target.value)}>
+                <select className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:focus:border-violet-500 dark:focus:ring-violet-900/30" value={guardianRelation} onChange={e => setGuardianRelation(e.target.value)}>
                   <option value="">Select</option>
                   <option className="dark:bg-slate-900" value="S/O">S/O (Son of)</option>
                   <option className="dark:bg-slate-900" value="D/O">D/O (Daughter of)</option>
@@ -806,22 +834,25 @@ export default function Lab_Orders() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Guardian Name</label>
-                <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Father/Guardian Name" value={guardianName} onChange={e => setGuardianName(e.target.value)} />
+                <input className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" placeholder="Father/Guardian Name" value={guardianName} onChange={e => setGuardianName(e.target.value)} />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">CNIC</label>
-                <input className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="13-digit CNIC (no dashes)" value={cnic} onChange={e => setCnic(e.target.value)} />
+                <input className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" placeholder="13-digit CNIC (no dashes)" value={cnic} onChange={e => setCnic(e.target.value)} />
               </div>
               <div className="md:col-span-2">
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Address</label>
-                <textarea className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" rows={3} placeholder="Residential Address" value={address} onChange={e => setAddress(e.target.value)} />
+                <textarea className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" rows={3} placeholder="Residential Address" value={address} onChange={e => setAddress(e.target.value)} />
               </div>
             </div>
           </div>
 
           {/* Tests & Billing */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4 dark:bg-slate-800 dark:border-slate-700">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Tests & Billing</h3>
+          <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-5 shadow-sm shadow-slate-200/40 ring-1 ring-transparent backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/40 dark:shadow-none">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Tests & Billing</h3>
+              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Pending: <span className="font-black text-slate-700 dark:text-slate-200">{formatPKR(receivableNum)}</span></div>
+            </div>
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Select Tests</label>
@@ -846,7 +877,7 @@ export default function Lab_Orders() {
                         setCorpCoPayPercent('')
                       }
                     }}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:focus:border-violet-500 dark:focus:ring-violet-900/30"
                   >
                     <option value="Cash">Cash</option>
                     <option value="Card">Card</option>
@@ -855,7 +886,7 @@ export default function Lab_Orders() {
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Referring Consultant</label>
-                  <input value={referring} onChange={e => setReferring(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Optional" />
+                  <input value={referring} onChange={e => setReferring(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" placeholder="Optional" />
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -864,7 +895,7 @@ export default function Lab_Orders() {
                   <select
                     value={selectedCenterId}
                     onChange={e => setSelectedCenterId(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:focus:border-violet-500 dark:focus:ring-violet-900/30"
                   >
                     <option value="">Main Lab (Internal)</option>
                     {collectionCenters.map(c => (
@@ -877,18 +908,18 @@ export default function Lab_Orders() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Corporate Company</label>
-                    <select value={corpCompanyId} onChange={e => setCorpCompanyId(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
+                    <select value={corpCompanyId} onChange={e => setCorpCompanyId(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:focus:border-violet-500 dark:focus:ring-violet-900/30">
                       <option value="">None</option>
                       {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Pre-Auth No</label>
-                    <input value={corpPreAuthNo} onChange={e => setCorpPreAuthNo(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Optional" />
+                    <input value={corpPreAuthNo} onChange={e => setCorpPreAuthNo(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" placeholder="Optional" />
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Co-Pay %</label>
-                    <input value={corpCoPayPercent} onChange={e => setCorpCoPayPercent(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="0-100" />
+                    <input value={corpCoPayPercent} onChange={e => setCorpCoPayPercent(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" placeholder="0-100" />
                   </div>
                 </div>
               )}
@@ -897,24 +928,27 @@ export default function Lab_Orders() {
         </section>
 
         {/* Fee Details */}
-        <section className="rounded-lg border border-slate-200 bg-white p-4 dark:bg-slate-800 dark:border-slate-700">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Fee Details</h3>
+        <section className="rounded-2xl border border-slate-200/70 bg-white/90 p-5 shadow-sm shadow-slate-200/40 ring-1 ring-transparent backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/40 dark:shadow-none">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Fee Details</h3>
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Selected tests: <span className="font-black text-slate-700 dark:text-slate-200">{selectedTestIds.length}</span></div>
+          </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Subtotal</label>
-              <div className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300">{formatPKR(subtotal)}</div>
+              <div className="flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-800 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200">{formatPKR(subtotal)}</div>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Discount</label>
-              <input value={discount} onChange={e => setDiscount(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="0" />
+              <input value={discount} onChange={e => setDiscount(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-rose-500 dark:focus:ring-rose-900/30" placeholder="0" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Net Amount</label>
-              <div className="flex h-10 items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400">{formatPKR(net)}</div>
+              <div className="flex h-11 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300">{formatPKR(net)}</div>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Received</label>
-              <input value={receivedAmount} onChange={e => setReceivedAmount(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="0" />
+              <input value={receivedAmount} onChange={e => setReceivedAmount(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-white dark:placeholder-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/30" placeholder="0" />
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between">
@@ -952,11 +986,11 @@ export default function Lab_Orders() {
                   skipLookupKeyRef.current = null
                   lastPromptKeyRef.current = null
                 }}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-[0.99] dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
               >
                 Reset
               </button>
-              <button type="submit" disabled={!fullName || !phone || selectedTests.length === 0} className="rounded-md bg-violet-700 px-4 py-2 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-40 dark:bg-violet-600 dark:hover:bg-violet-700">Submit ({formatPKR(net)})</button>
+              <button type="submit" disabled={!fullName || !phone || selectedTests.length === 0} className="rounded-xl bg-linear-to-r from-violet-700 to-indigo-700 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-violet-200 transition hover:from-violet-800 hover:to-indigo-800 active:scale-[0.99] disabled:opacity-40 disabled:shadow-none dark:from-violet-600 dark:to-indigo-600 dark:shadow-none">Submit ({formatPKR(net)})</button>
             </div>
           </div>
         </section>

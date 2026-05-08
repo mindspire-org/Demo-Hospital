@@ -2,39 +2,35 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { 
-  LayoutDashboard, 
-  PlusCircle, 
-  Ticket, 
-  History, 
-  Building2, 
-  Activity, 
-  Bed, 
-  Users, 
-  LogOut, 
-  Calendar, 
-  UserCog, 
-  Settings, 
-  CalendarDays, 
-  Search, 
-  Stethoscope, 
-  FileText, 
-  ScrollText, 
-  Database, 
-  ReceiptText, 
-  CreditCard, 
-  Wallet, 
-  Wrench, 
-  QrCode, 
-  Siren, 
-  Package, 
-  Truck, 
-  ClipboardList, 
-  BarChart3, 
-  Ambulance, 
-  Fuel, 
-  Route, 
-  ShoppingCart 
+import PortalSwitcher from '../PortalSwitcher'
+import {
+  LayoutDashboard,
+  PlusCircle,
+  Ticket,
+  History,
+  Building2,
+  Activity,
+  Bed,
+  Users,
+  LogOut,
+  Calendar,
+  UserCog,
+  Settings,
+  CalendarDays,
+  Search,
+  Stethoscope,
+  FileText,
+  ScrollText,
+  Database,
+  ReceiptText,
+  CreditCard,
+  Wallet,
+  Siren,
+  UserMinus,
+  Package,
+  Truck,
+  ClipboardList,
+  BarChart3,
 } from 'lucide-react'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: LucideIcon }
@@ -58,39 +54,16 @@ const tokenGenerationSection: Section = {
   ],
 }
 
-const corporateSection: Section = {
-  label: 'CORPORATE',
-  items: [
-    { to: '/hospital/corporate', label: 'Corporate Dashboard', icon: Building2, end: true },
-    { to: '/hospital/corporate/companies', label: 'Companies', icon: Building2 },
-    { to: '/hospital/corporate/rate-rules', label: 'Rate Rules', icon: Settings },
-    { to: '/hospital/corporate/transactions', label: 'Transactions', icon: CreditCard },
-    { to: '/hospital/corporate/claims', label: 'Claims', icon: ReceiptText },
-    { to: '/hospital/corporate/payments', label: 'Payments', icon: Wallet },
-    { to: '/hospital/corporate/reports', label: 'Reports', icon: ScrollText },
-  ],
-}
-
 const erSection: Section = {
   label: 'ER MANAGEMENT',
   items: [
     { to: '/hospital/emergency', label: 'Emergency', icon: Siren },
     { to: '/hospital/er-referrals', label: 'ER Referrals', icon: Activity },
+    { to: '/hospital/er-discharged', label: 'ER Discharged', icon: UserMinus },
     { to: '/hospital/er-billing', label: 'ER Billing (Add)', icon: CreditCard, end: true },
     { to: '/hospital/er-billing/collect', label: 'ER Billing (Collect)', icon: CreditCard },
     { to: '/hospital/emergency-services', label: 'Emergency Services', icon: ReceiptText },
     { to: '/hospital/er-transactions', label: 'Recent ER Payments', icon: CreditCard },
-  ],
-}
-
-const fbrSection: Section = {
-  label: 'FBR',
-  items: [
-    { to: '/hospital/fbr', label: 'FBR Dashboard', icon: QrCode, end: true },
-    { to: '/hospital/fbr/settings', label: 'FBR Settings', icon: Settings },
-    { to: '/hospital/fbr/logs', label: 'FBR Logs', icon: ScrollText },
-    { to: '/hospital/fbr/reports', label: 'FBR Reports', icon: ReceiptText },
-    { to: '/hospital/fbr/credentials', label: 'FBR Credentials', icon: Settings },
   ],
 }
 
@@ -112,6 +85,7 @@ const ipdSection: Section = {
 const ipdFormsSection: Section = {
   label: 'IPD FORMS',
   items: [
+    { to: '/hospital/forms/consent-forms', label: 'Consent Forms', icon: FileText },
     { to: '/hospital/forms/received-deaths', label: 'Received Death', icon: ScrollText },
     { to: '/hospital/forms/death-certificates', label: 'Death Certificates', icon: ScrollText },
     { to: '/hospital/forms/birth-certificates', label: 'Birth Certificates', icon: ScrollText },
@@ -150,20 +124,22 @@ const expenseSection: Section = {
   ],
 }
 
-const equipmentSection: Section = {
+/*const equipmentSection: Section = {
   label: 'EQUIPMENT MANAGEMENT',
   items: [
-    { to: '/hospital/equipment/dashboard', label: 'Equipment Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/hospital/equipment', label: 'Asset List', icon: Wrench, end: true },
-    { to: '/hospital/equipment/purchases', label: 'Purchase History', icon: ShoppingCart, end: true },
-    { to: '/hospital/equipment/suppliers', label: 'Suppliers', icon: Truck, end: true },
+    { to: '/hospital/equipment', label: 'Equipment', icon: Wrench },
+    { to: '/hospital/equipment-due', label: 'Equipment Due', icon: CalendarDays },
+    { to: '/hospital/equipment/kpis', label: 'Equipment KPIs', icon: Activity },
+    { to: '/hospital/equipment/breakdown-register', label: 'Breakdown Register', icon: AlertTriangle },
+    { to: '/hospital/equipment/condemnation-register', label: 'Condemnation Register', icon: Trash2 },
   ],
 }
+*/
 
 const storeSection: Section = {
   label: 'STORE / INVENTORY',
   items: [
-    { to: '/hospital/store', label: 'Store Dashboard', icon: LayoutDashboard, end: true },
+    // { to: '/hospital/store', label: 'Store Dashboard', icon: LayoutDashboard, end: true },
     { to: '/hospital/store/suppliers', label: 'Suppliers', icon: Truck },
     { to: '/hospital/store/purchase-orders', label: 'Purchase Orders', icon: FileText },
     { to: '/hospital/store/purchase-history', label: 'Purchase History', icon: ClipboardList },
@@ -173,6 +149,7 @@ const storeSection: Section = {
   ],
 }
 
+/* Hidden - ambulance
 const ambulanceSection: Section = {
   label: 'AMBULANCE MANAGEMENT',
   items: [
@@ -184,6 +161,7 @@ const ambulanceSection: Section = {
     { to: '/hospital/ambulance/reports', label: 'Reports', icon: BarChart3 },
   ],
 }
+*/
 
 const adminSection: Section = {
   label: 'ADMIN',
@@ -200,17 +178,14 @@ const dashboardItem: NavItem = { to: '/hospital', label: 'Dashboard', icon: Layo
 
 const allSections: Section[] = [
   tokenGenerationSection,
-  corporateSection,
   erSection,
-  fbrSection,
   ipdSection,
   ipdFormsSection,
   staffSection,
   doctorSection,
   expenseSection,
-  equipmentSection,
   storeSection,
-  ambulanceSection,
+  // corporateSection,
   adminSection,
 ]
 
@@ -271,21 +246,22 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
         key={item.to}
         to={item.to}
         title={collapsed ? item.label : undefined}
-        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)' } as any) : undefined)}
         className={({ isActive }) => {
           const base = collapsed
-            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center'
-            : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2'
+            ? 'rounded-lg p-2 text-sm font-semibold flex items-center justify-center transition-all duration-150'
+            : 'rounded-lg px-3 py-2 text-[13px] font-semibold flex items-center gap-2.5 transition-all duration-150'
           const active = isActive
-            ? 'text-white'
-            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+            ? 'bg-linear-to-r from-(--navy) to-(--navy-700) text-white shadow-md'
+            : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
           return `${base} ${active}`
         }}
         end={item.end}
       >
         {({ isActive }) => (
           <>
-            <Icon className={collapsed ? (isActive ? 'h-5 w-5 text-white' : 'h-5 w-5 text-slate-700') : (isActive ? 'h-4 w-4 text-white' : 'h-4 w-4 text-slate-700')} />
+            <div className={collapsed ? '' : 'flex h-7 w-7 items-center justify-center rounded-md ' + (isActive ? 'bg-white/20' : 'bg-slate-100/60')}>
+              <Icon className={isActive ? 'h-4 w-4 text-white' : 'h-4 w-4 text-slate-500'} strokeWidth={isActive ? 2.2 : 1.8} />
+            </div>
             {!collapsed && <span className="truncate">{item.label}</span>}
           </>
         )}
@@ -298,12 +274,15 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
     if (visibleItems.length === 0) return null
 
     return (
-      <div key={section.label} className="space-y-1">
+      <div key={section.label} className="space-y-0.5">
         {!collapsed && (
-          <div className="px-3 py-2 text-base font-bold uppercase tracking-wider" style={{ color: 'var(--navy)' }}>
-            {section.label}
+          <div className="px-3 pt-4 pb-1.5 flex items-center gap-2">
+            <div className="h-px flex-1 bg-linear-to-r from-slate-200 to-transparent" />
+            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 whitespace-nowrap">{section.label}</span>
+            <div className="h-px flex-1 bg-linear-to-l from-slate-200 to-transparent" />
           </div>
         )}
+        {collapsed && <div className="my-2 border-t border-slate-100" />}
         {visibleItems.map(renderNavItem)}
       </div>
     )
@@ -313,14 +292,19 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
     <aside
       className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col md:border-r bg-white/80 backdrop-blur-md shadow-sm dark:bg-slate-900/60 dark:border-slate-700`}
     >
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2' : 'p-3'} space-y-4`}>
-        {/* Dashboard at top */}
-        {canShow(dashboardItem.to) && renderNavItem(dashboardItem)}
+      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2' : 'p-3'} space-y-1`}>
+        {/* Dashboard at top — prominent */}
+        {canShow(dashboardItem.to) && (
+          <div className="mb-2">
+            {renderNavItem(dashboardItem)}
+          </div>
+        )}
 
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2' : 'p-3'}>
+      <div className={collapsed ? 'p-2 space-y-2 border-t border-slate-100' : 'p-3 space-y-2 border-t border-slate-100'}>
+        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
         <button
           onClick={async () => {
             try {
@@ -332,10 +316,9 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
             navigate('/hospital/login')
           }}
           title={collapsed ? 'Logout' : undefined}
-          className={collapsed ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium' : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium'}
-          style={{ backgroundColor: '#ffffff', color: 'var(--navy)', border: '1px solid var(--navy)' }}
-          onMouseEnter={e => { try { ;(e.currentTarget as any).style.backgroundColor = 'rgba(15,45,92,0.06)' } catch {} }}
-          onMouseLeave={e => { try { ;(e.currentTarget as any).style.backgroundColor = '#ffffff' } catch {} }}
+          className={collapsed
+            ? 'w-full inline-flex items-center justify-center rounded-lg p-2 text-sm font-semibold transition-colors text-rose-600 hover:bg-rose-50'
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors text-rose-600 hover:bg-rose-50'}
           aria-label="Logout"
         >
           <LogOut className="h-4 w-4" />

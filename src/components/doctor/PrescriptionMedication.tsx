@@ -107,7 +107,7 @@ const SelectInput = ({ value, onChange, options, placeholder, className }: Selec
         </svg>
       </button>
       {open && (
-        <ul className="absolute z-[100] mt-1 max-h-48 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg">
+        <ul className="absolute z-100 mt-1 max-h-48 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg">
           {filteredOptions.length === 0 ? (
             <li className="px-3 py-2 text-slate-400 italic">No matches</li>
           ) : (

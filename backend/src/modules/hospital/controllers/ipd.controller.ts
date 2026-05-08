@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { HospitalCounter } from '../models/Counter'
 import { HospitalAuditLog } from '../models/AuditLog'
 import { CorporateCompany } from '../../corporate/models/Company'
+import { createIpdPatientAccount } from '../../finance/services/accountAutoCreate'
 
 async function nextAdmissionNo(){
   const now = new Date()
@@ -84,6 +85,13 @@ export async function admit(req: Request, res: Response){
     bed.occupiedByEncounterId = enc._id as any
     await bed.save()
   }
+
+  // Auto-create account in Chart of Accounts for IPD patient
+  try {
+    const patientName = (patient as any)?.fullName || (patient as any)?.name || 'Patient'
+    const mrn = (patient as any)?.mrn
+    await createIpdPatientAccount(String(enc._id), patientName, mrn)
+  } catch {}
 
   try {
     const actor = (req as any).user?.name || (req as any).user?.email || 'system'
@@ -345,6 +353,12 @@ export async function admitFromToken(req: Request, res: Response){
     ;(tok as any).status = 'completed'
     await tok.save()
   }
+  // Auto-create account in Chart of Accounts for IPD patient
+  try {
+    const patientName = (patient as any)?.fullName || (patient as any)?.name || 'Patient'
+    const mrn = (patient as any)?.mrn
+    await createIpdPatientAccount(String(enc._id), patientName, mrn)
+  } catch {}
   try {
     const actor = (req as any).user?.name || (req as any).user?.email || 'system'
     await HospitalAuditLog.create({

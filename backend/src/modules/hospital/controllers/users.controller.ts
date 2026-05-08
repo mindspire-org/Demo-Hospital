@@ -6,6 +6,8 @@ import { HospitalUser } from '../models/User'
 import { HospitalAuditLog } from '../models/AuditLog'
 import bcrypt from 'bcryptjs'
 import { HospitalShift } from '../models/Shift'
+import { createUserAccount } from '../../finance/services/accountAutoCreate'
+import { ReceptionUser } from '../../reception/models/User'
 
 const createSchema = z.object({
   username: z.string().min(1),
@@ -100,6 +102,17 @@ export async function create(req: Request, res: Response){
       detail: `User ${doc.username} (${doc._id}) role ${doc.role}`,
     })
   } catch {}
+  // Auto-create Chart of Accounts entry for this user
+  try { await createUserAccount(String(doc._id), doc.username, 'hospital') } catch {}
+  // Sync receptionist users to reception portal so they can log in there
+  if (doc.role && doc.role.toLowerCase() === 'receptionist') {
+    try {
+      const exists = await ReceptionUser.findOne({ username: doc.username }).lean()
+      if (!exists) {
+        await ReceptionUser.create({ username: doc.username, role: 'receptionist', passwordHash: doc.passwordHash, shiftRestricted: false })
+      }
+    } catch (e) { console.error('[HOSPITAL] Failed to sync receptionist to reception portal:', e) }
+  }
   res.status(201).json({ user: { id: String(doc._id), username: doc.username, role: doc.role, fullName: doc.fullName||'', phone: doc.phone||'', email: doc.email||'', active: !!doc.active, shiftId: doc.shiftId ? String(doc.shiftId) : undefined, shiftRestricted: !!doc.shiftRestricted } })
 }
 
@@ -130,6 +143,18 @@ export async function update(req: Request, res: Response){
       detail: `User ${u.username} (${u._id}) updated`,
     })
   } catch {}
+  // Sync receptionist changes to reception portal
+  if (u.role && u.role.toLowerCase() === 'receptionist') {
+    try {
+      const receptionPatch: any = {}
+      if (data.password) receptionPatch.passwordHash = patch.passwordHash
+      if (data.username) receptionPatch.username = patch.username
+      if (data.role) receptionPatch.role = 'receptionist'
+      if (Object.keys(receptionPatch).length) {
+        await ReceptionUser.updateOne({ username: u.username }, receptionPatch)
+      }
+    } catch (e) { console.error('[HOSPITAL] Failed to sync receptionist update to reception portal:', e) }
+  }
   res.json({ user: { id: String(u._id), username: u.username, role: u.role, fullName: u.fullName||'', phone: u.phone||'', email: u.email||'', active: !!u.active, shiftId: u.shiftId ? String(u.shiftId) : undefined, shiftRestricted: !!u.shiftRestricted } })
 }
 

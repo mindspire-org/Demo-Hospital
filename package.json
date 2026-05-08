@@ -48,8 +48,8 @@
     "xlsx": "^0.18.5"
   },
   "build": {
-    "appId": "com.hospital.suite",
-    "productName": "Hospital Suite",
+    "appId": "com.healthspire.lab",
+    "productName": "HealthSpire Lab Management System",
     "directories": {
       "output": "release"
     },

@@ -24,7 +24,7 @@ export const opdApi = {
   // -------------------------------------------------------------------------
   createOpdToken: (data: any) => api('/hospital/tokens/opd', { method: 'POST', body: JSON.stringify(data) }),
   getToken: (id: string) => api(`/hospital/tokens/${id}`),
-  listTokens: (params?: { date?: string; from?: string; to?: string; status?: 'queued' | 'in-progress' | 'completed' | 'returned' | 'cancelled'; doctorId?: string; departmentId?: string; scheduleId?: string; page?: number; limit?: number }) =>
+  listTokens: (params?: { date?: string; from?: string; to?: string; status?: 'queued' | 'in-progress' | 'completed' | 'returned' | 'cancelled'; encounterId?: string; doctorId?: string; departmentId?: string; scheduleId?: string; page?: number; limit?: number }) =>
     api(withQuery('/hospital/tokens', params)),
   updateTokenStatus: (id: string, status: 'queued' | 'in-progress' | 'completed' | 'returned' | 'cancelled') =>
     api(`/hospital/tokens/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),

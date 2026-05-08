@@ -25,10 +25,9 @@ export default function Dialysis_Layout() {
   return (
     <div className={theme === 'dark' ? 'dialysis-scope dark' : 'dialysis-scope'}>
       <div className={shell}>
-        <div className="sticky top-0 z-20 w-full md:border-b" style={{ background: 'linear-gradient(180deg, #0d9488 0%, #0891b2 100%)', borderColor: 'rgba(255,255,255,0.12)' }}>
-          <div className="flex h-14">
+        <div className="sticky top-0 z-20 w-full border-b border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div>
             <Dialysis_Header
-              variant="teal"
               onToggleSidebar={() => setSidebarCollapsed(v => !v)}
               collapsed={sidebarCollapsed}
               onToggleTheme={() => setTheme(t=>t==='dark'?'light':'dark')}

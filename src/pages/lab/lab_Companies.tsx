@@ -71,11 +71,15 @@ export default function Lab_Companies(){
   const openEdit = (c: any) => { setSelected(c); setEditOpen(true) }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-xl font-bold text-slate-800">Companies</div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={()=>setAddOpen(true)} className="btn">+ Add Company</button>
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Companies</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Manage corporate companies and contacts</div>
+          </div>
+          <button type="button" onClick={()=>setAddOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/30">+ Add Company</button>
         </div>
       </div>
 

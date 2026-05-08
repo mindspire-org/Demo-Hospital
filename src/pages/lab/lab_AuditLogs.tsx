@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { labApi } from '../../utils/api'
+import MiniDashboard from '../../components/common/MiniDashboard'
+import { ScrollText, Search, RefreshCw } from 'lucide-react'
 
  type Log = {
   id: string
@@ -154,8 +156,27 @@ export default function Lab_AuditLogs() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="text-xl font-bold text-slate-800">Audit Logs</div>
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Audit Logs</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Track all user actions and system events</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setTick(t => t + 1)} className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/30">
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mini Dashboard */}
+      <MiniDashboard cards={[
+        { label: 'Total Logs', value: total, icon: ScrollText, color: 'bg-sky-500' },
+        { label: 'Page', value: `${page}/${Math.max(1, Math.ceil(total / limit))}`, icon: Search, color: 'bg-indigo-500' },
+      ]} />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_200px_1fr_1fr_auto_auto_auto] items-end">

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, FileDown, Printer, Pencil, Barcode, Clock, Calendar } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { labApi } from '../../utils/api'
-import { previewLabReportPdf, downloadLabReportPdf } from '../../utils/printLabReport'
+import { previewLabReportPdf, downloadLabReportPdf, type ReportRow } from '../../utils/printLabReport'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
+import { useLabSession } from '../../hooks/useLabSession'
 
 type ResultRow = { id: string; test: string; normal?: string; unit?: string; value?: string; comment?: string; flag?: 'normal'|'abnormal'|'critical' }
 
@@ -57,6 +58,7 @@ function genBarcode(order?: Order) {
 }
 
 export default function Lab_ReportGenerator() {
+  const session = useLabSession()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const orderId = searchParams.get('orderId') || ''
@@ -216,6 +218,60 @@ export default function Lab_ReportGenerator() {
 
   const printRow = async (e: Enriched) => {
     const o = e.order; if (!o) return
+    const s: any = settings || await labApi.getSettings().catch(()=>({}))
+    
+    // Check if we should merge reports for the same order
+    if (s?.mergeReportsByPatient) {
+      try {
+        // Fetch all results for this order
+        const res: any = await labApi.listResults({ orderId: o.id, reportStatus: 'approved', limit: 100 })
+        const allResults: ResultRecord[] = (res?.items || []).filter((r: any) => String(r.reportStatus) === 'approved')
+        
+        if (allResults.length > 1) {
+          // Merge rows from all results
+          const mergedRows: ReportRow[] = allResults.flatMap(r => (r.rows || []).map(row => ({
+            test: row.test,
+            normal: row.normal,
+            unit: row.unit,
+            value: row.value,
+            prevValue: (row as any).prevValue,
+            flag: row.flag,
+            comment: row.comment,
+          })))
+          
+          // Use first result's metadata but combined test list
+          const combinedTests = allResults.map(r => r.testName).filter(Boolean).join(', ')
+          
+          await previewLabReportPdf({
+            tokenNo: e.track?.tokenNo || '-',
+            barcode: o.barcode,
+            createdAt: o.createdAt,
+            sampleTime: e.track?.sampleTime,
+            reportingTime: e.track?.reportingTime,
+            approvedAt: allResults[0].approvedAt, // Use latest or first approved time
+            patient: {
+              fullName: o.patient.fullName,
+              phone: o.patient.phone,
+              mrn: o.patient.mrn,
+              age: o.patient.age,
+              gender: o.patient.gender,
+              address: o.patient.address,
+            },
+            rows: mergedRows,
+            interpretation: allResults.map(r => r.interpretation).filter(Boolean).join('\n---\n'),
+            referringConsultant: o.referringConsultant,
+            submittedBy: allResults[0].submittedBy,
+            approvedBy: allResults[0].approvedBy,
+            profileLabel: combinedTests || e.testsStr,
+          })
+          return
+        }
+      } catch (err) {
+        console.error('Failed to merge reports:', err)
+      }
+    }
+
+    // Default: Print single report
     await previewLabReportPdf({
       tokenNo: e.track?.tokenNo || '-',
       barcode: o.barcode,
@@ -250,6 +306,60 @@ export default function Lab_ReportGenerator() {
 
   const downloadRowPdf = async (e: Enriched) => {
     const o = e.order; if (!o) return
+    const s: any = settings || await labApi.getSettings().catch(()=>({}))
+
+    // Check if we should merge reports for the same order
+    if (s?.mergeReportsByPatient) {
+      try {
+        // Fetch all results for this order
+        const res: any = await labApi.listResults({ orderId: o.id, reportStatus: 'approved', limit: 100 })
+        const allResults: ResultRecord[] = (res?.items || []).filter((r: any) => String(r.reportStatus) === 'approved')
+        
+        if (allResults.length > 1) {
+          // Merge rows from all results
+          const mergedRows: ReportRow[] = allResults.flatMap(r => (r.rows || []).map(row => ({
+            test: row.test,
+            normal: row.normal,
+            unit: row.unit,
+            value: row.value,
+            prevValue: (row as any).prevValue,
+            flag: row.flag,
+            comment: row.comment,
+          })))
+          
+          // Use first result's metadata but combined test list
+          const combinedTests = allResults.map(r => r.testName).filter(Boolean).join(', ')
+          
+          await downloadLabReportPdf({
+            tokenNo: e.track?.tokenNo || '-',
+            barcode: o.barcode,
+            createdAt: o.createdAt,
+            sampleTime: e.track?.sampleTime,
+            reportingTime: e.track?.reportingTime,
+            approvedAt: allResults[0].approvedAt,
+            patient: {
+              fullName: o.patient.fullName,
+              phone: o.patient.phone,
+              mrn: o.patient.mrn,
+              age: o.patient.age,
+              gender: o.patient.gender,
+              address: o.patient.address,
+            },
+            rows: mergedRows,
+            interpretation: allResults.map(r => r.interpretation).filter(Boolean).join('\n---\n'),
+            referringConsultant: o.referringConsultant,
+            submittedBy: allResults[0].submittedBy,
+            approvedBy: allResults[0].approvedBy,
+            profileLabel: combinedTests || e.testsStr,
+          })
+          return
+        }
+      } catch (err) {
+        console.error('Failed to merge reports during download:', err)
+      }
+    }
+
+    // Default: Download single report
     await downloadLabReportPdf({
       tokenNo: e.track?.tokenNo || '-',
       barcode: o.barcode,
@@ -402,8 +512,17 @@ export default function Lab_ReportGenerator() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-slate-900">Report Generator</h2>
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Report Generator</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Search, preview, and print lab reports</div>
+          </div>
+          <span className="rounded-full border border-white/30 bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">{session.role}</span>
+        </div>
+      </div>
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[240px] flex-1">
@@ -464,7 +583,7 @@ export default function Lab_ReportGenerator() {
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${e.r.reportStatus === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {e.r.reportStatus || 'pending'}
+                    {e.r.reportStatus || 'pending'}{e.r.reportStatus === 'approved' && e.r.approvedBy ? ` by ${e.r.approvedBy}` : ''}
                   </span>
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">

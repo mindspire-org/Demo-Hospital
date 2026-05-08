@@ -126,6 +126,17 @@ export default function Hospital_DeathCertificateForm({ encounterId, patient }: 
     await previewHtml(url.startsWith('http') ? url : `/api${url}`)
   }
 
+  useEffect(() => {
+    const onAction = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as any
+      if (!detail || detail.key !== 'DeathCertificate') return
+      if (detail.action === 'save') { void save() }
+      if (detail.action === 'print') { void printOnly() }
+    }
+    window.addEventListener('dw:form-action', onAction as any)
+    return () => window.removeEventListener('dw:form-action', onAction as any)
+  }, [encounterId, form])
+
   return (
     <div className="space-y-3">
       <Toast toast={toast} onClose={()=>setToast(null)} />

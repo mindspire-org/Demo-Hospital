@@ -9,7 +9,7 @@ export default function Pharmacy_Prescriptions(){
     e?.preventDefault()
     const v = id.trim()
     if (!v) return
-    navigate(`/pharmacy/prescriptions/${encodeURIComponent(v)}`)
+    navigate(`/indoor-pharmacy/prescriptions/${encodeURIComponent(v)}`)
   }
 
   return (

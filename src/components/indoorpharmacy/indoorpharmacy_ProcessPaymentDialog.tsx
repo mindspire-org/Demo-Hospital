@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import type { Customer } from './pharmacy_AddCustomer'
-import { pharmacyApi } from '../../utils/api'
+import type { Customer } from './indoorpharmacy_AddCustomer'
+import { indoorPharmacyApi } from '../../utils/api'
 
 type Props = {
   open: boolean
@@ -21,7 +21,7 @@ export default function Pharmacy_ProcessPaymentDialog({ open, onClose, onConfirm
     if (!q || q.length < 3) { setSuggestions([]); return }
     const t = setTimeout(async () => {
       try {
-        const res: any = await pharmacyApi.listCustomers({ q })
+        const res: any = await indoorPharmacyApi.listCustomers({ q })
         const items: Customer[] = (res.items || []).map((it: any) => ({
           id: it._id || '',
           name: it.name || '',

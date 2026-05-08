@@ -259,25 +259,22 @@ export default function Lab_PurchaseOrders() {
   };
 
   return (
-    <div className="space-y-6 p-4">
-      {/* Header with prominent Create Order button */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-blue-600 p-2 text-white">
-            <FileText className="h-6 w-6" />
-          </div>
+    <div className="space-y-6 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Purchase Orders</h2>
-            <p className="text-sm text-slate-500">Manage lab inventory orders from suppliers</p>
+            <h2 className="text-2xl font-bold">Purchase Orders</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Manage lab inventory orders from suppliers</div>
           </div>
+          <button
+            onClick={() => setAddOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/30"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create New Order</span>
+          </button>
         </div>
-        <button
-          onClick={() => setAddOpen(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 shadow-md transition-all"
-        >
-          <Plus className="h-5 w-5" /> 
-          <span>Create New Order</span>
-        </button>
       </div>
 
       {/* Filters */}

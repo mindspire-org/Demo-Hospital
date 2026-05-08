@@ -15,6 +15,8 @@ export const erApi = {
   // -------------------------------------------------------------------------
   listEREncounters: (params?: { status?: 'admitted' | 'discharged'; doctorId?: string; departmentId?: string; patientId?: string; from?: string; to?: string; q?: string; page?: number; limit?: number }) =>
     api(withQuery('/hospital/er/encounters', params)),
+  getEREncounterById: (encounterId: string) =>
+    api(`/hospital/er/encounters/${encounterId}`),
   dischargeER: (encounterId: string, data?: { endAt?: string; disposition?: 'discharged' | 'admitted' | 'transferred' | 'left-against-advice' | 'expired' }) =>
     api(`/hospital/er/encounters/${encounterId}/discharge`, { method: 'PATCH', body: JSON.stringify(data || {}) }),
 
@@ -70,6 +72,14 @@ export const erApi = {
     api(withQuery(`/hospital/er/encounters/${encounterId}/clinical-notes`, params)),
   createErClinicalNote: (encounterId: string, data: { type: 'consultant' | 'nursing' | 'progress' | 'er-notes'; recordedAt?: string; createdBy?: string; createdByRole?: string; doctorName?: string; sign?: string; data?: any }) =>
     api(`/hospital/er/encounters/${encounterId}/clinical-notes`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // -------------------------------------------------------------------------
+  // ER Initial Assessment
+  // -------------------------------------------------------------------------
+  listErInitialAssessments: (encounterId: string, params?: { page?: number; limit?: number }) =>
+    api(withQuery(`/hospital/er/encounters/${encounterId}/initial-assessments`, params)),
+  createErInitialAssessment: (encounterId: string, data: { arrivalTime?: string; assessmentTime?: string; assessedBy?: string; chiefComplaint?: string; historyOfPresentingIllness?: string; pastMedicalHistory?: string; medications?: string; allergies?: string; vitals?: { bp?: string; pulse?: number; temp?: number; rr?: number; spo2?: number; pain?: number }; triageCategory?: 'Resuscitation' | 'Emergent' | 'Urgent' | 'Less Urgent' | 'Non Urgent'; nurseNotes?: string; staffName?: string }) =>
+    api(`/hospital/er/encounters/${encounterId}/initial-assessments`, { method: 'POST', body: JSON.stringify(data) }),
 
   // -------------------------------------------------------------------------
   // ER Referrals

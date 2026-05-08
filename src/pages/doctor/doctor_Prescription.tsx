@@ -12,6 +12,26 @@ import PrescriptionDiagnosticOrders from '../../components/doctor/PrescriptionDi
 import SuggestField from '../../components/SuggestField'
 import Toast from '../../components/ui/Toast'
 import type { ToastState } from '../../components/ui/Toast'
+import DatePickerModern from '../../components/DatePickerModern'
+import { 
+  User, 
+  History, 
+  Stethoscope, 
+  ClipboardList, 
+  Beaker, 
+  Activity, 
+  Printer, 
+  Save, 
+  RotateCcw, 
+  ArrowRight,
+  Plus,
+  Search,
+  Calendar,
+  AlertCircle,
+  Clock,
+  Layout,
+  FileText
+} from 'lucide-react'
 
 type DoctorSession = { id: string; name: string; username: string }
 
@@ -385,7 +405,7 @@ export default function Doctor_Prescription() {
         createdAt: t.createdAt,
         patientName: t.patientName || '-',
         mrNo: t.mrn || '-',
-        encounterId: String(t.encounterId || ''),
+        encounterId: String(t.encounterId?._id || t.encounterId || ''),
         doctorId: t.doctorId?._id || String(t.doctorId || ''),
         doctorName: t.doctorId?.name || '',
         status: t.status,
@@ -861,6 +881,20 @@ export default function Doctor_Prescription() {
   }
 
   const sel = myPatients.find(t => `${t.id}` === form.patientKey)
+  const [patientDetails, setPatientDetails] = useState<any>(null)
+
+  useEffect(() => {
+    if (!sel?.mrNo) {
+      setPatientDetails(null)
+      return
+    }
+    ;(async () => {
+      try {
+        const resp: any = await labApi.getPatientByMrn(sel.mrNo)
+        if (resp?.patient) setPatientDetails(resp.patient)
+      } catch {}
+    })()
+  }, [sel?.mrNo])
 
   // Suggestions loaded from database (via dbSuggestions state)
   const sugPrimary = useMemo(() => dbSuggestions.primaryComplaint, [dbSuggestions.primaryComplaint])
@@ -868,7 +902,6 @@ export default function Doctor_Prescription() {
   const sugPrimHist = useMemo(() => dbSuggestions.primaryComplaintHistory, [dbSuggestions.primaryComplaintHistory])
   const sugFamily = useMemo(() => dbSuggestions.familyHistory, [dbSuggestions.familyHistory])
   const sugAllergy = useMemo(() => dbSuggestions.allergyHistory, [dbSuggestions.allergyHistory])
-  const sugTreatment = useMemo(() => dbSuggestions.treatmentHistory, [dbSuggestions.treatmentHistory])
   const sugExam = useMemo(() => dbSuggestions.examFindings, [dbSuggestions.examFindings])
   const sugDiagnosis = useMemo(() => dbSuggestions.diagnosis, [dbSuggestions.diagnosis])
   const sugAdvice = useMemo(() => dbSuggestions.advice, [dbSuggestions.advice])
@@ -926,183 +959,463 @@ export default function Doctor_Prescription() {
   }
 
   return (
-    <div className="w-full px-2 sm:px-4">
+    <div className="min-h-screen bg-slate-50/50 pb-12 dark:bg-[#0b1220]">
       <div className="no-print">
-      <div className="text-xl font-semibold text-slate-800">Prescription</div>
-      <div className="mt-3 flex items-center gap-2 text-sm">
-        <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
-        <span className="text-slate-500">to</span>
-        <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
-        <button type="button" onClick={()=>{ const t = new Date().toISOString().slice(0,10); setFrom(t); setTo(t) }} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">Today</button>
-        <button type="button" onClick={()=>{ setFrom(''); setTo('') }} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">Reset</button>
-      </div>
-      <form onSubmit={save} className="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white p-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm text-slate-700">Patient</label>
-            <select value={form.patientKey} onChange={e=>setForm(f=>({ ...f, patientKey: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-              <option value="">Select patient</option>
-              {myPatients.map(p => (
-                <option key={p.id} value={p.id}>{p.patientName} • {p.mrNo}</option>
-              ))}
-            </select>
-            {showLoadPrevButton && (
-              <button
-                type="button"
-                onClick={loadPreviousPrescription}
-                className="mt-2 rounded-md border border-amber-600 bg-amber-50 px-3 py-1 text-xs text-amber-700 hover:bg-amber-100"
-              >
-                Load Previous Prescription
-              </button>
-            )}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm text-slate-700">Apply Template</label>
-            <select
-              onChange={e => {
-                const id = e.target.value
-                if (!id) return
-                const t = templates.find(x => x._id === id)
-                if (t) applyTemplate(t)
-                e.target.value = ''
-              }}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="">Select template...</option>
-              {templates.map(t => (
-                <option key={t._id} value={t._id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {rxMode === 'manual' && (
-          <div>
-            <label className="mb-1 block text-sm text-slate-700">Attach Manual Prescription (PDF/Image)</label>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={e=>onManualFile(e.target.files?.[0])}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:text-slate-700"
-            />
-            {manualAttachmentError && (
-              <div className="mt-1 text-xs text-rose-600">{manualAttachmentError}</div>
-            )}
-            {manualAttachment?.fileName && (
-              <div className="mt-1 text-xs text-slate-600">Selected: {manualAttachment.fileName}</div>
-            )}
-            {manualAttachment?.dataUrl && (manualAttachment.mimeType || '').startsWith('image/') && (
-              <div className="mt-2">
-                <img src={manualAttachment.dataUrl} alt="Prescription attachment" className="max-h-40 rounded-md border" />
-              </div>
-            )}
-          </div>
-        )}
-        <div className="mt-2 border-b border-slate-200">
-          <nav className="-mb-px flex gap-2">
-            <button type="button" onClick={()=>goTab('details')} className={`px-3 py-2 text-sm ${activeTab==='details'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Details</button>
-            <button type="button" onClick={()=>goTab('medication')} className={`px-3 py-2 text-sm ${activeTab==='medication'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Medication</button>
-            <button type="button" onClick={()=>goTab('vitals')} className={`px-3 py-2 text-sm ${activeTab==='vitals'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Vitals</button>
-            <button type="button" onClick={()=>goTab('labs')} className={`px-3 py-2 text-sm ${activeTab==='labs'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Lab Orders</button>
-            <button type="button" onClick={()=>goTab('diagnostics')} className={`px-3 py-2 text-sm ${activeTab==='diagnostics'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Diagnostic Orders</button>
-          </nav>
-        </div>
-        {activeTab==='details' && (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Primary Complaint</label>
-                <SuggestField rows={2} value={form.primaryComplaint} onChange={v=>setForm(f=>({ ...f, primaryComplaint: v }))} suggestions={sugPrimary} />
+        {/* Modern Sticky Header */}
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-200 dark:shadow-none">
+                <Stethoscope size={22} />
               </div>
               <div>
-                <label className="mb-1 block text-sm text-slate-700">Risk Factors / Medical History</label>
-                <SuggestField rows={2} value={form.history} onChange={v=>setForm(f=>({ ...f, history: v }))} suggestions={sugHistory} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">History of Primary Complaint</label>
-                <SuggestField rows={2} value={form.primaryComplaintHistory} onChange={v=>setForm(f=>({ ...f, primaryComplaintHistory: v }))} suggestions={sugPrimHist} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Family History</label>
-                <SuggestField rows={2} value={form.familyHistory} onChange={v=>setForm(f=>({ ...f, familyHistory: v }))} suggestions={sugFamily} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Allergy History</label>
-                <SuggestField rows={2} value={form.allergyHistory} onChange={v=>setForm(f=>({ ...f, allergyHistory: v }))} suggestions={sugAllergy} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Treatment History</label>
-                <SuggestField rows={2} value={form.treatmentHistory} onChange={v=>setForm(f=>({ ...f, treatmentHistory: v }))} suggestions={sugTreatment} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Examination Findings</label>
-                <SuggestField rows={2} value={form.examFindings} onChange={v=>setForm(f=>({ ...f, examFindings: v }))} suggestions={sugExam} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Diagnosis / Disease</label>
-                <SuggestField as="input" value={form.diagnosis} onChange={v=>setForm(f=>({ ...f, diagnosis: v }))} suggestions={sugDiagnosis} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Advice/Referral</label>
-                <SuggestField rows={2} value={form.advice} onChange={v=>setForm(f=>({ ...f, advice: v }))} suggestions={sugAdvice} />
+                <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">e-Prescription</h1>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Digital Consultation & Medicine Management</p>
               </div>
             </div>
-          </>
-        )}
-        {activeTab==='medication' && (
-          <div>
-            <PrescriptionMedication
-              ref={medsRef}
-              initialMedicines={form.meds}
-              onChange={(meds) => setForm(f => ({ ...f, meds }))}
-              suggestions={{
-                medName: medNameSuggestions,
-                dose: sugDose,
-                route: sugRoute,
-                instruction: sugInstr,
-                duration: sugDuration,
-                frequency: sugFreq,
-              }}
-            />
+
+            <div className="flex items-center gap-3">
+              <div className="hidden items-center gap-2 rounded-lg bg-slate-100 p-1 dark:bg-slate-800 sm:flex">
+                <button 
+                  type="button" 
+                  onClick={() => setRxMode('electronic')}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition-all ${rxMode === 'electronic' ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-700 dark:text-violet-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                >
+                  <Layout size={14} /> Electronic
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setRxMode('manual')}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition-all ${rxMode === 'manual' ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-700 dark:text-violet-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                >
+                  <FileText size={14} /> Manual Scan
+                </button>
+              </div>
+              
+              <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
+              
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={resetForms} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+                  <RotateCcw size={16} /> <span className="hidden sm:inline">Reset</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={save}
+                  disabled={!form.patientKey}
+                  className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-violet-200 transition hover:bg-violet-700 active:scale-[0.98] disabled:opacity-50 dark:shadow-none"
+                >
+                  <Save size={16} /> Save Prescription
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-        {activeTab==='vitals' && (
-          <div>
-            <PrescriptionVitals
-              ref={vitalsRef}
-              initial={(form as any).vitalsDisplay}
-              suggestions={{
-                pulse: sugVPulse,
-                temperature: sugVTemp,
-                bloodPressureSys: sugVSys,
-                bloodPressureDia: sugVDia,
-                respiratoryRate: sugVResp,
-                bloodSugar: sugVSugar,
-                weightKg: sugVWeight,
-                height: sugVHeight,
-                spo2: sugVSpo2,
-              }}
-            />
+        </header>
+
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            
+            {/* Left Sidebar: Patient & Queue */}
+            <aside className="space-y-6 lg:col-span-3">
+              {/* Date Filter */}
+              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <Calendar size={14} /> Queue Period
+                  </h3>
+                </div>
+                <div className="space-y-3 p-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-slate-400">From</label>
+                    <DatePickerModern value={from} onChange={setFrom} className="w-full" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-slate-400">To</label>
+                    <DatePickerModern value={to} onChange={setTo} className="w-full" />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button type="button" onClick={()=>{ const t = new Date().toISOString().slice(0,10); setFrom(t); setTo(t) }} className="flex-1 rounded-md bg-slate-100 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">Today</button>
+                    <button type="button" onClick={()=>{ setFrom(''); setTo('') }} className="flex-1 rounded-md bg-slate-100 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">Clear</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Patient Selection */}
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <User size={14} /> Patient Queue
+                  </h3>
+                </div>
+                <div className="p-4">
+                  <div className="relative">
+                    <select 
+                      value={form.patientKey} 
+                      onChange={e=>setForm(f=>({ ...f, patientKey: e.target.value }))} 
+                      className="w-full appearance-none rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm font-medium outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="">Select a patient...</option>
+                      {myPatients.map(p => (
+                        <option key={p.id} value={p.id}>{p.patientName} ({p.mrNo})</option>
+                      ))}
+                    </select>
+                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  </div>
+                  
+                  {myPatients.length === 0 && (
+                    <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-4 text-center dark:border-slate-800">
+                      <Clock size={24} className="mx-auto mb-2 text-slate-300 dark:text-slate-700" />
+                      <p className="text-xs font-medium text-slate-400">No pending patients in your queue</p>
+                    </div>
+                  )}
+
+                  {showLoadPrevButton && (
+                    <button
+                      type="button"
+                      onClick={loadPreviousPrescription}
+                      className="group mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700 transition-all hover:bg-amber-100 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-400"
+                    >
+                      <History size={16} className="transition-transform group-hover:rotate-[-18deg]" /> Load Last Rx
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Patient Profile Card (When Selected) */}
+              {sel && (
+                <div className="overflow-hidden rounded-2xl border border-violet-100 bg-linear-to-b from-violet-50 to-white shadow-sm dark:border-violet-900/20 dark:from-violet-900/10 dark:to-slate-900">
+                  <div className="border-b border-violet-100 bg-violet-100/30 px-4 py-3 dark:border-violet-900/30 dark:bg-violet-900/30">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-400">Patient Profile</h3>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-600 text-lg font-bold text-white">
+                        {sel.patientName.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white">{sel.patientName}</h4>
+                        <p className="text-xs font-bold text-violet-600 dark:text-violet-400">MRN: {sel.mrNo}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 grid grid-cols-2 gap-y-3 gap-x-2 border-t border-violet-100 pt-4 dark:border-violet-900/20">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-400">Age / Gender</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{patientDetails?.age || '-'} / {patientDetails?.gender || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-400">Father/Guardian</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">{patientDetails?.fatherName || '-'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] font-bold uppercase text-slate-400">Phone</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{patientDetails?.phoneNormalized || '-'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] font-bold uppercase text-slate-400">Address</p>
+                        <p className="text-xs font-semibold leading-relaxed text-slate-700 dark:text-slate-300 line-clamp-2">{patientDetails?.address || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </aside>
+
+            {/* Main Content: Tabs and Forms */}
+            <div className="lg:col-span-9">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                {/* Modern Tabs */}
+                <div className="border-b border-slate-100 bg-slate-50/50 p-2 dark:border-slate-800 dark:bg-slate-800/50">
+                  <nav className="flex flex-wrap gap-1 sm:flex-nowrap">
+                    {[
+                      { id: 'details', label: 'Clinical Details', icon: ClipboardList },
+                      { id: 'medication', label: 'Medication', icon: Beaker },
+                      { id: 'vitals', label: 'Vitals', icon: Activity },
+                      { id: 'labs', label: 'Lab Orders', icon: Search },
+                      { id: 'diagnostics', label: 'Diagnostics', icon: ClipboardList },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => goTab(tab.id as any)}
+                        className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:flex-none sm:justify-start ${
+                          activeTab === tab.id
+                            ? 'bg-white text-violet-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-violet-400 dark:ring-slate-600'
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300'
+                        }`}
+                      >
+                        <tab.icon size={16} />
+                        <span className="hidden md:inline">{tab.label}</span>
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+
+                <div className="p-6">
+                  {/* Template Selection inside Main Area */}
+                  <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-violet-50/50 p-4 ring-1 ring-violet-100 dark:bg-violet-900/10 dark:ring-violet-900/20">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-lg bg-violet-600 p-1.5 text-white">
+                        <Plus size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">Smart Templates</h4>
+                        <p className="text-[10px] font-medium text-slate-500">Quickly apply pre-filled clinical data</p>
+                      </div>
+                    </div>
+                    <div className="w-full max-w-xs sm:w-auto">
+                      <select
+                        onChange={e => {
+                          const id = e.target.value
+                          if (!id) return
+                          const t = templates.find(x => x._id === id)
+                          if (t) applyTemplate(t)
+                          e.target.value = ''
+                        }}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition-shadow focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      >
+                        <option value="">Select template...</option>
+                        {templates.map(t => (
+                          <option key={t._id} value={t._id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {rxMode === 'manual' && (
+                    <div className="mb-8 animate-in fade-in slide-in-from-top-4">
+                      <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center transition-colors hover:border-violet-300 dark:border-slate-800 dark:hover:border-violet-700">
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-900/20 dark:text-violet-400">
+                          <FileText size={32} />
+                        </div>
+                        <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">Scan Manual Prescription</h3>
+                        <p className="mt-1 text-sm text-slate-500">Upload a PDF or Image of the handwritten prescription</p>
+                        
+                        <div className="mt-6">
+                          <input
+                            id="manual-file"
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={e=>onManualFile(e.target.files?.[0])}
+                            className="hidden"
+                          />
+                          <label 
+                            htmlFor="manual-file"
+                            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-violet-200 transition-all hover:bg-violet-700 hover:shadow-violet-300 active:scale-95 dark:shadow-none"
+                          >
+                            <Plus size={18} /> Select File
+                          </label>
+                        </div>
+
+                        {manualAttachmentError && (
+                          <div className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-rose-600">
+                            <AlertCircle size={16} /> {manualAttachmentError}
+                          </div>
+                        )}
+                        
+                        {manualAttachment?.fileName && (
+                          <div className="mt-4 flex flex-col items-center gap-3">
+                            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+                              Selected: {manualAttachment.fileName}
+                            </div>
+                            {manualAttachment?.dataUrl && (manualAttachment.mimeType || '').startsWith('image/') && (
+                              <div className="relative overflow-hidden rounded-xl border border-slate-200 shadow-xl dark:border-slate-800">
+                                <img src={manualAttachment.dataUrl} alt="Prescription" className="max-h-64 w-auto" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="min-h-[400px]">
+                    {activeTab === 'details' && (
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 animate-in fade-in slide-in-from-right-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Primary Complaint</label>
+                          <SuggestField 
+                            rows={3} 
+                            value={form.primaryComplaint} 
+                            onChange={v=>setForm(f=>({ ...f, primaryComplaint: v }))} 
+                            suggestions={sugPrimary} 
+                            className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Medical History / Risk Factors</label>
+                          <SuggestField 
+                            rows={3} 
+                            value={form.history} 
+                            onChange={v=>setForm(f=>({ ...f, history: v }))} 
+                            suggestions={sugHistory} 
+                            className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">History of Complaint</label>
+                          <SuggestField 
+                            rows={3} 
+                            value={form.primaryComplaintHistory} 
+                            onChange={v=>setForm(f=>({ ...f, primaryComplaintHistory: v }))} 
+                            suggestions={sugPrimHist} 
+                            className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Examination Findings</label>
+                          <SuggestField 
+                            rows={3} 
+                            value={form.examFindings} 
+                            onChange={v=>setForm(f=>({ ...f, examFindings: v }))} 
+                            suggestions={sugExam} 
+                            className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Diagnosis / Disease</label>
+                              <SuggestField 
+                                as="input" 
+                                value={form.diagnosis} 
+                                onChange={v=>setForm(f=>({ ...f, diagnosis: v }))} 
+                                suggestions={sugDiagnosis} 
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Advice / Referral</label>
+                              <SuggestField 
+                                rows={1} 
+                                value={form.advice} 
+                                onChange={v=>setForm(f=>({ ...f, advice: v }))} 
+                                suggestions={sugAdvice} 
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="col-span-1 grid grid-cols-2 gap-4 md:col-span-2">
+                           <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Family History</label>
+                            <SuggestField rows={2} value={form.familyHistory} onChange={v=>setForm(f=>({ ...f, familyHistory: v }))} suggestions={sugFamily} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Allergy History</label>
+                            <SuggestField rows={2} value={form.allergyHistory} onChange={v=>setForm(f=>({ ...f, allergyHistory: v }))} suggestions={sugAllergy} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'medication' && (
+                      <div className="animate-in fade-in slide-in-from-right-4">
+                        <PrescriptionMedication
+                          ref={medsRef}
+                          initialMedicines={form.meds}
+                          onChange={(meds) => setForm(f => ({ ...f, meds }))}
+                          suggestions={{
+                            medName: medNameSuggestions,
+                            dose: sugDose,
+                            route: sugRoute,
+                            instruction: sugInstr,
+                            duration: sugDuration,
+                            frequency: sugFreq,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {activeTab === 'vitals' && (
+                      <div className="animate-in fade-in slide-in-from-right-4">
+                        <PrescriptionVitals
+                          ref={vitalsRef}
+                          initial={(form as any).vitalsDisplay}
+                          suggestions={{
+                            pulse: sugVPulse,
+                            temperature: sugVTemp,
+                            bloodPressureSys: sugVSys,
+                            bloodPressureDia: sugVDia,
+                            respiratoryRate: sugVResp,
+                            bloodSugar: sugVSugar,
+                            weightKg: sugVWeight,
+                            height: sugVHeight,
+                            spo2: sugVSpo2,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {activeTab === 'diagnostics' && (
+                      <div className="animate-in fade-in slide-in-from-right-4">
+                        <PrescriptionDiagnosticOrders ref={diagRef} initialTestsText={(form as any).diagDisplay?.testsText} suggestionsTests={sugDiagTests} />
+                      </div>
+                    )}
+
+                    {activeTab === 'labs' && (
+                      <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Search & Order Lab Tests</label>
+                          <SuggestField 
+                            mode="lab-tests" 
+                            rows={6} 
+                            value={form.labTestsText} 
+                            onChange={v=>{ setForm(f=>({ ...f, labTestsText: v })); searchLabTests(v) }} 
+                            suggestions={sugLabTests} 
+                            placeholder="Type test name (e.g. CBC, LFT, Lipid Profile)..." 
+                            className="w-full rounded-2xl border border-slate-200 bg-white p-6 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          />
+                        </div>
+                        <div className="rounded-xl bg-blue-50/50 p-4 text-xs font-medium text-blue-600 ring-1 ring-blue-100 dark:bg-blue-900/10 dark:text-blue-400 dark:ring-blue-900/20">
+                          Tip: Use commas or new lines to separate multiple lab tests.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Quick Actions */}
+                <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/50">
+                  <div className="flex items-center gap-2">
+                    <button 
+                      type="button" 
+                      onClick={openPrint} 
+                      disabled={!form.patientKey}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                    >
+                      <Printer size={18} /> Preview & Print
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={()=>setOpenReferral(true)} 
+                      disabled={!sel}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                    >
+                      <Plus size={18} /> Refer to IPD
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {saved && (
+                      <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600 animate-in fade-in zoom-in dark:bg-emerald-900/20 dark:text-emerald-400">
+                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-pulse" /> Saved to Records
+                      </div>
+                    )}
+                    <button 
+                      type="button" 
+                      onClick={save}
+                      disabled={!form.patientKey}
+                      className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-200 transition-all hover:bg-violet-700 hover:shadow-violet-300 active:scale-[0.98] disabled:opacity-50 dark:shadow-none"
+                    >
+                      Finalize & Print <ArrowRight size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-        {activeTab==='diagnostics' && (
-          <div>
-            <PrescriptionDiagnosticOrders ref={diagRef} initialTestsText={(form as any).diagDisplay?.testsText} suggestionsTests={sugDiagTests} />
-          </div>
-        )}
-        {activeTab==='labs' && (
-          <div>
-            <label className="mb-1 block text-sm text-slate-700">Lab Tests (comma or one per line)</label>
-            <SuggestField mode="lab-tests" rows={3} value={form.labTestsText} onChange={v=>{ setForm(f=>({ ...f, labTestsText: v })); searchLabTests(v) }} suggestions={sugLabTests} placeholder="Search lab tests…" />
-          </div>
-        )}
-        <div className="flex items-center justify-end gap-2">
-          <button type="button" onClick={openPrint} className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950">Print</button>
-          <button type="button" onClick={resetForms} className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950">Reset Forms</button>
-          <button type="button" disabled={!sel} onClick={()=>setOpenReferral(true)} className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950 disabled:opacity-50">Refer to IPD</button>
-          <button type="submit" className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950">Save</button>
-        </div>
-        {saved && <div className="text-sm text-emerald-600">Saved</div>}
-      </form>
+        </main>
       </div>
       {openReferral && (
         <div id="referral-print" className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-2 sm:px-4">

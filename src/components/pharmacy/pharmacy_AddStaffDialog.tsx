@@ -26,7 +26,6 @@ type Props = {
 }
 
 export default function Pharmacy_AddStaffDialog({ open, onClose, onSave, initial = null, title, submitLabel }: Props) {
-  if (!open) return null
   const [shifts, setShifts] = useState<Shift[]>([])
 
   useEffect(() => {
@@ -41,6 +40,8 @@ export default function Pharmacy_AddStaffDialog({ open, onClose, onSave, initial
     })()
     return () => { mounted = false }
   }, [])
+
+  if (!open) return null
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

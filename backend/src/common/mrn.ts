@@ -74,9 +74,23 @@ export async function nextGlobalMrn(): Promise<string> {
     return s
   }
 
-  if (fmt && /\{SERIAL/i.test(fmt)){
-    const out = applyFormat(fmt, await HospitalSettings.findOne().lean())
-    return out || `MR-${seqNum}`
+  if (fmt){
+    const settings = await HospitalSettings.findOne().lean()
+    // Standard tokenized formats
+    if (/\{SERIAL/i.test(fmt)){
+      const out = applyFormat(fmt, settings)
+      return out || `MR-${seqNum}`
+    }
+    // Backward/UX-friendly: if user saved a literal example like "CHCH-2026-001",
+    // treat the last digit-run (2+ digits) as the serial placeholder and replace it.
+    // This still preserves custom prefixes exactly as the user typed.
+    const m = fmt.match(/(\d{2,})(?!.*\d)/)
+    if (m && typeof m.index === 'number'){
+      const w = m[1].length
+      const serial = pad(seqNum, w)
+      const out = fmt.slice(0, m.index) + serial + fmt.slice(m.index + w)
+      return out || `MR-${seqNum}`
+    }
   }
 
   const seq = String(seqNum)

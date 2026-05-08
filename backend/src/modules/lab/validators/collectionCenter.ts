@@ -8,7 +8,11 @@ export const collectionCenterCreateSchema = z.object({
   phone: z.string().optional(),
   email: z.string().optional(),
   status: z.enum(['Active', 'Inactive']).default('Active'),
+  allowedTestIds: z.array(z.string()).optional(),
   commissionPercent: z.number().min(0).max(100).default(0),
+  parentCenterId: z.string().optional(),
+  isHead: z.boolean().optional(),
+  region: z.string().optional(),
 })
 
 export const collectionCenterUpdateSchema = collectionCenterCreateSchema.partial()

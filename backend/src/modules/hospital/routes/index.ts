@@ -1384,6 +1384,7 @@ r.delete('/expenses/:id', Expense.remove)
 
 // Finance Transactions
 r.get('/finance/transactions', FinanceCtl.listAllTransactions)
+r.get('/finance/corporate-ar-breakdown', FinanceCtl.getCorporateARBreakdown)
 
 
 

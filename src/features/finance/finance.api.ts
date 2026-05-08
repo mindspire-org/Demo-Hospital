@@ -119,6 +119,73 @@ export const financeApi = {
   approveCashHandover: (id: string) => api(`/finance/cash-handovers/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
   rejectCashHandover: (id: string, reason?: string) =>
     api(`/finance/cash-handovers/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+
+  // -------------------------------------------------------------------------
+  // Dashboard & Reports (ERP)
+  // -------------------------------------------------------------------------
+  dashboard: (params?: { from?: string; to?: string }) =>
+    api(withQuery('/finance/dashboard', params)),
+  trialBalance: (params?: { from?: string; to?: string }) =>
+    api(withQuery('/finance/reports/trial-balance', params)),
+  profitLoss: (params?: { from?: string; to?: string }) =>
+    api(withQuery('/finance/reports/profit-loss', params)),
+  balanceSheet: (params?: { asOf?: string }) =>
+    api(withQuery('/finance/reports/balance-sheet', params)),
+  ledgerExplorer: (params: { account: string; from?: string; to?: string }) =>
+    api(withQuery('/finance/ledger-explorer', params)),
+
+  listJournalVouchers: (params?: { from?: string; to?: string; refType?: string; account?: string; status?: string; page?: number; limit?: number }) =>
+    api(withQuery('/finance/journal-vouchers', params)),
+  createJournalVoucher: (data: { dateIso?: string; memo?: string; lines: Array<{ account: string; debit?: number; credit?: number; tags?: any }> }) =>
+    api('/finance/journal-vouchers', { method: 'POST', body: JSON.stringify(data) }),
+
+  receivablesAging: () => api('/finance/receivables/aging'),
+  payablesAging:    () => api('/finance/payables/aging'),
+  reconciliation:   () => api('/finance/reconciliation'),
+  moduleIntegration: (module: string, params?: { from?: string; to?: string }) =>
+    api(withQuery(`/finance/module-integrations/${encodeURIComponent(module)}`, params)),
+
+  // -------------------------------------------------------------------------
+  // Centralized Expenses
+  // -------------------------------------------------------------------------
+  listExpenses: (params?: { from?: string; to?: string; departmentId?: string; category?: string; q?: string; page?: number; limit?: number }) =>
+    api(withQuery('/finance/expenses', params)),
+  listExpensesByDepartment: (params?: { from?: string; to?: string; department?: string; q?: string; page?: number; limit?: number }) =>
+    api(withQuery('/finance/expenses/by-department', params)),
+  createExpense: (data: { dateIso?: string; category: string; amount: number; method?: string; ref?: string; note?: string; departmentId?: string; departmentName?: string; categoryName?: string }) =>
+    api('/finance/expenses', { method: 'POST', body: JSON.stringify(data) }),
+  deleteExpense: (id: string) =>
+    api(`/finance/expenses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // -------------------------------------------------------------------------
+  // Vendors / Bills / Vendor Payments
+  // -------------------------------------------------------------------------
+  listVendors: (params?: { q?: string }) => api(withQuery('/finance/vendors', params)),
+  createVendor: (data: { name: string; company?: string; phone?: string; email?: string; address?: string; taxId?: string; status?: string; notes?: string }) =>
+    api('/finance/vendors', { method: 'POST', body: JSON.stringify(data) }),
+  getVendor: (id: string) => api(`/finance/vendors/${encodeURIComponent(id)}`),
+
+  listBills: (params?: { from?: string; to?: string; vendorId?: string }) => api(withQuery('/finance/bills', params)),
+  createBill: (data: { vendorId: string; vendorName?: string; amount: number; dateIso?: string; memo?: string }) =>
+    api('/finance/bills', { method: 'POST', body: JSON.stringify(data) }),
+
+  listVendorPayments: (params?: { from?: string; to?: string; vendorId?: string }) => api(withQuery('/finance/vendor-payments', params)),
+  createVendorPayment: (data: { vendorId: string; vendorName?: string; amount: number; method?: string; dateIso?: string }) =>
+    api('/finance/vendor-payments', { method: 'POST', body: JSON.stringify(data) }),
+
+  // -------------------------------------------------------------------------
+  // Payroll
+  // -------------------------------------------------------------------------
+  payrollStaff: (params?: { period?: string }) => api(withQuery('/finance/payroll/staff', params)),
+  payStaff: (id: string, data: { amount: number; method?: string; dateIso?: string; memo?: string }) =>
+    api(`/finance/payroll/staff/${encodeURIComponent(id)}/pay`, { method: 'POST', body: JSON.stringify(data) }),
+  payrollDoctors: () => api('/finance/payroll/doctors'),
+  payDoctor: (id: string, data: { amount: number; method?: string; dateIso?: string; memo?: string }) =>
+    api(`/finance/payroll/doctors/${encodeURIComponent(id)}/pay`, { method: 'POST', body: JSON.stringify(data) }),
+  payrollAttendance: (params?: { period?: string }) => api(withQuery('/finance/payroll/attendance', params)),
+  payrollEarningsDeductions: (params?: { period?: string }) => api(withQuery('/finance/payroll/earnings-deductions', params)),
+
+  seedChartOfAccounts: () => api('/finance/chart-of-accounts/seed-defaults', { method: 'POST' }),
 }
 
 export default financeApi

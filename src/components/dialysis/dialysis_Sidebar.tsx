@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import PortalSwitcher from '../PortalSwitcher'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -14,6 +15,8 @@ import {
   Shield,
   PlusCircle,
   History,
+  BookOpen,
+  UserMinus,
 } from 'lucide-react'
 import { dialysisApi } from '../../utils/api'
 
@@ -38,6 +41,8 @@ const patientSection: Section = {
   items: [
     { to: '/dialysis/patients', label: 'Patients', icon: Users },
     { to: '/dialysis/sessions', label: 'Dialysis Sessions', icon: Activity },
+    { to: '/dialysis/patient-history', label: 'Patient History', icon: BookOpen },
+    { to: '/dialysis/discharged-patients', label: 'Discharged Patients', icon: UserMinus },
   ],
 }
 
@@ -173,7 +178,8 @@ export default function Dialysis_Sidebar({ collapsed = false }: { collapsed?: bo
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2' : 'p-3'}>
+      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
+        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
         <button
           onClick={async () => {
             try { localStorage.removeItem('dialysis.session') } catch {}

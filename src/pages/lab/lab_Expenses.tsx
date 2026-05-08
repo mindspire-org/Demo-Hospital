@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Lab_AddExpense from '../../components/lab/lab_AddExpense'
 import { labApi } from '../../utils/api'
 import Lab_SalarySlipDialog from '../../components/lab/lab_SalarySlipDialog'
+import MiniDashboard from '../../components/common/MiniDashboard'
+import { Banknote, Receipt, TrendingUp, Plus } from 'lucide-react'
 
  type LabExpense = {
   id: string
@@ -207,14 +209,29 @@ export default function Lab_Expenses() {
 
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 md:p-6">
       {notice && (
         <div className={`rounded-md border px-3 py-2 text-sm ${notice.kind==='success'? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>{notice.text}</div>
       )}
-      <div className="flex items-center justify-between">
-        <div className="text-xl font-bold text-slate-800">Expense Tracker</div>
-        <button onClick={addExpense} className="btn">+ Add New Expense</button>
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Expense Tracker</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Track and manage lab expenses</div>
+          </div>
+          <button onClick={addExpense} className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/30">
+            <Plus className="h-4 w-4" /> Add New Expense
+          </button>
+        </div>
       </div>
+
+      {/* Mini Dashboard */}
+      <MiniDashboard cards={[
+        { label: 'Total Expenses', value: `PKR ${filtered.reduce((s,e)=>s+e.amount,0).toLocaleString()}`, icon: Banknote, color: 'bg-rose-500' },
+        { label: 'Entries', value: filtered.length, icon: Receipt, color: 'bg-sky-500' },
+        { label: 'Avg Per Entry', value: filtered.length ? `PKR ${Math.round(filtered.reduce((s,e)=>s+e.amount,0)/filtered.length).toLocaleString()}` : 'PKR 0', icon: TrendingUp, color: 'bg-amber-500' },
+      ]} />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-3 font-medium text-slate-800">Filters</div>

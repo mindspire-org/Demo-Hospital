@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Bell, CheckCircle, Trash2, RefreshCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Bell, CheckCircle, Trash2, RefreshCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight, List, AlertOctagon } from 'lucide-react'
 import { pharmacyApi } from '../../utils/api'
+import MiniDashboard from '../../components/common/MiniDashboard'
 
  type Notification = {
   _id: string
@@ -59,28 +60,51 @@ export default function Pharmacy_Notifications(){
     return 'bg-blue-100 text-blue-800 ring-blue-300'
   }
 
+  const unreadCount = notifications.filter(n => !n.read).length
+  const criticalCount = notifications.filter(n => n.severity === 'critical').length
+  const warningCount = notifications.filter(n => n.severity === 'warning').length
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Bell className="h-5 w-5 text-indigo-600" />
-        <h2 className="text-xl font-bold">Notifications</h2>
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600"><Bell className="h-5 w-5" /></div>
+        <h1 className="text-xl font-bold text-slate-800">Notifications</h1>
         <div className="ml-auto flex items-center gap-2">
-          <select value={filter} onChange={e=> { setPage(1); setFilter(e.target.value as any) }} className="rounded-md border border-slate-300 px-2 py-1 text-sm">
-            <option value="all">All</option>
-            <option value="unread">Unread</option>
-            <option value="critical">Critical</option>
-            <option value="warning">Warning</option>
-            <option value="success">Success</option>
-            <option value="info">Info</option>
-          </select>
-          <select value={limit} onChange={e=> { setPage(1); setLimit(Number(e.target.value)) }} className="rounded-md border border-slate-300 px-2 py-1 text-sm">
-            <option value={10}>10 / page</option>
-            <option value={20}>20 / page</option>
-            <option value={50}>50 / page</option>
-          </select>
-          <button onClick={load} className="btn-outline-navy inline-flex items-center gap-1"><RefreshCcw className="h-4 w-4" /> Refresh</button>
-          <button onClick={markAll} className="btn-outline-navy inline-flex items-center gap-1"><CheckCircle className="h-4 w-4" /> Mark all read</button>
-          <button onClick={generate} className="btn inline-flex items-center gap-1"><AlertTriangle className="h-4 w-4" /> Generate</button>
+          <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"><RefreshCcw className="h-4 w-4" /> Refresh</button>
+          <button onClick={markAll} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"><CheckCircle className="h-4 w-4" /> Mark all read</button>
+          <button onClick={generate} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"><AlertTriangle className="h-4 w-4" /> Generate</button>
+        </div>
+      </div>
+
+      <MiniDashboard cards={[
+        { label: 'Total', value: total, icon: List, color: 'bg-indigo-500' },
+        { label: 'Unread', value: unreadCount, icon: Bell, color: 'bg-amber-500' },
+        { label: 'Critical', value: criticalCount, icon: AlertOctagon, color: 'bg-rose-500' },
+        { label: 'Warnings', value: warningCount, icon: AlertTriangle, color: 'bg-orange-500' },
+      ]} />
+
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">Filters</div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Severity</label>
+            <select value={filter} onChange={e=> { setPage(1); setFilter(e.target.value as any) }} className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 outline-none">
+              <option value="all">All</option>
+              <option value="unread">Unread</option>
+              <option value="critical">Critical</option>
+              <option value="warning">Warning</option>
+              <option value="success">Success</option>
+              <option value="info">Info</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Per Page</label>
+            <select value={limit} onChange={e=> { setPage(1); setLimit(Number(e.target.value)) }} className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 outline-none">
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -89,7 +113,7 @@ export default function Pharmacy_Notifications(){
           <div>{loading ? 'Loading…' : total > 0 ? `Showing ${start}-${end} of ${total}` : 'No notifications'}</div>
           <div className="flex items-center gap-2">
             <button disabled={page<=1 || loading} onClick={()=> setPage(p=> Math.max(1, p-1))} className="inline-flex items-center rounded-md border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"><ChevronLeft className="h-4 w-4" /></button>
-            <div className="min-w-[4rem] text-center">Page {page}</div>
+            <div className="min-w-16 text-center">Page {page}</div>
             <button disabled={end>=total || loading} onClick={()=> setPage(p=> p+1)} className="inline-flex items-center rounded-md border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>

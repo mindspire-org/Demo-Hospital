@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { X, User, Phone, CheckCircle2 } from 'lucide-react'
 import type { Customer } from './pharmacy_AddCustomer'
 import { pharmacyApi } from '../../utils/api'
 
@@ -6,9 +7,10 @@ type Props = {
   open: boolean
   onClose: () => void
   onConfirm: (data: { method: 'cash' | 'credit'; customer?: string; customerId?: string; customerPhone?: string }) => void
+  totalAmount?: number
 }
 
-export default function Pharmacy_ProcessPaymentDialog({ open, onClose, onConfirm }: Props) {
+export default function Pharmacy_ProcessPaymentDialog({ open, onClose, onConfirm, totalAmount = 0 }: Props) {
   const [method, setMethod] = useState<'cash' | 'credit'>('cash')
   const [form, setForm] = useState<{ name: string; phone: string; address: string; cnic: string; mrNumber: string }>({ name: '', phone: '', address: '', cnic: '', mrNumber: '' })
   const [suggestions, setSuggestions] = useState<Customer[]>([])
@@ -56,6 +58,20 @@ export default function Pharmacy_ProcessPaymentDialog({ open, onClose, onConfirm
     return () => clearTimeout(t)
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Delete') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }
+      // Enter is handled by the form's onSubmit
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [open, onClose])
+
   if (!open) return null
 
   const confirm = (e: React.FormEvent<HTMLFormElement>) => {
@@ -72,70 +88,121 @@ export default function Pharmacy_ProcessPaymentDialog({ open, onClose, onConfirm
     setSelectedId(c.id)
   }
 
-  const showCredit = method === 'credit'
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
-      <form onSubmit={confirm} className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-900 dark:ring-white/10">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Process Payment</h3>
-          <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true">
+      <form onSubmit={confirm} className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl shadow-slate-200/50 dark:shadow-none overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+        {/* Modal Header */}
+        <div className="px-8 pt-8 pb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Process Payment</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Select mode and finalize sale</p>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"
+          >
+            <X className="h-6 w-6" />
+          </button>
         </div>
-        <div className="px-6 py-5 space-y-4">
-          <div className="flex gap-2">
-            <button type="button" onClick={()=> setMethod('cash')} className={`flex-1 rounded-md border px-3 py-2 text-center text-sm ${method==='cash' ? 'border-navy bg-navy text-white' : 'border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'}`}>Cash</button>
-            <button type="button" onClick={()=> setMethod('credit')} className={`flex-1 rounded-md border px-3 py-2 text-center text-sm ${method==='credit' ? 'border-navy bg-navy text-white' : 'border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'}`}>Credit</button>
+
+        <div className="px-8 pb-8 space-y-6">
+          {/* Total Amount Card */}
+          <div className="bg-slate-900 dark:bg-sky-500/10 rounded-2xl p-6 text-center shadow-lg shadow-slate-200/50 dark:shadow-none border border-slate-800 dark:border-sky-500/20">
+            <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-400 dark:text-sky-400">Total Payable Amount</span>
+            <div className="text-4xl font-black text-white dark:text-sky-400 mt-1 tabular-nums">
+              PKR {totalAmount.toFixed(2)}
+            </div>
           </div>
 
-          <input ref={dummyRef} className="hidden" />
+          {/* Payment Mode Selector */}
+          <div className="grid grid-cols-2 gap-3 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setMethod('cash')}
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all duration-200 ${
+                method === 'cash' 
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-600' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <div className={`h-2 w-2 rounded-full ${method === 'cash' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+              Cash
+            </button>
+            <button
+              type="button"
+              onClick={() => setMethod('credit')}
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all duration-200 ${
+                method === 'credit' 
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-600' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <div className={`h-2 w-2 rounded-full ${method === 'credit' ? 'bg-orange-500 animate-pulse' : 'bg-slate-300'}`} />
+              Credit
+            </button>
+          </div>
 
-          {showCredit ? (
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Customer Name</label>
-                <input value={form.name} onChange={e=> setForm({ ...form, name: e.target.value })} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+          {/* Customer Info Fields */}
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-black tracking-wider text-slate-400 ml-1">Customer Name {method === 'cash' && '(Optional)'}</label>
+              <div className="relative group">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-sky-500 transition-colors" />
+                <input
+                  type="text"
+                  placeholder="e.g. John Doe"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl outline-none focus:border-sky-500 dark:focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900 transition-all font-medium text-slate-900 dark:text-white"
+                  required={method === 'credit'}
+                />
               </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Phone Number</label>
-                <input value={form.phone} onChange={e=> setForm({ ...form, phone: e.target.value })} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Address</label>
-                <textarea rows={3} value={form.address} onChange={e=> setForm({ ...form, address: e.target.value })} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">CNIC</label>
-                <input value={form.cnic} onChange={e=> setForm({ ...form, cnic: e.target.value })} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">MR #</label>
-                <input value={form.mrNumber} onChange={e=> setForm({ ...form, mrNumber: e.target.value })} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
-              </div>
+            </div>
 
-              {suggestions.length > 1 && (
-                <div className="rounded-md border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
-                  {suggestions.slice(0,5).map(c => (
-                    <button type="button" key={c.id} onClick={()=> pick(c)} className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-white dark:text-slate-200 dark:hover:bg-slate-800">
-                      {c.name} {c.phone? `· ${c.phone}`:''} {c.cnic? `· ${c.cnic}`:''} {c.mrNumber? `· ${c.mrNumber}`:''}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Customer Name (optional)</label>
-              <input value={form.name} onChange={e=> setForm({ ...form, name: e.target.value })} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
-              <div className="mt-3">
-                <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Phone Number (optional)</label>
-                <input value={form.phone} onChange={e=> setForm({ ...form, phone: e.target.value })} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-black tracking-wider text-slate-400 ml-1">Phone Number {method === 'cash' && '(Optional)'}</label>
+              <div className="relative group">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-sky-500 transition-colors" />
+                <input
+                  type="text"
+                  placeholder="e.g. 0300-1234567"
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
+                  className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl outline-none focus:border-sky-500 dark:focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900 transition-all font-medium text-slate-900 dark:text-white"
+                />
               </div>
             </div>
-          )}
-        </div>
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-800">
-          <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>
-          <button type="submit" className="btn">Confirm Payment</button>
+
+            {method === 'credit' && suggestions.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950 overflow-hidden shadow-inner">
+                {suggestions.slice(0, 3).map(c => (
+                  <button type="button" key={c.id} onClick={() => pick(c)} className="block w-full px-4 py-3 text-left text-xs text-slate-700 hover:bg-white dark:text-slate-200 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                    <div className="font-bold uppercase tracking-tight">{c.name}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{c.phone || 'No phone'} · {c.mrNumber || 'No MR#'}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-4 px-6 rounded-2xl font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-[0.98]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-2 py-4 px-6 rounded-2xl font-bold text-white bg-slate-900 dark:bg-sky-600 hover:bg-black dark:hover:bg-sky-500 shadow-xl shadow-slate-200 dark:shadow-none transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              <CheckCircle2 className="h-5 w-5" />
+              Confirm Payment
+            </button>
+          </div>
         </div>
       </form>
     </div>

@@ -60,7 +60,16 @@ import * as Tokens from '../controllers/tokens.controller'
 
 import * as CollectionCenters from '../controllers/collection_centers.controller'
 
+import * as Critical from '../controllers/critical.controller'
+import * as Packages from '../controllers/packages.controller'
+import * as PatientCards from '../controllers/patient_cards.controller'
+import * as Outsource from '../controllers/outsource_labs.controller'
+import * as CenterRates from '../controllers/center_rate_list.controller'
+import * as Notifications from '../controllers/notifications.controller'
+import * as WardImports from '../controllers/ward_imports.controller'
+
 import { auth } from '../../../common/middleware/auth'
+import { attachScope } from '../middleware/scope'
 
 
 
@@ -80,11 +89,60 @@ r.post('/login', Users.login)
 
 r.post('/logout', Users.logout)
 
-
+// Admin: idempotent seeders (no auth required — internal ops)
+r.post('/seed/test-templates', async (req, res) => {
+  try {
+    const { seedLabTestTemplates } = await import('../seeds/labTestTemplates')
+    const force = (req.body && req.body.force) === true
+    const n = await seedLabTestTemplates({ force })
+    res.json({ ok: true, seeded: n })
+  } catch (e: any) { res.status(500).json({ message: e?.message || 'seed failed' }) }
+})
+r.post('/seed/critical-parameters', async (_req, res) => {
+  try {
+    const { seedCriticalParameters } = await import('../seeds/criticalParameters')
+    const r2 = await seedCriticalParameters()
+    res.json({ ok: true, ...r2 })
+  } catch (e: any) { res.status(500).json({ message: e?.message || 'seed failed' }) }
+})
+r.post('/seed/merge-critical-values', async (_req, res) => {
+  try {
+    const { LabTest } = await import('../models/Test')
+    const { SEED_CRITICAL_PARAMETERS } = await import('../seeds/criticalParameters')
+    const critMap = new Map<string, { criticalMin?: number; criticalMax?: number }>()
+    for (const c of SEED_CRITICAL_PARAMETERS) {
+      const key = c.parameter.toLowerCase().trim()
+      if (!critMap.has(key)) critMap.set(key, { criticalMin: c.criticalMin, criticalMax: c.criticalMax })
+    }
+    const tests = await LabTest.find({ parameters: { $exists: true, $ne: [] } }).lean()
+    let patched = 0
+    for (const test of tests) {
+      let dirty = false
+      for (let i = 0; i < (test.parameters?.length || 0); i++) {
+        const p = test.parameters[i]
+        const key = p.name?.toLowerCase().trim()
+        if (!key) continue
+        const crit = critMap.get(key)
+        if (!crit) continue
+        if (p.criticalMin == null && p.criticalMax == null) {
+          if (crit.criticalMin != null) test.parameters[i].criticalMin = crit.criticalMin
+          if (crit.criticalMax != null) test.parameters[i].criticalMax = crit.criticalMax
+          dirty = true
+        }
+      }
+      if (dirty) {
+        await LabTest.updateOne({ _id: test._id }, { $set: { parameters: test.parameters } })
+        patched++
+      }
+    }
+    res.json({ ok: true, patched, totalTests: tests.length })
+  } catch (e: any) { res.status(500).json({ message: e?.message || 'merge failed' }) }
+})
 
 // All other Lab endpoints require auth
 
 r.use(auth)
+r.use(attachScope)
 
 
 
@@ -322,6 +380,11 @@ r.get('/settings', Settings.get)
 
 r.put('/settings', Settings.update)
 
+r.post('/settings/header', Settings.uploadHeaderFooter)
+r.post('/settings/footer', Settings.uploadHeaderFooter)
+r.post('/settings/header/revert', Settings.revertHeaderFooter)
+r.get('/settings/header-history', Settings.listHeaderHistory)
+
 
 
 // Patients (MRN find-or-create)
@@ -345,6 +408,10 @@ r.post('/tests', Tests.create)
 r.put('/tests/:id', Tests.update)
 
 r.delete('/tests/:id', Tests.remove)
+
+r.post('/tests/seed', Tests.seedTests)
+
+r.get('/tests/seed-status', Tests.getSeedStatus)
 
 
 
@@ -377,6 +444,7 @@ r.put('/tokens/:id', Tokens.update)
 r.post('/tokens/:id/convert', Tokens.convertToSample)
 
 r.put('/tokens/:id/status', Tokens.updateStatus)
+r.put('/tokens/:id/report-printed', Tokens.markReportPrinted)
 
 r.delete('/tokens/:id', Tokens.remove)
 
@@ -487,6 +555,80 @@ r.get('/collection-centers/revenue/summary', CollectionCenters.getRevenueSummary
 r.post('/collection-centers/:id/record-payment', CollectionCenters.recordPayment)
 
 r.get('/collection-centers/:id/payment-history', CollectionCenters.getPaymentHistory)
+
+
+
+// === Extended endpoints (mega upgrade) ===
+
+// Settings: header/footer + history
+r.post('/settings/header', Settings.uploadHeaderFooter)
+r.get('/settings/header/history', Settings.listHeaderHistory)
+r.post('/settings/header/revert/:historyId', Settings.revertHeaderFooter)
+
+// Sample receive (image 9 — two-box icon)
+r.post('/tokens/:id/receive-sample', Tokens.markSampleReceived)
+
+// Results: extended endpoints
+r.get('/results/history/list', Results.history)
+r.post('/results/:id/repeat', Results.repeatSample)
+r.get('/results/instances/list', Results.listInstances)
+
+// Critical events + parameters
+r.get('/critical-events', Critical.listEvents)
+r.get('/critical-events/:id', Critical.getEvent)
+r.post('/critical-events', Critical.createEvent)
+r.post('/critical-events/:id/resolve', Critical.resolveEvent)
+r.get('/critical-parameters', Critical.listParameters)
+r.post('/critical-parameters', Critical.createParameter)
+r.put('/critical-parameters/:id', Critical.updateParameter)
+r.delete('/critical-parameters/:id', Critical.deleteParameter)
+
+// Test Packages
+r.get('/test-packages', Packages.list)
+r.get('/test-packages/:id', Packages.get)
+r.post('/test-packages', Packages.create)
+r.put('/test-packages/:id', Packages.update)
+r.delete('/test-packages/:id', Packages.remove)
+
+// Patient Cards
+r.get('/patient-cards', PatientCards.list)
+r.get('/patient-cards/:id', PatientCards.get)
+r.post('/patient-cards', PatientCards.create)
+r.post('/patient-cards/:id/printed', PatientCards.markPrinted)
+r.delete('/patient-cards/:id', PatientCards.remove)
+
+// Outsource labs + rate list + dispatch
+r.get('/outsource-labs', Outsource.list)
+r.post('/outsource-labs', Outsource.create)
+r.put('/outsource-labs/:id', Outsource.update)
+r.delete('/outsource-labs/:id', Outsource.remove)
+r.get('/outsource-rates', Outsource.listRates)
+r.post('/outsource-rates', Outsource.upsertRate)
+r.post('/outsource-rates/bulk', Outsource.bulkSaveRates)
+r.post('/outsource-rates/copy/:fromId', Outsource.copyRateList)
+r.get('/outsource-dispatches', Outsource.listDispatches)
+r.post('/outsource-dispatches', Outsource.createDispatch)
+r.put('/outsource-dispatches/:id', Outsource.updateDispatch)
+
+// Collection-center rate list + copy
+r.get('/center-rates', CenterRates.list)
+r.post('/center-rates', CenterRates.upsert)
+r.post('/center-rates/bulk', CenterRates.bulkSave)
+r.post('/center-rates/copy/:fromId', CenterRates.copyRateList)
+r.delete('/center-rates/:id', CenterRates.remove)
+
+// Notifications (scope-aware)
+r.get('/notifications', Notifications.list)
+r.post('/notifications', Notifications.create)
+r.post('/notifications/:id/read', Notifications.markRead)
+r.post('/notifications/read-all', Notifications.markAllRead)
+
+// Ward imports (offline)
+r.get('/ward-imports', WardImports.list)
+r.get('/ward-imports/:id', WardImports.get)
+r.post('/ward-imports/upload', WardImports.upload)
+r.post('/ward-imports/:id/commit', WardImports.commit)
+r.post('/ward-imports/:id/cancel', WardImports.cancel)
 
 
 

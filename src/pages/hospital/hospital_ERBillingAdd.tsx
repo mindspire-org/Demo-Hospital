@@ -34,7 +34,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-[100] mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+        <div className="absolute z-100 mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id}
@@ -139,7 +139,7 @@ export default function Hospital_ERBilling() {
       try{
         const res: any = await hospitalApi.getToken(tokenId)
         const t: any = res?.token
-        const encId = String(t?.encounterId || '')
+        const encId = String(t?.encounterId?._id || t?.encounterId || '')
         const pmrn = String(t?.patientId?.mrn || t?.mrn || '')
         const patient = t?.patientId || {}
         if (!cancelled){
@@ -791,7 +791,7 @@ export default function Hospital_ERBilling() {
       )}
 
       {toast && (
-        <div className="fixed right-4 top-16 z-[60] max-w-sm">
+        <div className="fixed right-4 top-16 z-60 max-w-sm">
           <div className={toast.type==='success' ? 'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow' : toast.type==='error' ? 'rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow' : 'rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow'}>
             <div className="flex items-start justify-between gap-3">
               <div>{toast.message}</div>

@@ -13,6 +13,7 @@ type Row = {
   status: 'admitted'|'discharged'
   admissionNo?: string
   tokenNo?: string
+  pendingAmount?: number
 }
 
 function formatDate(s?: string) {
@@ -40,7 +41,22 @@ export default function Hospital_PatientList() {
     setLoading(true)
     try {
       const res = await hospitalApi.listIPDAdmissions({ status: 'admitted', limit: 200 }) as any
-      const items: Row[] = (res.admissions || []).map((e: any)=>({
+      const admissions = res.admissions || []
+      
+      // Fetch billing summaries for all admitted patients to get pending amounts
+      const summaries = await Promise.all(
+        admissions.map(async (a: any) => {
+          try {
+            const s: any = await hospitalApi.listIpdPayments(String(a._id))
+            return { id: String(a._id), pending: s?.totals?.netOutstanding || 0 }
+          } catch {
+            return { id: String(a._id), pending: 0 }
+          }
+        })
+      )
+      const pendingMap = Object.fromEntries(summaries.map(s => [s.id, s.pending]))
+
+      const items: Row[] = admissions.map((e: any)=>({
         id: String(e._id),
         mrn: e.patientId?.mrn || '-',
         name: e.patientId?.fullName || '-',
@@ -50,6 +66,7 @@ export default function Hospital_PatientList() {
         status: e.status,
         admissionNo: e.admissionNo,
         tokenNo: (e.tokenId as any)?.tokenNo,
+        pendingAmount: pendingMap[String(e._id)] || 0
       }))
       setRows(items)
     } finally { setLoading(false) }
@@ -123,30 +140,42 @@ export default function Hospital_PatientList() {
                 <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Admitted</th>
                 <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Admission #</th>
                 <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider text-right">Pending Amount</th>
                 <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">
               {loading && (
-                <tr><td colSpan={10} className="px-4 py-6 text-center text-slate-500">Loading...</td></tr>
+                <tr><td colSpan={11} className="px-4 py-6 text-center text-slate-500">Loading...</td></tr>
               )}
               {!loading && filtered.slice(0, rowsPerPage).map((p, idx) => (
-                <tr key={p.id} className="hover:bg-slate-50/50">
+                <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-4 py-2">{idx + 1}</td>
                   <td className="px-4 py-2 font-mono text-xs">{p.tokenNo || '-'}</td>
-                  <td className="px-4 py-2">{p.mrn}</td>
-                  <td className="px-4 py-2 capitalize">{p.name}</td>
+                  <td className="px-4 py-2 font-semibold text-slate-900">{p.mrn}</td>
+                  <td className="px-4 py-2 capitalize font-medium">{p.name}</td>
                   <td className="px-4 py-2">{p.doctor}</td>
-                  <td className="px-4 py-2">{p.bed}</td>
-                  <td className="px-4 py-2">{formatDate(p.admitted)}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{p.admissionNo || '-'}</td>
-                  <td className="px-4 py-2"><span className="rounded-full bg-navy px-2 py-1 text-xs text-white">{p.status === 'admitted' ? 'Admitted' : 'Discharged'}</span></td>
                   <td className="px-4 py-2">
+                    <span className="inline-flex items-center rounded-md bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 ring-1 ring-inset ring-sky-700/10">{p.bed}</span>
+                  </td>
+                  <td className="px-4 py-2 text-slate-500">{formatDate(p.admitted)}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{p.admissionNo || '-'}</td>
+                  <td className="px-4 py-2">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${p.status === 'admitted' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' : 'bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-600/20'}`}>
+                      {p.status === 'admitted' ? 'Admitted' : 'Discharged'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <span className={`font-bold tabular-nums ${p.pendingAmount && p.pendingAmount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {p.pendingAmount ? `Rs ${p.pendingAmount.toLocaleString()}` : 'Rs 0'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right">
                     {p.status === 'admitted' ? (
-                      <div className="flex gap-2">
-                        <button onClick={()=>navigate(`${patientProfileBase}/${p.id}`)} className="btn-outline-navy text-xs">View Profile</button>
-                        <button onClick={()=>openTransfer(p.id)} className="rounded-md border border-slate-300 px-2 py-1 text-xs">Transfer Bed</button>
-                        <button onClick={()=>discharge(p.id)} className="btn-outline-navy text-xs">Discharge</button>
+                      <div className="flex justify-end gap-2">
+                        <button onClick={()=>navigate(`${patientProfileBase}/${p.id}`)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 transition-all">Profile</button>
+                        <button onClick={()=>openTransfer(p.id)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-violet-700 shadow-sm ring-1 ring-inset ring-violet-300 hover:bg-violet-50 transition-all">Transfer</button>
+                        <button onClick={()=>discharge(p.id)} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-rose-500 transition-all">Discharge</button>
                       </div>
                     ) : (
                       <span className="text-xs text-slate-500">—</span>
@@ -156,7 +185,7 @@ export default function Hospital_PatientList() {
               ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-slate-500">No patients</td>
+                  <td colSpan={11} className="px-4 py-12 text-center text-slate-500">No patients</td>
                 </tr>
               )}
             </tbody>

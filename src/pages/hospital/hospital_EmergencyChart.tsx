@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
 import Doctor_IpdReferralForm from '../../components/doctor/Doctor_IpdReferralForm'
-import { X } from 'lucide-react'
+import { X, ScrollText } from 'lucide-react'
 
 import ErDailyMonitoring from '../../components/hospital/Hospital_ErDailyMonitoring'
 import ErMedication from '../../components/hospital/Hospital_ErMedication'
 import ErConsultantNotes from '../../components/hospital/Hospital_ErConsultantNotes'
+import ErInitialAssessment from '../../components/hospital/Hospital_ErInitialAssessment'
 
 function Tab({ label, active, onClick }: { label: string; active?: boolean; onClick: () => void }) {
   return (
@@ -83,7 +84,7 @@ export default function Hospital_EmergencyChart(){
   const [openCharge, setOpenCharge] = useState(false)
   const [editCharge, setEditCharge] = useState<null | { id: string; description: string; qty: number; unitPrice: number }>(null)
 
-  const [tab, setTab] = useState<'monitoring'|'consult'|'meds'>('monitoring')
+  const [tab, setTab] = useState<'initial'|'monitoring'|'consult'|'meds'>('initial')
   const [openAdvance, setOpenAdvance] = useState(false)
 
   const [, setLoadingEnc] = useState(false)
@@ -218,7 +219,27 @@ export default function Hospital_EmergencyChart(){
 
   const discharge = () => {
     if (!encounterId) { setToast({ type: 'error', message: 'Encounter not loaded yet' }); return }
-    navigate(`/hospital/discharge/${encounterId}`)
+    const currentUrl = encodeURIComponent(`/hospital/emergency/${tokenId}`)
+    navigate(`/hospital/discharge/${encounterId}?returnTo=${currentUrl}`)
+  }
+
+  const printMedicalRecord = () => {
+    if (!encounterId) { setToast({ type: 'error', message: 'Encounter not loaded yet' }); return }
+    const url = `/api/hospital/er/encounters/${encounterId}/medical-record/print`
+    // Check if running in Electron with printPreviewHtml capability
+    const api = (window as any).electronAPI
+    if (api && typeof api.printPreviewHtml === 'function') {
+      // For Electron, we need to fetch the HTML and pass it
+      fetch(url, { headers: { 'Authorization': `Bearer ${localStorage.getItem('hospital.token') || ''}` } })
+        .then(r => r.text())
+        .then(html => api.printPreviewHtml(html))
+        .catch(() => {
+          // Fallback to opening in browser
+          window.open(url, '_blank', 'noopener,noreferrer')
+        })
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
   }
 
   return (
@@ -244,19 +265,22 @@ export default function Hospital_EmergencyChart(){
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => printMedicalRecord()} className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">Print Record</button>
             <button onClick={goReferral} className="rounded-md bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700">Refer to IPD</button>
-            <button onClick={discharge} className="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700">Discharge</button>
+            <button onClick={discharge} className="inline-flex items-center gap-1.5 rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700"><ScrollText className="h-4 w-4" />Discharge Forms</button>
             <button onClick={()=>navigate('/hospital/emergency')} className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Back</button>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-1">
+          <Tab label="Initial Assessment" active={tab==='initial'} onClick={()=>setTab('initial')} />
           <Tab label="Daily Monitoring" active={tab==='monitoring'} onClick={()=>setTab('monitoring')} />
           <Tab label="Consultant Notes" active={tab==='consult'} onClick={()=>setTab('consult')} />
           <Tab label="Medication" active={tab==='meds'} onClick={()=>setTab('meds')} />
         </div>
       </div>
 
+      {tab==='initial' && (<ErInitialAssessment encounterId={encounterId} />)}
       {tab==='monitoring' && (<ErDailyMonitoring encounterId={encounterId} />)}
       {tab==='consult' && (<ErConsultantNotes encounterId={encounterId} />)}
       {tab==='meds' && (<ErMedication encounterId={encounterId} />)}

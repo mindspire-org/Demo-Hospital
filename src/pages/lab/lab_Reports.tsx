@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { labApi } from '../../utils/api'
 import { fmt12 } from '../../utils/timeFormat'
+import MiniDashboard from '../../components/common/MiniDashboard'
+import { BarChart3, FlaskConical, Banknote, TrendingUp, RefreshCw, Download, Printer } from 'lucide-react'
+import { useLabSession } from '../../hooks/useLabSession'
 
 export default function Lab_Reports() {
+  const session = useLabSession()
   const today = new Date()
   const lastWeek = new Date(today.getTime() - 6*24*60*60*1000)
   const iso = (d: Date)=> d.toISOString().slice(0,10)
@@ -20,6 +24,7 @@ export default function Lab_Reports() {
   const [toTime, setToTime] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [refreshMs, setRefreshMs] = useState(7000)
+  const [testWiseData, setTestWiseData] = useState<Array<{ testName: string; count: number; revenue: number }>>([])
 
   // Compute effective window for global filters: time overrides shift; shift applies when single day
   const effectiveWindow = useMemo(()=>{
@@ -54,7 +59,10 @@ export default function Lab_Reports() {
         setDailyRevenue(res?.dailyRevenue || [])
         setComparison(res?.comparison || [])
         setInvStats(inv?.stats || null)
-      }catch(e){ console.error(e); setSummary({}); setDailyRevenue([]); setComparison([]); setInvStats(null) }
+        // Compute test-wise counts from summary if available
+        const tw: Array<{ testName: string; count: number; revenue: number }> = Array.isArray(res?.testWise) ? res.testWise : []
+        setTestWiseData(tw.sort((a: any, b: any) => (b.count || 0) - (a.count || 0)))
+      }catch(e){ console.error(e); setSummary({}); setDailyRevenue([]); setComparison([]); setInvStats(null); setTestWiseData([]) }
       finally { setLoading(false) }
     })()
     return ()=>{ mounted = false }
@@ -118,12 +126,31 @@ export default function Lab_Reports() {
   const apply = () => setTick(t => t + 1)
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-xl font-bold text-slate-800 dark:text-slate-100">Lab Summary Report</div>
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Lab Summary Report</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Revenue, expenses, and test analytics</div>
+          </div>
+          <button
+            type="button"
+            onClick={apply}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/30"
+          >
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
         </div>
       </div>
+
+      {/* Mini Dashboard */}
+      <MiniDashboard cards={[
+        { label: 'Total Tests', value: summary.totalTests || 0, icon: FlaskConical, color: 'bg-sky-500' },
+        { label: 'Revenue', value: `PKR ${(summary.totalRevenue||0).toLocaleString()}`, icon: Banknote, color: 'bg-emerald-500' },
+        { label: 'Received', value: `PKR ${(summary.totalReceived||0).toLocaleString()}`, icon: TrendingUp, color: 'bg-indigo-500' },
+        { label: 'Pending Results', value: summary.pendingResults || 0, icon: BarChart3, color: 'bg-amber-500' },
+      ]} />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] items-end">
@@ -221,6 +248,72 @@ export default function Lab_Reports() {
           </div>
         </div>
       </div>
+
+      {/* Test-wise Counts */}
+      {testWiseData.length > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="font-medium text-slate-800">Test-wise Counts</div>
+            <div className="flex items-center gap-2">
+              {session.isAdmin && <button onClick={() => {
+                const csv = ['Test,Count,Revenue', ...testWiseData.map(t => `"${t.testName}",${t.count},${t.revenue}`)].join('\n')
+                const blob = new Blob([csv], { type: 'text/csv' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a'); a.href = url; a.download = `test-wise-report-${from}-to-${to}.csv`; a.click()
+                URL.revokeObjectURL(url)
+              }} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"><Download className="h-3 w-3" /> CSV</button>}
+              <button onClick={() => window.print()} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"><Printer className="h-3 w-3" /> Print</button>
+            </div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Table */}
+            <div className="overflow-auto max-h-80 rounded-lg border border-slate-100">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-700">Test Name</th>
+                    <th className="px-3 py-2 text-right font-semibold text-slate-700">Count</th>
+                    <th className="px-3 py-2 text-right font-semibold text-slate-700">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {testWiseData.map((t, i) => (
+                    <tr key={i} className={`border-b border-slate-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                      <td className="px-3 py-1.5 text-slate-800">{t.testName}</td>
+                      <td className="px-3 py-1.5 text-right font-semibold text-slate-900">{t.count}</td>
+                      <td className="px-3 py-1.5 text-right text-slate-700">PKR {t.revenue.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="sticky bottom-0 bg-slate-100 font-bold">
+                  <tr>
+                    <td className="px-3 py-2 text-slate-800">Total</td>
+                    <td className="px-3 py-2 text-right text-slate-900">{testWiseData.reduce((s, t) => s + t.count, 0)}</td>
+                    <td className="px-3 py-2 text-right text-slate-900">PKR {testWiseData.reduce((s, t) => s + t.revenue, 0).toLocaleString()}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            {/* Chart */}
+            <div className="h-80 w-full rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <div className="flex h-full items-end gap-1 overflow-x-auto">
+                {testWiseData.slice(0, 20).map((t, i) => {
+                  const maxCount = Math.max(...testWiseData.slice(0, 20).map(x => x.count), 1)
+                  const pct = Math.max(8, (t.count / maxCount) * 100)
+                  const colors = ['bg-sky-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-indigo-500', 'bg-teal-500', 'bg-blue-500']
+                  return (
+                    <div key={i} className="flex-1 min-w-[40px] h-full flex flex-col items-center justify-end" title={`${t.testName}: ${t.count} (PKR ${t.revenue.toLocaleString()})`}>
+                      <div className="text-[10px] font-bold text-slate-700 mb-1">{t.count}</div>
+                      <div className={`w-full max-w-[32px] rounded-t-md ${colors[i % colors.length]}`} style={{ height: `${pct}%` }} />
+                      <div className="mt-1 text-center text-[9px] leading-tight text-slate-500 truncate w-full" title={t.testName}>{t.testName.length > 10 ? t.testName.slice(0, 9) + '…' : t.testName}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

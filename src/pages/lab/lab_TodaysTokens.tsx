@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Clock, FlaskConical, CheckCircle2, FileText, Stamp, RefreshCw, Calendar, Download, Pencil, XCircle, Trash2, Printer } from 'lucide-react'
+import {
+  Search, Clock, FlaskConical, CheckCircle2, FileText,
+  Stamp, RefreshCw, Download, Pencil, XCircle, Printer,
+  Ban, ArrowRightToLine, ListChecks, ChevronLeft, ChevronRight,
+  Beaker, Activity, Calendar, Filter, User, Hash, Zap
+} from 'lucide-react'
 import { labApi } from '../../utils/api'
 import { printLabTokenSlip } from '../../utils/printLabToken'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { useLabSession } from '../../hooks/useLabSession'
 
 type TokenStatus = 'token_generated' | 'converted_to_sample' | 'sample_received' | 'result_entered' | 'approved' | 'cancelled'
 
@@ -40,27 +46,38 @@ type LabToken = {
   receivableAmount?: number
 }
 
-type LabTest = { id: string; name: string }
+type LabTest = { id: string; name: string; turnaroundTime?: number }
 
-const statusConfig: Record<TokenStatus, { label: string; color: string; icon: any }> = {
-  token_generated: { label: 'Token Generated', color: 'bg-blue-100 text-blue-700', icon: Clock },
-  converted_to_sample: { label: 'Converted to Sample', color: 'bg-purple-100 text-purple-700', icon: FlaskConical },
-  sample_received: { label: 'Sample Received', color: 'bg-amber-100 text-amber-700', icon: CheckCircle2 },
-  result_entered: { label: 'Result Entered', color: 'bg-orange-100 text-orange-700', icon: FileText },
-  approved: { label: 'Approved', color: 'bg-emerald-100 text-emerald-700', icon: Stamp },
-  cancelled: { label: 'Cancelled', color: 'bg-rose-100 text-rose-700', icon: XCircle },
+const statusConfig: Record<TokenStatus, { label: string; accent: string; bg: string; text: string; glow: string; icon: any; step: number }> = {
+  token_generated:   { label: 'Token',     accent: '#3B82F6', bg: '#EFF6FF', text: '#1D4ED8', glow: '0 0 12px #3B82F640', icon: Clock,         step: 1 },
+  converted_to_sample:{ label: 'Sample',   accent: '#8B5CF6', bg: '#F5F3FF', text: '#6D28D9', glow: '0 0 12px #8B5CF640', icon: FlaskConical,   step: 2 },
+  sample_received:   { label: 'Received',  accent: '#F59E0B', bg: '#FFFBEB', text: '#B45309', glow: '0 0 12px #F59E0B40', icon: CheckCircle2,   step: 3 },
+  result_entered:    { label: 'Result',    accent: '#F97316', bg: '#FFF7ED', text: '#C2410C', glow: '0 0 12px #F9731640', icon: FileText,        step: 4 },
+  approved:          { label: 'Approved',  accent: '#10B981', bg: '#ECFDF5', text: '#065F46', glow: '0 0 12px #10B98140', icon: Stamp,           step: 5 },
+  cancelled:         { label: 'Cancelled', accent: '#F43F5E', bg: '#FFF1F2', text: '#BE123C', glow: '0 0 12px #F43F5E40', icon: XCircle,         step: 0 },
 }
 
 function formatTime(iso: string): string {
-  try {
-    const d = new Date(iso)
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } catch {
-    return iso
-  }
+  try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+  catch { return iso }
+}
+
+function getInitials(name: string): string {
+  return name?.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || '?'
+}
+
+const avatarColors = [
+  ['#6366F1','#818CF8'], ['#8B5CF6','#A78BFA'], ['#EC4899','#F472B6'],
+  ['#14B8A6','#2DD4BF'], ['#F59E0B','#FCD34D'], ['#10B981','#34D399'],
+]
+
+function getAvatarColor(name: string): string[] {
+  const idx = (name?.charCodeAt(0) || 0) % avatarColors.length
+  return avatarColors[idx]
 }
 
 export default function Lab_TodaysTokens() {
+  void useLabSession()
   const navigate = useNavigate()
   const [tokens, setTokens] = useState<LabToken[]>([])
   const [tests, setTests] = useState<LabTest[]>([])
@@ -70,15 +87,14 @@ export default function Lab_TodaysTokens() {
   const [trackOpen, setTrackOpen] = useState(false)
   const [trackTokenNo, setTrackTokenNo] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
-
+  const [convertingId, setConvertingId] = useState<string | null>(null)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelToken, setCancelToken] = useState<LabToken | null>(null)
-
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteToken, setDeleteToken] = useState<LabToken | null>(null)
-
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const [from, setFrom] = useState(todayIso)
+  const [to, setTo] = useState(todayIso)
   const [page, setPage] = useState(1)
   const [rows, setRows] = useState(20)
   const [total, setTotal] = useState(0)
@@ -88,10 +104,29 @@ export default function Lab_TodaysTokens() {
 
   const openEdit = (t: LabToken) => {
     const isReception = window.location.pathname.startsWith('/reception')
-    const target = isReception
+    navigate(isReception
       ? `/reception/lab/sample-intake?tokenId=${encodeURIComponent(t._id)}`
-      : `/lab/orders?tokenId=${encodeURIComponent(t._id)}`
-    navigate(target)
+      : `/lab/orders?tokenId=${encodeURIComponent(t._id)}`)
+  }
+
+  const getTestNamesArray = (tests: Array<string | { testId?: string; testName?: string }>) =>
+    (tests || []).map(t => {
+      if (typeof t === 'object' && t?.testId) return t.testName || testsMap[t.testId] || t.testId
+      const id = String(t); return testsMap[id] || id
+    })
+
+  const getTestNames = (tests: Array<string | { testId?: string; testName?: string }>) =>
+    getTestNamesArray(tests).join(', ')
+
+  const handleConvertToSample = async (t: LabToken) => {
+    setConvertingId(t._id)
+    try {
+      await labApi.convertTokenToSample(t._id, { tests: t.tests || [], subtotal: t.subtotal || 0, discount: t.discount || 0, net: t.net || 0, receivedAmount: t.receivedAmount || 0 })
+      setToast({ type: 'success', message: `Token #${t.tokenNo} converted to sample` })
+      refresh()
+    } catch (e: any) {
+      setToast({ type: 'error', message: e?.message || 'Failed to convert to sample' })
+    } finally { setConvertingId(null) }
   }
 
   const confirmCancel = async () => {
@@ -99,12 +134,8 @@ export default function Lab_TodaysTokens() {
     try {
       await labApi.updateTokenStatus(cancelToken._id, { status: 'cancelled' })
       setToast({ type: 'success', message: `Token ${cancelToken.tokenNo} cancelled` })
-      setCancelOpen(false)
-      setCancelToken(null)
-      refresh()
-    } catch (e: any) {
-      setToast({ type: 'error', message: e?.message || 'Failed to cancel token' })
-    }
+      setCancelOpen(false); setCancelToken(null); refresh()
+    } catch (e: any) { setToast({ type: 'error', message: e?.message || 'Failed to cancel token' }) }
   }
 
   const confirmDelete = async () => {
@@ -112,12 +143,8 @@ export default function Lab_TodaysTokens() {
     try {
       await labApi.deleteToken(deleteToken._id)
       setToast({ type: 'success', message: `Token ${deleteToken.tokenNo} deleted` })
-      setDeleteOpen(false)
-      setDeleteToken(null)
-      refresh()
-    } catch (e: any) {
-      setToast({ type: 'error', message: e?.message || 'Failed to delete token' })
-    }
+      setDeleteOpen(false); setDeleteToken(null); refresh()
+    } catch (e: any) { setToast({ type: 'error', message: e?.message || 'Failed to delete token' }) }
   }
 
   const refresh = async () => {
@@ -130,518 +157,479 @@ export default function Lab_TodaysTokens() {
       setTokens((tokenRes.items || []) as LabToken[])
       setTotal(Number(tokenRes.total || 0))
       setTotalPages(Number(tokenRes.totalPages || 1))
-      setTests((testRes.items || []).map((t: any) => ({ id: String(t._id), name: t.name })))
+      setTests((testRes.items || []).map((t: any) => ({ id: String(t._id), name: t.name, turnaroundTime: t.turnaroundTime || 0 })))
     } catch (e: any) {
-      console.error(e)
       setToast({ type: 'error', message: e?.message || 'Failed to load tokens' })
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
-  useEffect(() => {
-    refresh()
-  }, [from, to, page, rows, statusFilter])
+  useEffect(() => { refresh() }, [from, to, page, rows, statusFilter])
 
-  const filteredTokens = tokens
-
-  const pageCount = Math.max(1, Number(totalPages || 1))
-  const curPage = Math.min(Math.max(1, page), pageCount)
-  const start = total === 0 ? 0 : (curPage - 1) * rows + 1
-  const end = Math.min(curPage * rows, total)
-
-  const exportCsv = () => {
-    const cols = ['Token No', 'Date', 'Time', 'Patient', 'MR No', 'Phone', 'Tests', 'Barcode', 'Status']
-    const esc = (v: any) => {
-      const s = String(v ?? '')
-      if (/[,\n\r\"]/g.test(s)) return `"${s.replace(/\"/g, '""')}"`
-      return s
-    }
-    const rowsCsv = (filteredTokens || []).map(t => {
-      const dt = new Date(t.generatedAt)
-      const date = isNaN(dt.getTime()) ? '' : dt.toLocaleDateString()
-      const time = isNaN(dt.getTime()) ? '' : dt.toLocaleTimeString()
-      return [
-        t.tokenNo,
-        date,
-        time,
-        t.patient?.fullName || '',
-        t.patient?.mrn || '',
-        t.patient?.phone || '',
-        getTestNames(t.tests || []),
-        t.barcode || '',
-        t.status,
-      ].map(esc).join(',')
+  const filteredTokens = useMemo(() => {
+    const qq = q.trim().toLowerCase()
+    return (tokens || []).filter(t => {
+      if (!qq) return true
+      const testsText = getTestNames(t.tests || []).toLowerCase()
+      return [t.tokenNo, t.patient?.fullName, t.patient?.mrn, t.patient?.phone, t.barcode, t.status, testsText].filter(Boolean).join(' ').toLowerCase().includes(qq)
     })
-    const csv = [cols.join(','), ...rowsCsv].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `token-history_${from || 'all'}_${to || 'all'}_p${curPage}.csv`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-  }
-
-  const downloadPdf = () => {
-    const win = window.open('', 'print', 'width=1000,height=700')
-    if (!win) return
-    const rowsHtml = (filteredTokens || []).map(t => {
-      const dt = new Date(t.generatedAt)
-      const date = isNaN(dt.getTime()) ? '' : dt.toLocaleDateString()
-      const time = isNaN(dt.getTime()) ? '' : dt.toLocaleTimeString()
-      return `<tr>
-        <td>${escapeHtml(t.tokenNo)}</td>
-        <td>${escapeHtml(date)}</td>
-        <td>${escapeHtml(time)}</td>
-        <td>${escapeHtml(t.patient?.fullName || '-')}</td>
-        <td>${escapeHtml(t.patient?.mrn || '-')}</td>
-        <td>${escapeHtml(t.patient?.phone || '-')}</td>
-        <td>${escapeHtml(getTestNames(t.tests || []) || '-')}</td>
-        <td>${escapeHtml(t.barcode || '-')}</td>
-        <td>${escapeHtml(t.status || '-')}</td>
-      </tr>`
-    }).join('')
-
-    win.document.write(`<!doctype html><html><head><title>Token History</title>
-      <style>
-        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:24px;color:#0f172a}
-        h1{font-size:18px;margin:0 0 8px 0}
-        .meta{font-size:12px;color:#475569;margin-bottom:12px}
-        table{width:100%;border-collapse:collapse;font-size:12px}
-        th,td{border:1px solid #e2e8f0;padding:6px;text-align:left;vertical-align:top}
-        th{background:#f8fafc}
-      </style>
-    </head><body>`)
-    win.document.write(`<h1>Token History</h1>`)
-    win.document.write(`<div class="meta">From: ${escapeHtml(from || '-')} To: ${escapeHtml(to || '-')} | Page: ${curPage}/${pageCount} | Rows: ${rows}</div>`)
-    win.document.write(`<table><thead><tr>
-      <th>Token No</th><th>Date</th><th>Time</th><th>Patient</th><th>MR No</th><th>Phone</th><th>Tests</th><th>Barcode</th><th>Status</th>
-    </tr></thead><tbody>${rowsHtml}</tbody></table>`)
-    win.document.write('</body></html>')
-    win.document.close()
-    win.focus()
-    win.print()
-  }
-
-  function escapeHtml(s: string) {
-    return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
-  }
+  }, [tokens, q, testsMap])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const t of tokens) {
-      counts[t.status] = (counts[t.status] || 0) + 1
-    }
+    for (const t of (tokens || [])) { counts[t.status] = (counts[t.status] || 0) + 1 }
     return counts
   }, [tokens])
 
-  const getTestNames = (tests: Array<string | { testId?: string; testName?: string }>) => {
-    return tests.map(t => {
-      if (typeof t === 'object' && t?.testId) {
-        return t.testName || testsMap[t.testId] || t.testId
-      }
-      // At this point, t must be a string
-      const id = String(t)
-      return testsMap[id] || id
-    }).join(', ')
+  const exportCsv = () => {
+    const cols = ['Token No', 'Date', 'Time', 'Patient', 'MR No', 'Phone', 'Tests', 'Barcode', 'Status']
+    const esc = (v: any) => { const s = String(v ?? ''); return /[,\n\r\"]/g.test(s) ? `"${s.replace(/\"/g, '""')}"` : s }
+    const rowsCsv = (filteredTokens || []).map(t => {
+      const dt = new Date(t.generatedAt)
+      return [t.tokenNo, isNaN(dt.getTime()) ? '' : dt.toLocaleDateString(), isNaN(dt.getTime()) ? '' : dt.toLocaleTimeString(), t.patient?.fullName || '', t.patient?.mrn || '', t.patient?.phone || '', getTestNames(t.tests || []), t.barcode || '', t.status].map(esc).join(',')
+    })
+    const csv = [cols.join(','), ...rowsCsv].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `token-history.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
   }
 
+  const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div style={{ fontFamily: "'Poppins', sans-serif", minHeight: '100%', backgroundColor: '#F0F2F5', padding: '24px' }}>
       {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
 
-      {/* Header */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Token History</h2>
-            <div className="mt-1 text-sm text-slate-600">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes pulse-glow { 0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); } 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); } }
+        .modern-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .modern-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px -8px rgba(0,0,0,0.1); }
+        .date-input-modern::-webkit-calendar-picker-indicator {
+          background: transparent;
+          bottom: 0;
+          color: transparent;
+          cursor: pointer;
+          height: auto;
+          left: 0;
+          position: absolute;
+          right: 0;
+          top: 0;
+          width: auto;
+        }
+        * { box-sizing: border-box; }
+      `}</style>
+
+      {/* ── MODERN GLASS HEADER ── */}
+      <div style={{
+        borderRadius: '24px',
+        background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #C026D3 100%)',
+        padding: '32px',
+        marginBottom: '24px',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 20px 40px -12px rgba(79, 70, 229, 0.4)',
+      }}>
+        <div style={{ position:'absolute', top:'-50%', right:'-10%', width:'400px', height:'400px', borderRadius:'50%', background:'rgba(255,255,255,0.1)', filter:'blur(80px)', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', bottom:'-20%', left:'-5%', width:'300px', height:'300px', borderRadius:'50%', background:'rgba(255,255,255,0.05)', filter:'blur(60px)', pointerEvents:'none' }} />
+        
+        <div style={{ position:'relative', display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between', gap:'20px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
+            <div style={{
+              width:'64px', height:'64px', borderRadius:'20px',
+              background:'rgba(255,255,255,0.2)',
+              border:'1px solid rgba(255,255,255,0.3)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              backdropFilter:'blur(12px)',
+              boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+            }}>
+              <Zap size={32} color='#FFFFFF' fill='#FFFFFF' />
+            </div>
+            <div>
+              <h1 style={{ margin:0, fontSize:'32px', fontWeight:800, color:'#FFFFFF', letterSpacing:'-1px' }}>
+                Lab Dashboard
+              </h1>
+              <div style={{ marginTop:'4px', display:'flex', alignItems:'center', gap:'8px', color:'rgba(255,255,255,0.8)', fontSize:'14px', fontWeight:500 }}>
+                <Calendar size={14} />
+                {todayStr}
+              </div>
             </div>
           </div>
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+
+          <div style={{ display:'flex', gap:'12px' }}>
+            <button onClick={refresh} disabled={loading} style={{
+              display:'flex', alignItems:'center', gap:'10px',
+              padding:'12px 24px', borderRadius:'14px', border:'1px solid rgba(255,255,255,0.3)',
+              background:'rgba(255,255,255,0.15)', color:'#FFFFFF', fontSize:'14px', fontWeight:600,
+              cursor:'pointer', backdropFilter:'blur(12px)', transition:'all 0.3s',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+            >
+              <RefreshCw size={16} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+              Sync Data
+            </button>
+            <button onClick={exportCsv} style={{
+              display:'flex', alignItems:'center', gap:'10px',
+              padding:'12px 24px', borderRadius:'14px', border:'none',
+              background:'#FFFFFF', color:'#4F46E5', fontSize:'14px', fontWeight:700,
+              cursor:'pointer', boxShadow:'0 10px 15px -3px rgba(0,0,0,0.1)', transition:'all 0.3s',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
+              onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <Download size={16} />
+              Export
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── STATS SECTION ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'20px', marginBottom:'24px' }}>
+        {[
+          { label:'Overall Tokens', value: total, color:'#6366F1', icon: ListChecks, gradient: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)' },
+          { label:'Pending Intake', value: statusCounts['token_generated'] || 0, color:'#F59E0B', icon: Clock, gradient: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' },
+          { label:'In Lab Process', value:(statusCounts['converted_to_sample'] || 0)+(statusCounts['sample_received'] || 0), color:'#8B5CF6', icon: FlaskConical, gradient: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)' },
+          { label:'Completed', value: statusCounts['approved'] || 0, color:'#10B981', icon: CheckCircle2, gradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' },
+        ].map(card => {
+          const Icon = card.icon
+          return (
+            <div key={card.label} className="modern-card" style={{
+              background:'#FFFFFF', borderRadius:'24px', padding:'24px',
+              border:'1px solid rgba(226, 232, 240, 0.8)', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)',
+              display:'flex', alignItems:'center', gap:'20px',
+            }}>
+              <div style={{
+                width:'56px', height:'56px', borderRadius:'18px',
+                background: card.gradient,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                boxShadow: `0 8px 16px ${card.color}40`,
+              }}>
+                <Icon size={24} color='#FFFFFF' />
+              </div>
+              <div>
+                <div style={{ fontSize:'13px', fontWeight:600, color:'#64748B', textTransform:'uppercase', letterSpacing:'0.5px' }}>{card.label}</div>
+                <div style={{ fontSize:'28px', fontWeight:800, color:'#1E293B', marginTop:'2px' }}>{card.value}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── FILTER & SEARCH TOOLBAR ── */}
+      <div style={{ background:'#FFFFFF', borderRadius:'24px', padding:'20px', marginBottom:'24px', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)', border:'1px solid rgba(226, 232, 240, 0.8)' }}>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'20px', alignItems:'center' }}>
+          {/* Modern Search */}
+          <div style={{ position:'relative', flex:'1', minWidth:'300px' }}>
+            <Search size={18} style={{ position:'absolute', left:'18px', top:'50%', transform:'translateY(-50%)', color:'#94A3B8' }} />
+            <input
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Quick search patient, MRN or token ID..."
+              style={{
+                width:'100%', borderRadius:'16px', border:'2px solid #F1F5F9', background:'#F8FAFC',
+                padding:'14px 14px 14px 50px', fontSize:'15px', fontWeight:500, color:'#1E293B',
+                outline:'none', transition:'all 0.3s',
+              }}
+              onFocus={e => { e.target.style.borderColor = '#6366F1'; e.target.style.background = '#FFFFFF'; e.target.style.boxShadow = '0 0 0 4px rgba(99, 102, 241, 0.1)' }}
+              onBlur={e => { e.target.style.borderColor = '#F1F5F9'; e.target.style.background = '#F8FAFC'; e.target.style.boxShadow = 'none' }}
+            />
+          </div>
+
+          {/* Modern Date Pickers */}
+          <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+            <div style={{ position:'relative', display:'flex', alignItems:'center', background:'#F8FAFC', border:'2px solid #F1F5F9', borderRadius:'16px', padding:'10px 16px', gap:'10px' }}>
+              <Calendar size={16} color='#6366F1' />
+              <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1) }} className="date-input-modern" style={{ border:'none', background:'transparent', fontSize:'14px', fontWeight:600, color:'#1E293B', outline:'none', cursor:'pointer', width:'110px' }} />
+              <span style={{ color:'#CBD5E1', fontWeight:800 }}>→</span>
+              <input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1) }} className="date-input-modern" style={{ border:'none', background:'transparent', fontSize:'14px', fontWeight:600, color:'#1E293B', outline:'none', cursor:'pointer', width:'110px' }} />
+            </div>
+            
+            <div style={{ height:'30px', width:'2px', background:'#F1F5F9' }} />
+            
+            <button onClick={() => { setFrom(todayIso); setTo(todayIso); setPage(1) }} style={{
+              display:'flex', alignItems:'center', gap:'8px', padding:'12px 20px', borderRadius:'16px',
+              background: from === todayIso && to === todayIso ? '#6366F1' : '#F8FAFC', border: from === todayIso && to === todayIso ? 'none' : '2px solid #F1F5F9',
+              color: from === todayIso && to === todayIso ? '#FFFFFF' : '#64748B', fontSize:'14px', fontWeight:600,
+              cursor:'pointer', transition:'all 0.3s'
+            }}>
+              <Calendar size={16} /> Today
+            </button>
+            {(from !== todayIso || to !== todayIso) && (
+              <button onClick={() => { setFrom(''); setTo(''); setPage(1) }} style={{
+                display:'flex', alignItems:'center', gap:'6px', padding:'12px 16px', borderRadius:'16px',
+                background:'#FFF1F2', border:'2px solid #FFE4E6', color:'#E11D48', fontSize:'13px', fontWeight:600,
+                cursor:'pointer', transition:'all 0.3s'
+              }}>
+                Clear Dates
+              </button>
+            )}
+            
+            <button style={{
+              display:'flex', alignItems:'center', gap:'8px', padding:'12px 20px', borderRadius:'16px',
+              background:'#F8FAFC', border:'2px solid #F1F5F9', color:'#64748B', fontSize:'14px', fontWeight:600,
+              cursor:'pointer', transition:'all 0.3s'
+            }}>
+              <Filter size={16} /> Filters
+            </button>
+          </div>
         </div>
 
-        {/* Status Summary Cards */}
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {Object.entries(statusConfig).map(([status, config]) => {
-            const count = statusCounts[status] || 0
-            const Icon = config.icon
-
-            const accent =
-              status === 'token_generated' ? 'from-blue-50 to-blue-100/50 border-blue-200' :
-              status === 'converted_to_sample' ? 'from-violet-50 to-violet-100/50 border-violet-200' :
-              status === 'sample_received' ? 'from-amber-50 to-amber-100/50 border-amber-200' :
-              status === 'result_entered' ? 'from-orange-50 to-orange-100/50 border-orange-200' :
-              status === 'approved' ? 'from-emerald-50 to-emerald-100/50 border-emerald-200' :
-              'from-rose-50 to-rose-100/50 border-rose-200'
-
-            const ring = statusFilter === status ? 'ring-2 ring-violet-500' : ''
-
+        {/* Status Tabs */}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'10px', marginTop:'20px', paddingTop:'20px', borderTop:'1px solid #F1F5F9' }}>
+          <button onClick={() => setStatusFilter('all')} style={{
+            padding:'10px 20px', borderRadius:'12px', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:700, transition:'all 0.3s',
+            background: statusFilter === 'all' ? '#1E293B' : '#F1F5F9',
+            color: statusFilter === 'all' ? '#FFFFFF' : '#64748B',
+          }}>All Access</button>
+          {Object.entries(statusConfig).map(([st, cfg]) => {
+            const Icon = cfg.icon; const active = statusFilter === st
             return (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(statusFilter === status as TokenStatus ? 'all' : status as TokenStatus)}
-                className={`rounded-xl border bg-gradient-to-br ${accent} p-4 text-left shadow-sm transition hover:shadow-md ${ring}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/70 ring-1 ring-black/5">
-                      <Icon className="h-4 w-4 text-slate-600" />
-                    </span>
-                    <span className="text-xs font-medium text-slate-700">{config.label}</span>
-                  </div>
-                  <div className="text-3xl font-extrabold tracking-tight text-slate-900">{count}</div>
-                </div>
+              <button key={st} onClick={() => setStatusFilter(st as TokenStatus)} style={{
+                display:'flex', alignItems:'center', gap:'8px', padding:'10px 20px', borderRadius:'12px', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:700, transition:'all 0.3s',
+                background: active ? cfg.accent : '#F1F5F9',
+                color: active ? '#FFFFFF' : '#64748B',
+                boxShadow: active ? `0 8px 16px ${cfg.accent}40` : 'none',
+              }}>
+                <Icon size={14} /> {cfg.label}
               </button>
             )
           })}
         </div>
+      </div>
 
-        {/* Search */}
-        <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="h-4 w-4 text-slate-500" />
-              <input
-                type="date"
-                value={from}
-                onChange={e => { setFrom(e.target.value); setPage(1) }}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-slate-900"
-              />
-              <input
-                type="date"
-                value={to}
-                onChange={e => { setTo(e.target.value); setPage(1) }}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-slate-900"
-              />
+      {/* ── HIGH DENSITY TOKEN LIST ── */}
+      <div style={{ background:'#FFFFFF', borderRadius:'24px', border:'1px solid rgba(226, 232, 240, 0.8)', overflow:'hidden', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'120px 2fr 2fr 160px 200px', gap:'0', padding:'16px 24px', background:'#F8FAFC', borderBottom:'1px solid #F1F5F9' }}>
+          {[
+            { label: 'TOKEN ID', icon: Hash },
+            { label: 'PATIENT PROFILE', icon: User },
+            { label: 'LABORATORY TESTS', icon: Beaker },
+            { label: 'CURRENT STATUS', icon: Activity },
+            { label: 'QUICK ACTIONS', icon: Zap },
+          ].map(h => (
+            <div key={h.label} style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:800, color:'#94A3B8', letterSpacing:'1px' }}>
+              <h.icon size={12} /> {h.label}
             </div>
+          ))}
+        </div>
 
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={exportCsv}
-                disabled={loading || filteredTokens.length === 0}
-                className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                <Download className="h-4 w-4" />
-                Export CSV
-              </button>
-              <button
-                type="button"
-                onClick={downloadPdf}
-                disabled={loading || filteredTokens.length === 0}
-                className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                <Download className="h-4 w-4" />
-                Download PDF
-              </button>
-            </div>
+        {loading ? (
+          <div style={{ padding:'100px 20px', textAlign:'center' }}>
+            <RefreshCw size={48} className="animate-spin" style={{ color:'#6366F1', opacity:0.3 }} />
           </div>
-
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  setPage(1)
-                  refresh()
-                }
+        ) : filteredTokens.length === 0 ? (
+          <div style={{ padding:'100px 20px', textAlign:'center', color:'#94A3B8' }}>
+            <FileText size={48} style={{ opacity:0.2, marginBottom:'16px' }} />
+            <div style={{ fontSize:'16px', fontWeight:600 }}>No results match your criteria</div>
+          </div>
+        ) : (
+          filteredTokens.map((t, idx) => {
+            const cfg = statusConfig[t.status]; const Icon = cfg.icon
+            const [c1, c2] = getAvatarColor(t.patient?.fullName || '')
+            return (
+              <div key={t._id} style={{
+                display:'grid', gridTemplateColumns:'120px 2fr 2fr 160px 200px',
+                alignItems:'center', padding:'18px 24px',
+                borderBottom: idx < filteredTokens.length - 1 ? '1px solid #F1F5F9' : 'none',
+                transition:'all 0.2s',
               }}
-              placeholder="Search by token, patient, MRN, phone, or barcode..."
-              className="w-full rounded-md border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
-            />
+              onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                {/* ID */}
+                <div style={{ position:'relative' }}>
+                  <div style={{ fontSize:'16px', fontWeight:800, color:'#1E293B', fontVariantNumeric:'tabular-nums' }}>#{t.tokenNo.split('-').pop()}</div>
+                  <div style={{ fontSize:'11px', fontWeight:600, color:'#94A3B8', marginTop:'2px' }}>{formatTime(t.generatedAt)}</div>
+                </div>
+
+                {/* Patient */}
+                <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
+                  <div style={{ width:'44px', height:'44px', borderRadius:'14px', background:`linear-gradient(135deg, ${c1}, ${c2})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', fontWeight:800, color:'#FFFFFF', boxShadow:'0 4px 12px rgba(0,0,0,0.1)' }}>
+                    {getInitials(t.patient?.fullName || '')}
+                  </div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:'#1E293B', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.patient?.fullName}</div>
+                    <div style={{ fontSize:'12px', fontWeight:500, color:'#64748B', marginTop:'2px' }}>{t.patient?.mrn || 'Walk-in'} • {t.patient?.age || 'N/A'} • {t.patient?.gender}</div>
+                  </div>
+                </div>
+
+                {/* Tests */}
+                <div style={{ paddingRight:'20px', display:'flex', flexDirection:'column', gap:'6px' }}>
+                  <div style={{ 
+                    display:'flex', 
+                    flexWrap:'wrap', 
+                    gap:'4px',
+                    maxHeight:'60px',
+                    overflow:'hidden',
+                    position:'relative'
+                  }}>
+                    {getTestNamesArray(t.tests).map((name, i) => (
+                      <span key={i} style={{ 
+                        fontSize:'11px', 
+                        fontWeight:600, 
+                        color:'#475569',
+                        background:'#F8FAFC',
+                        padding:'2px 8px',
+                        borderRadius:'6px',
+                        border:'1px solid #F1F5F9',
+                        whiteSpace:'nowrap'
+                      }}>
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                    <span style={{ padding:'2px 8px', borderRadius:'6px', background:'#EFF6FF', fontSize:'10px', fontWeight:800, color:'#3B82F6', border:'1px solid #DBEAFE' }}>
+                      {t.tests.length} {t.tests.length === 1 ? 'TEST' : 'TESTS'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:'8px', padding:'6px 14px', borderRadius:'12px', background:cfg.bg, color:cfg.text, fontSize:'12px', fontWeight:700, boxShadow:`inset 0 0 0 1px ${cfg.accent}20` }}>
+                    <Icon size={14} /> {cfg.label}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', justifyContent:'flex-end' }}>
+                  {t.status === 'token_generated' ? (
+                    <button onClick={() => handleConvertToSample(t)} disabled={convertingId === t._id} style={{
+                      display:'flex', alignItems:'center', gap:'8px', padding:'8px 16px', borderRadius:'10px', border:'none', cursor: convertingId === t._id ? 'not-allowed' : 'pointer',
+                      background:'linear-gradient(135deg, #6366F1, #4F46E5)', color:'#FFFFFF', fontSize:'12px', fontWeight:700,
+                      boxShadow:'0 4px 12px rgba(99,102,241,0.3)', transition:'all 0.2s',
+                      opacity: convertingId === t._id ? 0.6 : 1,
+                    }}
+                    onMouseEnter={e => convertingId !== t._id && (e.currentTarget.style.transform = 'scale(1.05)')}
+                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                    >
+                      <ArrowRightToLine size={14} /> {convertingId === t._id ? 'CONVERTING...' : 'CONVERT'}
+                    </button>
+                  ) : (
+                    <>
+                      <ModernActionBtn icon={<Clock size={16} />} onClick={() => { setTrackTokenNo(t.tokenNo); setTrackOpen(true) }} />
+                      <ModernActionBtn icon={<Pencil size={16} />} onClick={() => openEdit(t)} />
+                      <ModernActionBtn icon={<Printer size={16} />} onClick={() => printLabTokenSlip({
+                          tokenNo: t.tokenNo,
+                          createdAt: t.generatedAt,
+                          patient: t.patient,
+                          tests: (t.tests || []).map(id => ({ name: testsMap[id] || id, price: 0 })),
+                          subtotal: t.subtotal || 0,
+                          discount: t.discount || 0,
+                          net: t.net || 0,
+                          receivedAmount: t.receivedAmount,
+                          receivableAmount: t.receivableAmount,
+                        })} />
+                    </>
+                  )}
+                  {t.status === 'token_generated' && (
+                    <button onClick={() => { setCancelToken(t); setCancelOpen(true) }} style={{ width:'36px', height:'36px', borderRadius:'10px', border:'none', background:'#FFF1F2', color:'#F43F5E', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.2s' }} onMouseEnter={e => (e.currentTarget.style.background = '#FFE4E6')}>
+                      <Ban size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* ── MODERN PAGINATION ── */}
+      <div style={{ marginTop:'24px', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 8px' }}>
+        <div style={{ fontSize:'14px', fontWeight:600, color:'#94A3B8' }}>
+          Showing <span style={{ color:'#1E293B' }}>{(page - 1) * rows + 1}</span> to <span style={{ color:'#1E293B' }}>{Math.min(page * rows, total)}</span> of <span style={{ color:'#1E293B' }}>{total}</span> entries
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
+          <select value={rows} onChange={e => { setRows(Number(e.target.value)); setPage(1) }} style={{ padding:'10px 16px', borderRadius:'12px', border:'2px solid #F1F5F9', background:'#FFFFFF', fontSize:'13px', fontWeight:700, color:'#1E293B', cursor:'pointer', outline:'none' }}>
+            <option value={10}>10 / PAGE</option>
+            <option value={20}>20 / PAGE</option>
+            <option value={50}>50 / PAGE</option>
+          </select>
+          <div style={{ display:'flex', gap:'8px' }}>
+            <ModernPageBtn disabled={page <= 1} onClick={() => setPage(p => p - 1)} icon={<ChevronLeft size={20} />} />
+            <div style={{ height:'40px', padding:'0 20px', display:'flex', alignItems:'center', background:'#1E293B', color:'#FFFFFF', borderRadius:'12px', fontSize:'14px', fontWeight:700 }}>{page} / {totalPages}</div>
+            <ModernPageBtn disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} icon={<ChevronRight size={20} />} />
           </div>
         </div>
       </div>
 
-      {/* Tokens Table */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        {loading ? (
-          <div className="py-8 text-center text-sm text-slate-600">Loading tokens...</div>
-        ) : filteredTokens.length === 0 ? (
-          <div className="py-8 text-center text-sm text-slate-500">
-            {total === 0 ? 'No tokens found for selected filters' : 'No tokens match your filters'}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
-                <tr className="text-left">
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Token No</th>
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Time</th>
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">MR No</th>
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Phone</th>
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Tests</th>
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Barcode</th>
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
-                  <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTokens.map((token, idx) => {
-                  const config = statusConfig[token.status]
-                  const StatusIcon = config.icon
-                  const canMutate = token.status === 'token_generated'
-                  return (
-                    <tr key={token._id} className={`border-b border-slate-100 hover:bg-slate-50/60 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
-                      <td className="px-3 py-2 whitespace-nowrap font-mono font-medium text-slate-900">
-                        {token.tokenNo}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-slate-600">
-                        {formatTime(token.generatedAt)}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-slate-800">
-                        {token.patient?.fullName || '-'}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-slate-600">
-                        {token.patient?.mrn || '-'}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-slate-600">
-                        {token.patient?.phone || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-slate-700 max-w-[200px] truncate" title={getTestNames(token.tests)}>
-                        {getTestNames(token.tests) || '-'}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap font-mono text-slate-600">
-                        {token.barcode || '-'}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.color}`}>
-                          <StatusIcon className="h-3 w-3" />
-                          {config.label}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => { setTrackTokenNo(token.tokenNo); setTrackOpen(true) }}
-                            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                            title="View Timeline"
-                          >
-                            <Clock className="h-3 w-3" />
-                          </button>
-                          {canMutate && (
-                            <button
-                              onClick={() => openEdit(token)}
-                              className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                              title="Edit Token"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                          )}
-                          {canMutate && (
-                            <button
-                              onClick={() => { setCancelToken(token); setCancelOpen(true) }}
-                              className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700 hover:bg-rose-100"
-                              title="Cancel Token"
-                            >
-                              <XCircle className="h-3 w-3" />
-                            </button>
-                          )}
-                          {canMutate && (
-                            <button
-                              onClick={() => { setDeleteToken(token); setDeleteOpen(true) }}
-                              className="rounded-md border border-rose-200 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50"
-                              title="Delete Token"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          )}
-                          <button
-                            onClick={async () => {
-                              try {
-                                // Always print with latest tracking/totals (supports returned tests)
-                                const tl: any = await labApi.getTokenTimeline(token._id || token.tokenNo)
-                                const tlToken = tl?.token || token
-                                const testStatuses: any[] = Array.isArray(tl?.testStatuses) ? tl.testStatuses : []
-
-                                const testRows = (testStatuses.length > 0 ? testStatuses : (tlToken.tests || token.tests || [])).map((t: any) => {
-                                  // timeline format
-                                  if (typeof t === 'object' && t !== null && (t.testName || t.testId)) {
-                                    const isReturned = Boolean(t.isReturned || t.status === 'returned')
-                                    const name = t.testName || testsMap[String(t.testId)] || String(t.testId)
-                                    const price = Number(t.price || 0)
-                                    return { name: isReturned ? `${name} (Returned)` : name, price }
-                                  }
-                                  // fallback string ids
-                                  const testId = String(t)
-                                  const testName = testsMap[testId] || testId
-                                  const testInfo = tests.find((x: any) => x.id === testId)
-                                  const price = Number((testInfo as any)?.price || 0)
-                                  return { name: testName, price }
-                                })
-
-                                // Calculate subtotal only from non-returned tests for the total display
-                                const activeSubtotal = (testStatuses.length > 0 ? testStatuses : []).reduce((sum: number, t: any) => {
-                                  const isReturned = Boolean(t.isReturned || t.status === 'returned')
-                                  return sum + (isReturned ? 0 : Number(t.price || 0))
-                                }, 0)
-
-                                const subtotal = activeSubtotal || Number(tlToken.subtotal || tl?.order?.subtotal || 0)
-                                const discount = Number(tlToken.discount || 0)
-                                const net = Number(tlToken.net || tl?.order?.net || Math.max(0, subtotal - discount))
-                                const receivedAmount = Number(tlToken.receivedAmount || tl?.order?.receivedAmount || 0)
-                                const receivableAmount = Number(tlToken.receivableAmount || tl?.order?.receivableAmount || Math.max(0, net - receivedAmount))
-
-                                let printedBy = ''
-                                try {
-                                  const raw = localStorage.getItem('lab.session')
-                                  if (raw){ const s = JSON.parse(raw||'{}'); printedBy = s?.username || s?.user?.username || '' }
-                                  if (!printedBy){
-                                    const d = localStorage.getItem('diagnostic.user'); if (d){ const u = JSON.parse(d||'{}'); printedBy = u?.username || u?.name || '' }
-                                  }
-                                  if (!printedBy){
-                                    const h = localStorage.getItem('hospital.session'); if (h){ const u = JSON.parse(h||'{}'); printedBy = u?.username || '' }
-                                  }
-                                } catch {}
-
-                                await printLabTokenSlip({
-                                  tokenNo: tlToken.tokenNo || token.tokenNo,
-                                  createdAt: tlToken.generatedAt || token.generatedAt,
-                                  patient: {
-                                    fullName: tlToken.patient?.fullName || token.patient?.fullName || '-',
-                                    mrn: tlToken.patient?.mrn || token.patient?.mrn,
-                                    phone: tlToken.patient?.phone || token.patient?.phone,
-                                    age: tlToken.patient?.age || token.patient?.age,
-                                    gender: tlToken.patient?.gender || token.patient?.gender
-                                  },
-                                  tests: testRows,
-                                  subtotal,
-                                  discount,
-                                  net,
-                                  receivedAmount,
-                                  receivableAmount,
-                                  printedBy
-                                })
-                              } catch (e: any) {
-                                setToast({ type: 'error', message: e?.message || 'Failed to reprint token' })
-                              }
-                            }}
-                            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-                            title="Reprint Token"
-                          >
-                            <Printer className="h-3 w-3" />
-                          </button>
-                          {token.status === 'token_generated' && (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await labApi.convertTokenToSample(token._id, {
-                                    tests: token.tests,
-                                    subtotal: 0,
-                                    discount: 0,
-                                    net: 0,
-                                    receivedAmount: 0,
-                                  })
-                                  setToast({ type: 'success', message: `Token ${token.tokenNo} converted to sample` })
-                                  refresh()
-                                } catch (e: any) {
-                                  setToast({ type: 'error', message: e?.message || 'Failed to convert to sample' })
-                                }
-                              }}
-                              className="rounded-md bg-violet-600 px-2 py-1 text-xs text-white hover:bg-violet-700"
-                              title="Convert to Sample"
-                            >
-                              <FlaskConical className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {cancelOpen && cancelToken && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
-            <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-              <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800">Cancel Token</div>
-              <div className="px-5 py-4 text-sm text-slate-700">
-                Cancel token <span className="font-mono">{cancelToken.tokenNo}</span>?
-              </div>
-              <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-                <button type="button" onClick={() => { setCancelOpen(false); setCancelToken(null) }} className="btn-outline-navy">No</button>
-                <button type="button" onClick={confirmCancel} className="btn bg-rose-600 hover:bg-rose-700">Yes, Cancel</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {deleteOpen && deleteToken && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
-            <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-              <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800">Delete Token</div>
-              <div className="px-5 py-4 text-sm text-slate-700">
-                Delete token <span className="font-mono">{deleteToken.tokenNo}</span>? This cannot be undone.
-              </div>
-              <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-                <button type="button" onClick={() => { setDeleteOpen(false); setDeleteToken(null) }} className="btn-outline-navy">Cancel</button>
-                <button type="button" onClick={confirmDelete} className="btn bg-rose-600 hover:bg-rose-700">Delete</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Summary Footer */}
-        {!loading && filteredTokens.length > 0 && (
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
-            <div>
-              Showing {start}-{end} of {total}
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span>Rows</span>
-                <select
-                  value={rows}
-                  onChange={e => { setRows(Number(e.target.value)); setPage(1) }}
-                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-slate-900"
-                >
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={curPage <= 1}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                Prev
-              </button>
-              <span className="text-xs">Page {curPage} / {pageCount}</span>
-              <button
-                type="button"
-                onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-                disabled={curPage >= pageCount}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* ── MODALS ── */}
+      {cancelOpen && cancelToken && (
+        <Modal
+          title="Cancel Token?"
+          message={<>This will permanently stop all progress for token <strong style={{ color:'#F43F5E' }}>#{cancelToken.tokenNo}</strong>. This cannot be undone.</>}
+          confirmLabel="Yes, Cancel Token"
+          confirmColor="#F43F5E"
+          confirmShadow="rgba(244,63,94,0.3)"
+          onCancel={() => { setCancelOpen(false); setCancelToken(null) }}
+          onConfirm={confirmCancel}
+        />
+      )}
+      {deleteOpen && deleteToken && (
+        <Modal
+          title="Delete Permanently?"
+          message={<>Token <strong style={{ color:'#F43F5E' }}>#{deleteToken.tokenNo}</strong> and all its data will be removed forever. This is irreversible.</>}
+          confirmLabel="Delete Token"
+          confirmColor="#F43F5E"
+          confirmShadow="rgba(244,63,94,0.3)"
+          onCancel={() => { setDeleteOpen(false); setDeleteToken(null) }}
+          onConfirm={confirmDelete}
+        />
+      )}
 
       <Lab_TrackDialog open={trackOpen} onClose={() => setTrackOpen(false)} tokenNo={trackTokenNo || undefined} />
+    </div>
+  )
+}
+
+function ModernActionBtn({ icon, onClick }: { icon: any; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{ width:'36px', height:'36px', borderRadius:'10px', border:'2px solid #F1F5F9', background:'#FFFFFF', color:'#64748B', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366F1'; e.currentTarget.style.color = '#6366F1' }} onMouseLeave={e => { e.currentTarget.style.borderColor = '#F1F5F9'; e.currentTarget.style.color = '#64748B' }}>
+      {icon}
+    </button>
+  )
+}
+
+function ModernPageBtn({ disabled, onClick, icon }: { disabled: boolean; onClick: () => void; icon: any }) {
+  return (
+    <button disabled={disabled} onClick={onClick} style={{ width:'40px', height:'40px', borderRadius:'12px', border:'2px solid #F1F5F9', background:'#FFFFFF', color: disabled ? '#CBD5E1' : '#1E293B', display:'flex', alignItems:'center', justifyContent:'center', cursor: disabled ? 'default' : 'pointer', transition:'all 0.2s' }} onMouseEnter={e => !disabled && (e.currentTarget.style.borderColor = '#6366F1')} onMouseLeave={e => (e.currentTarget.style.borderColor = '#F1F5F9')}>
+      {icon}
+    </button>
+  )
+}
+
+function Modal({ title, message, confirmLabel, confirmColor, confirmShadow, onCancel, onConfirm }: {
+  title: string; message: React.ReactNode; confirmLabel: string;
+  confirmColor: string; confirmShadow: string; onCancel: () => void; onConfirm: () => void;
+}) {
+  return (
+    <div style={{
+      position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'center', justifyContent:'center',
+      background:'rgba(15,23,42,0.5)', backdropFilter:'blur(6px)', padding:'16px',
+    }}>
+      <div style={{
+        width:'100%', maxWidth:'400px', background:'#FFFFFF', borderRadius:'20px',
+        boxShadow:'0 24px 80px -10px rgba(15,23,42,0.4)',
+        animation:'fadeIn 0.2s ease-out',
+        overflow:'hidden',
+      }}>
+        <div style={{ height:'4px', background:`linear-gradient(90deg, ${confirmColor}, ${confirmColor}90)` }} />
+        <div style={{ padding:'28px 28px 24px' }}>
+          <h2 style={{ margin:'0 0 10px', fontSize:'18px', fontWeight:800, color:'#0F172A' }}>{title}</h2>
+          <p style={{ margin:0, fontSize:'13px', fontWeight:500, color:'#64748B', lineHeight:1.6 }}>{message}</p>
+          <div style={{ marginTop:'24px', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
+            <button onClick={onCancel} style={{ padding:'9px 18px', borderRadius:'9px', border:'1.5px solid #E2E8F0', background:'#FFF', color:'#64748B', fontSize:'12px', fontWeight:700, cursor:'pointer', transition:'all 0.15s' }}>
+              Go Back
+            </button>
+            <button onClick={onConfirm} style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:confirmColor, color:'#FFF', fontSize:'12px', fontWeight:700, cursor:'pointer', boxShadow:`0 6px 16px ${confirmShadow}`, transition:'all 0.15s' }}>
+              {confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

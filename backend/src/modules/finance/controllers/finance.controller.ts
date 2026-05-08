@@ -1,7 +1,13 @@
 import { Request, Response } from 'express'
 import { z } from 'zod'
 import { FinanceJournal } from '../models/FinanceJournal'
+import { FinanceAuditLog } from '../models/FinanceAuditLog'
 import { createDoctorPayout, manualDoctorEarning, computeDoctorBalance, reverseJournalById } from './finance_ledger'
+
+function actorOf(req: Request) { return (req as any).user?.name || (req as any).user?.username || (req as any).user?.email || 'system' }
+async function audit(req: Request, action: string, label: string, detail?: string) {
+  try { await FinanceAuditLog.create({ actor: actorOf(req), action, label, method: req.method, path: req.originalUrl, at: new Date().toISOString(), detail }) } catch {}
+}
 
 const manualDoctorEarningSchema = z.object({
   doctorId: z.string().min(1),
@@ -29,7 +35,8 @@ export async function postManualDoctorEarning(req: Request, res: Response){
   const data = manualDoctorEarningSchema.parse(req.body)
   const createdByUsername = String((req as any).user?.username || (req as any).user?.name || '')
   const finalCreatedBy = createdByUsername || String((data as any)?.createdByUsername || '')
-  const j = await manualDoctorEarning({ ...(data as any), createdByUsername: finalCreatedBy || undefined } as any)
+  const j = await manualDoctorEarning({ ...(data as any), createdByUsername: finalCreatedBy })
+  await audit(req, 'Manual Doctor Earning', 'DOCTOR_EARNING', `doctorId=${data.doctorId} Rs.${data.amount}`)
   res.status(201).json({ journal: j })
 }
 
@@ -37,6 +44,7 @@ export async function reverseJournal(req: Request, res: Response){
   const id = String(req.params.id)
   const memo = String((req.body as any)?.memo || '')
   const r = await reverseJournalById(id, memo)
+  await audit(req, 'Reverse Journal', 'JOURNAL_REVERSE', `id=${id}`)
   if (!r) return res.status(404).json({ error: 'Journal not found' })
   res.json({ reversed: r })
 }

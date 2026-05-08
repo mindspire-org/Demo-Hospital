@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { hospitalApi, corporateApi } from '../../utils/api'
 import { getLocalDate } from '../../utils/date'
+import { createCacheKey, getCache, setCache, invalidateCache } from '../../utils/apiCache'
 import Hospital_TokenSlip from '../../components/hospital/Hospital_TokenSlip'
 import Toast, { type ToastState } from '../../components/ui/Toast'
-import { previewHospitalRxPdf } from '../../utils/hospitalRxPdf'
+import { previewHospitalRxPdf } from '../../utils/prescription/templates/hospitalRxPdf'
 import PrescriptionVitals from '../../components/doctor/PrescriptionVitals'
+import { Ticket, Clock, RefreshCw, Filter, Search, FileSpreadsheet, FileDown, Wallet, CreditCard, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Printer, LayoutDashboard, UserCheck, UserX, HeartPulse, Trash2, Eye, Stethoscope } from 'lucide-react'
 
 function escHtml(v: any){
   return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c] || c)
@@ -149,7 +151,9 @@ interface TokenRow {
   corporateId?: string
   performedBy?: string
   createdAt?: string
-  vitals?: any
+  vitalsData?: any
+  hasVitals?: boolean
+  tokenType?: string
 }
 
 export default function Hospital_TodayTokens(){
@@ -162,8 +166,12 @@ export default function Hospital_TodayTokens(){
   const [doctors, setDoctors] = useState<any[]>([])
   const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([])
   const [revByMethod, setRevByMethod] = useState<{ cash: number; card: number }>({ cash: 0, card: 0 })
-  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const [backendStats, setBackendStats] = useState<any>(null)
+  const [rowsPerPage, setRowsPerPage] = useState<number>(10)
   const [page, setPage] = useState(1)
+  const [backendTotal, setBackendTotal] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [forceRefresh, setForceRefresh] = useState(0)
   const [showSlip, setShowSlip] = useState(false)
   const [slipData, setSlipData] = useState<TokenSlipData | null>(null)
   const [actioningId, setActioningId] = useState<string>('')
@@ -173,6 +181,7 @@ export default function Hospital_TodayTokens(){
   const [visitCategory, setVisitCategory] = useState<'All' | 'Public' | 'Private'>('All')
   const [vitalsDialog, setVitalsDialog] = useState<{ open: boolean; token: TokenRow | null }>({ open: false, token: null })
   const vitalsRef = useRef<any>(null)
+  const hasLoadedRef = useRef(false)
 
 
   useEffect(() => {
@@ -195,17 +204,50 @@ export default function Hospital_TodayTokens(){
     })()
   }, [])
 
-  useEffect(() => { load() }, [departmentId, doctorId, tokenType, visitCategory])
-
-  async function load(){
+  const load = useCallback(async (force: boolean = false) => {
     const today = getLocalDate()
-    const params: any = { date: today }
+    // Server-side pagination: pass page and limit to backend
+    const isAll = rowsPerPage === -1
+    const params: any = { date: today, page, limit: isAll ? 1000 : rowsPerPage }
     if (departmentId !== 'All') params.departmentId = departmentId
     if (doctorId !== 'All') params.doctorId = doctorId
-    const res = await hospitalApi.listTokens(params) as any
-    const items: TokenRow[] = (res.tokens || []).map((t: any) => ({
+    
+    // Check cache first (unless forcing refresh)
+    const cacheKey = createCacheKey('/hospital/tokens', params)
+    if (!force) {
+      const cached = getCache<{ tokens: any[], total: number, stats: any }>(cacheKey)
+      if (cached) {
+        setBackendTotal(cached.total || 0)
+        setBackendStats(cached.stats || null)
+        await processTokens(cached.tokens)
+        hasLoadedRef.current = true
+        return
+      }
+    }
+    
+    // Only show loading spinner if no existing data (first load)
+    if (!hasLoadedRef.current) setIsLoading(true)
+    try {
+      const res = await hospitalApi.listTokens(params) as any
+      setBackendTotal(res.total || 0)
+      setBackendStats(res.stats || null)
+      
+      // Cache the response
+      setCache(cacheKey, { tokens: res.tokens || [], total: res.total || 0, stats: res.stats })
+      
+      await processTokens(res.tokens || [])
+      hasLoadedRef.current = true
+    } finally {
+      setIsLoading(false)
+    }
+  }, [departmentId, doctorId, page, rowsPerPage])
+  
+  useEffect(() => { load(forceRefresh > 0) }, [load, forceRefresh])
+  
+  async function processTokens(tokens: any[]) {
+    const items: TokenRow[] = (tokens || []).map((t: any) => ({
       _id: t._id,
-      time: t.createdAt ? new Date(t.createdAt).toLocaleTimeString() : '',
+      time: t.createdAt ? new Date(t.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '',
       tokenNo: t.tokenNo,
       mrNo: t.patientId?.mrn || t.mrn || '-',
       patient: t.patientId?.fullName || t.patientName || '-',
@@ -227,31 +269,22 @@ export default function Hospital_TodayTokens(){
       paidMethod: t.paidMethod || t.paymentMethod || t.method,
       isCorporate: !!t.corporateId,
       corporateId: t.corporateId,
+      tokenType: t.visitCategory || 'General',
       performedBy: t.createdByUsername || t.createdBy || '-',
       createdAt: t.createdAt,
-      vitals: undefined as any,
+      vitalsData: t.vitals,
     }))
 
-    // Fetch vitals status for each token with encounter
-    const itemsWithVitals = await Promise.all(
-      items.map(async (item) => {
-        if (!item.encounterId) return item
-        try {
-          const presRes: any = await hospitalApi.getPrescriptionByEncounterId(item.encounterId)
-          const vitals = presRes?.prescription?.vitals
-          if (vitals && Object.keys(vitals).some(k => vitals[k] != null)) {
-            return { ...item, vitals: true }
-          }
-          return item
-        } catch {
-          return item
-        }
-      })
-    )
+    // Check vitals status from token's vitals field
+    const itemsWithVitals = items.map((item) => {
+      const tokenVitals = (item as any).vitalsData
+      const hasVitals = tokenVitals && Object.keys(tokenVitals).some(k => tokenVitals[k] != null)
+      return { ...item, hasVitals }
+    })
 
     const rowsClean = itemsWithVitals.filter(r => r.status !== 'cancelled')
     setRows(rowsClean)
-    setPage(1)
+    // Don't reset page here - it's managed by pagination controls
 
     // Revenue split from tokens based on selected payment method at token creation
     let cash = 0
@@ -268,6 +301,12 @@ export default function Hospital_TodayTokens(){
     }
     setRevByMethod({ cash, card })
   }
+  
+  // Force refresh function (e.g., after token status change)
+  const refresh = useCallback(() => {
+    invalidateCache('/hospital/tokens')
+    setForceRefresh(v => v + 1)
+  }, [])
 
   const filtered = useMemo(() => {
     let result = rows
@@ -307,27 +346,41 @@ export default function Hospital_TodayTokens(){
     return result
   }, [query, rows, tokenType, visitCategory])
 
-  const revenueRows = useMemo(() => filtered.filter(r => r.status !== 'returned' && !r.isCorporate), [filtered])
+  // Use backend stats if available (calculated from ALL matching records, not just paginated)
+  const totalTokens = rowsPerPage === -1 ? filtered.length : backendTotal
+  const totalRevenue = backendStats?.cashRevenue ?? revByMethod.cash
+  const cardRevenue = backendStats?.cardRevenue ?? revByMethod.card
+  const totalRevenueAll = backendStats?.totalRevenue ?? (revByMethod.cash + revByMethod.card)
+  const totalDiscount = backendStats?.totalDiscount ?? 0
+  const corporateTokens = backendStats?.corporateTokens ?? 0
 
-  const totalTokens = filtered.length
-  const totalRevenue = revByMethod.cash
-  const cardRevenue = revByMethod.card
-  const totalRevenueAll = revByMethod.cash + revByMethod.card
-  const totalDiscount = revenueRows.reduce((s, r) => s + (r.discount || 0), 0)
-  const discountTokens = revenueRows.filter(r => (r.discount || 0) > 0).length
-  const returnedPatients = filtered.filter(r => r.status === 'returned').length
-
-  const start = (page - 1) * rowsPerPage
-  const pageRows = filtered.slice(start, start + rowsPerPage)
-  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage))
+  // When showing all, display all rows. Otherwise backend handles pagination
+  const isAll = rowsPerPage === -1
+  const pageRows = isAll ? filtered : filtered
+  const totalPages = isAll ? 1 : Math.max(1, Math.ceil(backendTotal / rowsPerPage))
 
   async function setStatus(row: TokenRow, status: TokenRow['status']){
     try{
       setActioningId(row._id)
       await hospitalApi.updateTokenStatus(row._id, status)
-      await load()
+      // Invalidate cache and force refresh after status change
+      refresh()
     } catch (e: any){
       setToast({ type: 'error', message: e?.message || 'Failed to update status' })
+    } finally {
+      setActioningId('')
+    }
+  }
+
+  async function deleteToken(row: TokenRow){
+    try{
+      setActioningId(row._id)
+      await hospitalApi.deleteToken(row._id)
+      // Invalidate cache and force refresh after deletion
+      refresh()
+      setToast({ type: 'success', message: 'Token deleted permanently' })
+    } catch (e: any){
+      setToast({ type: 'error', message: e?.message || 'Failed to delete token' })
     } finally {
       setActioningId('')
     }
@@ -366,7 +419,7 @@ export default function Hospital_TodayTokens(){
     setShowSlip(true)
   }
 
-  async function printRx(r: TokenRow){
+  async function printEyeRx(r: TokenRow){
     try{
       const s: any = await hospitalApi.getSettings()
       let docRec = doctors.find((d:any)=> String(d._id||d.id) === String(r.doctorId)) || doctors.find((d:any)=> String(d.name||'').toLowerCase() === String(r.doctor||'').toLowerCase())
@@ -376,15 +429,16 @@ export default function Hospital_TodayTokens(){
           docRec = (res?.doctors || res || []).find((d:any)=> String(d.name||'').toLowerCase() === String(r.doctor||'').toLowerCase())
         } catch {}
       }
-      const panelName = r as any && (r as any).corporateId ? (companies.find(c=> c.id === String((r as any).corporateId))?.name || '') : ''
       await previewHospitalRxPdf({
         settings: {
           name: s?.settings?.name || s?.name,
           address: s?.settings?.address || s?.address,
           phone: s?.settings?.phone || s?.phone,
+          email: s?.settings?.email || s?.email,
+          website: s?.settings?.website || s?.website,
           logoDataUrl: s?.settings?.logoDataUrl || s?.logoDataUrl,
         },
-        doctor: { 
+        doctor: {
           name: (docRec?.name || r.doctor || '-'),
           departmentName: r.department || '-',
           specialization: docRec?.specialization || '',
@@ -400,15 +454,63 @@ export default function Hospital_TodayTokens(){
           address: r.address,
           cnic: r.cnic,
         },
-        ...(panelName ? { corporatePanelName: panelName } : {}),
         items: [],
         createdAt: new Date().toISOString(),
         tokenNo: r.tokenNo,
+        outdoorNo: r.tokenNo,
+        visitCategory: r.visitCategory,
+        tokenType: r.tokenType,
+        isReprint: true,
+      } as any)
+    } catch (e: any){
+      setToast({ type: 'error', message: e?.message || 'Failed to open Eye Rx preview' })
+    }
+  }
+
+  async function printHospitalRx(r: TokenRow){
+    try{
+      const s: any = await hospitalApi.getSettings()
+      let docRec = doctors.find((d:any)=> String(d._id||d.id) === String(r.doctorId)) || doctors.find((d:any)=> String(d.name||'').toLowerCase() === String(r.doctor||'').toLowerCase())
+      if (!docRec) {
+        try {
+          const res: any = await hospitalApi.listDoctors({ q: r.doctor || '' })
+          docRec = (res?.doctors || res || []).find((d:any)=> String(d.name||'').toLowerCase() === String(r.doctor||'').toLowerCase())
+        } catch {}
+      }
+      await previewHospitalRxPdf({
+        settings: {
+          name: s?.settings?.name || s?.name,
+          address: s?.settings?.address || s?.address,
+          phone: s?.settings?.phone || s?.phone,
+          email: s?.settings?.email || s?.email,
+          website: s?.settings?.website || s?.website,
+          logoDataUrl: s?.settings?.logoDataUrl || s?.logoDataUrl,
+        },
+        doctor: {
+          name: (docRec?.name || r.doctor || '-'),
+          departmentName: r.department || '-',
+          specialization: docRec?.specialization || '',
+          qualification: docRec?.qualification || ''
+        },
+        patient: {
+          name: r.patient || '-',
+          mrn: r.mrNo || '-',
+          fatherName: r.guardianName,
+          age: r.age,
+          gender: r.gender,
+          phone: r.phone,
+          address: r.address,
+          cnic: r.cnic,
+        },
+        items: [],
+        createdAt: new Date().toISOString(),
+        tokenNo: r.tokenNo,
+        outdoorNo: r.tokenNo,
         visitCategory: r.visitCategory,
         isReprint: true,
       } as any)
     } catch (e: any){
-      setToast({ type: 'error', message: e?.message || 'Failed to open Rx preview' })
+      setToast({ type: 'error', message: e?.message || 'Failed to open Hospital Rx preview' })
     }
   }
 
@@ -419,40 +521,33 @@ export default function Hospital_TodayTokens(){
   }
 
   async function openVitals(r: TokenRow){
-    if (!r.encounterId) {
-      setToast({ type: 'error', message: 'No encounter found for this token' })
-      return
+    // Use token's own vitals data (nurses save here; no prescription needed)
+    const vitals = r.vitalsData || {}
+    const displayVitals: any = {
+      pulse: vitals.pulse != null ? String(vitals.pulse) : '',
+      temperature: vitals.temperatureC != null ? String(vitals.temperatureC) : '',
+      bloodPressureSys: vitals.bloodPressureSys != null ? String(vitals.bloodPressureSys) : '',
+      bloodPressureDia: vitals.bloodPressureDia != null ? String(vitals.bloodPressureDia) : '',
+      respiratoryRate: vitals.respiratoryRate != null ? String(vitals.respiratoryRate) : '',
+      bloodSugar: vitals.bloodSugar != null ? String(vitals.bloodSugar) : '',
+      weightKg: vitals.weightKg != null ? String(vitals.weightKg) : '',
+      height: vitals.heightCm != null ? String(vitals.heightCm) : '',
+      spo2: vitals.spo2 != null ? String(vitals.spo2) : '',
+      ar: vitals.ar != null ? String(vitals.ar) : '',
+      va: vitals.va != null ? String(vitals.va) : '',
+      iop: vitals.iop != null ? String(vitals.iop) : '',
     }
-    try {
-      const presRes: any = await hospitalApi.getPrescriptionByEncounterId(r.encounterId)
-      const vitals = presRes?.prescription?.vitals || {}
-      // Convert normalized vitals to display format
-      const displayVitals: any = {
-        pulse: vitals.pulse != null ? String(vitals.pulse) : '',
-        temperature: vitals.temperatureC != null ? String(vitals.temperatureC) : '',
-        bloodPressureSys: vitals.bloodPressureSys != null ? String(vitals.bloodPressureSys) : '',
-        bloodPressureDia: vitals.bloodPressureDia != null ? String(vitals.bloodPressureDia) : '',
-        respiratoryRate: vitals.respiratoryRate != null ? String(vitals.respiratoryRate) : '',
-        bloodSugar: vitals.bloodSugar != null ? String(vitals.bloodSugar) : '',
-        weightKg: vitals.weightKg != null ? String(vitals.weightKg) : '',
-        height: vitals.heightCm != null ? String(vitals.heightCm) : '',
-        spo2: vitals.spo2 != null ? String(vitals.spo2) : '',
-      }
-      setVitalsDialog({ open: true, token: r })
-      // Delay setting vitals to allow dialog to mount
-      setTimeout(() => {
-        try { vitalsRef.current?.setDisplay?.(displayVitals) } catch {}
-      }, 50)
-    } catch {
-      // No prescription yet, open with empty vitals
-      setVitalsDialog({ open: true, token: r })
-    }
+    setVitalsDialog({ open: true, token: r })
+    // Delay setting vitals to allow dialog to mount
+    setTimeout(() => {
+      try { vitalsRef.current?.setDisplay?.(displayVitals) } catch {}
+    }, 50)
   }
 
   async function saveVitals(){
     const token = vitalsDialog.token
-    if (!token?.encounterId) {
-      setToast({ type: 'error', message: 'No encounter found' })
+    if (!token?._id) {
+      setToast({ type: 'error', message: 'No token found' })
       return
     }
     try {
@@ -461,10 +556,10 @@ export default function Hospital_TodayTokens(){
         setToast({ type: 'error', message: 'Enter at least one vital' })
         return
       }
-      await hospitalApi.upsertPrescriptionVitals(token.encounterId, vitals)
+      await hospitalApi.updateToken(token._id, { vitals } as any)
       setToast({ type: 'success', message: 'Vitals saved' })
       setVitalsDialog({ open: false, token: null })
-      load()
+      refresh()
     } catch (e: any) {
       setToast({ type: 'error', message: e?.message || 'Failed to save vitals' })
     }
@@ -503,10 +598,7 @@ export default function Hospital_TodayTokens(){
   const exportPdf = async () => {
     try{
       const api = (window as any).electronAPI
-      if (!api || typeof api.printPreviewHtml !== 'function'){
-        setToast({ type: 'error', message: 'PDF export is only available in the desktop app' })
-        return
-      }
+      const isElectron = api && typeof api.printPreviewHtml === 'function'
       const s: any = await hospitalApi.getSettings().catch(()=>({}))
       const hospital = {
         name: s?.settings?.name || s?.name || 'Hospital',
@@ -544,155 +636,262 @@ export default function Hospital_TodayTokens(){
         })),
       })
 
-      const r = await api.printPreviewHtml(htmlDoc, { printBackground: true, marginsType: 0 })
-      if (r && r.ok === false) setToast({ type: 'error', message: r.error || 'Failed to generate PDF' })
+      if (isElectron) {
+        const r = await api.printPreviewHtml(htmlDoc, { printBackground: true, marginsType: 0 })
+        if (r && r.ok === false) setToast({ type: 'error', message: r.error || 'Failed to generate PDF' })
+      } else {
+        const win = window.open('', 'print', 'width=1100,height=750')
+        if (!win) { setToast({ type: 'error', message: 'Popup blocked. Please allow popups to export PDF.' }); return }
+        win.document.write(htmlDoc)
+        win.document.close()
+        win.focus()
+        setTimeout(() => win.print(), 350)
+      }
     }catch(e: any){
       setToast({ type: 'error', message: e?.message || 'Failed to generate PDF' })
     }
   }
 
   return (
-    <>
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-slate-800">Today's Tokens <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{filtered.length}</span></h2>
-        <div className="flex items-center gap-2">
-          <button onClick={exportCSV} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Export CSV</button>
-          <button onClick={exportPdf} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Export PDF</button>
+    <div className="min-h-screen bg-slate-50/50 p-4 transition-colors duration-300 dark:bg-slate-950 lg:p-8">
+      {/* Header */}
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
+            <Ticket className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-white">Today's Tokens</h1>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Real-time queue management</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 text-xs font-bold text-slate-400">
+          <Clock className="h-4 w-4" />
+          <span className="uppercase tracking-widest">{getLocalDate()}</span>
+          <button onClick={refresh} disabled={isLoading} className="ml-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800">
+            <RefreshCw className={`h-4 w-4 text-blue-600 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
-      <div className="mt-4">
-        <input
-          value={query}
-          onChange={(e)=>{ setQuery(e.target.value); setPage(1) }}
-          placeholder="Search by name, token#, MR#, phone, doctor, department, age, gender, address, or time..."
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
-        />
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <select value={departmentId} onChange={e=>{ setDepartmentId(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1">
-          <option value="All">All Departments</option>
-          {departments.map((d:any) => (
-            <option key={String(d._id || d.id)} value={String(d._id || d.id)}>{d.name}</option>
-          ))}
-        </select>
-        <select value={doctorId} onChange={e=>{ setDoctorId(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1">
-          <option value="All">All Doctors</option>
-          {doctors.map((d:any) => (
-            <option key={String(d._id || d.id)} value={String(d._id || d.id)}>{d.name}</option>
-          ))}
-        </select>
-        <select value={tokenType} onChange={e=>{ setTokenType(e.target.value as any); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1">
-          <option value="All">All Types</option>
-          <option value="Cash">Cash</option>
-          <option value="Corporate">Corporate</option>
-        </select>
-        <select value={visitCategory} onChange={e=>{ setVisitCategory(e.target.value as any); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1">
-          <option value="All">All Categories</option>
-          <option value="Public">General</option>
-          <option value="Private">Private</option>
-        </select>
-      </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Tokens Generated" value={totalTokens} tone="green" />
-        <StatCard title="Cash Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} tone="violet" />
-        <StatCard title="Card Revenue" value={`Rs. ${cardRevenue.toLocaleString()}`} tone="indigo" />
-        <StatCard title="Total Revenue" value={`Rs. ${totalRevenueAll.toLocaleString()}`} tone="green" />
-        <StatCard title="Corporate Tokens" value={filtered.filter(r => r.isCorporate).length} tone="indigo" />
-        <StatCard title="Discount (PKR)" value={`Rs. ${totalDiscount.toLocaleString()}`} tone="violet" />
-        <StatCard title="Discounted Tokens" value={discountTokens} tone="green" />
-        <StatCard title="Returned Patients" value={returnedPatients} tone="amber" />
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
-            <tr className="text-left">
-              <Th>Time</Th>
-              <Th>Type</Th>
-              <Th>Token #</Th>
-              <Th>MR #</Th>
-              <Th>Patient</Th>
-              <Th>Performed By</Th>
-              <Th>Token Type</Th>
-              <Th>Phone</Th>
-              <Th>Doctor</Th>
-              <Th>Department</Th>
-              <Th>Fee</Th>
-              <Th>Vitals</Th>
-              <Th>Print</Th>
-              <Th>Actions</Th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {pageRows.map((r) => (
-              <tr key={r._id} className={`text-slate-700 ${r.status === 'returned' ? 'bg-amber-50' : ''} ${r.isCorporate ? 'bg-violet-50/30' : ''}`}>
-                <Td>{r.time}</Td>
-                <Td>
-                  {r.isCorporate ? (
-                    <span className="inline-flex rounded bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">Corporate</span>
-                  ) : (
-                    (String(r.paidMethod || 'Cash').toLowerCase() === 'bank' || String(r.paidMethod || '').toLowerCase() === 'card') ? (
-                      <span className="inline-flex rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">Card</span>
-                    ) : (
-                      <span className="inline-flex rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Cash</span>
-                    )
-                  )}
-                </Td>
-                <Td>{r.tokenNo}</Td>
-                <Td>{r.mrNo}</Td>
-                <Td className="font-medium">{r.patient}</Td>
-                <Td>{r.performedBy || '-'}</Td>
-                <Td>
-                  {r.visitCategory === 'private' ? (
-                    <span className="inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Private</span>
-                  ) : (
-                    <span className="inline-flex rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">General</span>
-                  )}
-                </Td>
-                <Td>{r.phone || '-'}</Td>
-                <Td>{r.doctor || '-'}</Td>
-                <Td>{r.department || '-'}</Td>
-                <Td className="font-semibold text-emerald-600">Rs. {r.fee.toLocaleString()}</Td>
-                <Td>
-                  {r.vitals ? (
-                    <span className="inline-flex rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Added</span>
-                  ) : (
-                    <span className="inline-flex rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">-</span>
-                  )}
-                </Td>
-                <Td>
-                  <div className="flex flex-col gap-1">
-                    <button onClick={()=>printSlip(r)} className="text-sky-600 hover:underline text-left">Print Slip</button>
-                    <button onClick={()=>printRx(r)} className="text-violet-700 hover:underline text-left">Print Rx</button>
-                  </div>
-                </Td>
-                <Td>
-                  <div className="flex gap-2">
-                    <button disabled={actioningId===r._id} onClick={()=>openVitals(r)} title="Vitals" className="text-emerald-600 hover:text-emerald-800 disabled:opacity-50">🩺</button>
-                    <button disabled={actioningId===r._id} onClick={()=>openEdit(r)} title="Edit" className="text-sky-600 hover:text-sky-800 disabled:opacity-50">✏️</button>
-                    <button disabled={actioningId===r._id} onClick={()=>setStatus(r, r.status === 'returned' ? 'queued' : 'returned')} title="Return" className={`hover:text-amber-800 ${r.status === 'returned' ? 'text-amber-800' : 'text-amber-600'} disabled:opacity-50`}>↩️</button>
-                    <button disabled={actioningId===r._id} onClick={()=>setConfirmCancel({ open: true, token: r })} title="Cancel" className="text-rose-600 hover:text-rose-800 disabled:opacity-50">🗑️</button>
-                  </div>
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="flex items-center justify-between border-t border-slate-200 p-3 text-sm text-slate-700">
+      {/* Filters & Search */}
+      <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-50 pb-4 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <span>Rows per page</span>
-            <select value={rowsPerPage} onChange={e=>{setRowsPerPage(parseInt(e.target.value)); setPage(1)}} className="rounded-md border border-slate-300 px-2 py-1">
-              {[10,20,50].map(n => <option key={n} value={n}>{n}</option>)}
+            <Filter className="h-4 w-4 text-blue-600" />
+            <span className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">Filters & Search</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={exportCSV} className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/20">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Export CSV
+            </button>
+            <button onClick={exportPdf} className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-900/20">
+              <FileDown className="h-3.5 w-3.5" /> Export PDF
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Department</label>
+            <select value={departmentId} onChange={e=>{ setDepartmentId(e.target.value); setPage(1) }} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+              <option value="All">All Departments</option>
+              {departments.map((d:any) => (
+                <option key={String(d._id || d.id)} value={String(d._id || d.id)}>{d.name}</option>
+              ))}
             </select>
           </div>
-          <div>Page {page} of {totalPages}</div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Doctor</label>
+            <select value={doctorId} onChange={e=>{ setDoctorId(e.target.value); setPage(1) }} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+              <option value="All">All Doctors</option>
+              {doctors.map((d:any) => (
+                <option key={String(d._id || d.id)} value={String(d._id || d.id)}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Billing Type</label>
+            <select value={tokenType} onChange={e=>{ setTokenType(e.target.value as any); setPage(1) }} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+              <option value="All">All Types</option>
+              <option value="Cash">Cash</option>
+              <option value="Corporate">Corporate</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Category</label>
+            <select value={visitCategory} onChange={e=>{ setVisitCategory(e.target.value as any); setPage(1) }} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+              <option value="All">All Categories</option>
+              <option value="Public">General</option>
+              <option value="Private">Private</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={query}
+              onChange={(e)=>{ setQuery(e.target.value); setPage(1) }}
+              placeholder="Search by name, token#, MR#, phone, doctor, department..."
+              className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <StatCard title="Total Tokens" value={totalTokens} icon={Ticket} color="bg-blue-600" />
+        <StatCard title="Total Revenue" value={`Rs. ${totalRevenueAll.toLocaleString()}`} icon={Wallet} color="bg-emerald-600" />
+        <StatCard title="Cash Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} icon={Wallet} color="bg-violet-600" />
+        <StatCard title="Card Revenue" value={`Rs. ${cardRevenue.toLocaleString()}`} icon={CreditCard} color="bg-indigo-600" />
+        <StatCard title="Corporate" value={corporateTokens} icon={ShieldCheck} color="bg-blue-800" />
+        <StatCard title="Discount" value={`Rs. ${totalDiscount.toLocaleString()}`} icon={TrendingUp} color="bg-amber-600" />
+      </div>
+
+      {/* Table Section */}
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800/50">
+                <Th>Time</Th>
+                <Th>Token / MR #</Th>
+                <Th>Patient Info</Th>
+                <Th>Type / Category</Th>
+                <Th>Doctor / Dept</Th>
+                <Th>Financials</Th>
+                <Th>Vitals</Th>
+                <Th className="text-right">Actions</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+              {pageRows.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-20 text-center">
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <Search className="h-10 w-10 opacity-20" />
+                      <p className="font-bold">No tokens found for today</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                pageRows.map((r) => (
+                  <tr key={r._id} className={`group transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${r.status === 'returned' ? 'bg-amber-50/30' : ''} ${r.isCorporate ? 'bg-violet-50/20' : ''}`}>
+                    <Td>
+                      <div className="font-bold text-slate-800 dark:text-white">{r.time}</div>
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-xs font-black text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          {r.tokenNo}
+                        </span>
+                        <div className="text-xs font-bold text-slate-500">{r.mrNo}</div>
+                      </div>
+                    </Td>
+                    <Td>
+                      <div className="font-bold text-slate-800 dark:text-white">{r.patient}</div>
+                      <div className="text-[10px] font-bold text-slate-400">{r.phone || '-'}</div>
+                    </Td>
+                    <Td>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex gap-1">
+                          {r.isCorporate ? (
+                            <span className="rounded-md bg-violet-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">Corporate</span>
+                          ) : (
+                            <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter ${
+                              String(r.paidMethod).toLowerCase() === 'cash' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                            }`}>
+                              {r.paidMethod || 'Cash'}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`w-fit rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter ${
+                          r.visitCategory === 'private' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                        }`}>
+                          {r.visitCategory === 'private' ? 'Private' : 'General'}
+                        </span>
+                      </div>
+                    </Td>
+                    <Td>
+                      <div className="font-bold text-slate-700 dark:text-slate-200">{r.doctor}</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{r.department}</div>
+                    </Td>
+                    <Td>
+                      <div className="font-black text-slate-800 dark:text-white">Rs. {r.fee.toLocaleString()}</div>
+                      {r.discount > 0 && <div className="text-[10px] font-bold text-rose-500">Disc: Rs. {r.discount.toLocaleString()}</div>}
+                    </Td>
+                    <Td>
+                      {r.hasVitals ? (
+                        <span className="flex items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          <HeartPulse className="h-3 w-3" /> Added
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter text-slate-500 dark:bg-slate-800 dark:text-slate-400">-</span>
+                      )}
+                    </Td>
+                    <Td className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={()=>printSlip(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Print Slip">
+                          <Ticket className="h-4 w-4" />
+                        </button>
+                        <button onClick={()=>printEyeRx(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Print Eye Rx">
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button onClick={()=>printHospitalRx(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Print Hospital Rx">
+                          <Printer className="h-4 w-4" />
+                        </button>
+                        <button disabled={actioningId===r._id} onClick={()=>openVitals(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-emerald-900/30" title="Vitals">
+                          <Stethoscope className="h-4 w-4" />
+                        </button>
+                        <button disabled={actioningId===r._id} onClick={()=>openEdit(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Edit">
+                          <LayoutDashboard className="h-4 w-4" />
+                        </button>
+                        <button 
+                          disabled={actioningId===r._id}
+                          onClick={()=>setStatus(r, r.status === 'returned' ? 'queued' : 'returned')}
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                            r.status === 'returned' ? 'bg-amber-100 text-amber-700' : 'bg-slate-50 text-slate-600 hover:bg-amber-50 hover:text-amber-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-amber-900/30'
+                          }`}
+                          title={r.status === 'returned' ? 'Undo Return' : 'Mark Return'}
+                        >
+                          {r.status === 'returned' ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                        </button>
+                        <button disabled={actioningId===r._id} onClick={()=>setConfirmCancel({ open: true, token: r })} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-900/30" title="Delete">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </Td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Show</span>
+              <select value={rowsPerPage} onChange={e=>{setRowsPerPage(parseInt(e.target.value)); setPage(1)}} className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800">
+                {[10,20,50,100,200].map(n => <option key={n} value={n}>{n}</option>)}
+                <option value={-1}>All</option>
+              </select>
+            </div>
+            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+              Page {page} of {totalPages}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
-            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-50">Prev</button>
-            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-50">Next</button>
+            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 disabled:opacity-30 dark:bg-slate-800">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 disabled:opacity-30 dark:bg-slate-800">
+              <ChevronRight className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </div>
@@ -702,27 +901,27 @@ export default function Hospital_TodayTokens(){
       )}
 
       {confirmCancel?.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-            <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Confirm</div>
-            <div className="px-5 py-4 text-sm text-slate-700">Cancel (delete) this token?</div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-              <button type="button" onClick={()=>setConfirmCancel(null)} className="btn-outline-navy">No</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-900">
+            <div className="border-b border-slate-200 px-5 py-3 font-bold text-slate-800 dark:border-slate-800 dark:text-white">Confirm Delete</div>
+            <div className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">
+              <p className="font-bold text-rose-700">Warning: This action cannot be undone!</p>
+              <p className="mt-1">Are you sure you want to permanently delete this token?</p>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">
+              <button type="button" onClick={()=>setConfirmCancel(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">No, keep it</button>
               <button
                 type="button"
                 onClick={async()=>{
                   const tok = confirmCancel?.token
                   setConfirmCancel(null)
-                  try{
-                    await setStatus(tok, 'cancelled')
-                    setToast({ type: 'success', message: 'Token cancelled' })
-                  }catch(e: any){
-                    setToast({ type: 'error', message: e?.message || 'Failed to cancel token' })
+                  if (tok) {
+                    await deleteToken(tok)
                   }
                 }}
-                className="btn"
+                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
               >
-                Yes, cancel
+                Yes, delete permanently
               </button>
             </div>
           </div>
@@ -730,51 +929,50 @@ export default function Hospital_TodayTokens(){
       )}
 
       {vitalsDialog.open && vitalsDialog.token && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-              <div className="font-semibold text-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-800">
+              <div className="font-bold text-slate-800 dark:text-white">
                 Vitals - {vitalsDialog.token.patient} ({vitalsDialog.token.mrNo})
               </div>
-              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="text-slate-500 hover:text-slate-700">✕</button>
+              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="text-slate-500 hover:text-slate-700 dark:text-slate-400">✕</button>
             </div>
             <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
               <PrescriptionVitals ref={vitalsRef} />
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="btn-outline-navy">Cancel</button>
-              <button type="button" onClick={saveVitals} className="btn">Save Vitals</button>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">
+              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">Cancel</button>
+              <button type="button" onClick={saveVitals} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">Save Vitals</button>
             </div>
           </div>
         </div>
       )}
 
       <Toast toast={toast} onClose={()=>setToast(null)} />
-
-    </>
+    </div>
   )
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">{children}</th>
+function Th({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <th className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 ${className}`}>{children}</th>
 }
-function Td({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-4 py-2 ${className}`}>{children}</td>
+function Td({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <td className={`px-4 py-4 ${className}`}>{children}</td>
 }
 
-function StatCard({ title, value, tone }: { title: string; value: React.ReactNode; tone: 'blue'|'green'|'violet'|'amber'|'indigo' }) {
-  const tones: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    green: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    violet: 'bg-violet-50 text-violet-700 border-violet-100',
-    amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
-  }
+function StatCard({ title, value, icon: Icon, color }: { title: string; value: ReactNode; icon: any; color: string }) {
   return (
-    <div className={`rounded-xl border p-4 ${tones[tone]}`}>
-      <div className="text-sm text-slate-600 dark:text-slate-300 dark:opacity-100 opacity-80">{title}</div>
-      <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{value}</div>
-      <div className="text-xs text-slate-500 dark:text-slate-400">Real-time data</div>
+    <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all duration-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+      <div className={`absolute -right-3 -top-3 h-16 w-16 rounded-full opacity-[0.07] ${color}`} />
+      <div className="flex items-center gap-3">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color} bg-opacity-10`}>
+          <Icon className={`h-5 w-5 ${color.replace('bg-', 'text-')}`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">{title}</p>
+          <p className="text-lg font-black text-slate-800 dark:text-white">{value}</p>
+        </div>
+      </div>
     </div>
   )
 }

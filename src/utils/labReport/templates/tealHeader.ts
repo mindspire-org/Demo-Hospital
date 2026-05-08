@@ -1,6 +1,6 @@
 import { labApi } from '../../api'
 
-export type LabReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'critical'; comment?: string }
+export type LabReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'abnormal_low'|'abnormal_high'|'critical'|'critical_low'|'critical_high'; comment?: string }
 
 export type LabReportInput = {
   tokenNo: string
@@ -89,13 +89,9 @@ function fmtDateTime(iso?: string){
 
 function pickColumns(rows: LabReportRow[]) {
   // Filter out completely empty rows so they don't force columns to render
+  // Only include rows that have a result value — skip parameters with no value
   const nonEmptyRows = (rows||[]).filter(r =>
-    (r.value || '').trim().length > 0 ||
-    (r.normal || '').trim().length > 0 ||
-    (r.unit || '').trim().length > 0 ||
-    (r.prevValue || '').trim().length > 0 ||
-    (r.flag || '').trim().length > 0 ||
-    (r.comment || '').trim().length > 0
+    (r.value || '').trim().length > 0
   )
   const hasPrev = nonEmptyRows.some(r => (r.prevValue || '').trim().length > 0)
   const hasFlag = nonEmptyRows.some(r => (r.flag || '').length > 0)

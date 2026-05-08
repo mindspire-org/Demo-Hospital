@@ -4,6 +4,7 @@ import { env } from './config/env'
 import { Dispense } from './modules/pharmacy/models/Dispense'
 import { ensureDefaultPortalLogins } from './seeds/default_logins'
 import { startBiometricPoller } from './modules/biometric/jobs/poller'
+import { startAutoBackupCron } from './modules/admin/backup.controller'
 
 async function main(){
   await connectDB()
@@ -13,6 +14,11 @@ async function main(){
     await Dispense.createCollection()
   } catch {}
   await ensureDefaultPortalLogins()
+  try {
+    const { seedCriticalParameters } = await import('./modules/lab/seeds/criticalParameters')
+    await seedCriticalParameters()
+  } catch {}
+  startAutoBackupCron()
   // Biometric sync should be manual-only (triggered by the UI button), not automatic.
   app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`Backend listening on http://localhost:${env.PORT}`)

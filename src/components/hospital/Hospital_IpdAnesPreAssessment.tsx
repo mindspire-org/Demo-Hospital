@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
+import { ClinicalDatePicker } from '../ui/ClinicalDialog'
+import { Stethoscope, Plus, X } from 'lucide-react'
 
 export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encounterId: string }){
   const [rows, setRows] = useState<Array<{ id: string; when: string; existingProblems?: any; physicalExam?: any; plan?: any; checklist?: any; preInduction?: any; planChange?: any; doctorName?: string; sign?: string }>>([])
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<typeof rows[0] | null>(null)
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -32,8 +35,8 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
 
   const add = async (d: any) => {
     try{
-      await hospitalApi.createIpdClinicalNote(encounterId, {
-        type: 'anes-pre',
+      const payload = {
+        type: 'anes-pre' as const,
         recordedAt: d.when || new Date().toISOString(),
         doctorName: d.doctorName || undefined,
         sign: d.sign || undefined,
@@ -48,10 +51,17 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
           preInduction: { orientation: d.orientation, bp: d.preBp, pulse: d.prePulse, temp: d.preTemp, spo2: d.preSpo2 },
           planChange: { changed: d.planChanged==='yes', general: d.planChangeGeneral, spinal: d.planChangeSpinal, local: d.planChangeLocal },
         },
-      })
-      setOpen(false); await reload()
+      }
+      if (editing?.id) {
+        await hospitalApi.updateIpdClinicalNote(editing.id, { recordedAt: payload.recordedAt, doctorName: payload.doctorName, sign: payload.sign, data: payload.data })
+      } else {
+        await hospitalApi.createIpdClinicalNote(encounterId, payload)
+      }
+      setOpen(false); setEditing(null); await reload()
     }catch(e: any){ alert(e?.message || 'Failed to save pre-assessment') }
   }
+
+  const onAdd = () => { setEditing(null); setOpen(true) }
 
   const sorted = [...rows].sort((a,b)=>{
     const ta = new Date(a.when||'').getTime() || 0
@@ -64,25 +74,16 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
   const start = (currentPage - 1) * pageSize
   const pagedRows = sorted.slice(start, start + pageSize)
 
-  const doPrint = () => {
-    try{
-      const api = (window as any).electronAPI
-      if (api && typeof api.printPreviewCurrent === 'function') {
-        api.printPreviewCurrent({});
-        return
-      }
-    }catch{}
-    try{ window.print() }catch{}
-  }
-
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4" data-encounterid={encounterId}>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-lg font-semibold text-slate-900">Pre-Anesthesia Assessment</div>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white"><Stethoscope className="h-4 w-4" /></div>
+          <span className="text-sm font-bold text-slate-900">Pre-Anesthesia Assessment</span>
+        </div>
         <div className="flex gap-2 print:hidden">
-          <button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')} className="btn-outline-navy">Sort: {sortDir==='asc' ? 'Oldest' : 'Newest'}</button>
-          <button onClick={doPrint} className="btn-outline-navy">Print Table</button>
-          <button onClick={()=>setOpen(true)} className="btn">Add Pre-Assessment</button>
+          <button onClick={()=>setSortDir(sortDir==='asc'?'desc':'asc')} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">Sort: {sortDir==='asc' ? 'Oldest' : 'Newest'}</button>
+          <button onClick={onAdd} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"><Plus className="h-3.5 w-3.5 inline mr-1" />Add Pre-Assessment</button>
         </div>
       </div>
       {rows.length === 0 ? (
@@ -114,15 +115,15 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       <tr className="text-slate-700">
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.cvs || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.renal || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.respiration || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.hepatic || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.diabetic || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.git || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.neurology || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.anesthesiaHistory || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.existingProblems?.eventful || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.cvs || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.renal || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.respiration || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.hepatic || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.diabetic || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.git || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.neurology || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.anesthesiaHistory || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.existingProblems?.eventful || '-'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -145,15 +146,15 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       <tr className="text-slate-700">
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.bp || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.pulse || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.rr || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.temp || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.cvs || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.chest || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.teeth || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.mallampatiClass || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.physicalExam?.asaClass || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.bp || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.pulse || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.rr || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.temp || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.cvs || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.chest || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.teeth || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.mallampatiClass || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.physicalExam?.asaClass || '-'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -174,13 +175,13 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       <tr className="text-slate-700">
-                        <td className="px-3 py-1.5 break-words">{r.plan?.general || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.plan?.spinal || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.plan?.local || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.plan?.monitoringCare || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.plan?.npo || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.plan?.fluidsBlood || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.plan?.preAnesthesiaMedication || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.plan?.general || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.plan?.spinal || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.plan?.local || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.plan?.monitoringCare || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.plan?.npo || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.plan?.fluidsBlood || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.plan?.preAnesthesiaMedication || '-'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -197,9 +198,9 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       <tr className="text-slate-700">
-                        <td className="px-3 py-1.5 break-words">{r.checklist?.patientIdentified ? 'Yes' : 'No'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.checklist?.consentRevised ? 'Yes' : 'No'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.checklist?.siteChecked ? 'Yes' : 'No'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.checklist?.patientIdentified ? 'Yes' : 'No'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.checklist?.consentRevised ? 'Yes' : 'No'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.checklist?.siteChecked ? 'Yes' : 'No'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -218,11 +219,11 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       <tr className="text-slate-700">
-                        <td className="px-3 py-1.5 break-words">{r.preInduction?.orientation || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.preInduction?.bp || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.preInduction?.pulse || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.preInduction?.temp || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.preInduction?.spo2 || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.preInduction?.orientation || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.preInduction?.bp || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.preInduction?.pulse || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.preInduction?.temp || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.preInduction?.spo2 || '-'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -240,10 +241,10 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       <tr className="text-slate-700">
-                        <td className="px-3 py-1.5 break-words">{r.planChange?.changed ? 'Yes' : 'No'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.planChange?.general || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.planChange?.spinal || '-'}</td>
-                        <td className="px-3 py-1.5 break-words">{r.planChange?.local || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.planChange?.changed ? 'Yes' : 'No'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.planChange?.general || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.planChange?.spinal || '-'}</td>
+                        <td className="px-3 py-1.5 wrap-break-word">{r.planChange?.local || '-'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -276,13 +277,15 @@ export default function Hospital_IpdAnesPreAssessment({ encounterId }: { encount
 }
 
 function PreDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void; onSave: (d: any)=>void }){
+  const [when, setWhen] = useState(new Date().toISOString().slice(0,16))
+  useEffect(()=>{ if(open) setWhen(new Date().toISOString().slice(0,16)) }, [open])
   if (!open) return null
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     const get = (k: string) => String(fd.get(k) || '')
     onSave({
-      when: get('when'), doctorName: get('doctorName'), sign: get('sign'),
+      when, doctorName: get('doctorName'), sign: get('sign'),
       cvs: get('cvs'), renal: get('renal'), respiration: get('respiration'), hepatic: get('hepatic'), diabetic: get('diabetic'), git: get('git'), neurology: get('neurology'), anesthesiaHistory: get('anesthesiaHistory'), eventful: get('eventful'),
       bp: get('bp'), pulse: get('pulse'), temp: get('temp'), rr: get('rr'), examCvs: get('examCvs'), chest: get('chest'), teeth: get('teeth'), mallampatiClass: get('mallampatiClass'), asaClass: get('asaClass'),
       planGeneral: get('planGeneral'), planSpinal: get('planSpinal'), planLocal: get('planLocal'), monitoringCare: get('monitoringCare'), npo: get('npo'), fluidsBlood: get('fluidsBlood'), preAnesMed: get('preAnesMed'),
@@ -292,14 +295,17 @@ function PreDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void
     })
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <form onSubmit={submit} className="w-full max-w-3xl overflow-y-auto rounded-xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[90vh]">
-        <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Add Pre-Anesthesia Assessment</div>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 sm:items-center">
+      <form onSubmit={submit} className="flex w-full max-w-3xl max-h-[90vh] flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <div className="font-semibold text-slate-800">Add Pre-Anesthesia Assessment</div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
         <div className="grid gap-4 px-5 py-4 text-sm sm:grid-cols-2">
-          <div>
-            <label className="block text-xs font-medium text-slate-600" htmlFor="when">Date/Time</label>
-            <input id="when" name="when" type="datetime-local" className="w-full rounded-md border border-slate-300 px-3 py-2" />
-          </div>
+          <ClinicalDatePicker label="Date/Time" value={when} onChange={setWhen} />
           <div>
             <label className="block text-xs font-medium text-slate-600" htmlFor="doctorName">Doctor Name</label>
             <input id="doctorName" name="doctorName" className="w-full rounded-md border border-slate-300 px-3 py-2" />
@@ -370,6 +376,7 @@ function PreDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void
               <input id={name} name={name} className="w-full rounded-md border border-slate-300 px-3 py-2" />
             </div>
           ))}
+        </div>
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
           <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>

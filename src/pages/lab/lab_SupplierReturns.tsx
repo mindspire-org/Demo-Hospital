@@ -68,8 +68,16 @@ export default function Lab_SupplierReturns() {
   const filtered = useMemo(() => rows, [rows])
 
   return (
-    <div className="space-y-4">
-      <div className="text-xl font-bold text-slate-800">Supplier Return</div>
+    <div className="space-y-4 p-4 md:p-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Supplier Return</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Process returns to suppliers</div>
+          </div>
+        </div>
+      </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-3 font-medium text-slate-800">Select Supplier</div>

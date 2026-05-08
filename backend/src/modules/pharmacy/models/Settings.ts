@@ -7,6 +7,8 @@ const SettingsSchema = new Schema({
   email: { type: String, default: '' },
   billingFooter: { type: String, default: '' },
   logoDataUrl: { type: String, default: '' },
+  selectedPrinter: { type: String, default: '' },
+  silentPrint: { type: Boolean, default: false },
 }, { timestamps: true })
 
 export type SettingsDoc = {
@@ -17,6 +19,8 @@ export type SettingsDoc = {
   email: string
   billingFooter: string
   logoDataUrl?: string
+  selectedPrinter?: string
+  silentPrint?: boolean
 }
 
 export const Settings = models.Pharmacy_Settings || model('Pharmacy_Settings', SettingsSchema)

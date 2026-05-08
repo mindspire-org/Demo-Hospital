@@ -92,13 +92,11 @@ export default function Aesthetic_Layout(){
 
       <div className={shell}>
 
-        <div className="sticky top-0 z-20 w-full md:border-b" style={{ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)', borderColor: 'rgba(255,255,255,0.12)' }}>
+        <div className="sticky top-0 z-20 w-full border-b border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
 
-          <div className="flex h-14">
+          <div>
 
             <Aesthetic_Header
-
-              variant="navy"
 
               onToggleSidebar={() => setCollapsed(v => !v)}
 

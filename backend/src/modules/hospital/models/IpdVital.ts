@@ -14,6 +14,7 @@ const IpdVitalSchema = new Schema({
   painScale: { type: Number },
   recordedBy: { type: String },
   note: { type: String },
+  noteType: { type: String, enum: ['nursing','progress','discharge'] },
   // Daily Monitoring Chart fields
   shift: { type: String, enum: ['morning','evening','night'], lowercase: true },
   bsr: { type: Number },
@@ -39,6 +40,7 @@ export type HospitalIpdVitalDoc = {
   painScale?: number
   recordedBy?: string
   note?: string
+  noteType?: 'nursing'|'progress'|'discharge'
   shift?: 'morning'|'evening'|'night'
   bsr?: number
   intakeIV?: string

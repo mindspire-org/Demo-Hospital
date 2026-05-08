@@ -1,8 +1,14 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import Hospital_PrintHeader from './hospital_PrintHeader';
+import { 
+  FileText, Printer, Save, Plus, Trash2, Info, 
+  Stethoscope, Thermometer, Pill, Calendar,
+  User, Phone, MapPin, CheckCircle2, AlertCircle,
+  ClipboardCheck
+} from 'lucide-react';
+import { ClinicalDatePicker } from '../ui/ClinicalDialog';
 import { hospitalApi } from '../../utils/api';
-import Toast, { type ToastState } from '../ui/Toast'
+import Toast, { type ToastState } from '../ui/Toast';
 
 type Props = { encounterId?: string; patient?: any; encounterType?: 'IPD'|'EMERGENCY' };
 
@@ -11,6 +17,7 @@ export default function Discharged(props: Props){
   const [encounterId, setEncounterId] = useState<string>(props.encounterId || '');
   const [patient, setPatient] = useState<any>(props.patient || {});
   const [brand, setBrand] = useState<any>({});
+  const embedded = !!props.encounterId
   // Extended UI fields (mapped into backend payload)
   const [dor, setDor] = useState<string>('')
   const [lama, setLama] = useState<boolean>(false)
@@ -32,6 +39,7 @@ export default function Discharged(props: Props){
   const [signDate, setSignDate] = useState<string>('')
   const [doctorSignText, setDoctorSignText] = useState<string>('')
   const [toast, setToast] = useState<ToastState>(null)
+  const [busy, setBusy] = useState<boolean>(false)
 
   useEffect(() => { (async () => {
     try {
@@ -186,6 +194,7 @@ export default function Discharged(props: Props){
 
   const save = async (doPrint?: boolean) => {
     if (!encounterId) return;
+    setBusy(true)
     const medsList = meds
       .map(m => [m.name, m.dose, m.route, m.freq, m.timing, m.duration].filter(Boolean).join(' | '))
       .filter(Boolean)
@@ -217,13 +226,57 @@ export default function Discharged(props: Props){
     }
     try {
       await hospitalApi.upsertIpdDischargeSummary(encounterId, payload as any)
-      setToast({ type: 'success', message: 'Saved' })
+      setToast({ type: 'success', message: 'Discharge summary saved successfully' })
     } catch (e: any) {
       setToast({ type: 'error', message: e?.message || 'Save failed' })
       throw e
-    }
+    } finally { setBusy(false) }
     if (doPrint) await previewHtml(apiBase + '/hospital/ipd/admissions/' + encodeURIComponent(encounterId) + '/discharge-summary/print')
   };
+
+  const downloadHtml = () => {
+    try {
+      const esc = (s?: string) => String(s ?? '').replace(/[&<>"']/g, (c: string) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' } as any)[c])
+      const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Discharge Summary</title></head><body>
+        <h2>${esc(brand?.hospitalName || '')}</h2>
+        <h3>Discharge Summary</h3>
+        <p><b>Patient:</b> ${esc(patient?.name)} &nbsp; <b>MRN:</b> ${esc(patient?.mrn)}</p>
+        <pre style="white-space:pre-wrap;font-family:ui-sans-serif,system-ui">${esc([
+          presentingComplaints && `Presenting Complaints: ${presentingComplaints}`,
+          reasonOfAdmission && `Reason of Admission: ${reasonOfAdmission}`,
+          finalDiagnosis && `Final Diagnosis: ${finalDiagnosis}`,
+          proceduresOutcome && `Procedures & Outcome: ${proceduresOutcome}`,
+          treatmentInHospital && `Treatment in Hospital: ${treatmentInHospital}`,
+          followUpInstructions && `Follow-up Instructions: ${followUpInstructions}`,
+          doctorName && `Doctor: ${doctorName}`,
+        ].filter(Boolean).join('\n\n'))}</pre>
+      </body></html>`
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `discharge-summary-${String(encounterId || patient?.mrn || 'patient')}.html`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setToast({ type: 'success', message: 'Discharge summary downloaded' })
+    } catch (e: any) {
+      setToast({ type: 'error', message: e?.message || 'Download failed' })
+    }
+  }
+
+  useEffect(() => {
+    const onAction = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as any
+      if (!detail || detail.key !== 'DischargeSummary') return
+      if (detail.action === 'save') { void save(false) }
+      if (detail.action === 'print') { void save(true) }
+      if (detail.action === 'download') { downloadHtml() }
+    }
+    window.addEventListener('dw:form-action', onAction as any)
+    return () => window.removeEventListener('dw:form-action', onAction as any)
+  }, [encounterId, patient, brand, presentingComplaints, reasonOfAdmission, finalDiagnosis, proceduresOutcome, treatmentInHospital, followUpInstructions, doctorName, signDate, doctorSignText, dor, lama, ddrConsent, advisedByDoctor, meds, invest, respOfTreatment])
 
   function printView(){
     const w = window.open('', '_blank'); if (!w) return
@@ -314,96 +367,168 @@ export default function Discharged(props: Props){
   }
 
   return (
-    <div className="space-y-4 overflow-x-hidden">
+    <div className={`mx-auto max-w-5xl space-y-8 ${embedded ? 'pb-6' : 'pb-20'}`}>
       <Toast toast={toast} onClose={()=>setToast(null)} />
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <Hospital_PrintHeader brand={brand} />
-        <div className="mt-2 text-sm text-slate-600 font-semibold">
-          Patient: <span className="capitalize">{patient?.name || '-'}</span>
-          {' '}· MRN: <span className="font-mono">{patient?.mrn || '-'}</span>
-          {' '}· Phone: {patient?.phone || '-'} · Bed: {patient?.bed || '-'} · Doctor: {patient?.doctor || '-'}
+      
+      {/* Patient Header Card */}
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/40 transition-all hover:shadow-2xl hover:shadow-slate-200/50">
+        <div className="bg-navy p-8 text-white">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md">
+                <User className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-black tracking-tight uppercase">{patient?.name || 'New Patient'}</h1>
+                <div className="mt-1 flex flex-wrap items-center gap-3 text-sm font-bold text-white/70">
+                  <span className="flex items-center gap-1.5"><FileText className="h-4 w-4" /> MRN: {patient?.mrn || 'N/A'}</span>
+                  <span className="flex items-center gap-1.5"><Phone className="h-4 w-4" /> {patient?.phone || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-black backdrop-blur-md">
+                BED: {patient?.bed || 'Unassigned'}
+              </div>
+              <div className="rounded-2xl bg-emerald-500/20 px-4 py-2 text-sm font-black text-emerald-100 backdrop-blur-md">
+                DR: {patient?.doctor || 'No Doctor'}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="mt-1 text-xs text-slate-600 font-semibold">Address: {patient?.address || '-'}</div>
+        {patient?.address && (
+          <div className="flex items-center gap-2 border-t border-slate-100 bg-slate-50/50 px-8 py-3 text-xs font-bold text-slate-500">
+            <MapPin className="h-3.5 w-3.5" />
+            <span className="uppercase tracking-wide">{patient.address}</span>
+          </div>
+        )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="mb-3 text-xl font-bold text-slate-800">Discharge Summary</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-          <div>
-            <label className="block mb-1 font-semibold">Date of Release (DOR)</label>
-            <input type="date" value={dor} onChange={e=>setDor(e.target.value)} className="w-full border rounded-md px-2 py-1" />
+      {/* Main Discharge Form */}
+      <div className="space-y-6">
+        {/* Core Discharge Info */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-navy" />
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Date of Release</h3>
+            </div>
+            <ClinicalDatePicker type="date" label="Date of Release" value={dor} onChange={setDor} />
+            <div className="mt-4 grid gap-3">
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3 transition-all hover:bg-slate-100">
+                <input type="checkbox" checked={lama} onChange={e=>setLama(e.target.checked)} className="h-5 w-5 rounded border-slate-300 text-navy focus:ring-navy" />
+                <span className="text-sm font-bold text-slate-700">LAMA</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3 transition-all hover:bg-slate-100">
+                <input type="checkbox" checked={ddrConsent} onChange={e=>setDdrConsent(e.target.checked)} className="h-5 w-5 rounded border-slate-300 text-navy focus:ring-navy" />
+                <span className="text-sm font-bold text-slate-700">DDR Consent</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3 transition-all hover:bg-slate-100">
+                <input type="checkbox" checked={advisedByDoctor} onChange={e=>setAdvisedByDoctor(e.target.checked)} className="h-5 w-5 rounded border-slate-300 text-navy focus:ring-navy" />
+                <span className="text-sm font-bold text-slate-700">Advised by Doctor</span>
+              </label>
+            </div>
           </div>
-          <label className="flex items-center gap-2 mt-6"><input type="checkbox" checked={lama} onChange={e=>setLama(e.target.checked)} /> LAMA</label>
-          <label className="flex items-center gap-2 mt-6"><input type="checkbox" checked={ddrConsent} onChange={e=>setDdrConsent(e.target.checked)} /> DDR Consent</label>
+
+          <div className="lg:col-span-2 grid gap-6 md:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-navy" />
+                <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Presenting Complaints</h3>
+              </div>
+              <textarea value={presentingComplaints} onChange={e=>setPresentingComplaints(e.target.value)} placeholder="Enter patient complaints..." className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all h-32 resize-none" />
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <Info className="h-5 w-5 text-navy" />
+                <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Reason of Admission</h3>
+              </div>
+              <textarea value={reasonOfAdmission} onChange={e=>setReasonOfAdmission(e.target.value)} placeholder="History / Examination details..." className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all h-32 resize-none" />
+            </div>
+          </div>
         </div>
 
-        <div className="mt-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={advisedByDoctor} onChange={e=>setAdvisedByDoctor(e.target.checked)} /> Discharged advised by Doctor</label></div>
-
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-          <div>
-            <label className="block mb-1 font-semibold">Presenting Complaints</label>
-            <textarea value={presentingComplaints} onChange={e=>setPresentingComplaints(e.target.value)} className="w-full border rounded-md px-2 py-1 h-20" />
+        {/* Clinical Details */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <Stethoscope className="h-5 w-5 text-navy" />
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Final Diagnosis</h3>
+            </div>
+            <textarea value={finalDiagnosis} onChange={e=>setFinalDiagnosis(e.target.value)} className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all h-24 resize-none" />
           </div>
-          <div>
-            <label className="block mb-1 font-semibold">Reason of Admission / Brief History / Examination</label>
-            <textarea value={reasonOfAdmission} onChange={e=>setReasonOfAdmission(e.target.value)} className="w-full border rounded-md px-2 py-1 h-20" />
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <Thermometer className="h-5 w-5 text-navy" />
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Procedures & Outcome</h3>
+            </div>
+            <textarea value={proceduresOutcome} onChange={e=>setProceduresOutcome(e.target.value)} className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all h-24 resize-none" />
           </div>
-          <div>
-            <label className="block mb-1 font-semibold">Final Diagnosis</label>
-            <textarea value={finalDiagnosis} onChange={e=>setFinalDiagnosis(e.target.value)} className="w-full border rounded-md px-2 py-1 h-20" />
-          </div>
-          <div>
-            <label className="block mb-1 font-semibold">Any Procedure During Stay & Outcome</label>
-            <textarea value={proceduresOutcome} onChange={e=>setProceduresOutcome(e.target.value)} className="w-full border rounded-md px-2 py-1 h-20" />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block mb-1 font-semibold">Treatment in Hospital</label>
-            <textarea value={treatmentInHospital} onChange={e=>setTreatmentInHospital(e.target.value)} className="w-full border rounded-md px-2 py-1 h-20" />
+          <div className="md:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <FileText className="h-5 w-5 text-navy" />
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Treatment in Hospital</h3>
+            </div>
+            <textarea value={treatmentInHospital} onChange={e=>setTreatmentInHospital(e.target.value)} className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all h-24 resize-none" />
           </div>
         </div>
 
-        <div className="mt-4">
-          <div className="mb-1 text-sm font-semibold">Investigations Significant Results</div>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-sm">
+        {/* Investigations */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-center gap-2">
+            <div className="h-8 w-1.5 rounded-full bg-navy" />
+            <h2 className="text-lg font-black uppercase tracking-wider text-slate-800">Significant Investigations</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {(['HB','UREA','HCV','NA','PLATELETS','CREATININE','HBSAG','K','TLC','ALT','HIV','CA'] as const).map(k=> (
-              <div key={k}>
-                <label className="block mb-1 text-xs font-medium">{k}</label>
-                <input value={invest[k]} onChange={e=>setInvest((s:any)=>({ ...s, [k]: e.target.value }))} className="w-full border rounded-md px-2 py-1" />
+              <div key={k} className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{k}</label>
+                <input value={invest[k]} onChange={e=>setInvest((s:any)=>({ ...s, [k]: e.target.value }))} className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all" />
               </div>
             ))}
           </div>
         </div>
 
-        <div className="mt-4">
-          <div className="mb-1 text-sm font-semibold flex items-center justify-between">
-            <span>Medicines given on Discharge</span>
-            <button onClick={()=> setMeds(arr=> [...arr, { name:'', dose:'', route:'', freq:'', timing:'', duration:'' }])} className="btn-outline-navy">Add Row</button>
+        {/* Medications Table */}
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between bg-slate-50/50 px-8 py-6 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Pill className="h-5 w-5 text-navy" />
+              <h2 className="text-lg font-black uppercase tracking-wider text-slate-800">Discharge Medications</h2>
+            </div>
+            <button onClick={()=> setMeds(arr=> [...arr, { name:'', dose:'', route:'', freq:'', timing:'', duration:'' }])} className="flex items-center gap-2 rounded-xl bg-navy/5 px-4 py-2 text-sm font-bold text-navy hover:bg-navy hover:text-white transition-all">
+              <Plus className="h-4 w-4" /> Add Medication
+            </button>
           </div>
-          <div className="overflow-auto">
-            <table className="min-w-full text-sm border border-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-2 py-1 text-left">Sr</th>
-                  <th className="px-2 py-1 text-left">Medicine</th>
-                  <th className="px-2 py-1 text-left">Strength/Dose</th>
-                  <th className="px-2 py-1 text-left">Route</th>
-                  <th className="px-2 py-1 text-left">Frequency</th>
-                  <th className="px-2 py-1 text-left">Timing</th>
-                  <th className="px-2 py-1 text-left">Duration</th>
-                  <th className="px-2 py-1 text-left">Del</th>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                  <th className="px-6 py-4 w-16">#</th>
+                  <th className="px-4 py-4 min-w-[200px]">Medicine Name</th>
+                  <th className="px-4 py-4 w-32">Dose</th>
+                  <th className="px-4 py-4 w-32">Route</th>
+                  <th className="px-4 py-4 w-32">Frequency</th>
+                  <th className="px-4 py-4 w-32">Timing</th>
+                  <th className="px-4 py-4 w-32">Duration</th>
+                  <th className="px-6 py-4 w-20"></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-50">
                 {meds.map((m, i)=> (
-                  <tr key={i} className="border-t">
-                    <td className="px-2 py-1">{i+1}</td>
-                    <td className="px-2 py-1"><input value={m.name} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, name:e.target.value}:x))} className="w-full border rounded-md px-2 py-1" /></td>
-                    <td className="px-2 py-1"><input value={m.dose} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, dose:e.target.value}:x))} className="w-full border rounded-md px-2 py-1" /></td>
-                    <td className="px-2 py-1"><input value={m.route} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, route:e.target.value}:x))} className="w-full border rounded-md px-2 py-1" /></td>
-                    <td className="px-2 py-1"><input value={m.freq} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, freq:e.target.value}:x))} className="w-full border rounded-md px-2 py-1" /></td>
-                    <td className="px-2 py-1"><input value={m.timing} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, timing:e.target.value}:x))} className="w-full border rounded-md px-2 py-1" /></td>
-                    <td className="px-2 py-1"><input value={m.duration} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, duration:e.target.value}:x))} className="w-full border rounded-md px-2 py-1" /></td>
-                    <td className="px-2 py-1"><button onClick={()=> setMeds(arr=> arr.filter((_, idx)=> idx !== i))} className="text-red-600 hover:underline">Delete</button></td>
+                  <tr key={i} className="group hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-3 text-sm font-bold text-slate-400">{i+1}</td>
+                    <td className="px-4 py-3"><input value={m.name} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, name:e.target.value}:x))} placeholder="Medicine" className="w-full rounded-lg border-2 border-transparent bg-transparent px-3 py-2 text-sm font-bold text-slate-900 focus:border-navy/20 focus:bg-white focus:outline-none" /></td>
+                    <td className="px-4 py-3"><input value={m.dose} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, dose:e.target.value}:x))} placeholder="Dose" className="w-full rounded-lg border-2 border-transparent bg-transparent px-3 py-2 text-sm font-medium text-slate-700 focus:border-navy/20 focus:bg-white focus:outline-none" /></td>
+                    <td className="px-4 py-3"><input value={m.route} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, route:e.target.value}:x))} placeholder="Route" className="w-full rounded-lg border-2 border-transparent bg-transparent px-3 py-2 text-sm font-medium text-slate-700 focus:border-navy/20 focus:bg-white focus:outline-none" /></td>
+                    <td className="px-4 py-3"><input value={m.freq} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, freq:e.target.value}:x))} placeholder="Freq" className="w-full rounded-lg border-2 border-transparent bg-transparent px-3 py-2 text-sm font-medium text-slate-700 focus:border-navy/20 focus:bg-white focus:outline-none" /></td>
+                    <td className="px-4 py-3"><input value={m.timing} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, timing:e.target.value}:x))} placeholder="Timing" className="w-full rounded-lg border-2 border-transparent bg-transparent px-3 py-2 text-sm font-medium text-slate-700 focus:border-navy/20 focus:bg-white focus:outline-none" /></td>
+                    <td className="px-4 py-3"><input value={m.duration} onChange={e=>setMeds(arr=> arr.map((x,idx)=> idx===i?{...x, duration:e.target.value}:x))} placeholder="Days" className="w-full rounded-lg border-2 border-transparent bg-transparent px-3 py-2 text-sm font-medium text-slate-700 focus:border-navy/20 focus:bg-white focus:outline-none" /></td>
+                    <td className="px-6 py-3">
+                      <button onClick={()=> setMeds(arr=> arr.filter((_, idx)=> idx !== i))} className="p-2 text-slate-300 hover:text-rose-500 transition-colors">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -411,49 +536,105 @@ export default function Discharged(props: Props){
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-          <div>
-            <div className="mb-1 font-semibold">Condition at Discharge</div>
-            <div className="flex flex-wrap gap-4">
+        {/* Condition & Outcomes */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-6 flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-navy" />
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Condition at Discharge</h3>
+            </div>
+            <div className="flex flex-wrap gap-3">
               {(['satisfactory','fair','poor'] as const).map(v=> (
-                <label key={v} className="flex items-center gap-1"><input type="radio" name="cad" checked={condAtDischarge===v} onChange={()=>setCondAtDischarge(v)} /> {v}</label>
+                <button
+                  key={v}
+                  onClick={()=>setCondAtDischarge(v)}
+                  className={`flex-1 rounded-2xl border-2 px-4 py-4 text-xs font-black uppercase tracking-widest transition-all ${
+                    condAtDischarge === v
+                      ? 'border-navy bg-navy text-white shadow-lg shadow-navy/20'
+                      : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200'
+                  }`}
+                >
+                  {v}
+                </button>
               ))}
             </div>
           </div>
-          <div>
-            <div className="mb-1 font-semibold">Response of Treatment</div>
-            <div className="flex flex-wrap gap-4">
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-6 flex items-center gap-2">
+              <Stethoscope className="h-5 w-5 text-navy" />
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Response of Treatment</h3>
+            </div>
+            <div className="flex flex-wrap gap-3">
               {(['excellent','good','average','poor'] as const).map(v=> (
-                <label key={v} className="flex items-center gap-1"><input type="radio" name="rot" checked={respOfTreatment===v} onChange={()=>setRespOfTreatment(v)} /> {v}</label>
+                <button
+                  key={v}
+                  onClick={()=>setRespOfTreatment(v)}
+                  className={`flex-1 rounded-2xl border-2 px-4 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${
+                    respOfTreatment === v
+                      ? 'border-navy bg-navy text-white shadow-lg shadow-navy/20'
+                      : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200'
+                  }`}
+                >
+                  {v}
+                </button>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-          <div className="md:col-span-3">
-            <label className="block mb-1 font-semibold">Follow-up Instructions</label>
-            <textarea value={followUpInstructions} onChange={e=>setFollowUpInstructions(e.target.value)} className="w-full border rounded-md px-2 py-1 h-20" />
+        {/* Instructions & Signatures */}
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-navy" />
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-700">Follow-up Instructions</h3>
+            </div>
+            <textarea value={followUpInstructions} onChange={e=>setFollowUpInstructions(e.target.value)} placeholder="Dietary advice, next visit date, emergency signs..." className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all h-32 resize-none" />
           </div>
-          <div>
-            <label className="block mb-1 font-semibold">Doctor Name</label>
-            <input value={doctorName} onChange={e=>setDoctorName(e.target.value)} className="w-full border rounded-md px-2 py-1" />
-          </div>
-          <div>
-            <label className="block mb-1 font-semibold">Sign Date</label>
-            <input type="date" value={signDate} onChange={e=>setSignDate(e.target.value)} className="w-full border rounded-md px-2 py-1" />
-          </div>
-          <div>
-            <label className="block mb-1 font-semibold">Doctor Sign (text)</label>
-            <input value={doctorSignText} onChange={e=>setDoctorSignText(e.target.value)} className="w-full border rounded-md px-2 py-1" />
-          </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 justify-end">
-          <button onClick={printView} className="btn-outline-navy">Print</button>
-          <button onClick={() => save(false)} className="btn-outline-navy">Save</button>
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="grid gap-6 md:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Doctor Name</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input value={doctorName} onChange={e=>setDoctorName(e.target.value)} className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 pl-11 pr-4 py-3 text-sm font-bold text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <ClinicalDatePicker type="date" label="Sign Date" value={signDate} onChange={setSignDate} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Doctor Signature (Text)</label>
+                <input value={doctorSignText} onChange={e=>setDoctorSignText(e.target.value)} placeholder="Type name for signature..." className="w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-900 focus:border-navy focus:bg-white focus:outline-none transition-all italic" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Floating Action Bar */}
+      {!embedded ? (
+        <div className="fixed bottom-6 left-1/2 z-20 w-full max-w-sm -translate-x-1/2 px-4">
+          <div className="flex items-center gap-3 rounded-2xl bg-white/80 p-3 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl">
+            <button
+              onClick={printView}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </button>
+            <button
+              onClick={() => save(false)}
+              disabled={busy}
+              className="flex flex-2 items-center justify-center gap-2 rounded-xl bg-navy py-3 text-sm font-black text-white shadow-xl shadow-navy/20 transition hover:opacity-90 disabled:opacity-50"
+            >
+              {busy ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Save className="h-4 w-4" />}
+              Save Summary
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

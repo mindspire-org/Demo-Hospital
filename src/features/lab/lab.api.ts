@@ -215,11 +215,13 @@ export const labApi = {
   // -------------------------------------------------------------------------
   // Tests (Catalog)
   // -------------------------------------------------------------------------
-  listTests: (params?: { q?: string; page?: number; limit?: number }) =>
+  listTests: (params?: { q?: string; page?: number; limit?: number; activeOnly?: string | boolean }) =>
     api(withQuery('/lab/tests', params)),
   createTest: (data: any) => api('/lab/tests', { method: 'POST', body: JSON.stringify(data) }),
   updateTest: (id: string, data: any) => api(`/lab/tests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTest: (id: string) => api(`/lab/tests/${id}`, { method: 'DELETE' }),
+  seedTests: (category?: string) => api('/lab/tests/seed', { method: 'POST', body: JSON.stringify({ category }) }),
+  getSeedStatus: () => api('/lab/tests/seed-status'),
 
   // -------------------------------------------------------------------------
   // Orders
@@ -288,6 +290,7 @@ export const labApi = {
   updateTokenStatus: (id: string, data: { status: 'token_generated' | 'converted_to_sample' | 'sample_received' | 'result_entered' | 'approved' | 'cancelled'; orderId?: string; resultId?: string }) =>
     api(`/lab/tokens/${id}/status`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteToken: (id: string) => api(`/lab/tokens/${id}`, { method: 'DELETE' }),
+  markReportPrinted: (id: string) => api(`/lab/tokens/${id}/report-printed`, { method: 'PUT' }),
   receivePayment: (tokenNo: string, data: { amount: number; method?: string; note?: string }) =>
     api(`/lab/tokens/${encodeURIComponent(tokenNo)}/receive-payment`, { method: 'POST', body: JSON.stringify(data) }),
 
@@ -332,9 +335,9 @@ export const labApi = {
   listCollectionCenters: (params?: { q?: string; status?: string; page?: number; limit?: number }) =>
     api(withQuery('/lab/collection-centers', params)),
   listActiveCollectionCenters: () => api('/lab/collection-centers/active'),
-  createCollectionCenter: (data: { name: string; code: string; address?: string; contactPerson?: string; phone?: string; email?: string; status?: 'Active' | 'Inactive'; commissionPercent?: number }) =>
+  createCollectionCenter: (data: { name: string; code: string; address?: string; contactPerson?: string; phone?: string; email?: string; status?: 'Active' | 'Inactive'; commissionPercent?: number; allowedTestIds?: string[]; parentCenterId?: string; isHead?: boolean; region?: string }) =>
     api('/lab/collection-centers', { method: 'POST', body: JSON.stringify(data) }),
-  updateCollectionCenter: (id: string, data: Partial<{ name: string; code: string; address?: string; contactPerson?: string; phone?: string; email?: string; status?: 'Active' | 'Inactive'; commissionPercent?: number }>) =>
+  updateCollectionCenter: (id: string, data: Partial<{ name: string; code: string; address?: string; contactPerson?: string; phone?: string; email?: string; status?: 'Active' | 'Inactive'; commissionPercent?: number; allowedTestIds?: string[]; parentCenterId?: string; isHead?: boolean; region?: string }>) =>
     api(`/lab/collection-centers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCollectionCenter: (id: string) => api(`/lab/collection-centers/${id}`, { method: 'DELETE' }),
   getCollectionCenterTokens: (id: string, params?: { from?: string; to?: string; status?: string; page?: number; limit?: number }) =>

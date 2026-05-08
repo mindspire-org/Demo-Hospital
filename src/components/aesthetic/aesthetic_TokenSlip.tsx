@@ -86,8 +86,6 @@ export default function Aesthetic_TokenSlip({ open, onClose, data, autoPrint = f
 
   const fbrStatus = String(data?.fbr?.status || '').toUpperCase().trim()
   const isFbrSuccess = fbrStatus === 'SUCCESS' && Boolean(data?.fbr?.qrCode)
-  const isFbrDisabled = !data?.fbr || !fbrStatus
-  const showFbrSection = !isFbrDisabled
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:bg-white print:static">
@@ -142,22 +140,17 @@ export default function Aesthetic_TokenSlip({ open, onClose, data, autoPrint = f
           </div>
         )}
 
-        {showFbrSection ? (
+        {isFbrSuccess ? (
           <>
             <hr className="my-2 border-dashed" />
 
             <div className="text-center text-sm font-semibold underline">FBR</div>
             <div className="mt-2 text-center">
-              {isFbrSuccess ? (
-                <img src={data.fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
-              ) : (
-                <div className="text-sm font-semibold text-rose-600 print:text-black">FBR FAILED</div>
-              )}
+              <img src={data.fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
             </div>
             <div className="mt-1 space-y-0.5 text-[11px] text-slate-700 print:text-black">
               <div>FBR No: {data?.fbr?.fbrInvoiceNo || '—'}</div>
               <div>Mode: {data?.fbr?.mode || '—'}</div>
-              <div>Error: {data?.fbr?.error || '—'}</div>
             </div>
           </>
         ) : null}

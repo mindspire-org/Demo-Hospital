@@ -104,7 +104,7 @@ export default function IndoorPharmacy_Inventory() {
       'Out of Stock': 'out',
     }
     sp.set('tab', rev[t])
-    navigate({ pathname: '/pharmacy/inventory', search: `?${sp.toString()}` }, { replace: true })
+    navigate({ pathname: '/indoor-pharmacy/inventory', search: `?${sp.toString()}` }, { replace: true })
   }
 
   useEffect(() => {
@@ -297,7 +297,7 @@ export default function IndoorPharmacy_Inventory() {
           <div className="text-2xl font-extrabold text-slate-900 dark:text-white">Inventory Control</div>
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => setUpdateStockOpen(true)} className="btn"><RotateCw className="h-4 w-4" /> Update Stock</button>
-            <button onClick={() => navigate('/pharmacy/inventory/add-invoice')} className="btn"><CalendarDays className="h-4 w-4" /> Add Invoice</button>
+            <button onClick={() => navigate('/indoor-pharmacy/inventory/add-invoice')} className="btn"><CalendarDays className="h-4 w-4" /> Add Invoice</button>
             <button onClick={()=>setRefreshTick(t=>t+1)} className="btn-outline-navy dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"><RotateCw className="h-4 w-4" /> Refresh</button>
             <button onClick={handleExport} className="btn-outline-navy dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"><FileDown className="h-4 w-4" /> Export</button>
           </div>
@@ -379,7 +379,7 @@ export default function IndoorPharmacy_Inventory() {
           onEditDraft={(id)=> {
             const fromPending = activeTab==='Pending Review'
             const search = fromPending ? '?from=pending' : ''
-            navigate(`/pharmacy/inventory/edit-invoice/${encodeURIComponent(id)}${search}`)
+            navigate(`/indoor-pharmacy/inventory/edit-invoice/${encodeURIComponent(id)}${search}`)
           }}
           // Pagination controls for Pending Review and Derived tabs (Low/Expiring/Out). All Items has its own footer below.
           page={activeTab!=='All Items' ? page : undefined}

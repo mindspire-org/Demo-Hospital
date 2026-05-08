@@ -16,24 +16,24 @@ export async function create(req: Request, res: Response){
   const pres = await HospitalPrescription.create({
     patientId: enc.patientId,
     encounterId: data.encounterId,
-    tokenNo: (data as any).tokenNo,
-    prescriptionMode: (data as any).prescriptionMode || 'electronic',
+    tokenNo: data.tokenNo,
+    prescriptionMode: data.prescriptionMode || 'electronic',
     manualAttachment: att,
     items: (data as any).items || [],
     labTests: data.labTests,
     labNotes: data.labNotes,
-    diagnosticTests: (data as any).diagnosticTests,
-    diagnosticNotes: (data as any).diagnosticNotes,
-    primaryComplaint: (data as any).primaryComplaint,
-    primaryComplaintHistory: (data as any).primaryComplaintHistory,
-    familyHistory: (data as any).familyHistory,
-    treatmentHistory: (data as any).treatmentHistory,
-    allergyHistory: (data as any).allergyHistory,
+    diagnosticTests: data.diagnosticTests,
+    diagnosticNotes: data.diagnosticNotes,
+    primaryComplaint: data.primaryComplaint,
+    primaryComplaintHistory: data.primaryComplaintHistory,
+    familyHistory: data.familyHistory,
+    treatmentHistory: data.treatmentHistory,
+    allergyHistory: data.allergyHistory,
     history: data.history,
     examFindings: data.examFindings,
     diagnosis: data.diagnosis,
     advice: data.advice,
-    vitals: (data as any).vitals,
+    vitals: data.vitals,
     createdBy: data.createdBy,
   })
 
@@ -101,8 +101,8 @@ export async function update(req: Request, res: Response){
   const { id } = req.params as any
   const data = updatePrescriptionSchema.parse(req.body)
   const set: any = {}
-  if ((data as any).tokenNo !== undefined) set.tokenNo = (data as any).tokenNo
-  if ((data as any).prescriptionMode !== undefined) set.prescriptionMode = (data as any).prescriptionMode
+  if ((data as any).tokenNo !== undefined) set.tokenNo = data.tokenNo
+  if (data.prescriptionMode !== undefined) set.prescriptionMode = data.prescriptionMode
   if ((data as any).manualAttachment !== undefined) {
     const att: any = (data as any).manualAttachment
     if (att && att.dataUrl && !att.uploadedAt) att.uploadedAt = new Date()
@@ -111,19 +111,18 @@ export async function update(req: Request, res: Response){
   if (data.items) set.items = data.items
   if (data.labTests !== undefined) set.labTests = data.labTests
   if (data.labNotes !== undefined) set.labNotes = data.labNotes
-  if ((data as any).diagnosticTests !== undefined) set.diagnosticTests = (data as any).diagnosticTests
-  if ((data as any).diagnosticNotes !== undefined) set.diagnosticNotes = (data as any).diagnosticNotes
-  if ((data as any).primaryComplaint !== undefined) set.primaryComplaint = (data as any).primaryComplaint
-  if ((data as any).primaryComplaintHistory !== undefined) set.primaryComplaintHistory = (data as any).primaryComplaintHistory
-  if ((data as any).familyHistory !== undefined) set.familyHistory = (data as any).familyHistory
-  if ((data as any).treatmentHistory !== undefined) set.treatmentHistory = (data as any).treatmentHistory
-  if ((data as any).alergyHistory !== undefined) set.allergyHistory = (data as any).alergyHistory
-  if ((data as any).allergyHistory !== undefined) set.allergyHistory = (data as any).allergyHistory
+  if (data.diagnosticTests !== undefined) set.diagnosticTests = data.diagnosticTests
+  if (data.diagnosticNotes !== undefined) set.diagnosticNotes = data.diagnosticNotes
+  if (data.primaryComplaint !== undefined) set.primaryComplaint = data.primaryComplaint
+  if (data.primaryComplaintHistory !== undefined) set.primaryComplaintHistory = data.primaryComplaintHistory
+  if (data.familyHistory !== undefined) set.familyHistory = data.familyHistory
+  if (data.treatmentHistory !== undefined) set.treatmentHistory = data.treatmentHistory
+  if (data.allergyHistory !== undefined) set.allergyHistory = data.allergyHistory
   if (data.history !== undefined) set.history = data.history
   if (data.examFindings !== undefined) set.examFindings = data.examFindings
   if (data.diagnosis !== undefined) set.diagnosis = data.diagnosis
   if (data.advice !== undefined) set.advice = data.advice
-  if ((data as any).vitals !== undefined) set.vitals = (data as any).vitals
+  if (data.vitals !== undefined) set.vitals = data.vitals
   const row = await HospitalPrescription.findByIdAndUpdate(String(id), { $set: set }, { new: true })
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .lean()

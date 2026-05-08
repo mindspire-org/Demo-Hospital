@@ -283,7 +283,7 @@ export default function Reception_IPDBilling(){
           </div>
         </div>
         <div class="box">
-          <div style="font-weight:600;margin-bottom:4px">Charges</div>
+          <div style={{fontWeight:600,marginBottom:4px}}>Charges</div>
           <table>
             <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
             <tbody>${linesHtml}</tbody>
@@ -291,18 +291,18 @@ export default function Reception_IPDBilling(){
           </table>
         </div>
         <div class="box">
-          <div style="font-weight:600;margin-bottom:4px">Payments</div>
+          <div style={{fontWeight:600,marginBottom:4px}}>Payments</div>
           <table>
             <thead><tr><th>Date/Time</th><th>Method</th><th>Ref</th><th class="right">Amount</th></tr></thead>
             <tbody>${paysHtml || `<tr><td colspan="4" style="padding:6px">No payments yet</td></tr>`}</tbody>
           </table>
         </div>
-        <div class="box" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="box" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8px}}>
           <div><div>SubTotal</div><div class="right">${currency(total)}</div></div>
           <div><div>Paid</div><div class="right">${currency(payments.reduce((s,p)=>s+Number(p.amount||0),0) + (newPay?.amount||0))}</div></div>
           <div><div><strong>Outstanding</strong></div><div class="right"><strong>${currency(Math.max(0, total - (payments.reduce((s,p)=>s+Number(p.amount||0),0) + (newPay?.amount||0))) )}</strong></div></div>
         </div>
-        <div style="text-align:center;color:#475569;margin-top:10px">System Generated Receipt</div>
+        <div style={{textAlign:'center',color:'#475569',marginTop:10px}}>System Generated Receipt</div>
       </div>
     </body></html>`
     try{

@@ -39,4 +39,5 @@ export const createOpdTokenSchema = z.object({
 export const listTokensSchema = z.object({
   date: z.string().optional(),
   status: z.enum(['queued','in-progress','completed','returned','cancelled']).optional(),
+  encounterId: z.string().optional(),
 })

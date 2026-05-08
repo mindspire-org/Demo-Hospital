@@ -7,19 +7,103 @@ function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
-// List all accounts with filters
+// Full ERP-ready default chart of accounts. Kept as a module-level constant so
+// both manual seed (POST) and the auto-seed-on-empty path use the same list.
+const DEFAULT_ACCOUNTS: Array<{ code: string; name: string; type: ChartOfAccountDoc['type']; subType?: ChartOfAccountDoc['subType']; portal?: ChartOfAccountDoc['portal'] }> = [
+  // Assets
+  { code: 'AST-001', name: 'CASH',                 type: 'Asset',     subType: 'CASH' },
+  { code: 'AST-002', name: 'BANK',                 type: 'Asset',     subType: 'BANK' },
+  { code: 'AST-003', name: 'AR',                   type: 'Asset',     subType: 'RECEIVABLE' },
+  { code: 'AST-004', name: 'AR_CORPORATE',         type: 'Asset',     subType: 'RECEIVABLE' },
+  { code: 'AST-005', name: 'INVENTORY_PHARMACY',   type: 'Asset' },
+  { code: 'AST-006', name: 'INVENTORY_STORE',      type: 'Asset' },
+  { code: 'AST-007', name: 'EQUIPMENT_ASSET',      type: 'Asset' },
+  { code: 'AST-008', name: 'PETTY_CASH',           type: 'Asset',     subType: 'CASH' },
+
+  // Liabilities
+  { code: 'LIA-001', name: 'DOCTOR_PAYABLE',       type: 'Liability', subType: 'PAYABLE' },
+  { code: 'LIA-002', name: 'STAFF_PAYABLE',        type: 'Liability', subType: 'PAYABLE' },
+  { code: 'LIA-003', name: 'VENDOR_PAYABLE',       type: 'Liability', subType: 'PAYABLE' },
+  { code: 'LIA-004', name: 'TAX_PAYABLE',          type: 'Liability', subType: 'PAYABLE' },
+
+  // Equity
+  { code: 'EQT-001', name: 'OWNERS_EQUITY',        type: 'Equity' },
+  { code: 'EQT-002', name: 'RETAINED_EARNINGS',    type: 'Equity' },
+
+  // Revenue
+  { code: 'REV-001', name: 'OPD_REVENUE',              type: 'Income', subType: 'REVENUE', portal: 'hospital' },
+  { code: 'REV-002', name: 'IPD_REVENUE',              type: 'Income', subType: 'REVENUE', portal: 'hospital' },
+  { code: 'REV-003', name: 'ER_REVENUE',               type: 'Income', subType: 'REVENUE', portal: 'hospital' },
+  { code: 'REV-004', name: 'PROCEDURE_REVENUE',        type: 'Income', subType: 'REVENUE', portal: 'hospital' },
+  { code: 'REV-005', name: 'LAB_REVENUE',              type: 'Income', subType: 'REVENUE', portal: 'lab' },
+  { code: 'REV-006', name: 'PHARMACY_REVENUE',         type: 'Income', subType: 'REVENUE', portal: 'pharmacy' },
+  { code: 'REV-007', name: 'INDOOR_PHARMACY_REVENUE',  type: 'Income', subType: 'REVENUE' },
+  { code: 'REV-008', name: 'DIAGNOSTIC_REVENUE',       type: 'Income', subType: 'REVENUE', portal: 'diagnostic' },
+  { code: 'REV-009', name: 'RADIOLOGY_REVENUE',        type: 'Income', subType: 'REVENUE', portal: 'diagnostic' },
+  { code: 'REV-010', name: 'AESTHETIC_REVENUE',        type: 'Income', subType: 'REVENUE', portal: 'aesthetic' },
+  { code: 'REV-011', name: 'DIALYSIS_REVENUE',         type: 'Income', subType: 'REVENUE', portal: 'dialysis' },
+
+  // Expenses
+  { code: 'EXP-001', name: 'COGS_PHARMACY',        type: 'Expense' },
+  { code: 'EXP-002', name: 'COGS_LAB',             type: 'Expense' },
+  { code: 'EXP-003', name: 'SALARY_EXPENSE',       type: 'Expense' },
+  { code: 'EXP-004', name: 'DOCTOR_SHARE_EXPENSE', type: 'Expense' },
+  { code: 'EXP-005', name: 'UTILITIES_EXPENSE',    type: 'Expense' },
+  { code: 'EXP-006', name: 'MAINT_EXPENSE',        type: 'Expense' },
+  { code: 'EXP-007', name: 'RENT_EXPENSE',         type: 'Expense' },
+  { code: 'EXP-008', name: 'DEPRECIATION',         type: 'Expense' },
+  { code: 'EXP-009', name: 'OTHER_EXPENSE',        type: 'Expense' },
+  { code: 'EXP-010', name: 'DISCOUNT',             type: 'Expense' },
+]
+
+async function seedIfEmpty(): Promise<void> {
+  const count = await ChartOfAccount.estimatedDocumentCount()
+  if (count > 0) return
+  for (const acc of DEFAULT_ACCOUNTS){
+    try { await ChartOfAccount.create({ ...acc, balance: 0, active: true }) } catch {}
+  }
+}
+
+// List all accounts with filters. Auto-seeds the default COA on first call
+// (when the collection is empty) so a brand-new install has a working ERP
+// without requiring an explicit admin action.
 export async function list(req: Request, res: Response) {
   const portal = String((req.query as any).portal || '')
   const type = String((req.query as any).type || '')
   const active = (req.query as any).active
+
+  await seedIfEmpty()
 
   const filter: any = {}
   if (portal) filter.portal = portal
   if (type) filter.type = type
   if (active !== undefined && active !== '') filter.active = active === 'true'
 
-  const accounts = await ChartOfAccount.find(filter).sort({ code: 1, name: 1 })
-  res.json(accounts)
+  const accounts = await ChartOfAccount.find(filter).sort({ code: 1, name: 1 }).lean()
+
+  // Compute actual balances from journals
+  const rows: any[] = await FinanceJournal.aggregate([
+    { $match: { status: { $ne: 'reversed' } } },
+    { $unwind: '$lines' },
+    { $group: {
+      _id: '$lines.account',
+      debits: { $sum: { $ifNull: ['$lines.debit', 0] } },
+      credits: { $sum: { $ifNull: ['$lines.credit', 0] } },
+    }},
+  ])
+
+  const balanceMap: Record<string, number> = {}
+  for (const r of rows) {
+    balanceMap[r._id] = round2((r.debits || 0) - (r.credits || 0))
+  }
+
+  // Attach computed balances to accounts
+  const accountsWithBalance = accounts.map((a: any) => ({
+    ...a,
+    balance: balanceMap[a.name] || 0,
+  }))
+
+  res.json(accountsWithBalance)
 }
 
 // Get single account by ID
@@ -248,31 +332,18 @@ export async function createUserAccount(req: Request, res: Response) {
   res.status(201).json(account)
 }
 
-// Seed default system accounts
-export async function seedDefaultAccounts(req: Request, res: Response) {
-  const defaultAccounts = [
-    { code: 'SYS-001', name: 'CASH', type: 'Asset' as const, subType: 'CASH' as const },
-    { code: 'SYS-002', name: 'BANK', type: 'Asset' as const, subType: 'BANK' as const },
-    { code: 'SYS-003', name: 'AR', type: 'Asset' as const, subType: 'RECEIVABLE' as const },
-    { code: 'SYS-004', name: 'OPD_REVENUE', type: 'Income' as const, subType: 'REVENUE' as const },
-    { code: 'SYS-005', name: 'IPD_REVENUE', type: 'Income' as const, subType: 'REVENUE' as const },
-    { code: 'SYS-006', name: 'LAB_REVENUE', type: 'Income' as const, subType: 'REVENUE' as const },
-    { code: 'SYS-007', name: 'PHARMACY_REVENUE', type: 'Income' as const, subType: 'REVENUE' as const },
-    { code: 'SYS-008', name: 'DIAGNOSTIC_REVENUE', type: 'Income' as const, subType: 'REVENUE' as const },
-    { code: 'SYS-009', name: 'DIALYSIS_REVENUE', type: 'Income' as const, subType: 'REVENUE' as const },
-    { code: 'SYS-010', name: 'AESTHETIC_REVENUE', type: 'Income' as const, subType: 'REVENUE' as const },
-    { code: 'SYS-011', name: 'DOCTOR_PAYABLE', type: 'Liability' as const, subType: 'PAYABLE' as const },
-    { code: 'SYS-012', name: 'DOCTOR_SHARE_EXPENSE', type: 'Expense' as const },
-  ]
-
+// Seed default system accounts. Safe to call multiple times: only missing
+// codes are inserted, existing accounts are left untouched.
+export async function seedDefaultAccounts(_req: Request, res: Response) {
   const created: any[] = []
-  for (const acc of defaultAccounts) {
-    const existing = await ChartOfAccount.findOne({ code: acc.code })
+  for (const acc of DEFAULT_ACCOUNTS) {
+    const existing = await ChartOfAccount.findOne({ $or: [{ code: acc.code }, { name: acc.name }] })
     if (!existing) {
-      const createdAcc = await ChartOfAccount.create(acc)
-      created.push(createdAcc)
+      try {
+        const createdAcc = await ChartOfAccount.create({ ...acc, balance: 0, active: true })
+        created.push(createdAcc)
+      } catch {}
     }
   }
-
   res.json({ seeded: created.length, accounts: created })
 }

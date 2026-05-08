@@ -33,6 +33,8 @@ type TokenData = {
   resultEnteredBy?: string
   approvedAt?: string
   approvedBy?: string
+  reportPrintedAt?: string
+  reportPrintedBy?: string
   subtotal?: number
   discount?: number
   net?: number
@@ -87,7 +89,7 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
   const [loading, setLoading] = useState(false)
   const [token, setToken] = useState<TokenData | null>(null)
   const [events, setEvents] = useState<TimelineEvent[]>([])
-  const [tests, setTests] = useState<Array<{ id: string; name: string }>>([])
+  const [tests, setTests] = useState<Array<{ id: string; name: string; turnaroundTime?: number }>>([])
   const [order, setOrder] = useState<{ receivedAmount?: number; receivableAmount?: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -117,7 +119,7 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
         
         // Load tests for names
         const testsRes = await labApi.listTests({ limit: 1000 })
-        setTests((testsRes.items || []).map((t: any) => ({ id: String(t._id), name: t.name })))
+        setTests((testsRes.items || []).map((t: any) => ({ id: String(t._id), name: t.name, turnaroundTime: t.turnaroundTime || 0 })))
       } catch (e: any) {
         console.error(e)
         setError(e?.message || 'Failed to load tracking data')
@@ -186,6 +188,20 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
                     <span className="text-slate-500 dark:text-slate-400">MR No:</span>
                     <span className="ml-2 text-slate-800 dark:text-slate-200">{token.patient?.mrn || '-'}</span>
                   </div>
+                  {token.approvedAt && (
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Approved At:</span>
+                      <span className="ml-2 text-emerald-700 dark:text-emerald-400 font-medium">{new Date(token.approvedAt).toLocaleString()}</span>
+                      {token.approvedBy && <span className="ml-1 text-xs text-slate-400">by {token.approvedBy}</span>}
+                    </div>
+                  )}
+                  {token.reportPrintedAt && (
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Report Printed At:</span>
+                      <span className="ml-2 text-violet-700 dark:text-violet-400 font-medium">{new Date(token.reportPrintedAt).toLocaleString()}</span>
+                      {token.reportPrintedBy && <span className="ml-1 text-xs text-slate-400">by {token.reportPrintedBy}</span>}
+                    </div>
+                  )}
                   
                   {/* Collection Center Info */}
                   {token.collectionCenterId && (
@@ -236,6 +252,13 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
                                 Sample: {new Date(ts.sampleTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </div>
                             )}
+                            {(() => {
+                              const tatInfo = tests.find(x => x.id === String(ts.testId))
+                              const tat = tatInfo?.turnaroundTime
+                              if (!tat) return null
+                              const tatStr = tat < 60 ? `${tat}m` : tat < 1440 ? `${Math.floor(tat/60)}h ${tat%60}m` : `${Math.floor(tat/1440)}d ${Math.floor((tat%1440)/60)}h`
+                              return <div className="mt-0.5 text-[10px] text-violet-600">Expected TAT: {tatStr}</div>
+                            })()}
                           </div>
                         )
                       })}

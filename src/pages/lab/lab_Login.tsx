@@ -55,29 +55,29 @@ export default function Lab_Login() {
 
   return (
     <div className={theme === 'dark' ? 'lab-scope dark' : 'lab-scope'}>
-      <div className="min-h-screen bg-gradient-to-br from-[#0a1e3c] via-[#0b2b55] to-slate-900 flex items-center justify-center p-4 overflow-hidden relative">
+      <div className="min-h-screen bg-linear-to-br from-[#0a1e3c] via-[#0b2b55] to-slate-900 flex items-center justify-center p-4 overflow-hidden relative">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-48 -right-48 h-96 w-96 rounded-full bg-sky-500/20 blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
-          <div className="absolute -bottom-56 -left-56 h-[28rem] w-[28rem] rounded-full bg-blue-500/20 blur-3xl animate-pulse" style={{ animationDuration: '6s', animationDelay: '1s' }} />
-          <div className="absolute left-1/2 top-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/15 blur-3xl animate-pulse" style={{ animationDuration: '5s', animationDelay: '2s' }} />
-          <div className="absolute top-20 left-20 h-32 w-32 bg-gradient-to-br from-sky-400/10 to-blue-600/10 backdrop-blur-sm rounded-3xl" style={{ transform: 'rotateX(45deg) rotateZ(45deg)', animation: 'float 6s ease-in-out infinite' }} />
-          <div className="absolute bottom-32 right-32 h-24 w-24 bg-gradient-to-br from-blue-400/10 to-sky-600/10 backdrop-blur-sm rounded-2xl" style={{ transform: 'rotateX(-30deg) rotateZ(30deg)', animation: 'float 8s ease-in-out infinite', animationDelay: '1s' }} />
-          <div className="absolute top-1/3 right-1/4 h-20 w-20 bg-gradient-to-br from-indigo-400/10 to-sky-600/10 backdrop-blur-sm rounded-xl" style={{ transform: 'rotateX(60deg) rotateZ(-45deg)', animation: 'float 7s ease-in-out infinite', animationDelay: '2s' }} />
+          <div className="absolute -bottom-56 -left-56 h-112 w-md rounded-full bg-blue-500/20 blur-3xl animate-pulse" style={{ animationDuration: '6s', animationDelay: '1s' }} />
+          <div className="absolute left-1/2 top-1/2 h-136 w-136 -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/15 blur-3xl animate-pulse" style={{ animationDuration: '5s', animationDelay: '2s' }} />
+          <div className="absolute top-20 left-20 h-32 w-32 bg-linear-to-br from-sky-400/10 to-blue-600/10 backdrop-blur-sm rounded-3xl" style={{ transform: 'rotateX(45deg) rotateZ(45deg)', animation: 'float 6s ease-in-out infinite' }} />
+          <div className="absolute bottom-32 right-32 h-24 w-24 bg-linear-to-br from-blue-400/10 to-sky-600/10 backdrop-blur-sm rounded-2xl" style={{ transform: 'rotateX(-30deg) rotateZ(30deg)', animation: 'float 8s ease-in-out infinite', animationDelay: '1s' }} />
+          <div className="absolute top-1/3 right-1/4 h-20 w-20 bg-linear-to-br from-indigo-400/10 to-sky-600/10 backdrop-blur-sm rounded-xl" style={{ transform: 'rotateX(60deg) rotateZ(-45deg)', animation: 'float 7s ease-in-out infinite', animationDelay: '2s' }} />
         </div>
 
         <style>{`@keyframes float{0%,100%{transform:translateY(0px) rotateX(45deg) rotateZ(45deg)}50%{transform:translateY(-20px) rotateX(55deg) rotateZ(50deg)}}@keyframes rotate3d{0%{transform:perspective(1000px) rotateY(0deg) rotateX(10deg)}100%{transform:perspective(1000px) rotateY(360deg) rotateX(10deg)}}.card-3d{transform-style:preserve-3d;transition:transform .6s cubic-bezier(.23,1,.32,1)}.card-3d:hover{transform:perspective(1000px) rotateY(5deg) rotateX(-5deg) scale(1.02)}`}</style>
 
         <div className="card-3d relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-br from-white/10 via-white/5 to-transparent" />
           <div className="relative">
             <div className="relative p-8 pb-6 text-center">
-              <div className="mx-auto mb-6 h-24 w-24 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-400/20 to-blue-600/20 p-1 backdrop-blur-sm" style={{ animation: 'rotate3d 20s linear infinite' }}>
+              <div className="mx-auto mb-6 h-24 w-24 overflow-hidden rounded-3xl bg-linear-to-br from-sky-400/20 to-blue-600/20 p-1 backdrop-blur-sm" style={{ animation: 'rotate3d 20s linear infinite' }}>
                 <div className="h-full w-full overflow-hidden rounded-[1.3rem] bg-white/10 ring-1 ring-white/20">
                   <img src={`${(import.meta as any).env?.BASE_URL || '/'}hospital_icon.jpeg`} alt="Healthspire" className="h-full w-full object-cover" />
                 </div>
               </div>
-              <h1 className="text-3xl font-black bg-gradient-to-r from-sky-200 via-blue-200 to-indigo-200 bg-clip-text text-transparent mb-2">HealthSpire</h1>
-              <p className="text-sm text-white/60 font-medium">Laboratory Management System</p>
+              <h1 className="text-3xl font-black bg-linear-to-r from-sky-200 via-blue-200 to-indigo-200 bg-clip-text text-transparent mb-2">HealthSpire</h1>
+              <p className="text-sm text-white/60 font-medium">Lab Management System</p>
             </div>
 
             <div className="p-8 pt-4">
@@ -111,8 +111,8 @@ export default function Lab_Login() {
 
                 {error && <div className="rounded-2xl border-2 border-rose-400/30 bg-rose-500/10 backdrop-blur-sm px-4 py-3 text-sm text-rose-200 font-medium">{error}</div>}
 
-                <button type="submit" className="group relative mt-2 w-full overflow-hidden rounded-2xl bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-600 px-4 py-4 font-bold text-white shadow-2xl shadow-sky-500/30 transition-all hover:shadow-sky-500/50 hover:scale-[1.02] focus:outline-none focus:ring-4 focus:ring-sky-400/50">
-                  <div className="absolute inset-0 bg-gradient-to-r from-sky-400 via-blue-400 to-indigo-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                <button type="submit" className="group relative mt-2 w-full overflow-hidden rounded-2xl bg-linear-to-r from-sky-500 via-blue-500 to-indigo-600 px-4 py-4 font-bold text-white shadow-2xl shadow-sky-500/30 transition-all hover:shadow-sky-500/50 hover:scale-[1.02] focus:outline-none focus:ring-4 focus:ring-sky-400/50">
+                  <div className="absolute inset-0 bg-linear-to-r from-sky-400 via-blue-400 to-indigo-500 opacity-0 transition-opacity group-hover:opacity-100" />
                   <span className="relative flex items-center justify-center gap-2">Login<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 transition-transform group-hover:translate-x-1"><path d="M13.3 17.3 18.6 12l-5.3-5.3-1.4 1.4 3.2 3.2H4v2h11.1l-3.2 3.2 1.4 1.5Z"/></svg></span>
                 </button>
                 <button

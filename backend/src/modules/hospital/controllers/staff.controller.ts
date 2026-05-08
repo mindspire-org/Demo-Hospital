@@ -6,6 +6,7 @@ import { env } from '../../../config/env'
 import { BiometricMapping } from '../../biometric/models/BiometricMapping'
 import { syncOnce } from '../../biometric/jobs/poller'
 import { BiometricSyncState } from '../../biometric/models/BiometricSyncState'
+import { createStaffAccount } from '../../finance/services/accountAutoCreate'
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 
@@ -35,6 +36,10 @@ export async function list(_req: Request, res: Response){
 export async function create(req: Request, res: Response){
   const data = upsertStaffSchema.parse(req.body)
   const row = await HospitalStaff.create(data)
+  // Auto-create account in Chart of Accounts
+  try {
+    await createStaffAccount(String(row._id), row.name || 'Staff', 'hospital')
+  } catch {}
   res.status(201).json({ staff: row })
 }
 

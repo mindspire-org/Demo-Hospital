@@ -952,48 +952,36 @@ function hdr(settings: any){
   const name = settings?.name || 'HospitalCare'
   const addr = settings?.address || ''
   const phone = settings?.phone || ''
-  const logo = settings?.logoDataUrl ? `<img src="${settings.logoDataUrl}" style="height:40px;" />` : ''
-  return `<div style="display:grid; grid-template-columns:1fr auto 1fr; align-items:center;">
-    <div style="justify-self:start;">${logo}</div>
-    <div style="justify-self:center; text-align:center;">
-      <div style="font-size:18px; font-weight:700;">${escapeHtml(name)}</div>
-      <div style="font-size:11px; color:#555;">${escapeHtml(addr)} ${phone?(' | '+escapeHtml(phone)) : ''}</div>
+  const logo = settings?.logoDataUrl ? `<img src="${settings.logoDataUrl}" class="h-logo" alt="logo" />` : ''
+  return `
+  <div class="hdr">
+    <div class="hdr-left">${logo}</div>
+    <div class="hdr-mid">
+      <div class="h-name">${escapeHtml(name)}</div>
+      <div class="h-meta">${escapeHtml(addr)}${phone ? ` <span class="sep">•</span> ${escapeHtml(phone)}` : ''}</div>
     </div>
-    <div></div>
+    <div class="hdr-right"></div>
   </div>`
 }
 
 function box(title: string, body: string){
-  return `<div style="border:1px solid #e5e7eb; border-radius:6px; padding:10px; margin-top:8px;">
-    <div style="font-weight:600; margin-bottom:4px;">${escapeHtml(title)}</div>
-    <div>${body}</div>
-  </div>`
+  return `
+  <section class="card">
+    <div class="card-h">${escapeHtml(title)}</div>
+    <div class="card-b">${body}</div>
+  </section>`
 }
 
 function renderDischargeHTML(settings: any, enc: any, patient: any, doctor: any, s: any){
   const pInfo = `
-    <table style="width:100%; border-collapse:separate; border-spacing:6px 2px; font-size:11.5px; line-height:1.25;">
-      <tbody>
-        <tr>
-          <td style="font-weight:700; color:#334155; width:120px;">Patient</td>
-          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${escapeHtml(patient?.fullName||'')}</td>
-          <td style="font-weight:700; color:#334155; width:120px;">MRN</td>
-          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${escapeHtml(patient?.mrn||'')}</td>
-        </tr>
-        <tr>
-          <td style="font-weight:700; color:#334155;">Doctor</td>
-          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${escapeHtml(doctor?.fullName||doctor?.name||'')}</td>
-          <td style="font-weight:700; color:#334155;">Admission No</td>
-          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${escapeHtml(enc?.admissionNo||'')}</td>
-        </tr>
-        <tr>
-          <td style="font-weight:700; color:#334155;">Admitted</td>
-          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${fmt(enc?.startAt)}</td>
-          <td style="font-weight:700; color:#334155;">Discharged</td>
-          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${fmt(enc?.endAt)}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="kv-grid">
+      <div class="kv"><div class="k">Patient</div><div class="v">${escapeHtml(patient?.fullName||'')}</div></div>
+      <div class="kv"><div class="k">MRN</div><div class="v">${escapeHtml(patient?.mrn||'')}</div></div>
+      <div class="kv"><div class="k">Doctor</div><div class="v">${escapeHtml(doctor?.fullName||doctor?.name||'')}</div></div>
+      <div class="kv"><div class="k">Admission No</div><div class="v">${escapeHtml(enc?.admissionNo||'')}</div></div>
+      <div class="kv"><div class="k">Admitted</div><div class="v">${fmt(enc?.startAt)}</div></div>
+      <div class="kv"><div class="k">Discharged</div><div class="v">${fmt(enc?.endAt)}</div></div>
+    </div>
   `
 
   // Parse enhanced fields (when front-end sends composed text)
@@ -1030,7 +1018,7 @@ function renderDischargeHTML(settings: any, enc: any, patient: any, doctor: any,
   const invBlocks = invOrder.map(lbl => (
     `<div><div style="font-size:11px;color:#334155;font-weight:600;margin-bottom:2px;">${escapeHtml(lbl)}</div><div style="border:1px solid #e5e7eb;border-radius:6px;padding:6px;min-height:20px;">${escapeHtml(invMap[lbl]||'')}</div></div>`
   )).join('')
-  const investGrid = `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;">${invBlocks}</div>`
+  const investGrid = `<div class="inv-grid">${invBlocks}</div>`
 
   const medsRows = (Array.isArray(s.medications) ? s.medications : String(s.medications||'').split('\n'))
     .map((m:string)=>{
@@ -1039,37 +1027,37 @@ function renderDischargeHTML(settings: any, enc: any, patient: any, doctor: any,
     })
     .filter((row:any)=> Object.values(row).some(v=> String(v||'').trim()))
   const medsTable = `
-    <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
+    <table class="tbl">
       <thead>
-        <tr style="background:#f8fafc;">
-          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Sr</th>
-          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Medicine</th>
-          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Strength/Dose</th>
-          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Route</th>
-          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Frequency</th>
-          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Timing</th>
-          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Duration</th>
+        <tr>
+          <th style="width:44px">Sr</th>
+          <th>Medicine</th>
+          <th style="width:140px">Strength/Dose</th>
+          <th style="width:90px">Route</th>
+          <th style="width:120px">Frequency</th>
+          <th style="width:100px">Timing</th>
+          <th style="width:90px">Duration</th>
         </tr>
       </thead>
       <tbody>
         ${medsRows.map((r:any, i:number)=>`<tr>
-          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${i+1}</td>
-          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.name)}</td>
-          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.dose)}</td>
-          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.route)}</td>
-          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.freq)}</td>
-          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.timing)}</td>
-          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.duration)}</td>
+          <td class="num">${i+1}</td>
+          <td>${escapeHtml(r.name)}</td>
+          <td>${escapeHtml(r.dose)}</td>
+          <td>${escapeHtml(r.route)}</td>
+          <td>${escapeHtml(r.freq)}</td>
+          <td>${escapeHtml(r.timing)}</td>
+          <td>${escapeHtml(r.duration)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
   `
 
   const procBody = Array.isArray(s.procedures) ? `<ul>${s.procedures.map((x:string)=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>` : nl2br(escapeHtml(String(s.procedures||'')))
-  const paired1 = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">${box('Presenting Complaints', nl2br(escapeHtml(presentingComplaints||'')))}${box('Reason of Admission / Brief History / Examination', nl2br(escapeHtml(reasonOfAdmission||'')))}</div>`
-  const paired2 = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">${box('Final Diagnosis', nl2br(escapeHtml(s.diagnosis||'')))}${box('Any Procedure During Stay & Outcome', procBody)}</div>`
-  const statusGrid = `<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;\">${box('Condition at Discharge', nl2br(escapeHtml(s.conditionAtDischarge||'')))}${box('Response of Treatment', escapeHtml(responseOfTreatment||''))}</div>`
-  const docGrid = `<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;\">${box('Doctor Name', escapeHtml(doctorName||doctor?.name||''))}${box('Sign Date', fmt(s.followUpDate))}${box('Doctor Sign (text)', escapeHtml(doctorSign||''))}</div>`
+  const paired1 = `<div class="grid2">${box('Presenting Complaints', nl2br(escapeHtml(presentingComplaints||'')))}${box('Reason of Admission / Brief History / Examination', nl2br(escapeHtml(reasonOfAdmission||'')))}</div>`
+  const paired2 = `<div class="grid2">${box('Final Diagnosis', nl2br(escapeHtml(s.diagnosis||'')))}${box('Any Procedure During Stay & Outcome', procBody)}</div>`
+  const statusGrid = `<div class="grid2">${box('Condition at Discharge', nl2br(escapeHtml(s.conditionAtDischarge||'')))}${box('Response of Treatment', escapeHtml(responseOfTreatment||''))}</div>`
+  const docGrid = `<div class="grid3">${box('Doctor Name', escapeHtml(doctorName||doctor?.name||''))}${box('Sign Date', fmt(s.followUpDate))}${box('Doctor Sign (text)', escapeHtml(doctorSign||''))}</div>`
   const sections = [
     box('Patient Info', pInfo),
     paired1,
@@ -1081,7 +1069,16 @@ function renderDischargeHTML(settings: any, enc: any, patient: any, doctor: any,
     box('Follow-up Instructions', nl2br(escapeHtml(s.advice||''))),
     docGrid,
   ].join('')
-  return wrap(`${hdr(settings)}<h2 style="margin:12px 0 8px; font-size:22px; font-weight:800;">Discharge Summary</h2>${sections}`)
+  const title = `
+    <div class="title">
+      <div class="title-left">
+        <div class="title-h">Discharge Summary</div>
+        <div class="title-sub">Generated: ${escapeHtml(new Date().toLocaleString())}</div>
+      </div>
+      <div class="badge">IPD</div>
+    </div>
+  `
+  return wrap(`${hdr(settings)}${title}${sections}`)
 }
 
 function renderDeathHTML(settings: any, enc: any, patient: any, doctor: any, c: any){
@@ -1240,9 +1237,58 @@ function wrap(inner: string){
   return `<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Print</title>
   <style>
-    body{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:#0f172a; padding:12px; background:#ffffff; font-size:12px; line-height:1.35;}
-    .page{max-width:780px; margin:0 auto;}
+    :root{--ink:#0f172a;--muted:#475569;--line:#e2e8f0;--soft:#f8fafc;--brand:#0f172a;--accent:#0ea5e9;}
+    *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:var(--ink); padding:14px; background:#ffffff; font-size:12px; line-height:1.45;}
+    .page{max-width:840px; margin:0 auto;}
+    @page{size:A4;margin:12mm}
     @media print { body { padding: 0; } .page{margin:0 auto;} }
+
+    .hdr{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#fff, var(--soft));}
+    .hdr-left{justify-self:start}
+    .hdr-mid{text-align:center}
+    .hdr-right{justify-self:end}
+    .h-logo{height:46px;width:auto;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#fff;padding:4px}
+    .h-name{font-size:18px;font-weight:900;letter-spacing:.02em;text-transform:uppercase}
+    .h-meta{margin-top:2px;font-size:11px;color:var(--muted)}
+    .sep{opacity:.7;padding:0 6px}
+
+    .title{display:flex;align-items:flex-end;justify-content:space-between;margin:14px 0 8px;}
+    .title-h{font-size:24px;font-weight:1000;letter-spacing:-.02em}
+    .title-sub{margin-top:2px;font-size:11px;color:var(--muted)}
+    .badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:7px 12px;border:1px solid var(--line);background:var(--soft);font-size:10px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;color:#334155}
+
+    .card{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:10px;break-inside:avoid}
+    .card-h{background:var(--brand);color:#fff;padding:9px 12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;font-size:10px}
+    .card-b{padding:12px;background:#fff}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+
+    .kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+    .kv{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#fff, var(--soft))}
+    .k{font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#64748b}
+    .v{font-size:12px;font-weight:800;color:var(--ink)}
+
+    .inv-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+    .inv-grid > div > div:first-child{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
+    .inv-grid > div > div:last-child{margin-top:4px;border:1px solid var(--line);border-radius:12px;padding:8px;min-height:24px;background:#fff}
+
+    .tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px}
+    .tbl th{background:var(--soft);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;font-size:10px;font-weight:1000;letter-spacing:.14em;text-transform:uppercase;color:#334155}
+    .tbl th:first-child{border-left:1px solid var(--line);border-top-left-radius:12px}
+    .tbl th:last-child{border-right:1px solid var(--line);border-top-right-radius:12px}
+    .tbl td{border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top}
+    .tbl tr td:first-child{border-left:1px solid var(--line)}
+    .tbl tr td:last-child{border-right:1px solid var(--line)}
+    .tbl tr:last-child td:first-child{border-bottom-left-radius:12px}
+    .tbl tr:last-child td:last-child{border-bottom-right-radius:12px}
+    .num{text-align:center;font-variant-numeric:tabular-nums}
+
+    @media print{
+      .grid2{gap:8px}
+      .grid3{gap:8px}
+      .inv-grid{gap:6px}
+    }
   </style>
   </head><body>
   <div class="page">${inner}</div>

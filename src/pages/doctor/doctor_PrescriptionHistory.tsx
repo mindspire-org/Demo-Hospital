@@ -1,11 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { hospitalApi, labApi } from '../../utils/api'
-import PrescriptionPrint from '../../components/doctor/PrescriptionPrint'
 import { previewPrescriptionPdf } from '../../utils/prescriptionPdf'
 import type { PrescriptionPdfTemplate } from '../../utils/prescriptionPdf'
 import PrescriptionVitals from '../../components/doctor/PrescriptionVitals'
 import PrescriptionDiagnosticOrders from '../../components/doctor/PrescriptionDiagnosticOrders'
 import Doctor_IpdReferralForm from '../../components/doctor/Doctor_IpdReferralForm'
+import { 
+  History, 
+  Search, 
+  CalendarDays, 
+  Printer, 
+  Edit3, 
+  Trash2, 
+  ExternalLink, 
+  Clock, 
+  ClipboardCheck, 
+  Stethoscope,
+  Pill,
+  Microscope,
+  FileSearch,
+  ArrowUpRight,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Plus,
+  Save
+} from 'lucide-react'
 
 type DoctorSession = { id: string; name: string; username: string }
 
@@ -27,6 +47,9 @@ type Prescription = {
   examFindings?: string
   advice?: string
   medicines?: string
+  itemsCount?: number
+  labCount?: number
+  diagCount?: number
   createdAt: string
 }
 
@@ -39,11 +62,12 @@ export default function Doctor_PrescriptionHistory() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
   const [total, setTotal] = useState(0)
-  const [printData, setPrintData] = useState<any | null>(null)
+  const [loading, setLoading] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [editActiveTab, setEditActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'meds'>('details')
   const [editingId, setEditingId] = useState<string>('')
   const [editForm, setEditForm] = useState<{ primaryComplaint?: string; primaryComplaintHistory?: string; familyHistory?: string; allergyHistory?: string; treatmentHistory?: string; history?: string; examFindings?: string; diagnosis?: string; advice?: string; labTestsText?: string; labNotes?: string; items: Array<{ name: string; frequency?: string; duration?: string; dose?: string; route?: string; instruction?: string; notes?: string }> }>({ items: [], labTestsText: '', labNotes: '' })
+  
   const vitalsEditRef = useRef<any>(null)
   const diagEditRef = useRef<any>(null)
   const [editVitalsDisplay, setEditVitalsDisplay] = useState<any>({})
@@ -54,41 +78,27 @@ export default function Doctor_PrescriptionHistory() {
   const [attachView, setAttachView] = useState<{ open: boolean; fileName?: string; mimeType?: string; dataUrl?: string }>(()=>({ open: false }))
   const [ipdReferralOpen, setIpdReferralOpen] = useState(false)
   const [ipdReferralPrescription, setIpdReferralPrescription] = useState<Prescription | null>(null)
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem('doctor.session')
       const sess = raw ? JSON.parse(raw) : null
       setDoc(sess)
-      const hex24 = /^[a-f\d]{24}$/i
-      if (sess && !hex24.test(String(sess.id||''))) {
-        ;(async () => {
-          try {
-            const res = await hospitalApi.listDoctors() as any
-            const docs: any[] = res?.doctors || []
-            const match = docs.find(d => String(d.username||'').toLowerCase() === String(sess.username||'').toLowerCase()) ||
-                          docs.find(d => String(d.name||'').toLowerCase() === String(sess.name||'').toLowerCase())
-            if (match) {
-              const fixed = { ...sess, id: String(match._id || match.id) }
-              try { localStorage.setItem('doctor.session', JSON.stringify(fixed)) } catch {}
-              setDoc(fixed)
-            }
-          } catch {}
-        })()
-      }
     } catch {}
   }, [])
 
   useEffect(() => { load() }, [doc?.id, from, to, page, limit])
+  
   useEffect(() => {
     const h = () => { load() }
     window.addEventListener('doctor:pres-saved', h as any)
     return () => window.removeEventListener('doctor:pres-saved', h as any)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id])
 
   async function load(){
+    if (!doc?.id) { setList([]); return }
+    setLoading(true)
     try {
-      if (!doc?.id) { setList([]); return }
       const res = await hospitalApi.listPrescriptions({ doctorId: doc.id, from: from || undefined, to: to || undefined, page, limit }) as any
       const rows: any[] = res?.prescriptions || []
       const items: Prescription[] = rows.map((r: any) => ({
@@ -101,19 +111,15 @@ export default function Doctor_PrescriptionHistory() {
         manualAttachment: r.manualAttachment,
         diagnosis: r.diagnosis,
         primaryComplaint: r.primaryComplaint || r.complaints,
-        primaryComplaintHistory: r.primaryComplaintHistory,
-        familyHistory: r.familyHistory,
-        allergyHistory: r.allergyHistory,
-        treatmentHistory: r.treatmentHistory,
-        history: r.history,
-        examFindings: r.examFindings,
-        advice: r.advice,
+        itemsCount: r.items?.length || 0,
+        labCount: r.labTests?.length || 0,
+        diagCount: r.diagnosticTests?.length || 0,
         medicines: (r.items || []).map((it: any) => `${it.name}${it.frequency?` • ${it.frequency}`:''}${it.duration?` • ${it.duration}`:''}${it.dose?` • ${it.dose}`:''}`).join('\n'),
         createdAt: r.createdAt,
       }))
       setList(items)
       setTotal(Number(res?.total || items.length))
-      // load referral flags for visible range
+      
       try {
         const [ph, lb, dg] = await Promise.all([
           hospitalApi.listReferrals({ type: 'pharmacy', doctorId: doc.id, from: from || undefined, to: to || undefined, page: 1, limit: 200 }) as any,
@@ -129,49 +135,47 @@ export default function Doctor_PrescriptionHistory() {
     } catch {
       setList([])
       setTotal(0)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const mine = useMemo(() => {
+  const filteredList = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return (list || []).filter(p => p.doctorId === doc?.id && (!s || `${p.patientName} ${p.mrNo || ''} ${p.diagnosis || ''}`.toLowerCase().includes(s)))
-  }, [list, doc, q])
+    return list.filter(p => !s || `${p.patientName} ${p.mrNo || ''} ${p.diagnosis || ''}`.toLowerCase().includes(s))
+  }, [list, q])
+
+  const historyStats = useMemo(() => {
+    return {
+      total: total,
+      thisMonth: list.filter(p => new Date(p.createdAt).getMonth() === new Date().getMonth()).length,
+      referred: Object.keys(refFlags).length
+    }
+  }, [total, list, refFlags])
 
   async function handlePrint(id: string){
-    const data: any = await fetchPrintData(id)
-    setPrintData(data)
-    // Fetch template from database
-    let tpl: PrescriptionPdfTemplate = 'hospital-rx'
     try {
+      const data: any = await fetchPrintData(id)
+      let tpl: PrescriptionPdfTemplate = 'hospital-rx'
       if (doc?.id) {
         const doctorData: any = await hospitalApi.getDoctor(doc.id)
-        if (doctorData?.doctor?.prescriptionTemplate) {
-          tpl = doctorData.doctor.prescriptionTemplate
-        }
+        if (doctorData?.doctor?.prescriptionTemplate) tpl = doctorData.doctor.prescriptionTemplate
       }
+
+      await previewPrescriptionPdf({
+        doctor: data.doctor || {},
+        settings: data.settings || {},
+        patient: data.patient || {},
+        items: data.items || [],
+        vitals: data.vitals,
+        primaryComplaint: data.primaryComplaint,
+        diagnosis: data.diagnosis,
+        advice: data.advice,
+        labTests: data.labTests || [],
+        diagnosticTests: data.diagnosticTests || [],
+        createdAt: data.createdAt,
+      }, tpl)
     } catch {}
-    await previewPrescriptionPdf({
-      doctor: data.doctor || {},
-      settings: data.settings || {},
-      patient: data.patient || {},
-      items: data.items || [],
-      vitals: data.vitals,
-      primaryComplaint: data.primaryComplaint,
-      primaryComplaintHistory: data.primaryComplaintHistory,
-      familyHistory: data.familyHistory,
-      allergyHistory: data.allergyHistory,
-      treatmentHistory: data.treatmentHistory,
-      history: data.history,
-      examFindings: data.examFindings,
-      diagnosis: data.diagnosis,
-      advice: data.advice,
-      labTests: data.labTests || [],
-      labNotes: data.labNotes || '',
-      diagnosticTests: data.diagnosticTests || [],
-      diagnosticNotes: data.diagnosticNotes || '',
-      tokenNo: data.tokenNo,
-      createdAt: data.createdAt,
-    }, tpl)
   }
 
   async function openAttachment(p: Prescription){
@@ -191,87 +195,66 @@ export default function Doctor_PrescriptionHistory() {
 
   async function referToPharmacy(p: Prescription){
     try {
-      if (!doc?.id) { setToast({ msg: 'Session missing', kind: 'error' }); return }
+      if (!doc?.id) return
       await hospitalApi.createReferral({ type: 'pharmacy', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id })
-      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
       setToast({ msg: 'Pharmacy referral created', kind: 'success' })
       setRefFlags(prev => ({ ...prev, [p.id]: { ...(prev[p.id]||{}), ph: true } }))
     } catch (e: any) {
-      setToast({ msg: e?.message || 'Failed to refer to pharmacy', kind: 'error' })
+      setToast({ msg: e?.message || 'Failed to refer', kind: 'error' })
     }
   }
 
   async function referToLab(p: Prescription){
     try {
-      if (!doc?.id) { setToast({ msg: 'Session missing', kind: 'error' }); return }
-      let tests: string[] | undefined
-      let notes: string | undefined
-      try {
-        const res: any = await hospitalApi.getPrescription(p.id)
-        const pres = res?.prescription
-        if (pres?.labTests?.length) tests = pres.labTests as string[]
-        if (pres?.labNotes) notes = String(pres.labNotes)
-      } catch {}
-      await hospitalApi.createReferral({ type: 'lab', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id, tests, notes })
-      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
+      if (!doc?.id) return
+      await hospitalApi.createReferral({ type: 'lab', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id })
       setToast({ msg: 'Lab referral created', kind: 'success' })
       setRefFlags(prev => ({ ...prev, [p.id]: { ...(prev[p.id]||{}), lab: true } }))
     } catch (e: any) {
-      setToast({ msg: e?.message || 'Failed to create lab referral', kind: 'error' })
+      setToast({ msg: e?.message || 'Failed to refer', kind: 'error' })
     }
   }
 
   async function referToDiagnostic(p: Prescription){
     try {
-      if (!doc?.id) { setToast({ msg: 'Session missing', kind: 'error' }); return }
-      let tests: string[] | undefined
-      let notes: string | undefined
-      try {
-        const res: any = await hospitalApi.getPrescription(p.id)
-        const pres = res?.prescription
-        if (pres?.diagnosticTests?.length) tests = pres.diagnosticTests as string[]
-        if (pres?.diagnosticNotes) notes = String(pres.diagnosticNotes)
-      } catch {}
-      await hospitalApi.createReferral({ type: 'diagnostic', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id, tests, notes })
-      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
+      if (!doc?.id) return
+      await hospitalApi.createReferral({ type: 'diagnostic', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id })
       setToast({ msg: 'Diagnostic referral created', kind: 'success' })
       setRefFlags(prev => ({ ...prev, [p.id]: { ...(prev[p.id]||{}), diag: true } }))
     } catch (e: any) {
-      setToast({ msg: e?.message || 'Failed to create diagnostic referral', kind: 'error' })
+      setToast({ msg: e?.message || 'Failed to refer', kind: 'error' })
     }
   }
 
   function openConfirm(type: 'lab'|'pharmacy'|'diagnostic'|'delete', p: Prescription){
-    if (type==='pharmacy' && (refFlags[p.id]?.ph)) { setToast({ msg: 'Already referred to pharmacy', kind: 'success' }); return }
-    if (type==='lab' && (refFlags[p.id]?.lab)) { setToast({ msg: 'Already referred to lab', kind: 'success' }); return }
-    if (type==='diagnostic' && (refFlags[p.id]?.diag)) { setToast({ msg: 'Already referred to diagnostic', kind: 'success' }); return }
     setConfirmDlg({ open: true, type, target: p })
   }
 
-  async function confirmReferral(){
+  async function confirmAction(){
     const p = confirmDlg.target
-    if (!confirmDlg.open || !confirmDlg.type || !p) { setConfirmDlg({ open: false }); return }
-    const t = confirmDlg.type
+    if (!p) return
     setConfirmDlg({ open: false })
-    if (t === 'pharmacy') await referToPharmacy(p)
-    if (t === 'lab') await referToLab(p)
-    if (t === 'diagnostic') await referToDiagnostic(p)
-    if (t === 'delete') await deletePres(p.id)
+    if (confirmDlg.type === 'pharmacy') await referToPharmacy(p)
+    if (confirmDlg.type === 'lab') await referToLab(p)
+    if (confirmDlg.type === 'diagnostic') await referToDiagnostic(p)
+    if (confirmDlg.type === 'delete') await deletePres(p.id)
   }
 
-  useEffect(() => {
-    if (toast) {
-      const id = setTimeout(() => setToast(null), 2000)
-      return () => clearTimeout(id)
+  async function deletePres(id: string){
+    try {
+      await hospitalApi.deletePrescription(id)
+      load()
+      setToast({ msg: 'Prescription removed', kind: 'success' })
+    } catch (e: any) {
+      setToast({ msg: e?.message || 'Failed to delete', kind: 'error' })
     }
-  }, [toast])
+  }
 
   async function openEditor(id: string){
     try {
       const res: any = await hospitalApi.getPrescription(id)
       const p = res?.prescription
       setEditingId(id)
-      // parse route/instruction from notes for each item
       const items = (p?.items || []).map((m: any) => {
         const nt = String(m?.notes || '')
         const mRoute = nt.match(/Route:\s*([^;]+)/i)
@@ -292,7 +275,6 @@ export default function Doctor_PrescriptionHistory() {
         labNotes: p?.labNotes || '',
         items,
       })
-      // seed vitals/diagnostics display for tabs
       try {
         const v = p?.vitals || {}
         setEditVitalsDisplay({
@@ -356,7 +338,6 @@ export default function Doctor_PrescriptionHistory() {
       payload.labTests = tests.length ? tests : []
     }
     if (editForm.labNotes !== undefined) payload.labNotes = editForm.labNotes || undefined
-    // diagnostics from tab
     try {
       let dRaw: any = {}
       try { dRaw = diagEditRef.current?.getData?.() || {} } catch {}
@@ -367,7 +348,6 @@ export default function Doctor_PrescriptionHistory() {
     } catch {}
     if (!payload.items || payload.items.length===0){ setToast({ msg: 'Add at least one medicine', kind: 'error' }); return }
     try {
-      // vitals from tab
       try {
         let vRaw: any
         try { vRaw = vitalsEditRef.current?.getNormalized?.() } catch {}
@@ -394,324 +374,433 @@ export default function Doctor_PrescriptionHistory() {
       await hospitalApi.updatePrescription(editingId, payload)
       setEditOpen(false)
       await load()
-      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
     } catch (e: any) {
       setToast({ msg: e?.message || 'Failed to update prescription', kind: 'error' })
     }
   }
 
-  async function deletePres(id: string){
-    try {
-      await hospitalApi.deletePrescription(id)
-      await load()
-      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
-      setToast({ msg: 'Prescription deleted', kind: 'success' })
-    } catch (e: any) {
-      setToast({ msg: e?.message || 'Failed to delete prescription', kind: 'error' })
-    }
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="no-print space-y-4">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="text-xl font-semibold text-slate-800">Prescription History</div>
-        <div className="flex items-center gap-2">
-          <input type="date" value={from} onChange={e=>{ setPage(1); setFrom(e.target.value) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <span className="text-slate-500 text-sm">to</span>
-          <input type="date" value={to} onChange={e=>{ setPage(1); setTo(e.target.value) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <select value={limit} onChange={e=>{ setPage(1); setLimit(parseInt(e.target.value)||20) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+    <div className="max-w-[1600px] mx-auto px-4 py-6 animate-in fade-in duration-500">
+      {/* Header & Dashboard */}
+      <div className="flex flex-col lg:flex-row justify-between items-start gap-6 mb-8">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <History className="h-6 w-6 text-sky-600" />
+            Clinical History
+          </h1>
+          <p className="text-slate-500 text-sm mt-1 font-medium italic">Chronological record of patient encounters and interventions.</p>
         </div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-sm">
-          <div className="font-medium text-slate-800">Results</div>
-          <div className="text-slate-600">{total ? `${(page-1)*limit+1}-${Math.min(page*limit,total)} of ${total}` : ''}</div>
-        </div>
-        <div className="divide-y divide-slate-200">
-          {mine.map(p => (
-            <div key={p.id} className="px-4 py-3 text-sm">
-              <div className="font-medium">{p.patientName} <span className="text-xs text-slate-500">{p.mrNo || ''}</span></div>
-              <div className="text-xs text-slate-600">{new Date(p.createdAt).toLocaleString()} • {p.diagnosis || '-'}</div>
-              {p.primaryComplaint && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Primary Complaint:</span> {p.primaryComplaint}</div>}
-              {p.primaryComplaintHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">History of Primary Complaint:</span> {p.primaryComplaintHistory}</div>}
-              {p.familyHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Family History:</span> {p.familyHistory}</div>}
-              {p.allergyHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Allergy History:</span> {p.allergyHistory}</div>}
-              {p.treatmentHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Treatment History:</span> {p.treatmentHistory}</div>}
-              {p.history && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">History:</span> {p.history}</div>}
-              {p.examFindings && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Findings:</span> {p.examFindings}</div>}
-              {p.advice && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Advice:</span> {p.advice}</div>}
-              {p.medicines && <pre className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{p.medicines}</pre>}
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>handlePrint(p.id)}>Print</button>
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>{ setIpdReferralPrescription(p); setIpdReferralOpen(true) }}>Refer to IPD</button>
-                {p.prescriptionMode === 'manual' && (p.manualAttachment?.dataUrl || p.manualAttachment?.fileName) && (
-                  <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openAttachment(p)}>View Attachment</button>
-                )}
-                {(() => { const done = !!refFlags[p.id]?.ph; return (
-                  <button
-                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
-                    disabled={done}
-                    title={done?'Already referred to pharmacy':''}
-                    onClick={()=>openConfirm('pharmacy', p)}
-                  >Refer to Pharmacy</button>
-                )})()}
-                {(() => { const done = !!refFlags[p.id]?.lab; return (
-                  <button
-                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
-                    disabled={done}
-                    title={done?'Already referred to lab':''}
-                    onClick={()=>openConfirm('lab', p)}
-                  >Refer to Lab</button>
-                )})()}
-                {(() => { const done = !!refFlags[p.id]?.diag; return (
-                  <button
-                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
-                    disabled={done}
-                    title={done?'Already referred to diagnostic':''}
-                    onClick={()=>openConfirm('diagnostic', p)}
-                  >Refer to Diagnostic</button>
-                )})()}
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openEditor(p.id)}>Edit</button>
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openConfirm('delete', p)}>Delete</button>
-              </div>
-            </div>
-          ))}
-          {mine.length === 0 && <div className="px-4 py-8 text-center text-slate-500 text-sm">No prescriptions</div>}
-        </div>
-        <div className="flex items-center justify-between px-4 py-3 text-sm">
-          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</button>
-          <div className="text-slate-600">Page {page}</div>
-          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page*limit>=total} onClick={()=>setPage(p=>p+1)}>Next</button>
-        </div>
+
+        <div className="flex gap-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm min-w-[160px] flex flex-col justify-center">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Issued</p>
+            <h3 className="text-2xl font-black text-slate-900 mt-1">{historyStats.total}</h3>
+          </div>
+          <div className="bg-sky-600 rounded-3xl p-5 shadow-lg shadow-sky-100 min-w-[160px] flex flex-col justify-center">
+            <p className="text-[10px] font-black text-sky-100 uppercase tracking-widest">This Month</p>
+            <h3 className="text-2xl font-black text-white mt-1">+{historyStats.thisMonth}</h3>
+          </div>
         </div>
       </div>
 
-      {printData && (
-        <PrescriptionPrint
-          printId="prescription-print-history"
-          doctor={printData.doctor || {}}
-          settings={printData.settings || { name: '', address: '', phone: '' }}
-          patient={printData.patient || {}}
-          items={printData.items || []}
-          labTests={printData.labTests || []}
-          labNotes={printData.labNotes || ''}
-          diagnosticTests={printData.diagnosticTests || []}
-          diagnosticNotes={printData.diagnosticNotes || ''}
-          primaryComplaint={printData.primaryComplaint}
-          primaryComplaintHistory={printData.primaryComplaintHistory}
-          familyHistory={printData.familyHistory}
-          allergyHistory={printData.allergyHistory}
-          treatmentHistory={printData.treatmentHistory}
-          history={printData.history}
-          examFindings={printData.examFindings}
-          diagnosis={printData.diagnosis}
-          advice={printData.advice}
-          createdAt={printData.createdAt}
-        />
-      )}
-      {/* Confirm referral modal */}
-      {confirmDlg.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-xl bg-white p-4">
-            <div className="mb-3 text-lg font-semibold text-slate-800">{confirmDlg.type==='delete' ? 'Delete Prescription' : 'Confirm Referral'}</div>
-            <div className="text-sm text-slate-700">
-              {confirmDlg.type==='delete' ? 'Are you sure you want to delete this prescription? This action cannot be undone.' : `Create a ${confirmDlg.type==='pharmacy'?'Pharmacy':confirmDlg.type==='lab'?'Lab':'Diagnostic'} referral for this prescription?`}
+      {/* Modern Filter Bar */}
+      <div className="bg-white border border-slate-200 rounded-[32px] shadow-sm p-5 mb-8">
+        <div className="flex flex-col lg:flex-row gap-6 items-center">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input
+              type="text"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Search by Patient Name, MRN or Diagnosis..."
+              className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-end">
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-2 rounded-2xl">
+              <div className="p-2 bg-white rounded-xl shadow-sm">
+                <CalendarDays className="h-4 w-4 text-sky-600" />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={from}
+                  onChange={e => { setPage(1); setFrom(e.target.value) }}
+                  className="bg-transparent border-none text-xs font-black text-slate-700 focus:ring-0 p-0 cursor-pointer"
+                />
+                <span className="text-[10px] font-bold text-slate-400">TO</span>
+                <input
+                  type="date"
+                  value={to}
+                  onChange={e => { setPage(1); setTo(e.target.value) }}
+                  className="bg-transparent border-none text-xs font-black text-slate-700 focus:ring-0 p-0 cursor-pointer"
+                />
+              </div>
             </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button onClick={()=>setConfirmDlg({ open: false })} className="btn-outline-navy">Cancel</button>
-              <button onClick={confirmReferral} className="btn">Confirm</button>
+
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-2 rounded-2xl">
+              <div className="p-2 bg-white rounded-xl shadow-sm text-[10px] font-black text-slate-400">ROWS</div>
+              <select
+                value={limit}
+                onChange={e => { setPage(1); setLimit(parseInt(e.target.value)) }}
+                className="bg-transparent border-none text-xs font-black text-sky-600 focus:ring-0 cursor-pointer p-0 pr-6"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* History Grid */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="h-12 w-12 border-4 border-sky-100 border-t-sky-600 rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-bold text-sm uppercase tracking-widest italic">Syncing Clinical Records...</p>
+        </div>
+      ) : filteredList.length === 0 ? (
+        <div className="bg-white rounded-[40px] border-2 border-dashed border-slate-200 p-24 text-center">
+          <div className="p-6 bg-slate-50 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6">
+            <FileSearch className="h-10 w-10 text-slate-300" />
+          </div>
+          <h2 className="text-xl font-black text-slate-800">No Prescriptions Found</h2>
+          <p className="mt-2 text-slate-500 max-w-md mx-auto font-medium">Try adjusting your search query or date filters to find specific clinical records.</p>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-1 xl:grid-cols-2">
+          {filteredList.map(p => (
+            <div key={p.id} className="group bg-white rounded-[32px] border border-slate-200 p-7 shadow-sm hover:shadow-xl hover:border-sky-200 transition-all duration-300 relative overflow-hidden flex flex-col">
+              <div className="flex items-start justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-14 w-14 bg-slate-100 rounded-[20px] flex items-center justify-center font-black text-xl text-slate-400 group-hover:bg-sky-50 group-hover:text-sky-600 transition-all">
+                    {p.patientName.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 group-hover:text-sky-700 transition-colors">{p.patientName}</h3>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="px-2.5 py-0.5 bg-slate-100 rounded-lg text-[10px] font-black text-slate-500 uppercase tracking-tighter">MRN: {p.mrNo}</span>
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
+                        <Clock className="h-3 w-3" />
+                        {new Date(p.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  {p.prescriptionMode === 'manual' ? (
+                    <span className="px-3 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-widest">Manual Scan</span>
+                  ) : (
+                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-widest italic">Digital Record</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4 flex-1">
+                {p.diagnosis && (
+                  <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Stethoscope className="h-3.5 w-3.5 text-sky-600" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Diagnosis</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-700 leading-relaxed italic">"{p.diagnosis}"</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center text-center group-hover:border-sky-100 transition-colors">
+                    <Pill className="h-4 w-4 text-rose-500 mb-1" />
+                    <span className="text-[14px] font-black text-slate-900">{p.itemsCount}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Meds</span>
+                  </div>
+                  <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center text-center group-hover:border-sky-100 transition-colors">
+                    <Microscope className="h-4 w-4 text-sky-500 mb-1" />
+                    <span className="text-[14px] font-black text-slate-900">{p.labCount}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Labs</span>
+                  </div>
+                  <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center text-center group-hover:border-sky-100 transition-colors">
+                    <ClipboardCheck className="h-4 w-4 text-emerald-500 mb-1" />
+                    <span className="text-[14px] font-black text-slate-900">{p.diagCount}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Img</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="mt-8 pt-6 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handlePrint(p.id)}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-md active:scale-95"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    Print Rx
+                  </button>
+                  <button
+                    onClick={() => { setIpdReferralPrescription(p); setIpdReferralOpen(true) }}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5 text-sky-600" />
+                    IPD Refer
+                  </button>
+                  {p.prescriptionMode === 'manual' && (p.manualAttachment?.dataUrl || p.manualAttachment?.fileName) && (
+                    <button
+                      onClick={() => openAttachment(p)}
+                      className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 text-amber-600" />
+                      Attachment
+                    </button>
+                  )}
+                  <button
+                    onClick={() => openEditor(p.id)}
+                    className="p-2 bg-slate-50 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all"
+                    title="Edit Record"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Referral Badges */}
+                  <div className="flex -space-x-2">
+                    <button 
+                      onClick={() => openConfirm('pharmacy', p)}
+                      disabled={refFlags[p.id]?.ph}
+                      className={`h-8 w-8 rounded-full border-2 border-white flex items-center justify-center transition-all ${refFlags[p.id]?.ph ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600'}`}
+                      title="Pharmacy Referral"
+                    >
+                      <Pill className="h-3.5 w-3.5" />
+                    </button>
+                    <button 
+                      onClick={() => openConfirm('lab', p)}
+                      disabled={refFlags[p.id]?.lab}
+                      className={`h-8 w-8 rounded-full border-2 border-white flex items-center justify-center transition-all ${refFlags[p.id]?.lab ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600'}`}
+                      title="Lab Referral"
+                    >
+                      <Microscope className="h-3.5 w-3.5" />
+                    </button>
+                    <button 
+                      onClick={() => openConfirm('diagnostic', p)}
+                      disabled={refFlags[p.id]?.diag}
+                      className={`h-8 w-8 rounded-full border-2 border-white flex items-center justify-center transition-all ${refFlags[p.id]?.diag ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600'}`}
+                      title="Radiology Referral"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => openConfirm('delete', p)}
+                    className="p-2 text-rose-300 hover:text-rose-600 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Refined Pagination */}
+      {total > limit && (
+        <div className="mt-12 flex items-center justify-between bg-white rounded-[32px] border border-slate-200 px-8 py-4 shadow-sm">
+          <div className="text-xs font-black text-slate-400 uppercase tracking-widest italic">
+            Visualizing {Math.min((page - 1) * limit + 1, total)} - {Math.min(page * limit, total)} of {total} Records
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-6 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-white hover:text-sky-600 transition-all disabled:opacity-30 shadow-sm"
+            >
+              Previous
+            </button>
+            <div className="px-4 text-xs font-black text-slate-900 bg-slate-50 py-2 rounded-xl border border-slate-200">
+              PAGE {page}
+            </div>
+            <button
+              onClick={() => setPage(p => Math.min(Math.ceil(total / limit), p + 1))}
+              disabled={page * limit >= total}
+              className="px-6 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-white hover:text-sky-600 transition-all disabled:opacity-30 shadow-sm"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modals & Overlays */}
+      {confirmDlg.open && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-sm rounded-[32px] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
+            <div className="text-center">
+              <div className={`mx-auto mb-5 h-16 w-16 flex items-center justify-center rounded-[24px] ${confirmDlg.type === 'delete' ? 'bg-rose-50 text-rose-600' : 'bg-sky-50 text-sky-600'}`}>
+                {confirmDlg.type === 'delete' ? <Trash2 className="h-8 w-8" /> : <AlertCircle className="h-8 w-8" />}
+              </div>
+              <h3 className="text-xl font-black text-slate-900">
+                {confirmDlg.type === 'delete' ? 'Remove Record?' : 'Confirm Referral'}
+              </h3>
+              <p className="text-sm text-slate-500 mt-2 font-medium leading-relaxed">
+                {confirmDlg.type === 'delete' 
+                  ? 'This prescription will be permanently removed from clinical history.' 
+                  : `Are you sure you want to initiate a new ${confirmDlg.type} referral for this patient?`}
+              </p>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => setConfirmDlg({ open: false })}
+                className="flex-1 px-4 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-2xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAction}
+                className={`flex-1 px-4 py-3 text-sm font-black text-white rounded-2xl shadow-lg transition-all active:scale-95 ${confirmDlg.type === 'delete' ? 'bg-rose-600 shadow-rose-100 hover:bg-rose-700' : 'bg-sky-600 shadow-sky-100 hover:bg-sky-700'}`}
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Toast */}
       {toast && (
-        <div className="fixed right-4 top-4 z-60">
-          <div className={`rounded-md px-3 py-2 text-sm shadow ${toast.kind==='success'?'bg-emerald-600 text-white':'bg-rose-600 text-white'}`}>{toast.msg}</div>
+        <div className="fixed right-6 top-6 z-120 animate-in slide-in-from-top-4 duration-500">
+          <div className={`rounded-2xl px-6 py-4 shadow-2xl flex items-center gap-3 border ${toast.kind === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+            {toast.kind === 'success' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertCircle className="h-5 w-5 text-rose-600" />}
+            <span className="text-sm font-black uppercase tracking-wider">{toast.msg}</span>
+          </div>
         </div>
       )}
 
       {attachView.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={()=>setAttachView({ open: false })}>
-          <div className="w-full max-w-4xl rounded-xl bg-white p-4" onClick={(e)=>e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-slate-800">Prescription Attachment</div>
-              <div className="flex items-center gap-2">
-                {attachView.dataUrl && (
-                  <a className="rounded-md border border-slate-300 px-3 py-1 text-sm" href={attachView.dataUrl} download={attachView.fileName || 'prescription-attachment'}>Download</a>
-                )}
-                <button className="btn" onClick={()=>setAttachView({ open: false })}>Close</button>
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-6 animate-in fade-in" onClick={() => setAttachView({ open: false })}>
+          <div className="w-full max-w-5xl rounded-[40px] bg-white shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300" onClick={e => e.stopPropagation()}>
+            <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between">
+              <div><h3 className="text-xl font-black text-slate-900">Manual Prescription Scan</h3><p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Archived Document</p></div>
+              <div className="flex items-center gap-4">
+                {attachView.dataUrl && <a href={attachView.dataUrl} download={attachView.fileName || 'prescription-attachment'} className="flex items-center gap-2 px-6 py-2.5 bg-slate-100 text-slate-700 rounded-2xl text-sm font-black hover:bg-slate-200 transition-all">Download</a>}
+                <button onClick={() => setAttachView({ open: false })} className="p-3 hover:bg-slate-100 rounded-full transition-all"><X className="h-6 w-6 text-slate-400" /></button>
               </div>
             </div>
-            <div className="mt-3 max-h-[75vh] overflow-auto rounded-lg border border-slate-200 p-2">
-              {attachView.dataUrl && (attachView.mimeType || '').startsWith('image/') && (
-                <img src={attachView.dataUrl} alt="Attachment" className="mx-auto max-h-[70vh]" />
-              )}
-              {attachView.dataUrl && (attachView.mimeType || '').includes('pdf') && (
-                <iframe title="Attachment" src={attachView.dataUrl} className="h-[70vh] w-full" />
-              )}
-              {!attachView.dataUrl && (
-                <div className="p-6 text-center text-sm text-slate-500">No attachment data</div>
+            <div className="flex-1 bg-slate-50 p-10 flex items-center justify-center overflow-hidden">
+              <div className="w-full h-full bg-white rounded-3xl shadow-inner border border-slate-200 overflow-auto p-4 flex items-center justify-center">
+                {attachView.dataUrl && (attachView.mimeType || '').startsWith('image/') ? <img src={attachView.dataUrl} alt="Attachment" className="max-w-full max-h-full object-contain shadow-sm" /> : attachView.dataUrl && (attachView.mimeType || '').includes('pdf') ? <iframe title="Attachment" src={attachView.dataUrl} className="w-full h-[70vh] border-0" /> : <div className="flex flex-col items-center gap-4 py-20"><FileSearch className="h-16 w-16 text-slate-200" /><p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Visual Preview Unavailable</p></div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ipdReferralOpen && ipdReferralPrescription && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-6 animate-in fade-in">
+          <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+            <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div><h3 className="text-xl font-black text-slate-900">Initiate IPD Admission</h3><p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Clinical Transfer Protocol</p></div>
+              <button className="p-3 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-900 shadow-sm border border-transparent hover:border-slate-200" onClick={() => { setIpdReferralOpen(false); setIpdReferralPrescription(null) }}><Plus className="h-7 w-7 rotate-45" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-10">
+              {ipdReferralPrescription && (
+                <Doctor_IpdReferralForm mrn={ipdReferralPrescription.mrNo} doctor={doc ? { id: doc.id, name: doc.name } : undefined} initialData={{ provisionalDiagnosis: ipdReferralPrescription.diagnosis }} onSaved={() => { setToast({ msg: 'IPD referral created', kind: 'success' }); setIpdReferralOpen(false); setIpdReferralPrescription(null) }} />
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* IPD Referral Dialog */}
-      {ipdReferralOpen && ipdReferralPrescription && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-lg font-semibold text-slate-800">Refer to IPD</div>
-              <button className="btn-outline-navy" onClick={()=>{ setIpdReferralOpen(false); setIpdReferralPrescription(null) }}>Close</button>
-            </div>
-            <Doctor_IpdReferralForm
-              mrn={ipdReferralPrescription.mrNo}
-              doctor={doc ? { id: doc.id, name: doc.name } : undefined}
-              initialData={{
-                provisionalDiagnosis: ipdReferralPrescription.diagnosis,
-              }}
-              onSaved={(_id) => {
-                setToast({ msg: 'IPD referral created', kind: 'success' })
-                setIpdReferralOpen(false)
-                setIpdReferralPrescription(null)
-              }}
-            />
-          </div>
-        </div>
-      )}
-      {/* Edit modal */}
       {editOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-4">
-            <div className="mb-3 text-lg font-semibold text-slate-800">Edit Prescription</div>
-            <div className="border-b border-slate-200">
-              <nav className="-mb-px flex gap-2">
-                <button type="button" onClick={()=>goEditTab('details')} className={`px-3 py-2 text-sm ${editActiveTab==='details'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Details</button>
-                <button type="button" onClick={()=>goEditTab('vitals')} className={`px-3 py-2 text-sm ${editActiveTab==='vitals'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Vitals</button>
-                <button type="button" onClick={()=>goEditTab('labs')} className={`px-3 py-2 text-sm ${editActiveTab==='labs'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Lab Orders</button>
-                <button type="button" onClick={()=>goEditTab('diagnostics')} className={`px-3 py-2 text-sm ${editActiveTab==='diagnostics'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Diagnostic Orders</button>
-                <button type="button" onClick={()=>goEditTab('meds')} className={`px-3 py-2 text-sm ${editActiveTab==='meds'?'border-b-2 border-sky-600 text-slate-900':'text-slate-600 hover:text-slate-900'}`}>Medicines</button>
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="max-h-[92vh] w-full max-w-4xl bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8">
+            <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between">
+              <div><h3 className="text-xl font-black text-slate-900">Modify Clinical Record</h3><p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Prescription Revision Engine</p></div>
+              <div className="flex items-center gap-3">
+                <button onClick={saveEdit} className="flex items-center gap-2 px-6 py-2.5 bg-sky-600 text-white rounded-2xl text-sm font-black hover:bg-sky-700 transition-all shadow-lg shadow-sky-100"><Save className="h-4 w-4" /> Save Revisions</button>
+                <button onClick={() => setEditOpen(false)} className="p-3 hover:bg-slate-100 rounded-full transition-all text-slate-400 hover:text-slate-900"><X className="h-6 w-6" /></button>
+              </div>
+            </div>
+            <div className="bg-slate-50 px-10 py-4 border-b border-slate-100">
+              <nav className="flex gap-2">
+                {[
+                  { id: 'details', label: 'Case Details', icon: FileSearch },
+                  { id: 'vitals', label: 'Vitals', icon: Stethoscope },
+                  { id: 'labs', label: 'Labs', icon: Microscope },
+                  { id: 'diagnostics', label: 'Imaging', icon: ExternalLink },
+                  { id: 'meds', label: 'Medications', icon: Pill },
+                ].map(tab => (
+                  <button key={tab.id} onClick={() => goEditTab(tab.id as any)} className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${editActiveTab === tab.id ? 'bg-white text-sky-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}><tab.icon className={`h-4 w-4 ${editActiveTab === tab.id ? 'text-sky-600' : 'text-slate-300'}`} />{tab.label}</button>
+                ))}
               </nav>
             </div>
-            <div className="mt-3">
-              {editActiveTab==='details' && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-600">Primary Complaint</label>
-                    <textarea rows={2} value={editForm.primaryComplaint||''} onChange={e=>setEditForm(f=>({ ...f, primaryComplaint: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-600">Risk Factors / Medical History</label>
-                    <textarea rows={2} value={editForm.history||''} onChange={e=>setEditForm(f=>({ ...f, history: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-xs text-slate-600">History of Primary Complaint</label>
-                      <textarea rows={2} value={editForm.primaryComplaintHistory||''} onChange={e=>setEditForm(f=>({ ...f, primaryComplaintHistory: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+              {editActiveTab === 'details' && (
+                <div className="grid gap-8 lg:grid-cols-2">
+                  <div className="space-y-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Working Diagnosis</label>
+                      <textarea rows={2} value={editForm.diagnosis||''} onChange={e=>setEditForm(f=>({ ...f, diagnosis: e.target.value }))} className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-800 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all bg-slate-50/50" placeholder="Enter diagnosis..." />
                     </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-slate-600">Family History</label>
-                      <textarea rows={2} value={editForm.familyHistory||''} onChange={e=>setEditForm(f=>({ ...f, familyHistory: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Primary Complaint</label>
+                      <textarea rows={3} value={editForm.primaryComplaint||''} onChange={e=>setEditForm(f=>({ ...f, primaryComplaint: e.target.value }))} className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm font-medium focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all" placeholder="Describe complaints..." />
                     </div>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-600">Allergy History</label>
-                    <textarea rows={2} value={editForm.allergyHistory||''} onChange={e=>setEditForm(f=>({ ...f, allergyHistory: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-600">Treatment History</label>
-                    <textarea rows={2} value={editForm.treatmentHistory||''} onChange={e=>setEditForm(f=>({ ...f, treatmentHistory: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-xs text-slate-600">Examination Findings</label>
-                      <textarea rows={2} value={editForm.examFindings||''} onChange={e=>setEditForm(f=>({ ...f, examFindings: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                  <div className="space-y-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Clinical Advice</label>
+                      <textarea rows={6} value={editForm.advice||''} onChange={e=>setEditForm(f=>({ ...f, advice: e.target.value }))} className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm font-medium focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all h-full" placeholder="Special instructions..." />
                     </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-slate-600">Diagnosis / Disease</label>
-                      <input value={editForm.diagnosis||''} onChange={e=>setEditForm(f=>({ ...f, diagnosis: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-600">Advice/Referral</label>
-                    <textarea rows={2} value={editForm.advice||''} onChange={e=>setEditForm(f=>({ ...f, advice: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
                   </div>
                 </div>
               )}
-              {editActiveTab==='vitals' && (
-                <div>
+              {editActiveTab === 'vitals' && (
+                <div className="bg-slate-50/50 rounded-[32px] border border-slate-200 p-8 shadow-inner">
                   <PrescriptionVitals ref={vitalsEditRef} initial={editVitalsDisplay} />
                 </div>
               )}
-              {editActiveTab==='labs' && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-600">Lab Tests (comma or one per line)</label>
-                    <textarea rows={3} value={editForm.labTestsText||''} onChange={e=>setEditForm(f=>({ ...f, labTestsText: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="CBC, LFT, KFT" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-slate-600">Lab Notes</label>
-                    <textarea rows={2} value={editForm.labNotes||''} onChange={e=>setEditForm(f=>({ ...f, labNotes: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              {editActiveTab === 'labs' && (
+                <div className="space-y-8 max-w-2xl mx-auto">
+                  <div className="bg-white rounded-[32px] border border-slate-200 p-8 shadow-sm">
+                    <div className="flex items-center gap-2 mb-6 text-sky-600"><Microscope className="h-5 w-5" /><h4 className="text-xs font-black uppercase tracking-[0.2em]">Laboratory Investigations</h4></div>
+                    <div className="space-y-6">
+                      <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tests Required</label><textarea rows={4} value={editForm.labTestsText} onChange={e => setEditForm(f => ({ ...f, labTestsText: e.target.value }))} placeholder="Enter tests separated by commas or lines..." className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all" /></div>
+                      <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lab Instructions</label><textarea rows={2} value={editForm.labNotes} onChange={e => setEditForm(f => ({ ...f, labNotes: e.target.value }))} placeholder="e.g. Fasting required..." className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm font-medium focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all" /></div>
+                    </div>
                   </div>
                 </div>
               )}
-              {editActiveTab==='diagnostics' && (
-                <div>
+              {editActiveTab === 'diagnostics' && (
+                <div className="bg-white rounded-[32px] border border-slate-200 p-8 shadow-sm max-w-2xl mx-auto">
                   <PrescriptionDiagnosticOrders ref={diagEditRef} initialTestsText={editDiagDisplay.testsText} />
                 </div>
               )}
-              {editActiveTab==='meds' && (
-                <div>
-                  <div className="mb-1 block text-sm text-slate-700">Medicines</div>
-                  <div className="rounded-xl border border-slate-200">
-                    <div className="hidden sm:grid grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
-                      <div className="col-span-4">Medicine</div>
-                      <div className="col-span-2">Frequency</div>
-                      <div className="col-span-2">Duration</div>
-                      <div className="col-span-1">Dosage</div>
-                      <div className="col-span-1">Route</div>
-                      <div className="col-span-1">Instruction</div>
-                      <div className="col-span-1"></div>
-                    </div>
-                    <div className="divide-y divide-slate-200">
-                      {editForm.items.map((m, idx) => (
-                        <div key={idx} className="px-3 py-2">
-                          <div className="grid grid-cols-12 items-center gap-2">
-                            <input className="col-span-12 sm:col-span-4 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Medicine name" value={m.name || ''} onChange={e=>setItem(idx, 'name', e.target.value)} />
-                            <input className="col-span-6 sm:col-span-2 rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="Frequency" value={m.frequency || ''} onChange={e=>setItem(idx, 'frequency', e.target.value)} />
-                            <input className="col-span-6 sm:col-span-2 rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="Duration" value={m.duration || ''} onChange={e=>setItem(idx, 'duration', e.target.value)} />
-                            <input className="col-span-6 sm:col-span-1 rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="Dosage" value={m.dose || ''} onChange={e=>setItem(idx, 'dose', e.target.value)} />
-                            <input className="col-span-6 sm:col-span-1 rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="Route" value={m.route || ''} onChange={e=>setItem(idx, 'route', e.target.value)} />
-                            <input className="col-span-6 sm:col-span-1 rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="Instruction" value={m.instruction || ''} onChange={e=>setItem(idx, 'instruction', e.target.value)} />
-                            <div className="col-span-12 sm:col-span-1 flex items-center justify-end">
-                              <button type="button" onClick={()=>removeItemAt(idx)} className="text-rose-600" title="Remove">🗑️</button>
+              {editActiveTab === 'meds' && (
+                <div className="bg-slate-50/50 rounded-[32px] border border-slate-200 p-8 shadow-inner">
+                  <div className="flex items-center gap-2 mb-6 text-rose-500"><Pill className="h-5 w-5" /><h4 className="text-xs font-black uppercase tracking-[0.2em]">Treatment Plan Revisions</h4></div>
+                  <div className="space-y-4">
+                    {editForm.items.map((it, i) => (
+                      <div key={i} className="flex gap-4 items-start animate-in fade-in slide-in-from-left-2 duration-300">
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 flex-1 shadow-sm group hover:border-sky-200 transition-all">
+                          <div className="grid gap-6 sm:grid-cols-2 mb-4">
+                            <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Medicine Name</label><input value={it.name} onChange={e=>setItem(i, 'name', e.target.value)} className="w-full bg-slate-50/50 border-none rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/10 transition-all" /></div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Freq</label><input value={it.frequency} onChange={e=>setItem(i, 'frequency', e.target.value)} className="w-full bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-bold" /></div>
+                              <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dur</label><input value={it.duration} onChange={e=>setItem(i, 'duration', e.target.value)} className="w-full bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-bold" /></div>
                             </div>
                           </div>
-                          <div className="mt-2 flex justify-end">
-                            <button type="button" onClick={()=>addItemAfter(idx)} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">+ Add</button>
-                          </div>
+                          <div className="grid gap-4 sm:grid-cols-3"><input value={it.dose} onChange={e=>setItem(i, 'dose', e.target.value)} placeholder="Dose" className="bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-medium" /><input value={it.route} onChange={e=>setItem(i, 'route', e.target.value)} placeholder="Route" className="bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-medium" /><input value={it.instruction} onChange={e=>setItem(i, 'instruction', e.target.value)} placeholder="Instructions" className="bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-medium" /></div>
                         </div>
-                      ))}
-                      {editForm.items.length===0 && (
-                        <div className="p-3 text-center text-xs text-slate-500">No medicines <button type="button" onClick={()=>setEditForm(f=>({ ...f, items: [{ name: '', frequency: '', duration: '', dose: '', route: '', instruction: '', notes: '' }] }))} className="underline">Add one</button></div>
-                      )}
-                    </div>
+                        <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={()=>addItemAfter(i)} className="p-2.5 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-600 hover:text-white transition-all shadow-sm"><Plus className="h-4 w-4" /></button>
+                          <button onClick={()=>removeItemAt(i)} className="p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><Trash2 className="h-4 w-4" /></button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button onClick={()=>setEditOpen(false)} className="btn-outline-navy">Cancel</button>
-              <button onClick={saveEdit} className="btn">Save</button>
             </div>
           </div>
         </div>
@@ -720,11 +809,8 @@ export default function Doctor_PrescriptionHistory() {
   )
 }
 
-async function fetchPrintData(id: string){
-  const [detail, settings] = await Promise.all([
-    hospitalApi.getPrescription(id) as any,
-    hospitalApi.getSettings() as any,
-  ])
+async function fetchPrintData(id: string) {
+  const [detail, settings] = await Promise.all([hospitalApi.getPrescription(id) as any, hospitalApi.getSettings() as any])
   const pres = detail?.prescription
   let patient: any = { name: pres?.encounterId?.patientId?.fullName || '-', mrn: pres?.encounterId?.patientId?.mrn || '-' }
   try {
@@ -735,13 +821,16 @@ async function fetchPrintData(id: string){
         let ageTxt = ''
         try {
           if (p.age != null) ageTxt = String(p.age)
-          else if (p.dob) { const dob = new Date(p.dob); if (!isNaN(dob.getTime())) ageTxt = String(Math.max(0, Math.floor((Date.now()-dob.getTime())/31557600000))) }
+          else if (p.dob) { 
+            const dob = new Date(p.dob)
+            if (!isNaN(dob.getTime())) ageTxt = String(Math.max(0, Math.floor((Date.now()-dob.getTime())/31557600000))) 
+          }
         } catch {}
         patient = { name: p.fullName || patient.name, mrn: p.mrn || patient.mrn, gender: p.gender || '-', fatherName: p.fatherName || '-', phone: p.phoneNormalized || '-', address: p.address || '-', age: ageTxt }
       }
     }
   } catch {}
-  // Try to enrich doctor info
+  
   let doctor: any = { name: pres?.encounterId?.doctorId?.name || '-', specialization: '', qualification: '', departmentName: '', phone: '' }
   try {
     const drList: any = await hospitalApi.listDoctors()
@@ -756,12 +845,40 @@ async function fetchPrintData(id: string){
       if (deptName) doctor.departmentName = deptName
     } catch {}
   } catch {}
-  return { settings, doctor, patient, items: (pres?.items || []).map((m: any) => {
-    const nt = String(m?.notes || '')
-    const mRoute = nt.match(/Route:\s*([^;]+)/i)
-    const mInstr = nt.match(/Instruction:\s*([^;]+)/i)
-    return { name: m.name || '', frequency: m.frequency || '', duration: m.duration || '', dose: m.dose || '', route: mRoute?.[1]?.trim() || m.route || '', instruction: mInstr?.[1]?.trim() || m.instruction || '' }
-  }), vitals: pres?.vitals, labTests: pres?.labTests || [], labNotes: pres?.labNotes, diagnosticTests: pres?.diagnosticTests || [], diagnosticNotes: pres?.diagnosticNotes, primaryComplaint: pres?.primaryComplaint || pres?.complaints, primaryComplaintHistory: pres?.primaryComplaintHistory, familyHistory: pres?.familyHistory, treatmentHistory: pres?.treatmentHistory, history: pres?.history, examFindings: pres?.examFindings, diagnosis: pres?.diagnosis, advice: pres?.advice, createdAt: pres?.createdAt, tokenNo: pres?.tokenNo || '' }
+
+  return { 
+    settings, 
+    doctor, 
+    patient, 
+    items: (pres?.items || []).map((m: any) => {
+      const nt = String(m?.notes || '')
+      const mRoute = nt.match(/Route:\s*([^;]+)/i)
+      const mInstr = nt.match(/Instruction:\s*([^;]+)/i)
+      return { 
+        name: m.name || '', 
+        frequency: m.frequency || '', 
+        duration: m.duration || '', 
+        dose: m.dose || '', 
+        route: mRoute?.[1]?.trim() || m.route || '', 
+        instruction: mInstr?.[1]?.trim() || m.instruction || '' 
+      }
+    }), 
+    vitals: pres?.vitals, 
+    labTests: pres?.labTests || [], 
+    labNotes: pres?.labNotes, 
+    diagnosticTests: pres?.diagnosticTests || [], 
+    diagnosticNotes: pres?.diagnosticNotes, 
+    primaryComplaint: pres?.primaryComplaint || pres?.complaints, 
+    primaryComplaintHistory: pres?.primaryComplaintHistory, 
+    familyHistory: pres?.familyHistory, 
+    treatmentHistory: pres?.treatmentHistory, 
+    history: pres?.history, 
+    examFindings: pres?.examFindings, 
+    diagnosis: pres?.diagnosis, 
+    advice: pres?.advice, 
+    createdAt: pres?.createdAt, 
+    tokenNo: pres?.tokenNo || '' 
+  }
 }
 
 // helper for fetching data used by both print and download

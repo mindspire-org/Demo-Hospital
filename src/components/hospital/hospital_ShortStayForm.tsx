@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../ui/Toast'
@@ -176,21 +176,28 @@ export default function Hospital_ShortStayForm(props: Props){
     try { const s = await hospitalApi.getSettings().catch(()=>null); if (s) setSettings(s) } catch {}
   })() }, [])
 
-  const admittedAtIso = useMemo(()=>combineIso(form.dateIn, form.timeIn), [form.dateIn, form.timeIn])
-  const dischargedAtIso = useMemo(()=>combineIso(form.dateOut, form.timeOut), [form.dateOut, form.timeOut])
-
   async function save(){
     if (!encounterId) return
     setSaving(true)
     try {
-      await hospitalApi.upsertIpdShortStay(encounterId, {
-        admittedAt: admittedAtIso,
-        dischargedAt: dischargedAtIso,
-        data: form,
-      })
+      await hospitalApi.upsertIpdShortStay(encounterId, { data: formRef.current } as any)
       setToast({ type: 'success', message: 'Saved' })
+    } catch (e: any) {
+      setToast({ type: 'error', message: e?.message || 'Save failed' })
+      throw e
     } finally { setSaving(false) }
   }
+
+  useEffect(() => {
+    const onAction = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as any
+      if (!detail || detail.key !== 'ShortStay') return
+      if (detail.action === 'save') { void save() }
+      if (detail.action === 'print') { try { printView() } catch {} }
+    }
+    window.addEventListener('dw:form-action', onAction as any)
+    return () => window.removeEventListener('dw:form-action', onAction as any)
+  }, [encounterId])
 
   function printView(){
     const api: any = (window as any).electronAPI
@@ -470,37 +477,34 @@ export default function Hospital_ShortStayForm(props: Props){
       </div>
     )
   }
-  function normSex(g?: string): 'M'|'F'|'' {
-    const s = String(g||'').trim().toLowerCase()
-    if (!s) return ''
+  function normSex(g?: any): any{
+    const s = String(g||'').toLowerCase()
     if (s.startsWith('m')) return 'M'
     if (s.startsWith('f')) return 'F'
     return ''
   }
-}
 
-function combineIso(d?:string, t?:string){ try { if (!d) return undefined; const dd = new Date(d); if (t){ const [hh,mm] = String(t).split(':'); dd.setHours(Number(hh)||0, Number(mm)||0, 0, 0) } return dd.toISOString() } catch { return undefined } }
-function fmtDate(d?: string){
-  if (!d) return ''
-  const s = String(d)
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (m) return `${m[3]}/${m[2]}/${m[1]}`
-  try { const x = new Date(s); if (!isNaN(x.getTime())){ const dd = String(x.getDate()).padStart(2,'0'); const mm = String(x.getMonth()+1).padStart(2,'0'); const yy = x.getFullYear(); return `${dd}/${mm}/${yy}` } } catch {}
-  return s
+  function fmtDate(d?: string){
+    if (!d) return ''
+    const s = String(d)
+    return s.length >= 10 ? s.slice(0,10) : s
+  }
+  function fmtTime(t?: string){
+    if (!t) return ''
+    const s = String(t)
+    const m = s.match(/^(\d{1,2}):(\d{2})/)
+    if (m){ let hh = parseInt(m[1],10); const mm = m[2]; const ap = hh>=12? 'PM':'AM'; hh = hh%12 || 12; return `${hh}:${mm} ${ap}` }
+    try { const x = new Date(s); if (!isNaN(x.getTime())) return x.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) } catch {}
+    return s
+  }
+  function fmtDateTime(d?: string, t?: string){
+    const a = fmtDate(d)
+    const b = fmtTime(t)
+    return [a,b].filter(Boolean).join(' ')
+  }
+  function vRow(lbl?:string, val?:string){ return `<div style=\"display:grid;grid-template-columns:80px 1fr\"><div style=\"padding:4px 6px;font-weight:700;border-right:1px solid #222;border-bottom:1px solid #222\">${esc(lbl)}<\/div><div style=\"border-bottom:1px solid #222;padding:4px 6px\">${esc(val)}<\/div><\/div>` }
+  function tRow(lbl?:string, val?:string){ return `<div style=\"display:grid;grid-template-columns:1fr 120px\"><div style=\"border-right:1px solid #222;border-bottom:1px solid #222;padding:4px 6px\">${esc(lbl)}<\/div><div style=\"border-bottom:1px solid #222;padding:4px 6px\">${esc(val)}<\/div><\/div>` }
+  function esc(s?:string){ return String(s??'').replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'} as any)[c]) }
+
+
 }
-function fmtTime(t?: string){
-  if (!t) return ''
-  const s = String(t)
-  const m = s.match(/^(\d{1,2}):(\d{2})/)
-  if (m){ let hh = parseInt(m[1],10); const mm = m[2]; const ap = hh>=12? 'PM':'AM'; hh = hh%12 || 12; return `${hh}:${mm} ${ap}` }
-  try { const x = new Date(s); if (!isNaN(x.getTime())) return x.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) } catch {}
-  return s
-}
-function fmtDateTime(d?: string, t?: string){
-  const a = fmtDate(d)
-  const b = fmtTime(t)
-  return [a,b].filter(Boolean).join(' ')
-}
-function vRow(lbl?:string, val?:string){ return `<div style=\"display:grid;grid-template-columns:80px 1fr\"><div style=\"padding:4px 6px;font-weight:700;border-right:1px solid #222;border-bottom:1px solid #222\">${esc(lbl)}<\/div><div style=\"border-bottom:1px solid #222;padding:4px 6px\">${esc(val)}<\/div><\/div>` }
-function tRow(lbl?:string, val?:string){ return `<div style=\"display:grid;grid-template-columns:1fr 120px\"><div style=\"border-right:1px solid #222;border-bottom:1px solid #222;padding:4px 6px\">${esc(lbl)}<\/div><div style=\"border-bottom:1px solid #222;padding:4px 6px\">${esc(val)}<\/div><\/div>` }
-function esc(s?:string){ return String(s??'').replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'} as any)[c]) }

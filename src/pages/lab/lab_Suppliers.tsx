@@ -125,9 +125,15 @@ export default function Lab_Suppliers() {
       {notice && (
         <div className={`rounded-md border px-3 py-2 text-sm ${notice.kind==='success'? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>{notice.text}</div>
       )}
-      <div className="flex items-center justify-between">
-        <div className="text-xl font-bold text-slate-800">Supplier Management</div>
-        <button onClick={()=>setAddOpen(true)} className="btn">+ Add Supplier</button>
+      {/* Header */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Supplier Management</h2>
+            <div className="mt-0.5 text-sm text-sky-100">Manage lab suppliers and contacts</div>
+          </div>
+          <button onClick={()=>setAddOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/30">+ Add Supplier</button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-3">

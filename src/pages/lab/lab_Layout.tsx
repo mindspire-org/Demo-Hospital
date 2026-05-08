@@ -60,19 +60,18 @@ export default function Lab_Layout() {
     try {
       const labSession = localStorage.getItem('lab.session')
       const receptionSession = localStorage.getItem('reception.session')
-      if (!labSession && !receptionSession) navigate('/lab/login')
+      const labToken = localStorage.getItem('lab.token')
+      if ((!labSession && !receptionSession) || !labToken) navigate('/lab/login')
     } catch {
       navigate('/lab/login')
     }
   }, [navigate])
-  const shell = theme === 'dark' ? 'h-dvh bg-slate-900 text-slate-100' : 'h-dvh bg-slate-50 text-slate-900'
+  const shell = theme === 'dark' ? 'h-dvh bg-slate-900 text-slate-100' : 'h-dvh bg-white text-slate-900'
   return (
     <div className={theme === 'dark' ? 'lab-scope dark' : 'lab-scope'}>
       <div className={shell}>
-        <div className="sticky top-0 z-20 w-full md:border-b" style={{ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)', borderColor: 'rgba(255,255,255,0.12)' }}>
-          <div className="flex h-14">
-            <Lab_Header variant="navy" onToggleSidebar={toggle} onToggleTheme={toggleTheme} theme={theme} />
-          </div>
+        <div className="sticky top-0 z-20 w-full border-b border-slate-200/80 bg-white/80 shadow-sm backdrop-blur-md dark:border-slate-700 dark:bg-slate-900">
+          <Lab_Header onToggleSidebar={toggle} onToggleTheme={toggleTheme} theme={theme} />
         </div>
 
         <div className="flex">
