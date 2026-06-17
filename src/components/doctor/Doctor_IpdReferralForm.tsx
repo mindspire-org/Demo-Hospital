@@ -42,7 +42,7 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
   })
 
   useEffect(()=>{ if (mrn) loadPatient(mrn) }, [mrn])
-  useEffect(()=>{ (async()=>{ try{ const [a,b] = await Promise.all([hospitalApi.listDepartments() as any, hospitalApi.listDoctors() as any]); setDeps((a?.departments||a)||[]); setDocs((b?.doctors||b)||[])}catch{} })() }, [])
+  useEffect(()=>{ (async()=>{ try{ const [a,b] = await Promise.all([hospitalApi.listDepartments({ limit: 1000 }) as any, hospitalApi.listDoctors() as any]); setDeps((a?.departments||a)||[]); setDocs((b?.doctors||b)||[])}catch{} })() }, [])
   useEffect(()=>{
     if (initialData) {
       setForm(f => ({

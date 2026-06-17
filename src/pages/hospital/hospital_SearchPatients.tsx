@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { hospitalApi, labApi, diagnosticApi, aestheticApi, api as coreApi } from '../../utils/api'
+import { hospitalApi, labApi, diagnosticApi, aestheticApi, indoorPharmacyApi, api as coreApi } from '../../utils/api'
+import { ipdApi } from '../../features/hospital/ipd/ipd.api'
 import { getSavedPrescriptionPdfTemplate, previewPrescriptionPdf } from '../../utils/prescriptionPdf'
 import { printUltrasoundReport } from '../../components/diagnostic/diagnostic_UltrasoundGeneric'
 import { printCTScanReport } from '../../components/diagnostic/diagnostic_CTScan'
@@ -9,10 +10,10 @@ import { printColonoscopyReport } from '../../components/diagnostic/diagnostic_C
 import { printUpperGIEndoscopyReport } from '../../components/diagnostic/diagnostic_UpperGIEndoscopy'
 import { previewLabReportPdf } from '../../utils/printLabReport'
 import Toast, { type ToastState } from '../../components/ui/Toast'
-import {
-  User, Phone, IdCard, MapPin, Calendar, Edit2, Save, X,
+import { 
+  User, Users, Phone, IdCard, MapPin, Calendar, Edit2, Save, X, 
   FileText, FlaskConical, ScanLine, Sparkles, BedDouble, ChevronDown, ChevronUp,
-  Search, RotateCcw, Users, Hash, UserCircle, PhoneCall
+  Search, Wallet, CreditCard, Receipt, HeartPulse
 } from 'lucide-react'
 
 interface PatientDetails {
@@ -36,10 +37,11 @@ interface MedicalDetails {
   ipd?: any[]
   aesthetic?: any[]
   er?: any[]
+  pharmacy?: any[]
   loading?: boolean
 }
 
-type MedicalTab = 'prescriptions' | 'lab' | 'diagnostic' | 'aesthetic' | 'ipd'
+type MedicalTab = 'prescriptions' | 'lab' | 'diagnostic' | 'aesthetic' | 'ipd' | 'finance' | 'er'
 
 export default function Hospital_SearchPatients() {
   const location = useLocation()
@@ -62,6 +64,19 @@ export default function Hospital_SearchPatients() {
   const [editForm, setEditForm] = useState<Record<string, Partial<PatientDetails>>>({})
   const [savingPatient, setSavingPatient] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState<Record<string, MedicalTab>>({})
+
+  // Finance / billing state per patient MRN
+  const [financeData, setFinanceData] = useState<Record<string, any>>({})
+  const [financeLoading, setFinanceLoading] = useState<Record<string, boolean>>({})
+
+  // Add Payment dialog state
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+  const [paymentDialogEncounterId, setPaymentDialogEncounterId] = useState('')
+  const [paymentDialogAdmissionNo, setPaymentDialogAdmissionNo] = useState('')
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Bank' | 'Advance' | 'Discount'>('Cash')
+  const [paymentNote, setPaymentNote] = useState('')
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false)
 
   const update = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -263,13 +278,14 @@ export default function Hospital_SearchPatients() {
   async function loadDetails(mrn: string, patientId?: string){
     setDetails(prev => ({ ...prev, [mrn]: { ...(prev[mrn]||{}), loading: true } }))
     try {
-      const [presRes, ordersRes, diagOrdersRes, ipdRes, aestRes, erRes] = await Promise.all([
+      const [presRes, ordersRes, diagOrdersRes, ipdRes, aestRes, erRes, pharmRes] = await Promise.all([
         hospitalApi.listPrescriptions({ patientMrn: mrn, page: 1, limit: 50 }) as any,
         labApi.listOrders({ q: mrn, limit: 50 }) as any,
         diagnosticApi.listOrders({ q: mrn, limit: 50 }) as any,
         hospitalApi.listIPDAdmissions(patientId ? { patientId, page: 1, limit: 50 } : { q: mrn, page: 1, limit: 50 }) as any,
         aestheticApi.listProcedureSessions({ patientMrn: mrn, page: 1, limit: 100 }) as any,
         hospitalApi.listEREncounters(patientId ? { patientId, page: 1, limit: 50 } : { q: mrn, page: 1, limit: 50 }) as any,
+        indoorPharmacyApi.listDispenses({ patientId, limit: 50 }).catch(() => ({ items: [] })) as any,
       ])
       const pres: any[] = (presRes?.prescriptions || []).map((p: any) => ({ id: p._id || p.id, createdAt: p.createdAt, diagnosis: p.diagnosis, doctor: p.encounterId?.doctorId?.name || '-', items: p.items || [] }))
       const orders: any[] = (ordersRes?.items || [])
@@ -280,7 +296,7 @@ export default function Hospital_SearchPatients() {
           const r = await labApi.listResults({ orderId: String(o._id || o.id), limit: 1 }) as any
           hasResult = Array.isArray(r?.items) && r.items.length > 0
         } catch {}
-        lab.push({ id: String(o._id || o.id), tokenNo: o.tokenNo, createdAt: o.createdAt, status: o.status, tests: o.tests || [], hasResult })
+        lab.push({ id: String(o._id || o.id), tokenNo: o.tokenNo, createdAt: o.createdAt, status: o.status, tests: o.tests || [], hasResult, subtotal: o.subtotal, discount: o.discount, net: o.net, receivedAmount: o.receivedAmount, receivableAmount: o.receivableAmount })
       }
       const dorders: any[] = (diagOrdersRes?.items || [])
       const diag: any[] = []
@@ -290,16 +306,15 @@ export default function Hospital_SearchPatients() {
           const r = await diagnosticApi.listResults({ orderId: String(o._id || o.id), status: 'final', limit: 1 }) as any
           hasResult = Array.isArray(r?.items) && r.items.length > 0
         } catch {}
-        diag.push({ id: String(o._id || o.id), tokenNo: o.tokenNo, createdAt: o.createdAt, status: o.status, tests: o.tests || [], hasResult })
+        diag.push({ id: String(o._id || o.id), tokenNo: o.tokenNo, createdAt: o.createdAt, status: o.status, tests: o.tests || [], hasResult, subtotal: o.subtotal, discount: o.discount, net: o.net, receivedAmount: o.receivedAmount, receivableAmount: o.receivableAmount })
       }
       const ipd: any[] = Array.isArray(ipdRes?.admissions) ? await Promise.all((ipdRes.admissions as any[]).map(async (a: any)=> {
         const encId = String(a._id||a.id)
         try{
-          const [ds, rd, dc, bc, ss] = await Promise.all([
+          const [ds, rd, dc, ss] = await Promise.all([
             hospitalApi.getIpdDischargeSummary(encId).catch(()=>null) as any,
             hospitalApi.getIpdReceivedDeath(encId).catch(()=>null) as any,
             hospitalApi.getIpdDeathCertificate(encId).catch(()=>null) as any,
-            hospitalApi.getIpdBirthCertificate(encId).catch(()=>null) as any,
             hospitalApi.getIpdShortStay(encId).catch(()=>null) as any,
           ])
           return {
@@ -312,7 +327,6 @@ export default function Hospital_SearchPatients() {
               dischargeSummary: !!(ds && (ds.summary || ds._id)),
               receivedDeath: !!(rd && (rd.receivedDeath || rd._id)),
               deathCertificate: !!(dc && (dc.certificate || dc._id)),
-              birthCertificate: !!(bc && (bc.birthCertificate || bc._id)),
               shortStay: !!(ss && (ss.shortStay || ss._id)),
             }
           }
@@ -336,13 +350,78 @@ export default function Hospital_SearchPatients() {
         tokenNo: e.tokenId?.tokenNo || '-',
       })) : []
 
-      setDetails(prev => ({ ...prev, [mrn]: { pres, lab, diag, ipd, aesthetic: aestheticItems, er, loading: false } }))
+      const pharmacy: any[] = Array.isArray(pharmRes?.items) ? pharmRes.items.map((d: any) => ({
+        id: String(d._id || d.id),
+        billNo: d.billNo,
+        createdAt: d.createdAt,
+        subtotal: d.subtotal,
+        total: d.total,
+        discountPct: d.discountPct,
+        lineDiscountTotal: d.lineDiscountTotal,
+        source: d.source,
+        patientName: d.patientName,
+      })) : []
+
+      setDetails(prev => ({ ...prev, [mrn]: { pres, lab, diag, ipd, aesthetic: aestheticItems, er, pharmacy, loading: false } }))
       // Default active tab
       if (!activeTab[mrn]) {
         setActiveTab(prev => ({ ...prev, [mrn]: 'prescriptions' }))
       }
     } catch {
-      setDetails(prev => ({ ...prev, [mrn]: { pres: [], lab: [], diag: [], ipd: [], aesthetic: [], er: [], loading: false } }))
+      setDetails(prev => ({ ...prev, [mrn]: { pres: [], lab: [], diag: [], ipd: [], aesthetic: [], er: [], pharmacy: [], loading: false } }))
+    }
+  }
+
+  async function loadFinance(mrn: string, patientId?: string) {
+    setFinanceLoading(prev => ({ ...prev, [mrn]: true }))
+    try {
+      const ipdRes: any = await hospitalApi.listIPDAdmissions(patientId ? { patientId, page: 1, limit: 50 } : { q: mrn, page: 1, limit: 50 })
+      const admissions: any[] = ipdRes?.admissions || []
+      const summaries: any[] = []
+      for (const a of admissions) {
+        const encId = String(a._id || a.id)
+        try {
+          const sum: any = await ipdApi.getIpdBillingSummary(encId)
+          summaries.push({ encounterId: encId, admissionNo: a.admissionNo, status: a.status, ...sum })
+        } catch { /* skip */ }
+      }
+      setFinanceData(prev => ({ ...prev, [mrn]: summaries }))
+    } catch {
+      setFinanceData(prev => ({ ...prev, [mrn]: [] }))
+    } finally {
+      setFinanceLoading(prev => ({ ...prev, [mrn]: false }))
+    }
+  }
+
+  function openPaymentDialog(encounterId: string, admissionNo: string) {
+    setPaymentDialogEncounterId(encounterId)
+    setPaymentDialogAdmissionNo(admissionNo)
+    setPaymentAmount('')
+    setPaymentMethod('Cash')
+    setPaymentNote('')
+    setPaymentDialogOpen(true)
+  }
+
+  async function submitPayment(mrn: string) {
+    if (!paymentAmount || Number(paymentAmount) <= 0) {
+      setToast({ type: 'error', message: 'Enter a valid payment amount' })
+      return
+    }
+    setPaymentSubmitting(true)
+    try {
+      await ipdApi.createIpdPayment(paymentDialogEncounterId, {
+        amount: Number(paymentAmount),
+        method: paymentMethod,
+        notes: paymentNote,
+      })
+      setToast({ type: 'success', message: 'Payment recorded successfully' })
+      setPaymentDialogOpen(false)
+      // Refresh finance data
+      await loadFinance(mrn)
+    } catch (e: any) {
+      setToast({ type: 'error', message: e?.message || 'Failed to record payment' })
+    } finally {
+      setPaymentSubmitting(false)
     }
   }
 
@@ -449,14 +528,12 @@ export default function Hospital_SearchPatients() {
   // Kept for future IPD form previews
   const _onPreviewReceivedDeath = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/received-death/print`)
   const _onPreviewDeathCertificate = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/death-certificate/print`)
-  const _onPreviewBirthCertificate = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/birth-certificate/print`)
   const onPreviewFinalInvoice = (encounterId: string)=> previewHtml(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/final-invoice/print`)
 
   // Mark as used (kept for future UI)
   const __unusedIpdPreviewFns = {
     _onPreviewReceivedDeath,
     _onPreviewDeathCertificate,
-    _onPreviewBirthCertificate,
   }
   void __unusedIpdPreviewFns
   
@@ -509,7 +586,10 @@ export default function Hospital_SearchPatients() {
 
   const renderMedicalRecords = (mrn: string) => {
     const d = details[mrn]
-    
+    const tab = activeTab[mrn] || 'prescriptions'
+    const fData = financeData[mrn]
+    const fLoading = financeLoading[mrn]
+
     if (d?.loading) {
       return (
         <div className="p-8 text-center text-slate-500">
@@ -519,8 +599,253 @@ export default function Hospital_SearchPatients() {
       )
     }
 
+    const tabs: { key: MedicalTab; label: string; icon: any; count: number }[] = [
+      { key: 'prescriptions', label: 'Prescriptions', icon: FileText, count: (d?.pres || []).length },
+      { key: 'lab', label: 'Lab', icon: FlaskConical, count: (d?.lab || []).length },
+      { key: 'diagnostic', label: 'Diagnostic', icon: ScanLine, count: (d?.diag || []).length },
+      { key: 'aesthetic', label: 'Aesthetic', icon: Sparkles, count: (d?.aesthetic || []).length },
+      { key: 'er', label: 'Emergency', icon: HeartPulse, count: (d?.er || []).length },
+      { key: 'ipd', label: 'IPD', icon: BedDouble, count: (d?.ipd || []).length },
+      { key: 'finance', label: 'Finance', icon: Wallet, count: ((d?.lab || []).length + (d?.diag || []).length + (d?.pharmacy || []).length + (fData || []).length) },
+    ]
+
     return (
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="mt-6">
+        {/* Tab Bar */}
+        <div className="flex gap-1 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+          {tabs.map(t => {
+            const active = tab === t.key
+            return (
+              <button
+                key={t.key}
+                onClick={() => {
+                  setActiveTab(prev => ({ ...prev, [mrn]: t.key }))
+                  if (t.key === 'finance' && !fData && !fLoading) {
+                    const patient = patients.find(p => p.mrn === mrn)
+                    loadFinance(mrn, patient?._id || patient?.id)
+                  }
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                  active
+                    ? 'bg-slate-800 text-white shadow-md'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <t.icon className="w-4 h-4" />
+                {t.label}
+                {t.count > 0 && (
+                  <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Tab Content */}
+        {tab === 'finance' ? (
+          (() => {
+            const labOrders = d?.lab || []
+            const diagOrders = d?.diag || []
+            const pharmOrders = d?.pharmacy || []
+            const ipdAdmissions = fData || []
+
+            const labNet = labOrders.reduce((s: number, o: any) => s + (o.net || 0), 0)
+            const labReceived = labOrders.reduce((s: number, o: any) => s + (o.receivedAmount || 0), 0)
+            const labPending = labOrders.reduce((s: number, o: any) => s + (o.receivableAmount || 0), 0)
+
+            const diagNet = diagOrders.reduce((s: number, o: any) => s + (o.net || 0), 0)
+            const diagReceived = diagOrders.reduce((s: number, o: any) => s + (o.receivedAmount || 0), 0)
+            const diagPending = diagOrders.reduce((s: number, o: any) => s + (o.receivableAmount || 0), 0)
+
+            const pharmTotal = pharmOrders.reduce((s: number, o: any) => s + (o.total || 0), 0)
+            const pharmDiscount = pharmOrders.reduce((s: number, o: any) => s + (o.lineDiscountTotal || 0), 0)
+
+            const ipdGrand = ipdAdmissions.reduce((s: number, a: any) => s + (a.grandTotal || 0), 0)
+            const ipdPending = ipdAdmissions.reduce((s: number, a: any) => s + (a.pendingAmount || a.netOutstanding || 0), 0)
+
+            const totalNet = labNet + diagNet + pharmTotal + ipdGrand
+            const totalReceived = labReceived + diagReceived
+            const totalPending = labPending + diagPending + ipdPending
+
+            return (
+              <div className="space-y-4">
+                {/* Grand Summary Card */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+                    <Wallet className="w-4 h-4" />
+                    Patient Finance Summary
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
+                      <div className="text-xs text-slate-500 uppercase tracking-wide">Total Net</div>
+                      <div className="text-xl font-bold text-slate-800 dark:text-slate-100">Rs {Math.round(totalNet).toLocaleString()}</div>
+                    </div>
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3">
+                      <div className="text-xs text-emerald-600 uppercase tracking-wide">Received</div>
+                      <div className="text-xl font-bold text-emerald-700">Rs {Math.round(totalReceived).toLocaleString()}</div>
+                    </div>
+                    <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-3">
+                      <div className="text-xs text-rose-600 uppercase tracking-wide">Pending</div>
+                      <div className="text-xl font-bold text-rose-700">Rs {Math.round(totalPending).toLocaleString()}</div>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+                      <div className="text-xs text-amber-600 uppercase tracking-wide">Discounts</div>
+                      <div className="text-xl font-bold text-amber-700">Rs {Math.round(pharmDiscount).toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* IPD Admissions */}
+                {ipdAdmissions.length > 0 && (
+                  <div>
+                    <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <BedDouble className="w-3.5 h-3.5" /> IPD Admissions
+                    </h5>
+                    <div className="space-y-2">
+                      {ipdAdmissions.map((ad: any) => (
+                        <div key={ad.encounterId} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                          <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Receipt className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                              <span className="text-sm font-medium text-slate-800 dark:text-slate-100">Admission #{ad.admissionNo || ad.encounterId}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded ${ad.status === 'discharged' ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-700'}`}>{ad.status || 'active'}</span>
+                            </div>
+                            <button
+                              onClick={() => openPaymentDialog(ad.encounterId, ad.admissionNo || ad.encounterId)}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded-md text-xs font-medium transition-colors"
+                            >
+                              <CreditCard className="w-3 h-3" />
+                              Add Payment
+                            </button>
+                          </div>
+                          <div className="p-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                            <div><div className="text-xs text-slate-500">Grand Total</div><div className="font-semibold text-slate-800">Rs {Math.round(Number(ad.grandTotal || 0)).toLocaleString()}</div></div>
+                            <div><div className="text-xs text-slate-500">Package</div><div className="font-semibold text-slate-800">Rs {Math.round(Number(ad.packageAmount || 0)).toLocaleString()}</div></div>
+                            <div><div className="text-xs text-slate-500">Advance</div><div className="font-semibold text-emerald-700">Rs {Math.round(Number(ad.advancedAmount || ad.totalAdvanceReceived || 0)).toLocaleString()}</div></div>
+                            <div><div className="text-xs text-slate-500">Pending</div><div className="font-semibold text-rose-700">Rs {Math.round(Number(ad.pendingAmount || ad.netOutstanding || 0)).toLocaleString()}</div></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lab Orders */}
+                {labOrders.length > 0 && (
+                  <div>
+                    <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <FlaskConical className="w-3.5 h-3.5" /> Lab Orders
+                    </h5>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <div className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                        <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">{labOrders.length} order(s)</span>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-slate-600">Net: <strong>Rs {Math.round(labNet).toLocaleString()}</strong></span>
+                          <span className="text-emerald-700">Received: <strong>Rs {Math.round(labReceived).toLocaleString()}</strong></span>
+                          <span className="text-rose-700">Pending: <strong>Rs {Math.round(labPending).toLocaleString()}</strong></span>
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+                        {labOrders.map((o: any) => (
+                          <div key={o.id} className="px-4 py-2 flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-700 dark:text-slate-200">{o.tokenNo || o.id}</span>
+                              <span className="text-xs text-slate-500">{new Date(o.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="text-slate-600">Net: Rs {Math.round(o.net || 0).toLocaleString()}</span>
+                              <span className="text-emerald-700">Rec: Rs {Math.round(o.receivedAmount || 0).toLocaleString()}</span>
+                              <span className="text-rose-700">Pen: Rs {Math.round(o.receivableAmount || 0).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Diagnostic Orders */}
+                {diagOrders.length > 0 && (
+                  <div>
+                    <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <ScanLine className="w-3.5 h-3.5" /> Diagnostic / Radiology
+                    </h5>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <div className="px-4 py-2.5 bg-violet-50 dark:bg-violet-900/20 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                        <span className="text-sm font-medium text-violet-800 dark:text-violet-300">{diagOrders.length} order(s)</span>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-slate-600">Net: <strong>Rs {Math.round(diagNet).toLocaleString()}</strong></span>
+                          <span className="text-emerald-700">Received: <strong>Rs {Math.round(diagReceived).toLocaleString()}</strong></span>
+                          <span className="text-rose-700">Pending: <strong>Rs {Math.round(diagPending).toLocaleString()}</strong></span>
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+                        {diagOrders.map((o: any) => (
+                          <div key={o.id} className="px-4 py-2 flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-700 dark:text-slate-200">{o.tokenNo || o.id}</span>
+                              <span className="text-xs text-slate-500">{new Date(o.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="text-slate-600">Net: Rs {Math.round(o.net || 0).toLocaleString()}</span>
+                              <span className="text-emerald-700">Rec: Rs {Math.round(o.receivedAmount || 0).toLocaleString()}</span>
+                              <span className="text-rose-700">Pen: Rs {Math.round(o.receivableAmount || 0).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pharmacy Orders */}
+                {pharmOrders.length > 0 && (
+                  <div>
+                    <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5" /> Pharmacy
+                    </h5>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                        <span className="text-sm font-medium text-amber-800 dark:text-amber-300">{pharmOrders.length} dispense(s)</span>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-slate-600">Total: <strong>Rs {Math.round(pharmTotal).toLocaleString()}</strong></span>
+                          <span className="text-amber-700">Discount: <strong>Rs {Math.round(pharmDiscount).toLocaleString()}</strong></span>
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+                        {pharmOrders.map((o: any) => (
+                          <div key={o.id} className="px-4 py-2 flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-700 dark:text-slate-200">Bill #{o.billNo || o.id}</span>
+                              <span className="text-xs text-slate-500">{new Date(o.createdAt).toLocaleDateString()}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-500">{o.source || '-'}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="text-slate-600">Total: Rs {Math.round(o.total || 0).toLocaleString()}</span>
+                              {o.lineDiscountTotal > 0 && <span className="text-amber-700">Disc: Rs {Math.round(o.lineDiscountTotal).toLocaleString()}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty state when no finance data at all */}
+                {labOrders.length === 0 && diagOrders.length === 0 && pharmOrders.length === 0 && ipdAdmissions.length === 0 && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-500">
+                    <Receipt className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                    No finance records found for this patient
+                  </div>
+                )}
+              </div>
+            )
+          })()
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
         {/* Prescriptions */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="px-4 py-3 bg-sky-50 dark:bg-sky-900/30 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
@@ -763,6 +1088,8 @@ export default function Hospital_SearchPatients() {
           </div>
         </div>
       </div>
+    )}
+  </div>
     )
   }
 
@@ -988,172 +1315,184 @@ export default function Hospital_SearchPatients() {
 
   return (
     <div className="space-y-6">
-      {/* Gradient Header Banner */}
-      <div className="rounded-2xl bg-linear-to-r from-sky-600 via-violet-600 to-rose-500 p-6 text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-            <Search className="h-6 w-6" />
+      <form onSubmit={onSearch} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-slate-800 dark:bg-slate-700 flex items-center justify-center">
+            <Search className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <h2 className="text-2xl font-black tracking-tight">Advanced Patient Search</h2>
-            <p className="mt-0.5 text-sm font-medium text-white/80">Find patients by MR number, name, phone, or guardian</p>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 uppercase tracking-wide">Advanced Patient Search</h3>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <IdCard className="w-4 h-4" />
+            </div>
+            <input value={form.mrNo} onChange={e=>update('mrNo', e.target.value)} placeholder="MR Number" className="w-full rounded-lg border border-slate-200 dark:border-slate-600 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-slate-800 focus:ring-2 focus:ring-slate-200 dark:bg-slate-900 dark:text-white transition-all" />
+          </div>
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <User className="w-4 h-4" />
+            </div>
+            <input value={form.name} onChange={e=>update('name', e.target.value)} placeholder="Patient Name" className="w-full rounded-lg border border-slate-200 dark:border-slate-600 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-slate-800 focus:ring-2 focus:ring-slate-200 dark:bg-slate-900 dark:text-white transition-all" />
+          </div>
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <User className="w-4 h-4" />
+            </div>
+            <input value={form.fatherName} onChange={e=>update('fatherName', e.target.value)} placeholder="Father / Guardian" className="w-full rounded-lg border border-slate-200 dark:border-slate-600 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-slate-800 focus:ring-2 focus:ring-slate-200 dark:bg-slate-900 dark:text-white transition-all" />
+          </div>
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <Phone className="w-4 h-4" />
+            </div>
+            <input value={form.phone} onChange={e=>update('phone', e.target.value)} placeholder="Phone Number" className="w-full rounded-lg border border-slate-200 dark:border-slate-600 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-slate-800 focus:ring-2 focus:ring-slate-200 dark:bg-slate-900 dark:text-white transition-all" />
           </div>
         </div>
-      </div>
 
-      {/* Search Form Card */}
-      <form onSubmit={onSearch}>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-slate-50/60 px-5 py-3">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-              <Hash className="h-4 w-4 text-violet-500" />
-              Search Criteria
-            </div>
-          </div>
-          <div className="p-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <Hash className="h-3.5 w-3.5" /> MR Number
-                </label>
-                <div className="relative">
-                  <input value={form.mrNo} onChange={e=>update('mrNo', e.target.value)} placeholder="e.g. CHCH-2026-001"
-                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3 pr-3 text-sm font-medium text-slate-800 outline-none transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
-                </div>
-              </div>
-              <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <UserCircle className="h-3.5 w-3.5" /> Patient Name
-                </label>
-                <input value={form.name} onChange={e=>update('name', e.target.value)} placeholder="Full or partial name"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 outline-none transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
-              </div>
-              <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <Users className="h-3.5 w-3.5" /> Father Name
-                </label>
-                <input value={form.fatherName} onChange={e=>update('fatherName', e.target.value)} placeholder="Guardian's name"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 outline-none transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
-              </div>
-              <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <PhoneCall className="h-3.5 w-3.5" /> Phone Number
-                </label>
-                <input value={form.phone} onChange={e=>update('phone', e.target.value)} placeholder="03001234567"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 outline-none transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center gap-3">
-              <button type="submit"
-                className="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-sky-600 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-sky-200 transition-all hover:shadow-lg hover:shadow-sky-300 disabled:opacity-50"
-                disabled={loading}>
-                {loading ? (
-                  <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Searching…</>
-                ) : (
-                  <><Search className="h-4 w-4" /> Search Patients</>
-                )}
-              </button>
-              <button type="button" onClick={onClear}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50">
-                <RotateCcw className="h-4 w-4" /> Clear
-              </button>
-            </div>
-          </div>
+        <div className="flex items-center gap-2 mt-4">
+          <button type="submit" className="flex items-center gap-2 rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50 transition-colors" disabled={loading}>
+            <Search className="w-4 h-4" />
+            {loading ? 'Searching...' : 'Search Patients'}
+          </button>
+          <button type="button" onClick={onClear} className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">Clear</button>
         </div>
       </form>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white py-16">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-sky-500" />
-          <p className="text-sm font-semibold text-slate-500">Searching patients…</p>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && patients.length === 0 && (form.mrNo || form.name || form.fatherName || form.phone) && (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 py-16">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
-            <Users className="h-7 w-7 text-slate-400" />
-          </div>
-          <p className="text-sm font-bold text-slate-500">No patients found</p>
-          <p className="text-xs text-slate-400">Try adjusting your search criteria</p>
-        </div>
-      )}
-
-      {/* Initial Empty State */}
-      {!loading && patients.length === 0 && !form.mrNo && !form.name && !form.fatherName && !form.phone && (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 py-16">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50">
-            <Search className="h-7 w-7 text-violet-400" />
-          </div>
-          <p className="text-sm font-bold text-slate-500">Search for a patient</p>
-          <p className="text-xs text-slate-400">Enter MR number, name, phone, or guardian to begin</p>
-        </div>
-      )}
-
-      {/* Search Results */}
       {patients.length>0 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-xl bg-white px-4 py-2.5 border border-slate-200">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-              <Users className="h-4 w-4 text-violet-500" />
-              Search Results
-            </div>
-            <div className="rounded-full bg-violet-100 px-3 py-0.5 text-xs font-bold text-violet-700">
-              {patients.length} patient{patients.length!==1?'s':''} found
-            </div>
+          <div className="flex items-center justify-between">
+            <div className="font-medium text-slate-800 dark:text-slate-100">Search Results</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">{patients.length} patient{patients.length!==1?'s':''} found</div>
           </div>
           
           <div className="space-y-4">
             {patients.map((p, idx) => {
-              const mrn = String(p.mrn||'')
-              const isExp = expanded[mrn]
+              const initials = (p.fullName || '?').split(' ').map((w: string) => w[0]).slice(0,2).join('').toUpperCase()
               return (
-              <div key={String(p._id||idx)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+              <div key={String(p._id||idx)} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-all hover:shadow-md">
                 {/* Patient Header Bar */}
-                <div
-                  className="flex items-center justify-between px-5 py-4 cursor-pointer transition-colors bg-linear-to-r from-slate-50 to-white hover:from-sky-50/40 hover:to-violet-50/30"
+                <div 
+                  className="flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors"
                   onClick={() => {
+                    const mrn = String(p.mrn||'')
                     setExpanded(prev => ({ ...prev, [mrn]: !prev[mrn] }))
                     if (!details[mrn]) loadDetails(mrn, String(p._id||''))
                   }}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-linear-to-br from-sky-500 to-violet-500 shadow-sm">
-                      <User className="h-5 w-5 text-white" />
+                  <div className="w-11 h-11 rounded-full bg-slate-800 dark:bg-slate-600 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-bold text-white">{initials}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">{p.fullName || '-'}</div>
+                      <span className="shrink-0 text-[11px] px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full font-medium">{p.mrn || 'No MRN'}</span>
                     </div>
-                    <div>
-                      <div className="text-base font-bold text-slate-900">{p.fullName || '-'}</div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-medium text-slate-500">
-                        <span className="inline-flex items-center gap-1"><Hash className="h-3 w-3" />{p.mrn || '-'}</span>
-                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{p.fatherName || '-'}</span>
-                        <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" />{p.phoneNormalized || '-'}</span>
-                      </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="flex items-center gap-1"><User className="w-3 h-3" /> {p.fatherName || '-'}</span>
+                      <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {p.phoneNormalized || '-'}</span>
+                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {p.age || '-'} yr</span>
+                      <span className="flex items-center gap-1">{p.gender || '-'}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${isExp ? 'bg-violet-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-violet-100 hover:text-violet-700'}`}>
-                      {isExp ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                      {isExp ? 'Hide' : 'Details'}
-                    </span>
+                  <div className="shrink-0">
+                    {expanded[String(p.mrn||'')] ? (
+                      <ChevronUp className="w-5 h-5 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-slate-400" />
+                    )}
                   </div>
                 </div>
 
                 {/* Expanded Patient Profile */}
-                {isExp && (
-                  <div className="border-t border-slate-200 p-5">
+                {expanded[String(p.mrn||'')] && (
+                  <div className="p-6 border-t border-slate-200 dark:border-slate-700">
                     {renderPatientInfoCard(p)}
-                    {renderMedicalRecords(mrn)}
+                    {renderMedicalRecords(String(p.mrn||''))}
                   </div>
                 )}
               </div>
-              )
-            })}
+            )})}
           </div>
         </div>
       )}
+      {/* Add Payment Dialog */}
+      {paymentDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden">
+            <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Add Payment</h3>
+              </div>
+              <button onClick={() => setPaymentDialogOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div className="text-sm text-slate-500 dark:text-slate-400 mb-2">
+                Admission #{paymentDialogAdmissionNo}
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Amount (Rs)</label>
+                <input
+                  type="number"
+                  value={paymentAmount}
+                  onChange={e => setPaymentAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-800 dark:text-white"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={e => setPaymentMethod(e.target.value as any)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Bank">Bank</option>
+                  <option value="Advance">Advance</option>
+                  <option value="Discount">Discount</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Note</label>
+                <textarea
+                  value={paymentNote}
+                  onChange={e => setPaymentNote(e.target.value)}
+                  placeholder="Optional note..."
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-800 dark:text-white resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700 px-5 py-3">
+              <button
+                onClick={() => setPaymentDialogOpen(false)}
+                className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const patient = patients.find(p => {
+                    const fd = financeData[p.mrn]
+                    return fd?.some((ad: any) => ad.encounterId === paymentDialogEncounterId)
+                  })
+                  submitPayment(patient?.mrn || '')
+                }}
+                disabled={paymentSubmitting || !paymentAmount || Number(paymentAmount) <= 0}
+                className="flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              >
+                <CreditCard className="w-4 h-4" />
+                {paymentSubmitting ? 'Saving...' : 'Record Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toast toast={toast} onClose={()=>setToast(null)} />
     </div>
   )

@@ -1,246 +1,554 @@
 import { useEffect, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
-import { printConsentForm } from '../../utils/printConsentForm'
-import { 
-  FileSignature, Printer, Plus, 
-  User, Calendar, Info, ShieldCheck,
-  Stethoscope, Activity, Pencil, Trash2
-} from 'lucide-react'
-import Toast, { type ToastState } from '../ui/Toast'
-import { useEncounterDefaults } from '../../hooks/useEncounterDefaults'
-import { ClinicalDialogShell, clinicalInp, clinicalLbl } from '../ui/ClinicalDialog'
-import ConfirmDialog from '../ui/ConfirmDialog'
+import { ipdApi } from '../../features/hospital/ipd'
+
+type OperationConsentRecord = {
+  _id: string
+  mrNumber?: string
+  patientName?: string
+  date?: string
+  doctorId?: string
+  doctorName?: string
+  doctorSign?: string
+  anesthesia?: {
+    guardianName?: string
+    guardianSign?: string
+    date?: string
+    time?: string
+  }
+  operation?: {
+    guardianName?: string
+    guardianSign?: string
+    date?: string
+    time?: string
+  }
+  bloodTransfusion?: {
+    guardianName?: string
+    guardianSign?: string
+    date?: string
+    time?: string
+  }
+  status?: 'draft' | 'partial' | 'completed' | 'cancelled'
+  recordedBy?: string
+  recordedAt?: string
+  notes?: string
+  createdAt?: string
+}
 
 export default function Hospital_IpdOperationConsent({ encounterId }: { encounterId: string }){
-  const [records, setRecords] = useState<any[]>([])
+  const [records, setRecords] = useState<OperationConsentRecord[]>([])
+  const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [toast, setToast] = useState<ToastState>(null)
-  const [editing, setEditing] = useState<any | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const encDefaults = useEncounterDefaults(encounterId)
 
   useEffect(()=>{ if(encounterId){ reload() } }, [encounterId])
 
   async function reload(){
     setLoading(true)
     try{
-      const res = await hospitalApi.listIpdClinicalNotes(encounterId, { type: 'operation-consent', limit: 200 }) as any
-      const items = (res.notes || []).map((n: any) => ({
-        id: String(n._id),
-        recordedAt: String(n.recordedAt || n.createdAt || ''),
-        ...n.data,
-        signature: n.sign || '',
-      }))
-      setRecords(items)
-    }catch{} finally { setLoading(false) }
+      const res = await ipdApi.listIpdOperationConsents(encounterId, { limit: 200 }) as any
+      setRecords(res?.operationConsents || [])
+    }catch{}
+    setLoading(false)
   }
 
   const add = async (d: any) => {
     try{
-      if (editing?.id) {
-        await hospitalApi.updateIpdClinicalNote(editing.id, {
-          sign: d.signature || '',
-          data: d,
-        })
-      } else {
-        await hospitalApi.createIpdClinicalNote(encounterId, {
-          type: 'operation-consent',
-          sign: d.signature || '',
-          data: d,
-        })
-      }
-      setOpen(false); setEditing(null)
-      setToast({ type: 'success', message: 'Operation consent saved successfully' })
+      await ipdApi.createIpdOperationConsent(encounterId, {
+        mrNumber: d.mrNumber,
+        patientName: d.patientName,
+        date: d.date,
+        doctorName: d.doctorName,
+        doctorSign: d.sign,
+        anesthesia: {
+          guardianName: d.anesthesiaGuardian,
+          guardianSign: d.anesthesiaSign,
+          date: d.anesthesiaDate,
+          time: d.anesthesiaTime,
+        },
+        operation: {
+          guardianName: d.operationGuardian,
+          guardianSign: d.operationSign,
+          date: d.operationDate,
+          time: d.operationTime,
+        },
+        bloodTransfusion: {
+          guardianName: d.bloodGuardian,
+          guardianSign: d.bloodSign,
+          date: d.bloodDate,
+          time: d.bloodTime,
+        },
+        status: 'completed',
+        recordedBy: d.doctorName,
+      })
+      setOpen(false)
       await reload()
-    }catch(e: any){ setToast({ type: 'error', message: e?.message || 'Failed to save consent' }) }
-  }
-
-  const deleteRow = async () => {
-    if (!confirmDeleteId) return
-    try {
-      await hospitalApi.deleteIpdClinicalNote(confirmDeleteId)
-      setConfirmDeleteId(null)
-      await reload()
-    } catch (e: any) { alert(e?.message || 'Failed to delete') }
-  }
-
-  const onEdit = (r: any) => { setEditing(r); setOpen(true) }
-  const onAdd = () => { setEditing(null); setOpen(true) }
-  const onClose = () => { setOpen(false); setEditing(null) }
-
-  const print = (r: any) => {
-    void printConsentForm({
-      ...r,
-      patientName: r.patientName,
-      mrn: r.mrNumber,
-      date: r.date,
-      time: r.time,
-      guardianName: r.guardianName,
-      relation: r.relation,
-    })
+    }catch(e: any){ alert(e?.message || 'Failed to save consent form') }
   }
 
   return (
-    <div className="space-y-6">
-      <Toast toast={toast} onClose={()=>setToast(null)} />
-      
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-slate-200 bg-white p-6 shadow-sm overflow-hidden relative">
-        <div className="absolute right-0 top-0 opacity-[0.03] pointer-events-none transform translate-x-1/4 -translate-y-1/4">
-          <FileSignature className="h-48 w-48 text-indigo-600" />
-        </div>
-        <div className="flex items-center gap-4 relative z-10">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600">
-            <FileSignature className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-slate-900 uppercase">Operation Consent</h1>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Surgical Authorization Record</p>
-          </div>
-        </div>
-        <button 
-          onClick={onAdd} 
-          className="group flex items-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-black text-white shadow-xl shadow-indigo-600/20 transition hover:bg-indigo-700 active:scale-95 relative z-10"
-        >
-          <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
-          New Authorization
-        </button>
+    <div className="rounded-xl border border-slate-200 bg-white p-4" data-encounterid={encounterId}>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="text-lg font-semibold text-slate-900">Consent Forms (Anesthesia/Operation/Blood)</div>
+        <button onClick={()=>setOpen(true)} className="btn">Add Form</button>
       </div>
 
       {loading ? (
-        <div className="flex min-h-[200px] flex-col items-center justify-center p-8 text-slate-400">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" />
-          <p className="mt-4 text-xs font-bold uppercase tracking-widest">Loading Authorizations...</p>
-        </div>
+        <div className="text-slate-500">Loading...</div>
       ) : records.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-slate-200 bg-white/50 p-12 text-center transition-all hover:bg-white">
-          <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-400">
-            <ShieldCheck className="h-8 w-8" />
-          </div>
-          <div>
-            <h3 className="text-lg font-black text-slate-900 uppercase">No Consent Recorded</h3>
-            <p className="text-sm font-medium text-slate-500">Document surgical consent before any invasive procedure.</p>
-          </div>
-        </div>
+        <div className="text-slate-500">No consent records yet.</div>
       ) : (
-        <div className="grid gap-6">
+        <div className="space-y-6">
           {records.map(r => (
-            <div key={r.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg shadow-slate-200/30 transition-all hover:shadow-xl hover:shadow-slate-200/40">
-              <div className="bg-slate-900 px-8 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3 text-white">
-                  <ShieldCheck className="h-5 w-5 text-indigo-400" />
-                  <span className="text-xs font-black uppercase tracking-widest">Surgical Consent Authorization</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={()=>onEdit(r)} className="flex items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 text-[10px] font-bold text-white transition hover:bg-white/20"><Pencil className="h-3 w-3" />Edit</button>
-                  <button onClick={()=>setConfirmDeleteId(r.id)} className="flex items-center gap-1 rounded-lg bg-rose-500/20 px-3 py-1.5 text-[10px] font-bold text-rose-200 transition hover:bg-rose-500/30"><Trash2 className="h-3 w-3" />Delete</button>
-                  <button onClick={() => print(r)} className="flex items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 text-[10px] font-bold text-white transition hover:bg-white/20"><Printer className="h-3 w-3" />Print</button>
-                </div>
-              </div>
-              <div className="p-8">
-                <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-                  <Detail label="Patient" value={r.patientName} icon={User} />
-                  <Detail label="MR Number" value={r.mrNumber} icon={Info} />
-                  <Detail label="Guardian" value={r.guardianName} subValue={r.relation} icon={User} />
-                  <Detail label="Procedure" value={r.proposedProcedure} icon={Stethoscope} />
-                  <Detail label="Doctor" value={r.doctorName} icon={Activity} />
-                  <Detail label="Date/Time" value={`${r.date} @ ${r.time}`} icon={Calendar} />
-                </div>
+            <div key={r._id} className="rounded-lg border border-slate-200 p-4">
+              <OperationConsentDisplay data={r} />
+              <div className="mt-2 text-right text-xs text-slate-500">
+                Recorded: {r.createdAt ? new Date(r.createdAt).toLocaleString() : '-'}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <OperationDialog open={open} onClose={onClose} onSave={add} defaults={encDefaults} initial={editing} />
-      <ConfirmDialog open={!!confirmDeleteId} title="Delete Consent" message="Are you sure you want to delete this operation consent?" confirmText="Delete" onCancel={()=>setConfirmDeleteId(null)} onConfirm={deleteRow} />
+      <OperationConsentDialog open={open} onClose={()=>setOpen(false)} onSave={add} />
     </div>
   )
 }
 
-function Detail({ label, value, subValue, icon: Icon }: any) {
+function OperationConsentDisplay({ data }: { data: OperationConsentRecord }) {
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 mb-1.5">
-        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-50 text-indigo-600 shadow-sm">
-          <Icon className="h-3.5 w-3.5" />
-        </div>
-        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="text-center border-b border-slate-300 pb-3">
+        <h2 className="text-xl font-bold text-slate-900">Surgicare Hospital & Maternity Center Karor Lal Eason</h2>
       </div>
-      <div className="text-sm font-black text-slate-900 uppercase truncate">{value || '-'}</div>
-      {subValue && <div className="text-[10px] font-bold text-slate-400 italic">({subValue})</div>}
+
+      {/* Top Info */}
+      <div className="grid grid-cols-3 gap-4 text-sm">
+        <div className="flex gap-2">
+          <span className="font-semibold">MR Number:</span>
+          <span className="border-b border-slate-400 flex-1">{data.mrNumber || ''}</span>
+        </div>
+        <div className="flex gap-2">
+          <span className="font-semibold">Patient Name:</span>
+          <span className="border-b border-slate-400 flex-1">{data.patientName || ''}</span>
+        </div>
+        <div className="flex gap-2">
+          <span className="font-semibold">Date:</span>
+          <span className="border-b border-slate-400 flex-1">{data.date || ''}</span>
+        </div>
+      </div>
+
+      {/* Form 1: Anesthesia Consent */}
+      <div className="border border-slate-300 rounded-lg p-4" style={{ direction: 'rtl', fontFamily: 'Jameel Noori Nastaleeq, Noto Nastaliq Urdu, serif' }}>
+        <h3 className="text-center font-bold text-lg mb-4 border-b pb-2">اجازت نامہ برائے بیہوشی</h3>
+        <div className="text-right space-y-2 text-sm leading-relaxed">
+          <p>میں اس بات کی اجازت دیتا ہوں کہ میرے مریض کا آپریشن کیا جائے۔ بے ہوشی کا عمل کیا جائے اور ضرورت پڑنے پر انجیکشن اور دوائیاں دی جائیں۔</p>
+          <p>آپریشن کے دوران کسی قسم کی ناخوشگوار صورتحال پیش آ سکتی ہے جو مریض کے لیے خطرناک ثابت ہو سکتی ہے ہسپتال اس صورتحال کے لیے ذمہ دار نہیں ہوگا۔</p>
+          <p>میں یہ اعلان کرتا ہوں کہ میں نے بے ہوشی کے طریقہ کار کے بارے میں ڈاکٹر سے تمام ضروری معلومات حاصل کر لی ہیں۔</p>
+        </div>
+        <div className="mt-4 grid grid-cols-4 gap-4 text-sm pt-4 border-t border-slate-300">
+          <div className="flex gap-2">
+            <span className="font-semibold">والد/بستی/سرپرست:</span>
+            <span className="border-b border-slate-400 flex-1">{data.anesthesia?.guardianName || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">دستخط:</span>
+            <span className="border-b border-slate-400 flex-1">{data.anesthesia?.guardianSign || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Date:</span>
+            <span className="border-b border-slate-400 flex-1">{data.anesthesia?.date || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Time:</span>
+            <span className="border-b border-slate-400 flex-1">{data.anesthesia?.time || ''}</span>
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
+          <div className="flex gap-2">
+            <span className="font-semibold">Doctor Name:</span>
+            <span className="border-b border-slate-400 flex-1">{data.doctorName || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Sign:</span>
+            <span className="border-b border-slate-400 flex-1">{data.doctorSign || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Date:</span>
+            <span className="border-b border-slate-400 flex-1">{data.date || ''}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Form 2: Operation Consent */}
+      <div className="border border-slate-300 rounded-lg p-4" style={{ direction: 'rtl', fontFamily: 'Jameel Noori Nastaleeq, Noto Nastaliq Urdu, serif' }}>
+        <h3 className="text-center font-bold text-lg mb-4 border-b pb-2">اجازت نامہ برائے آپریشن</h3>
+        <div className="text-right space-y-2 text-sm leading-relaxed">
+          <p>میں اس بات کی اجازت دیتا ہوں کہ میرے مریض کا آپریشن کیا جائے۔</p>
+          <p>آپریشن کے دوران کسی قسم کی ناخوشگوار صورتحال پیش آسکتی ہے جیسے خون کا اخراج، علاج کی ناکامی، آلہ (Ventilator) کی ضرورت اور ایسی دیگر پیچیدگیاں جو مریض کے لیے خطرناک ثابت ہو سکتی ہیں۔</p>
+          <p>میں یہ اعلان کرتا ہوں کہ ڈاکٹر نے تمام معلومات سے آگاہ کر دیا ہے۔</p>
+        </div>
+        <div className="mt-4 grid grid-cols-4 gap-4 text-sm pt-4 border-t border-slate-300">
+          <div className="flex gap-2">
+            <span className="font-semibold">والد/بستی/سرپرست:</span>
+            <span className="border-b border-slate-400 flex-1">{data.operation?.guardianName || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">دستخط:</span>
+            <span className="border-b border-slate-400 flex-1">{data.operation?.guardianSign || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Date:</span>
+            <span className="border-b border-slate-400 flex-1">{data.operation?.date || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Time:</span>
+            <span className="border-b border-slate-400 flex-1">{data.operation?.time || ''}</span>
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
+          <div className="flex gap-2">
+            <span className="font-semibold">Doctor Name:</span>
+            <span className="border-b border-slate-400 flex-1">{data.doctorName || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Sign:</span>
+            <span className="border-b border-slate-400 flex-1">{data.doctorSign || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Date:</span>
+            <span className="border-b border-slate-400 flex-1">{data.date || ''}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Form 3: Blood Transfusion Consent */}
+      <div className="border border-slate-300 rounded-lg p-4" style={{ direction: 'rtl', fontFamily: 'Jameel Noori Nastaleeq, Noto Nastaliq Urdu, serif' }}>
+        <h3 className="text-center font-bold text-lg mb-4 border-b pb-2">اجازت نامہ برائے انتقال خون/مزید</h3>
+        <div className="text-right space-y-2 text-sm leading-relaxed">
+          <p>میں اس بات کی اجازت دیتا ہوں کہ میرے مریض کو علاج کے دوران خون یا خون کے کسی جزو کی ضرورت پیش آئے تو منتقل کیا جائے۔</p>
+          <p>میں نے طبی عملے کو آگاہ کر دیا ہے کہ میرے مریض کو کسی قسم کی الرجی یا خون کے اجزاء سے کوئی رد عمل نہیں ہے۔</p>
+          <p>میں یہ اعلان کرتا ہوں کہ اس دوران پیش آنے والی کسی بھی پیچیدگی کے لیے ہسپتال/ڈاکٹر ذمہ دار نہیں ہوں گے۔</p>
+          <p>کیے جانے والے علاج کے لیے ہم نے ہسپتال کے عملے سے رضا مندی ظاہر کی ہے اور رضا مندی ہم پر لاگو ہوگی۔</p>
+        </div>
+        <div className="mt-4 grid grid-cols-4 gap-4 text-sm pt-4 border-t border-slate-300">
+          <div className="flex gap-2">
+            <span className="font-semibold">والد/بستی/سرپرست:</span>
+            <span className="border-b border-slate-400 flex-1">{data.bloodTransfusion?.guardianName || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">دستخط:</span>
+            <span className="border-b border-slate-400 flex-1">{data.bloodTransfusion?.guardianSign || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Date:</span>
+            <span className="border-b border-slate-400 flex-1">{data.bloodTransfusion?.date || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Time:</span>
+            <span className="border-b border-slate-400 flex-1">{data.bloodTransfusion?.time || ''}</span>
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
+          <div className="flex gap-2">
+            <span className="font-semibold">Doctor Name:</span>
+            <span className="border-b border-slate-400 flex-1">{data.doctorName || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Sign:</span>
+            <span className="border-b border-slate-400 flex-1">{data.doctorSign || ''}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-semibold">Date:</span>
+            <span className="border-b border-slate-400 flex-1">{data.date || ''}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Final Doctor Signature */}
+      <div className="grid grid-cols-3 gap-4 text-sm pt-4 border-t border-slate-300">
+        <div className="flex gap-2">
+          <span className="font-semibold">Doctor Name:</span>
+          <span className="border-b border-slate-400 flex-1">{data.doctorName || ''}</span>
+        </div>
+        <div className="flex gap-2">
+          <span className="font-semibold">Signature:</span>
+          <span className="border-b border-slate-400 flex-1">{data.doctorSign || ''}</span>
+        </div>
+        <div className="flex gap-2">
+          <span className="font-semibold">Date:</span>
+          <span className="border-b border-slate-400 flex-1">{data.date || ''}</span>
+        </div>
+      </div>
     </div>
   )
 }
 
-function OperationDialog({ open, onClose, onSave, defaults, initial }: any) {
+function OperationConsentDialog({
+  open,
+  onClose,
+  onSave,
+}: {
+  open: boolean
+  onClose: () => void
+  onSave: (d: any) => void
+}) {
   const [form, setForm] = useState({
-    mrNumber: '', patientName: '', guardianName: '', relation: '',
-    proposedProcedure: '', anesthesiaType: 'General', doctorName: '', signature: '',
+    mrNumber: '',
+    patientName: '',
     date: new Date().toISOString().slice(0, 10),
-    time: new Date().toTimeString().slice(0, 5),
+    doctorName: '',
+    sign: '',
+    anesthesiaGuardian: '',
+    anesthesiaSign: '',
+    anesthesiaDate: new Date().toISOString().slice(0, 10),
+    anesthesiaTime: new Date().toTimeString().slice(0, 5),
+    operationGuardian: '',
+    operationSign: '',
+    operationDate: new Date().toISOString().slice(0, 10),
+    operationTime: new Date().toTimeString().slice(0, 5),
+    bloodGuardian: '',
+    bloodSign: '',
+    bloodDate: new Date().toISOString().slice(0, 10),
+    bloodTime: new Date().toTimeString().slice(0, 5),
   })
 
-  useEffect(()=>{
-    if (!open) return
-    if (initial) {
-      setForm({
-        mrNumber: initial.mrNumber || '',
-        patientName: initial.patientName || '',
-        guardianName: initial.guardianName || '',
-        relation: initial.relation || '',
-        proposedProcedure: initial.proposedProcedure || '',
-        anesthesiaType: initial.anesthesiaType || 'General',
-        doctorName: initial.doctorName || '',
-        signature: initial.signature || '',
-        date: initial.date || new Date().toISOString().slice(0, 10),
-        time: initial.time || new Date().toTimeString().slice(0, 5),
-      })
-      return
-    }
-    setForm(prev => ({
-      ...prev,
-      mrNumber: prev.mrNumber || defaults?.mrn || '',
-      patientName: prev.patientName || defaults?.patientName || '',
-      guardianName: prev.guardianName || defaults?.fatherName || '',
-      relation: prev.relation || defaults?.guardianRel || '',
-      doctorName: prev.doctorName || defaults?.doctorName || '',
-    }))
-  }, [open, defaults, initial])
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSave(form)
-  }
+  if (!open) return null
 
   return (
-    <ClinicalDialogShell open={open} title={initial ? 'Edit Operation Consent' : 'Record Operation Consent'} subtitle="Formal Surgical Authorization" icon={FileSignature} onClose={onClose} onSubmit={submit} submitText="Finalize Consent" maxWidth="max-w-4xl">
-      <div className="space-y-6">
-        <div className="grid gap-3 sm:grid-cols-4">
-          <div><label className={clinicalLbl}>MR Number</label><input value={form.mrNumber} onChange={e=>setForm({...form,mrNumber:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Patient Name</label><input value={form.patientName} onChange={e=>setForm({...form,patientName:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Guardian Name</label><input value={form.guardianName} onChange={e=>setForm({...form,guardianName:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Relation</label><input value={form.relation} onChange={e=>setForm({...form,relation:e.target.value})} className={clinicalInp} /></div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-6">
+        <h3 className="mb-4 text-lg font-semibold">Add Operation Consent Forms</h3>
+
+        <div className="space-y-6">
+          {/* Top Info */}
+          <div className="border-b border-slate-200 pb-4">
+            <h4 className="mb-3 text-sm font-semibold text-slate-700">Patient Information</h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">MR Number</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  value={form.mrNumber}
+                  onChange={(e) => setForm({ ...form, mrNumber: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Patient Name</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  value={form.patientName}
+                  onChange={(e) => setForm({ ...form, patientName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Date</label>
+                <input
+                  type="date"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Anesthesia Consent Section */}
+          <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+            <h4 className="mb-3 text-sm font-semibold text-slate-700">1. Anesthesia Consent (اجازت نامہ برائے بیہوشی)</h4>
+            {/* Urdu Text Display */}
+            <div className="mb-3 rounded border border-slate-200 bg-white p-3 text-right text-xs text-slate-700 leading-relaxed" style={{ direction: 'rtl', fontFamily: 'Jameel Noori Nastaleeq, Noto Nastaliq Urdu, serif' }}>
+              <p>میں اس بات کی اجازت دیتا ہوں کہ میرے مریض کا آپریشن کیا جائے۔ بے ہوشی کا عمل کیا جائے اور ضرورت پڑنے پر انجیکشن اور دوائیاں دی جائیں۔</p>
+              <p className="mt-1">آپریشن کے دوران کسی قسم کی ناخوشگوار صورتحال پیش آ سکتی ہے جو مریض کے لیے خطرناک ثابت ہو سکتی ہے ہسپتال اس صورتحال کے لیے ذمہ دار نہیں ہوگا۔</p>
+              <p className="mt-1">میں یہ اعلان کرتا ہوں کہ میں نے بے ہوشی کے طریقہ کار کے بارے میں ڈاکٹر سے تمام ضروری معلومات حاصل کر لی ہیں۔</p>
+            </div>
+            {/* Guardian/Signature Row */}
+            <div className="mb-3 grid grid-cols-4 gap-3 border-t border-slate-200 pt-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Guardian (والد/بستی/سرپرست)</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.anesthesiaGuardian}
+                  onChange={(e) => setForm({ ...form, anesthesiaGuardian: e.target.value })}
+                  placeholder="نام"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Sign (دستخط)</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.anesthesiaSign}
+                  onChange={(e) => setForm({ ...form, anesthesiaSign: e.target.value })}
+                  placeholder="دستخط"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Date</label>
+                <input
+                  type="date"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.anesthesiaDate}
+                  onChange={(e) => setForm({ ...form, anesthesiaDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Time</label>
+                <input
+                  type="time"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.anesthesiaTime}
+                  onChange={(e) => setForm({ ...form, anesthesiaTime: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Operation Consent Section */}
+          <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+            <h4 className="mb-3 text-sm font-semibold text-slate-700">2. Operation Consent (اجازت نامہ برائے آپریشن)</h4>
+            {/* Urdu Text Display */}
+            <div className="mb-3 rounded border border-slate-200 bg-white p-3 text-right text-xs text-slate-700 leading-relaxed" style={{ direction: 'rtl', fontFamily: 'Jameel Noori Nastaleeq, Noto Nastaliq Urdu, serif' }}>
+              <p>میں اس بات کی اجازت دیتا ہوں کہ میرے مریض کا آپریشن کیا جائے۔</p>
+              <p className="mt-1">آپریشن کے دوران کسی قسم کی ناخوشگوار صورتحال پیش آسکتی ہے جیسے خون کا اخراج، علاج کی ناکامی، آلہ (Ventilator) کی ضرورت اور ایسی دیگر پیچیدگیاں جو مریض کے لیے خطرناک ثابت ہو سکتی ہیں۔</p>
+              <p className="mt-1">میں یہ اعلان کرتا ہوں کہ ڈاکٹر نے تمام معلومات سے آگاہ کر دیا ہے۔</p>
+            </div>
+            {/* Guardian/Signature Row */}
+            <div className="mb-3 grid grid-cols-4 gap-3 border-t border-slate-200 pt-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Guardian (والد/بستی/سرپرست)</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.operationGuardian}
+                  onChange={(e) => setForm({ ...form, operationGuardian: e.target.value })}
+                  placeholder="نام"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Sign (دستخط)</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.operationSign}
+                  onChange={(e) => setForm({ ...form, operationSign: e.target.value })}
+                  placeholder="دستخط"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Date</label>
+                <input
+                  type="date"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.operationDate}
+                  onChange={(e) => setForm({ ...form, operationDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Time</label>
+                <input
+                  type="time"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.operationTime}
+                  onChange={(e) => setForm({ ...form, operationTime: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Blood Transfusion Consent Section */}
+          <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+            <h4 className="mb-3 text-sm font-semibold text-slate-700">3. Blood Transfusion Consent (اجازت نامہ برائے انتقال خون)</h4>
+            {/* Urdu Text Display */}
+            <div className="mb-3 rounded border border-slate-200 bg-white p-3 text-right text-xs text-slate-700 leading-relaxed" style={{ direction: 'rtl', fontFamily: 'Jameel Noori Nastaleeq, Noto Nastaliq Urdu, serif' }}>
+              <p>میں اس بات کی اجازت دیتا ہوں کہ میرے مریض کو علاج کے دوران خون یا خون کے کسی جزو کی ضرورت پیش آئے تو منتقل کیا جائے۔</p>
+              <p className="mt-1">میں نے طبی عملے کو آگاہ کر دیا ہے کہ میرے مریض کو کسی قسم کی الرجی یا خون کے اجزاء سے کوئی رد عمل نہیں ہے۔</p>
+              <p className="mt-1">میں یہ اعلان کرتا ہوں کہ اس دوران پیش آنے والی کسی بھی پیچیدگی کے لیے ہسپتال/ڈاکٹر ذمہ دار نہیں ہوں گے۔</p>
+              <p className="mt-1">کیے جانے والے علاج کے لیے ہم نے ہسپتال کے عملے سے رضا مندی ظاہر کی ہے اور رضا مندی ہم پر لاگو ہوگی۔</p>
+            </div>
+            {/* Guardian/Signature Row */}
+            <div className="mb-3 grid grid-cols-4 gap-3 border-t border-slate-200 pt-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Guardian (والد/بستی/سرپرست)</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.bloodGuardian}
+                  onChange={(e) => setForm({ ...form, bloodGuardian: e.target.value })}
+                  placeholder="نام"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Sign (دستخط)</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.bloodSign}
+                  onChange={(e) => setForm({ ...form, bloodSign: e.target.value })}
+                  placeholder="دستخط"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Date</label>
+                <input
+                  type="date"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.bloodDate}
+                  onChange={(e) => setForm({ ...form, bloodDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Time</label>
+                <input
+                  type="time"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.bloodTime}
+                  onChange={(e) => setForm({ ...form, bloodTime: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Doctor Signature */}
+          <div className="border-t border-slate-200 pt-4">
+            <h4 className="mb-3 text-sm font-semibold text-slate-700">Doctor</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Doctor Name</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  value={form.doctorName}
+                  onChange={(e) => setForm({ ...form, doctorName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Signature</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  value={form.sign}
+                  onChange={(e) => setForm({ ...form, sign: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-slate-400"><Stethoscope className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-widest">Surgical Details</span></div>
-            <div><label className={clinicalLbl}>Proposed Procedure</label><textarea value={form.proposedProcedure} onChange={e=>setForm({...form,proposedProcedure:e.target.value})} rows={3} className={clinicalInp+' resize-none'}></textarea></div>
-            <div><label className={clinicalLbl}>Type of Anesthesia</label><input value={form.anesthesiaType} onChange={e=>setForm({...form,anesthesiaType:e.target.value})} placeholder="e.g. General, Spinal, Local" className={clinicalInp} /></div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-slate-400"><Calendar className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-widest">Schedule & Verification</span></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className={clinicalLbl}>Date</label><input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className={clinicalInp} /></div>
-              <div><label className={clinicalLbl}>Time</label><input type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})} className={clinicalInp} /></div>
-            </div>
-            <div><label className={clinicalLbl}>Operating Surgeon</label><input value={form.doctorName} onChange={e=>setForm({...form,doctorName:e.target.value})} placeholder="Dr. Full Name" className={clinicalInp} /></div>
-            <div><label className={clinicalLbl}>Digital Signature</label><input value={form.signature} onChange={e=>setForm({...form,signature:e.target.value})} placeholder="Full signature name" className={clinicalInp} /></div>
-          </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(form)}
+            className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900"
+          >
+            Save
+          </button>
         </div>
       </div>
-    </ClinicalDialogShell>
+    </div>
   )
 }

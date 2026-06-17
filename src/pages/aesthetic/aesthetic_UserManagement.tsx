@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { aestheticApi, financeApi } from '../../utils/api'
+import { aestheticApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 
 type User = { _id: string; username: string; role: string }
@@ -11,7 +11,6 @@ export default function Aesthetic_UserManagement() {
   const [newUsername, setNewUsername] = useState('')
   const [newRole, setNewRole] = useState<User['role']>('')
   const [newPassword, setNewPassword] = useState('')
-  const [createFinanceAccount, setCreateFinanceAccount] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<{ _id: string; username: string; role: User['role']; password?: string } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -71,24 +70,10 @@ export default function Aesthetic_UserManagement() {
     try {
       const created = await aestheticApi.createUser({ username: newUsername, role: newRole, password: newPassword }) as any
       
-      // Create finance account if checkbox is checked
-      if (createFinanceAccount && created?._id) {
-        try {
-          await financeApi.createUserAccount({
-            portal: 'aesthetic',
-            userId: String(created._id),
-            username: created?.username || newUsername
-          })
-        } catch (e) {
-          console.error('Failed to create finance account:', e)
-        }
-      }
-      
       setUsers(prev => [...prev, { _id: String(created?._id || created?.id || ''), username: String(created?.username || newUsername), role: String(created?.role || newRole) }])
       setNewUsername('')
       setNewPassword('')
       setNewRole((roles[0] as any) || '')
-      setCreateFinanceAccount(false)
     } catch (e: any) {
       let msg = e?.message || 'Failed to add user'
       try {
@@ -301,16 +286,6 @@ export default function Aesthetic_UserManagement() {
                     className="w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-200/60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-sky-900/40"
                     placeholder="Password (min 4 chars)"
                   />
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={createFinanceAccount}
-                      onChange={e => setCreateFinanceAccount(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700 dark:text-slate-300">Create Finance Account</span>
-                  </label>
 
                   <button
                     type="button"

@@ -1,7 +1,6 @@
+import { Printer } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
-import { ClinicalDialogShell, ClinicalDatePicker, clinicalInp, clinicalLbl } from '../ui/ClinicalDialog'
-import { Stethoscope } from 'lucide-react'
 
 export default function Hospital_ErConsultantNotes({ encounterId }: { encounterId: string }){
   const [rows, setRows] = useState<Array<{ id: string; when: string; text: string; doctorName?: string; sign?: string }>>([])
@@ -42,7 +41,10 @@ export default function Hospital_ErConsultantNotes({ encounterId }: { encounterI
     <div className="rounded-xl border border-slate-200 bg-white p-4" data-encounterid={encounterId}>
       <div className="mb-2 flex items-center justify-between">
         <div className="text-lg font-semibold text-slate-900">CONSULTANT / MO / WMO - NOTES</div>
-        <button onClick={()=>setOpen(true)} className="btn">Add Note</button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => window.print()} className="btn-outline-navy flex items-center gap-2 print:hidden"><Printer className="h-4 w-4"/> Print</button>
+          <button onClick={()=>setOpen(true)} className="btn">Add Note</button>
+        </div>
       </div>
       {rows.length === 0 ? (
         <div className="text-slate-500">No notes yet.</div>
@@ -70,33 +72,53 @@ export default function Hospital_ErConsultantNotes({ encounterId }: { encounterI
           </table>
         </div>
       )}
-      <ErConsultDialog open={open} onClose={()=>setOpen(false)} onSave={add} />
+      <NoteDialog open={open} onClose={()=>setOpen(false)} onSave={add} />
     </div>
   )
 }
 
-function ErConsultDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void; onSave: (d: { when?: string; text?: string; doctorName?: string; sign?: string })=>void }){
-  const [form, setForm] = useState({ when: new Date().toISOString().slice(0,16), text: '', doctorName: '', sign: '' })
-
-  useEffect(()=>{
-    if (open) setForm({ when: new Date().toISOString().slice(0,16), text: '', doctorName: '', sign: '' })
-  }, [open])
-
-  const submit = (e: React.FormEvent) => {
+function NoteDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void; onSave: (d: { when?: string; text?: string; doctorName?: string; sign?: string })=>void }){
+  if(!open) return null
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    onSave(form)
+    const fd = new FormData(e.currentTarget)
+    onSave({
+      when: String(fd.get('when')||''),
+      text: String(fd.get('text')||''),
+      doctorName: String(fd.get('doctorName')||''),
+      sign: String(fd.get('sign')||''),
+    })
     onClose()
   }
   return (
-    <ClinicalDialogShell open={open} title="Add Consultant Note" subtitle="ER Documentation" icon={Stethoscope} onClose={onClose} onSubmit={submit}>
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ClinicalDatePicker label="Date/Time" value={form.when} onChange={v=>setForm({...form,when:v})} />
-          <div><label className={clinicalLbl}>Doctor Name</label><input value={form.doctorName} onChange={e=>setForm({...form,doctorName:e.target.value})} placeholder="Doctor name" className={clinicalInp} /></div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <form onSubmit={submit} className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+        <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Add Consultant Note</div>
+        <div className="space-y-3 px-5 py-4 text-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600">Date/Time</label>
+              <input name="when" type="datetime-local" defaultValue={new Date().toISOString().slice(0,16)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600">Doctor Name</label>
+              <input name="doctorName" placeholder="Doctor name" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Notes</label>
+            <textarea name="text" rows={4} placeholder="Enter notes..." className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Sign</label>
+            <input name="sign" placeholder="Signature" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" />
+          </div>
         </div>
-        <div><label className={clinicalLbl}>Notes</label><textarea value={form.text} onChange={e=>setForm({...form,text:e.target.value})} rows={4} placeholder="Enter notes..." className={clinicalInp + ' resize-none'}></textarea></div>
-        <div><label className={clinicalLbl}>Sign</label><input value={form.sign} onChange={e=>setForm({...form,sign:e.target.value})} placeholder="Signature" className={clinicalInp} /></div>
-      </div>
-    </ClinicalDialogShell>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>
+          <button type="submit" className="btn">Save</button>
+        </div>
+      </form>
+    </div>
   )
 }

@@ -1,16 +1,45 @@
-import { useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { hospitalApi, corporateApi } from '../../utils/api'
+import { hospitalApi, corporateApi, opdApi } from '../../utils/api'
 import { getLocalDate } from '../../utils/date'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 import { createCacheKey, getCache, setCache, invalidateCache } from '../../utils/apiCache'
 import Hospital_TokenSlip from '../../components/hospital/Hospital_TokenSlip'
 import Toast, { type ToastState } from '../../components/ui/Toast'
-import { previewHospitalRxPdf } from '../../utils/prescription/templates/hospitalRxPdf'
+import { previewEyePrescriptionPdf } from '../../utils/prescription/templates/eyePrescriptionPdf'
+import { previewHospitalRxPdf } from '../../utils/hospitalRxPdf'
 import PrescriptionVitals from '../../components/doctor/PrescriptionVitals'
-import { Ticket, Clock, RefreshCw, Filter, Search, FileSpreadsheet, FileDown, Wallet, CreditCard, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Printer, LayoutDashboard, UserCheck, UserX, HeartPulse, Trash2, Eye, Stethoscope } from 'lucide-react'
+import { 
+  Search, FileDown, RefreshCcw, Ticket, Banknote, CreditCard, Building, 
+  Tag, RotateCcw, Filter, Printer, Eye, Trash2, Edit2, Stethoscope,
+  Clock, Smartphone, Calendar
+} from 'lucide-react'
 
 function escHtml(v: any){
   return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c] || c)
+}
+
+function ServicesCell({ services }: { services?: string }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!services) return null
+  const list = services.split(',').map(s => s.trim()).filter(Boolean)
+  if (list.length <= 2) return <div className="text-[10px] font-bold text-violet-600 uppercase tracking-tighter wrap-break-word">{services}</div>
+
+  const visible = expanded ? list : list.slice(0, 2)
+  return (
+    <div className="text-[10px] font-bold text-violet-600 uppercase tracking-tighter">
+      <div className="wrap-break-word">
+        {visible.join(', ')}
+        {!expanded && '...'}
+      </div>
+      <button 
+        onClick={() => setExpanded(!expanded)} 
+        className="text-[9px] font-black text-violet-800 hover:underline mt-0.5 uppercase tracking-tighter block"
+      >
+        {expanded ? 'Show Less' : `Show All (${list.length})`}
+      </button>
+    </div>
+  )
 }
 
 function buildTokensPdfHtml({
@@ -24,11 +53,11 @@ function buildTokensPdfHtml({
   printedAt: Date
   hospital: { name: string; address?: string; phone?: string; logoDataUrl?: string }
   filters: string
-  rows: Array<{ time?: string; tokenNo?: string; mrNo?: string; patient?: string; phone?: string; doctor?: string; department?: string; fee?: any; isCorporate?: boolean; paidMethod?: string; status?: string }>
+  rows: Array<{ time?: string; tokenNo?: string; mrNo?: string; patient?: string; phone?: string; doctor?: string; department?: string; services?: string; fee?: any; isCorporate?: boolean; paidMethod?: string; status?: string }>
 }){
-  const printedDate = printedAt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  const printedTime = printedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  const head = ['Time','Type','Token #','MR #','Patient','Phone','Doctor','Department','Fee','Status']
+  const printedDate = fmtDateTime12(printedAt.toISOString()).split(', ')[0] || ''
+  const printedTime = fmtDateTime12(printedAt.toISOString()).split(', ')[1] || ''
+  const head = ['Time','Type','Token #','MR #','Patient','Phone','Doctor','Department','Services','Fee','Status']
   const th = head.map(h => `<th>${escHtml(h)}</th>`).join('')
   const body = (rows || []).map(r => {
     const method = String(r.paidMethod || '').toLowerCase()
@@ -43,6 +72,7 @@ function buildTokensPdfHtml({
       <td>${escHtml(r.phone || '')}</td>
       <td>${escHtml(r.doctor || '')}</td>
       <td>${escHtml(r.department || '')}</td>
+      <td>${escHtml(r.services || '')}</td>
       <td class="right">${escHtml(`Rs ${fee.toFixed(0)}`)}</td>
       <td>${escHtml(r.status || '')}</td>
     </tr>`
@@ -123,6 +153,7 @@ type TokenSlipData = {
   isReprint?: boolean
   doctorQualification?: string
   doctorSpecialization?: string
+  encounterId?: string
 }
 
 interface TokenRow {
@@ -143,6 +174,7 @@ interface TokenRow {
   cnic?: string
   doctor?: string
   department?: string
+  services?: string
   fee: number
   discount: number
   status: 'queued'|'in-progress'|'completed'|'returned'|'cancelled'
@@ -162,8 +194,10 @@ export default function Hospital_TodayTokens(){
   const [query, setQuery] = useState('')
   const [departmentId, setDepartmentId] = useState<string>('All')
   const [doctorId, setDoctorId] = useState<string>('All')
+  const [serviceId, setServiceId] = useState<string>('All')
   const [departments, setDepartments] = useState<any[]>([])
   const [doctors, setDoctors] = useState<any[]>([])
+  const [services, setServices] = useState<any[]>([])
   const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([])
   const [revByMethod, setRevByMethod] = useState<{ cash: number; card: number }>({ cash: 0, card: 0 })
   const [backendStats, setBackendStats] = useState<any>(null)
@@ -171,14 +205,16 @@ export default function Hospital_TodayTokens(){
   const [page, setPage] = useState(1)
   const [backendTotal, setBackendTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const [eyeRxEnabled, setEyeRxEnabled] = useState(true)
   const [forceRefresh, setForceRefresh] = useState(0)
   const [showSlip, setShowSlip] = useState(false)
   const [slipData, setSlipData] = useState<TokenSlipData | null>(null)
-  const [actioningId, setActioningId] = useState<string>('')
   const [toast, setToast] = useState<ToastState>(null)
   const [confirmCancel, setConfirmCancel] = useState<{ open: boolean; token: any } | null>(null)
   const [tokenType, setTokenType] = useState<'All' | 'Cash' | 'Corporate'>('All')
   const [visitCategory, setVisitCategory] = useState<'All' | 'Public' | 'Private'>('All')
+  const [fromDate, setFromDate] = useState(getLocalDate())
+  const [toDate, setToDate] = useState(getLocalDate())
   const [vitalsDialog, setVitalsDialog] = useState<{ open: boolean; token: TokenRow | null }>({ open: false, token: null })
   const vitalsRef = useRef<any>(null)
   const hasLoadedRef = useRef(false)
@@ -187,30 +223,39 @@ export default function Hospital_TodayTokens(){
   useEffect(() => {
     ;(async()=>{
       try {
-        const [deps, docs, comps] = await Promise.all([
-          hospitalApi.listDepartments() as any,
+        const [deps, docs, svcs, comps, sett] = await Promise.all([
+          hospitalApi.listDepartments({ limit: 1000 }) as any,
           hospitalApi.listDoctors() as any,
+          hospitalApi.listErServices({ active: true, limit: 1000 }) as any,
           corporateApi.listCompanies() as any,
+          hospitalApi.getSettings().catch(() => null) as any,
         ])
         setDepartments(deps?.departments || deps?.data || deps || [])
         setDoctors(docs?.doctors || docs?.data || docs || [])
+        setServices(svcs?.services || svcs || [])
         const arr = (comps?.companies || comps?.data || comps || []).map((c:any)=>({ id: String(c._id||c.id), name: c.name }))
         setCompanies(arr)
+        if (sett) {
+          const s: any = sett?.settings || sett
+          const apiEyeRx = s?.eyeRxEnabled
+          setEyeRxEnabled(apiEyeRx !== false)
+        }
       } catch {
         setDepartments([])
         setDoctors([])
+        setServices([])
         setCompanies([])
       }
     })()
   }, [])
 
   const load = useCallback(async (force: boolean = false) => {
-    const today = getLocalDate()
     // Server-side pagination: pass page and limit to backend
     const isAll = rowsPerPage === -1
-    const params: any = { date: today, page, limit: isAll ? 1000 : rowsPerPage }
+    const params: any = { from: fromDate, to: toDate, page, limit: isAll ? 1000 : rowsPerPage }
     if (departmentId !== 'All') params.departmentId = departmentId
     if (doctorId !== 'All') params.doctorId = doctorId
+    if (serviceId !== 'All') params.serviceId = serviceId
     
     // Check cache first (unless forcing refresh)
     const cacheKey = createCacheKey('/hospital/tokens', params)
@@ -240,14 +285,14 @@ export default function Hospital_TodayTokens(){
     } finally {
       setIsLoading(false)
     }
-  }, [departmentId, doctorId, page, rowsPerPage])
+  }, [departmentId, doctorId, serviceId, page, rowsPerPage, fromDate, toDate])
   
   useEffect(() => { load(forceRefresh > 0) }, [load, forceRefresh])
   
   async function processTokens(tokens: any[]) {
     const items: TokenRow[] = (tokens || []).map((t: any) => ({
       _id: t._id,
-      time: t.createdAt ? new Date(t.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '',
+      time: t.createdAt ? fmtDateTime12(t.createdAt) : '',
       tokenNo: t.tokenNo,
       mrNo: t.patientId?.mrn || t.mrn || '-',
       patient: t.patientId?.fullName || t.patientName || '-',
@@ -263,6 +308,7 @@ export default function Hospital_TodayTokens(){
       cnic: t.patientId?.cnicNormalized || t.patientId?.cnic,
       doctor: t.doctorId?.name || '-',
       department: t.departmentId?.name || '-',
+      services: t.serviceNames || (Array.isArray(t.serviceIds) ? t.serviceIds.map((s: any) => s.name).join(', ') : ''),
       fee: Number(t.fee || 0),
       discount: Number(t.discount || 0),
       status: t.status,
@@ -352,6 +398,8 @@ export default function Hospital_TodayTokens(){
   const cardRevenue = backendStats?.cardRevenue ?? revByMethod.card
   const totalRevenueAll = backendStats?.totalRevenue ?? (revByMethod.cash + revByMethod.card)
   const totalDiscount = backendStats?.totalDiscount ?? 0
+  const discountTokens = backendStats?.discountedTokens ?? 0
+  const returnedPatients = backendStats?.returnedPatients ?? 0
   const corporateTokens = backendStats?.corporateTokens ?? 0
 
   // When showing all, display all rows. Otherwise backend handles pagination
@@ -359,30 +407,14 @@ export default function Hospital_TodayTokens(){
   const pageRows = isAll ? filtered : filtered
   const totalPages = isAll ? 1 : Math.max(1, Math.ceil(backendTotal / rowsPerPage))
 
-  async function setStatus(row: TokenRow, status: TokenRow['status']){
-    try{
-      setActioningId(row._id)
-      await hospitalApi.updateTokenStatus(row._id, status)
-      // Invalidate cache and force refresh after status change
-      refresh()
-    } catch (e: any){
-      setToast({ type: 'error', message: e?.message || 'Failed to update status' })
-    } finally {
-      setActioningId('')
-    }
-  }
-
   async function deleteToken(row: TokenRow){
     try{
-      setActioningId(row._id)
       await hospitalApi.deleteToken(row._id)
       // Invalidate cache and force refresh after deletion
       refresh()
       setToast({ type: 'success', message: 'Token deleted permanently' })
     } catch (e: any){
       setToast({ type: 'error', message: e?.message || 'Failed to delete token' })
-    } finally {
-      setActioningId('')
     }
   }
 
@@ -413,6 +445,7 @@ export default function Hospital_TodayTokens(){
       isReprint: true,
       doctorQualification: docRec?.qualification || '',
       doctorSpecialization: docRec?.specialization || '',
+      encounterId: r.encounterId,
       ...(panelName ? { corporateCompanyName: panelName } : {}),
     }
     setSlipData(slip)
@@ -429,7 +462,14 @@ export default function Hospital_TodayTokens(){
           docRec = (res?.doctors || res || []).find((d:any)=> String(d.name||'').toLowerCase() === String(r.doctor||'').toLowerCase())
         } catch {}
       }
-      await previewHospitalRxPdf({
+      let eyeItems: any[] = []
+      if (r.encounterId) {
+        try {
+          const presRes: any = await opdApi.getPrescriptionByEncounterId(r.encounterId)
+          eyeItems = presRes?.prescription?.items || []
+        } catch {}
+      }
+      await previewEyePrescriptionPdf({
         settings: {
           name: s?.settings?.name || s?.name,
           address: s?.settings?.address || s?.address,
@@ -454,7 +494,7 @@ export default function Hospital_TodayTokens(){
           address: r.address,
           cnic: r.cnic,
         },
-        items: [],
+        items: eyeItems,
         createdAt: new Date().toISOString(),
         tokenNo: r.tokenNo,
         outdoorNo: r.tokenNo,
@@ -477,6 +517,13 @@ export default function Hospital_TodayTokens(){
           docRec = (res?.doctors || res || []).find((d:any)=> String(d.name||'').toLowerCase() === String(r.doctor||'').toLowerCase())
         } catch {}
       }
+      let rxItems: any[] = []
+      if (r.encounterId) {
+        try {
+          const presRes: any = await opdApi.getPrescriptionByEncounterId(r.encounterId)
+          rxItems = presRes?.prescription?.items || []
+        } catch {}
+      }
       await previewHospitalRxPdf({
         settings: {
           name: s?.settings?.name || s?.name,
@@ -502,12 +549,13 @@ export default function Hospital_TodayTokens(){
           address: r.address,
           cnic: r.cnic,
         },
-        items: [],
+        items: rxItems,
         createdAt: new Date().toISOString(),
         tokenNo: r.tokenNo,
         outdoorNo: r.tokenNo,
         visitCategory: r.visitCategory,
         isReprint: true,
+        manualRxFields: s?.settings?.manualRxFields || s?.manualRxFields,
       } as any)
     } catch (e: any){
       setToast({ type: 'error', message: e?.message || 'Failed to open Hospital Rx preview' })
@@ -556,7 +604,7 @@ export default function Hospital_TodayTokens(){
         setToast({ type: 'error', message: 'Enter at least one vital' })
         return
       }
-      await hospitalApi.updateToken(token._id, { vitals } as any)
+      await hospitalApi.updateToken(token._id, { vitals })
       setToast({ type: 'success', message: 'Vitals saved' })
       setVitalsDialog({ open: false, token: null })
       refresh()
@@ -629,6 +677,7 @@ export default function Hospital_TodayTokens(){
           phone: r.phone,
           doctor: r.doctor,
           department: r.department,
+          services: r.services,
           fee: r.fee,
           isCorporate: r.isCorporate,
           paidMethod: r.paidMethod as any,
@@ -653,74 +702,91 @@ export default function Hospital_TodayTokens(){
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-4 transition-colors duration-300 dark:bg-slate-950 lg:p-8">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="space-y-6 pb-10">
+      {/* Header Section */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
-            <Ticket className="h-6 w-6" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
+            <Ticket className="h-6 w-6 rotate-45" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-white">Today's Tokens</h1>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Real-time queue management</p>
+            <h2 className="text-2xl font-bold text-slate-800">Today's Tokens</h2>
+            <p className="text-sm font-medium text-slate-400 uppercase tracking-widest">REAL-TIME QUEUE MANAGEMENT</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-xs font-bold text-slate-400">
-          <Clock className="h-4 w-4" />
-          <span className="uppercase tracking-widest">{getLocalDate()}</span>
-          <button onClick={refresh} disabled={isLoading} className="ml-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800">
-            <RefreshCw className={`h-4 w-4 text-blue-600 ${isLoading ? 'animate-spin' : ''}`} />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 mr-4 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+             <Calendar className="h-3.5 w-3.5" />
+             {new Date().toISOString().slice(0, 10)}
+             <button onClick={refresh} disabled={isLoading} className="ml-2 hover:text-blue-600 transition-colors">
+               <RefreshCcw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+             </button>
+          </div>
+          <button onClick={exportCSV} className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-all uppercase tracking-wide border border-emerald-100">
+            <FileDown className="h-3.5 w-3.5" />
+            Export CSV
+          </button>
+          <button onClick={exportPdf} className="flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-all uppercase tracking-wide border border-rose-100">
+            <FileDown className="h-3.5 w-3.5" />
+            Export PDF
           </button>
         </div>
       </div>
 
-      {/* Filters & Search */}
-      <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-50 pb-4 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">Filters & Search</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={exportCSV} className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/20">
-              <FileSpreadsheet className="h-3.5 w-3.5" /> Export CSV
-            </button>
-            <button onClick={exportPdf} className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-900/20">
-              <FileDown className="h-3.5 w-3.5" /> Export PDF
-            </button>
-          </div>
+      {/* Filters Section */}
+      <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-100">
+        <div className="flex items-center gap-2 mb-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+          <Filter className="h-3 w-3" />
+          Filters & Search
         </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Department</label>
-            <select value={departmentId} onChange={e=>{ setDepartmentId(e.target.value); setPage(1) }} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+        
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">From Date</label>
+            <input type="date" value={fromDate} onChange={e=>{ setFromDate(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">To Date</label>
+            <input type="date" value={toDate} onChange={e=>{ setToDate(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Department</label>
+            <select value={departmentId} onChange={e=>{ setDepartmentId(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium">
               <option value="All">All Departments</option>
               {departments.map((d:any) => (
                 <option key={String(d._id || d.id)} value={String(d._id || d.id)}>{d.name}</option>
               ))}
             </select>
           </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Doctor</label>
-            <select value={doctorId} onChange={e=>{ setDoctorId(e.target.value); setPage(1) }} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Doctor</label>
+            <select value={doctorId} onChange={e=>{ setDoctorId(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium">
               <option value="All">All Doctors</option>
               {doctors.map((d:any) => (
                 <option key={String(d._id || d.id)} value={String(d._id || d.id)}>{d.name}</option>
               ))}
             </select>
           </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Billing Type</label>
-            <select value={tokenType} onChange={e=>{ setTokenType(e.target.value as any); setPage(1) }} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Service</label>
+            <select value={serviceId} onChange={e=>{ setServiceId(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium">
+              <option value="All">All Services</option>
+              {services.map((s:any) => (
+                <option key={String(s._id || s.id)} value={String(s._id || s.id)}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Billing Type</label>
+            <select value={tokenType} onChange={e=>{ setTokenType(e.target.value as any); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium">
               <option value="All">All Types</option>
               <option value="Cash">Cash</option>
               <option value="Corporate">Corporate</option>
             </select>
           </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Category</label>
-            <select value={visitCategory} onChange={e=>{ setVisitCategory(e.target.value as any); setPage(1) }} className="w-full rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Category</label>
+            <select value={visitCategory} onChange={e=>{ setVisitCategory(e.target.value as any); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium">
               <option value="All">All Categories</option>
               <option value="Public">General</option>
               <option value="Private">Private</option>
@@ -728,170 +794,167 @@ export default function Hospital_TodayTokens(){
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={query}
-              onChange={(e)=>{ setQuery(e.target.value); setPage(1) }}
-              placeholder="Search by name, token#, MR#, phone, doctor, department..."
-              className="w-full rounded-xl border border-slate-100 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/50"
-            />
-          </div>
+        <div className="relative">
+          <input
+            value={query}
+            onChange={(e)=>{ setQuery(e.target.value); setPage(1) }}
+            placeholder="Search by name, token#, MR#, phone, doctor, department..."
+            className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium placeholder:text-slate-400"
+          />
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-        <StatCard title="Total Tokens" value={totalTokens} icon={Ticket} color="bg-blue-600" />
-        <StatCard title="Total Revenue" value={`Rs. ${totalRevenueAll.toLocaleString()}`} icon={Wallet} color="bg-emerald-600" />
-        <StatCard title="Cash Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} icon={Wallet} color="bg-violet-600" />
-        <StatCard title="Card Revenue" value={`Rs. ${cardRevenue.toLocaleString()}`} icon={CreditCard} color="bg-indigo-600" />
-        <StatCard title="Corporate" value={corporateTokens} icon={ShieldCheck} color="bg-blue-800" />
-        <StatCard title="Discount" value={`Rs. ${totalDiscount.toLocaleString()}`} icon={TrendingUp} color="bg-amber-600" />
+      {/* Stats Widgets */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <WidgetCard title="Total Tokens" value={totalTokens} icon={<Ticket className="h-5 w-5" />} color="blue" />
+        <WidgetCard title="Total Revenue" value={`Rs. ${totalRevenueAll.toLocaleString()}`} icon={<Banknote className="h-5 w-5" />} color="emerald" />
+        <WidgetCard title="Cash Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} icon={<CreditCard className="h-5 w-5" />} color="violet" />
+        <WidgetCard title="Card Revenue" value={`Rs. ${cardRevenue.toLocaleString()}`} icon={<CreditCard className="h-5 w-5" />} color="indigo" />
+        <WidgetCard title="Corporate" value={corporateTokens} icon={<Building className="h-5 w-5" />} color="blue" />
+        <WidgetCard title="Discount" value={`Rs. ${totalDiscount.toLocaleString()}`} icon={<Tag className="h-5 w-5" />} color="orange" />
+        <WidgetCard title="Discounted Tokens" value={discountTokens} icon={<Tag className="h-5 w-5" />} color="emerald" />
+        <WidgetCard title="Returned Patients" value={returnedPatients} icon={<RotateCcw className="h-5 w-5" />} color="amber" />
       </div>
 
       {/* Table Section */}
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-sm">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800/50">
-                <Th>Time</Th>
-                <Th>Token / MR #</Th>
-                <Th>Patient Info</Th>
-                <Th>Type / Category</Th>
-                <Th>Doctor / Dept</Th>
-                <Th>Financials</Th>
-                <Th>Vitals</Th>
-                <Th className="text-right">Actions</Th>
+              <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                <th className="px-6 py-4">Time</th>
+                <th className="px-6 py-4">Token / MR #</th>
+                <th className="px-6 py-4">Patient Info</th>
+                <th className="px-6 py-4">Type / Category</th>
+                <th className="px-6 py-4">Doctor / Dept / Services</th>
+                <th className="px-6 py-4">Financials</th>
+                <th className="px-6 py-4 text-center">Vitals</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-20 text-center">
-                    <div className="flex flex-col items-center gap-2 text-slate-400">
-                      <Search className="h-10 w-10 opacity-20" />
-                      <p className="font-bold">No tokens found for today</p>
+            <tbody className="divide-y divide-slate-50">
+              {pageRows.map((r) => (
+                <tr key={r._id} className={`hover:bg-slate-50/50 transition-colors group ${r.status === 'returned' ? 'bg-amber-50/50' : ''} ${r.isCorporate ? 'bg-blue-50/30' : ''}`}>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                       <Clock className="h-3.5 w-3.5 text-slate-300" />
+                       {r.time.split(', ')[1] || r.time}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="space-y-0.5">
+                      <div className="text-sm font-black text-blue-600 tracking-tight">{r.tokenNo}</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter line-clamp-1">{r.mrNo}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="space-y-0.5">
+                      <div className="text-sm font-black text-slate-700 uppercase tracking-tight line-clamp-1">{r.patient}</div>
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 tracking-tighter">
+                        <Smartphone className="h-3 w-3" />
+                        {r.phone || '-'}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      {r.isCorporate ? (
+                        <span className="w-fit inline-flex rounded-md bg-blue-50 px-2 py-0.5 text-[9px] font-black text-blue-600 uppercase tracking-wider">Corporate</span>
+                      ) : (
+                        (String(r.paidMethod || 'Cash').toLowerCase() === 'bank' || String(r.paidMethod || '').toLowerCase() === 'card') ? (
+                          <span className="w-fit inline-flex rounded-md bg-indigo-50 px-2 py-0.5 text-[9px] font-black text-indigo-600 uppercase tracking-wider">Card</span>
+                        ) : (
+                          <span className="w-fit inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-600 uppercase tracking-wider">Cash</span>
+                        )
+                      )}
+                      {r.visitCategory === 'private' ? (
+                        <span className="w-fit inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-[9px] font-black text-amber-600 uppercase tracking-wider">Private</span>
+                      ) : (
+                        <span className="w-fit inline-flex rounded-md bg-blue-50 px-2 py-0.5 text-[9px] font-black text-blue-600 uppercase tracking-wider">General</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="space-y-0.5">
+                      <div className="text-sm font-black text-slate-700 tracking-tight line-clamp-1">{r.doctor}</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter line-clamp-1">{r.department}</div>
+                      <ServicesCell services={r.services} />
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="space-y-0.5">
+                      <div className="text-sm font-black text-slate-700">Rs. {r.fee.toLocaleString()}</div>
+                      {r.discount > 0 && (
+                        <div className="text-[10px] font-bold text-rose-500 uppercase tracking-tighter">Disc: Rs. {r.discount.toLocaleString()}</div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex justify-center">
+                      {r.hasVitals ? (
+                        <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200" title="Vitals Added"></div>
+                      ) : (
+                        <div className="h-2 w-2 rounded-full bg-slate-200" title="No Vitals"></div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-end gap-1">
+                      <ActionBtn onClick={()=>openVitals(r)} icon={<Stethoscope className="h-3.5 w-3.5" />} title="Vitals" />
+                      <ActionBtn onClick={()=>printSlip(r)} icon={<Printer className="h-3.5 w-3.5" />} title="Slip" />
+                      {eyeRxEnabled && <ActionBtn onClick={()=>printEyeRx(r)} icon={<Eye className="h-3.5 w-3.5" />} title="Eye Rx" />}
+                      <ActionBtn onClick={()=>printHospitalRx(r)} icon={<Printer className="h-3.5 w-3.5" />} title="Hospital Rx" />
+                      <ActionBtn onClick={()=>openEdit(r)} icon={<Edit2 className="h-3.5 w-3.5" />} title="Edit" />
+                      <ActionBtn 
+                        onClick={async () => {
+                          try {
+                            await hospitalApi.updateTokenStatus(r._id, r.status === 'returned' ? 'queued' : 'returned')
+                            refresh()
+                            setToast({ type: 'success', message: r.status === 'returned' ? 'Token un-returned' : 'Token returned' })
+                          } catch (e: any) {
+                            setToast({ type: 'error', message: e?.message || 'Failed to update status' })
+                          }
+                        }}
+                        icon={<RotateCcw className="h-3.5 w-3.5" />} 
+                        title={r.status === 'returned' ? 'Undo Return' : 'Return'}
+                        color="amber"
+                      />
+                      <ActionBtn onClick={()=>setConfirmCancel({ open: true, token: r })} icon={<Trash2 className="h-3.5 w-3.5" />} title="Cancel" color="rose" />
                     </div>
                   </td>
                 </tr>
-              ) : (
-                pageRows.map((r) => (
-                  <tr key={r._id} className={`group transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${r.status === 'returned' ? 'bg-amber-50/30' : ''} ${r.isCorporate ? 'bg-violet-50/20' : ''}`}>
-                    <Td>
-                      <div className="font-bold text-slate-800 dark:text-white">{r.time}</div>
-                    </Td>
-                    <Td>
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-xs font-black text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                          {r.tokenNo}
-                        </span>
-                        <div className="text-xs font-bold text-slate-500">{r.mrNo}</div>
+              ))}
+              {pageRows.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-6 py-20 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
+                        <Ticket className="h-8 w-8" />
                       </div>
-                    </Td>
-                    <Td>
-                      <div className="font-bold text-slate-800 dark:text-white">{r.patient}</div>
-                      <div className="text-[10px] font-bold text-slate-400">{r.phone || '-'}</div>
-                    </Td>
-                    <Td>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex gap-1">
-                          {r.isCorporate ? (
-                            <span className="rounded-md bg-violet-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">Corporate</span>
-                          ) : (
-                            <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter ${
-                              String(r.paidMethod).toLowerCase() === 'cash' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                            }`}>
-                              {r.paidMethod || 'Cash'}
-                            </span>
-                          )}
-                        </div>
-                        <span className={`w-fit rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter ${
-                          r.visitCategory === 'private' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                        }`}>
-                          {r.visitCategory === 'private' ? 'Private' : 'General'}
-                        </span>
-                      </div>
-                    </Td>
-                    <Td>
-                      <div className="font-bold text-slate-700 dark:text-slate-200">{r.doctor}</div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{r.department}</div>
-                    </Td>
-                    <Td>
-                      <div className="font-black text-slate-800 dark:text-white">Rs. {r.fee.toLocaleString()}</div>
-                      {r.discount > 0 && <div className="text-[10px] font-bold text-rose-500">Disc: Rs. {r.discount.toLocaleString()}</div>}
-                    </Td>
-                    <Td>
-                      {r.hasVitals ? (
-                        <span className="flex items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                          <HeartPulse className="h-3 w-3" /> Added
-                        </span>
-                      ) : (
-                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tighter text-slate-500 dark:bg-slate-800 dark:text-slate-400">-</span>
-                      )}
-                    </Td>
-                    <Td className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button onClick={()=>printSlip(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Print Slip">
-                          <Ticket className="h-4 w-4" />
-                        </button>
-                        <button onClick={()=>printEyeRx(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Print Eye Rx">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button onClick={()=>printHospitalRx(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Print Hospital Rx">
-                          <Printer className="h-4 w-4" />
-                        </button>
-                        <button disabled={actioningId===r._id} onClick={()=>openVitals(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-emerald-900/30" title="Vitals">
-                          <Stethoscope className="h-4 w-4" />
-                        </button>
-                        <button disabled={actioningId===r._id} onClick={()=>openEdit(r)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700" title="Edit">
-                          <LayoutDashboard className="h-4 w-4" />
-                        </button>
-                        <button 
-                          disabled={actioningId===r._id}
-                          onClick={()=>setStatus(r, r.status === 'returned' ? 'queued' : 'returned')}
-                          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-                            r.status === 'returned' ? 'bg-amber-100 text-amber-700' : 'bg-slate-50 text-slate-600 hover:bg-amber-50 hover:text-amber-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-amber-900/30'
-                          }`}
-                          title={r.status === 'returned' ? 'Undo Return' : 'Mark Return'}
-                        >
-                          {r.status === 'returned' ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
-                        </button>
-                        <button disabled={actioningId===r._id} onClick={()=>setConfirmCancel({ open: true, token: r })} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-900/30" title="Delete">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </Td>
-                  </tr>
-                ))
+                      <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No tokens found today</p>
+                    </div>
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Show</span>
-              <select value={rowsPerPage} onChange={e=>{setRowsPerPage(parseInt(e.target.value)); setPage(1)}} className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800">
-                {[10,20,50,100,200].map(n => <option key={n} value={n}>{n}</option>)}
-                <option value={-1}>All</option>
-              </select>
-            </div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">
-              Page {page} of {totalPages}
-            </p>
+        {/* Rows per page selector & Pagination Section */}
+        <div className="flex flex-wrap items-center justify-between border-t border-slate-50 bg-slate-50/30 px-6 py-4 gap-4">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <span>Rows:</span>
+            <select value={rowsPerPage} onChange={e=>{setRowsPerPage(parseInt(e.target.value)); setPage(1)}} className="rounded-lg border-slate-200 bg-white py-1 px-2 text-[10px] font-bold focus:ring-0">
+              {[10,20,50,100,200].map(n => <option key={n} value={n}>{n}</option>)}
+              <option value={-1}>All</option>
+            </select>
+            <span className="ml-2">Showing {((page - 1) * rowsPerPage) + 1} to {Math.min(page * rowsPerPage, backendTotal)} of {backendTotal}</span>
           </div>
+          <div>Page {page} of {totalPages}</div>
           <div className="flex items-center gap-2">
-            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 disabled:opacity-30 dark:bg-slate-800">
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-600 disabled:opacity-30 dark:bg-slate-800">
-              <ChevronRight className="h-5 w-5" />
-            </button>
+            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-50">Prev</button>
+            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-50">Next</button>
           </div>
         </div>
       </div>
@@ -901,15 +964,15 @@ export default function Hospital_TodayTokens(){
       )}
 
       {confirmCancel?.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-900">
-            <div className="border-b border-slate-200 px-5 py-3 font-bold text-slate-800 dark:border-slate-800 dark:text-white">Confirm Delete</div>
-            <div className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">
-              <p className="font-bold text-rose-700">Warning: This action cannot be undone!</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Confirm Delete</div>
+            <div className="px-5 py-4 text-sm text-slate-700">
+              <p className="font-medium text-rose-700">Warning: This action cannot be undone!</p>
               <p className="mt-1">Are you sure you want to permanently delete this token?</p>
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">
-              <button type="button" onClick={()=>setConfirmCancel(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">No, keep it</button>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+              <button type="button" onClick={()=>setConfirmCancel(null)} className="btn-outline-navy">No, keep it</button>
               <button
                 type="button"
                 onClick={async()=>{
@@ -919,7 +982,7 @@ export default function Hospital_TodayTokens(){
                     await deleteToken(tok)
                   }
                 }}
-                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
+                className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
               >
                 Yes, delete permanently
               </button>
@@ -929,20 +992,20 @@ export default function Hospital_TodayTokens(){
       )}
 
       {vitalsDialog.open && vitalsDialog.token && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-800">
-              <div className="font-bold text-slate-800 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+              <div className="font-semibold text-slate-800">
                 Vitals - {vitalsDialog.token.patient} ({vitalsDialog.token.mrNo})
               </div>
-              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="text-slate-500 hover:text-slate-700 dark:text-slate-400">✕</button>
+              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="text-slate-500 hover:text-slate-700">✕</button>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+            <div className="p-5">
               <PrescriptionVitals ref={vitalsRef} />
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">
-              <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">Cancel</button>
-              <button type="button" onClick={saveVitals} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">Save Vitals</button>
+              <div className="mt-6 flex justify-end gap-3 border-t pt-4">
+                <button type="button" onClick={()=>setVitalsDialog({ open: false, token: null })} className="btn-outline-navy">Cancel</button>
+                <button type="button" onClick={saveVitals} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Vitals</button>
+              </div>
             </div>
           </div>
         </div>
@@ -953,26 +1016,46 @@ export default function Hospital_TodayTokens(){
   )
 }
 
-function Th({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <th className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 ${className}`}>{children}</th>
-}
-function Td({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <td className={`px-4 py-4 ${className}`}>{children}</td>
+function ActionBtn({ onClick, icon, title, color = 'blue' }: { onClick: any, icon: any, title: string, color?: string }) {
+  const colors: any = {
+    blue: 'text-blue-500 hover:bg-blue-50',
+    emerald: 'text-emerald-500 hover:bg-emerald-50',
+    violet: 'text-violet-500 hover:bg-violet-50',
+    rose: 'text-rose-500 hover:bg-rose-50',
+    amber: 'text-amber-500 hover:bg-amber-50',
+  }
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`p-1.5 rounded-lg transition-all ${colors[color] || colors.blue}`}
+    >
+      {icon}
+    </button>
+  )
 }
 
-function StatCard({ title, value, icon: Icon, color }: { title: string; value: ReactNode; icon: any; color: string }) {
+function WidgetCard({ title, value, icon, color }: { title: string, value: any, icon: any, color: string }) {
+  const colors: any = {
+    blue: 'bg-blue-500 shadow-blue-100',
+    emerald: 'bg-emerald-500 shadow-emerald-100',
+    violet: 'bg-violet-500 shadow-violet-100',
+    indigo: 'bg-indigo-500 shadow-indigo-100',
+    orange: 'bg-orange-500 shadow-orange-100',
+    amber: 'bg-amber-500 shadow-amber-100',
+  }
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all duration-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-      <div className={`absolute -right-3 -top-3 h-16 w-16 rounded-full opacity-[0.07] ${color}`} />
-      <div className="flex items-center gap-3">
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color} bg-opacity-10`}>
-          <Icon className={`h-5 w-5 ${color.replace('bg-', 'text-')}`} />
+    <div className="relative flex items-center justify-between overflow-hidden rounded-2xl bg-white p-4 shadow-sm border border-slate-100 group">
+      <div className="relative z-10 flex items-center gap-3">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-lg ${colors[color] || colors.blue}`}>
+          {icon}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">{title}</p>
-          <p className="text-lg font-black text-slate-800 dark:text-white">{value}</p>
+        <div>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</p>
+          <p className="text-lg font-black text-slate-800">{value}</p>
         </div>
       </div>
+      <div className={`absolute -right-4 -top-4 h-16 w-16 rounded-full opacity-5 ${colors[color] || colors.blue}`}></div>
     </div>
   )
 }

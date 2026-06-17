@@ -5,6 +5,7 @@ import { BiometricMapping } from '../models/BiometricMapping'
 const upsertSchema = z.object({
   deviceId: z.string().min(1),
   enrollId: z.string().min(1),
+  enrollName: z.string().optional(),
   staffId: z.string().min(1),
   active: z.boolean().optional(),
 })
@@ -26,6 +27,7 @@ export async function upsert(req: Request, res: Response){
   const key = { deviceId: data.deviceId, enrollId: data.enrollId }
   const patch: any = { staffId: data.staffId }
   if (typeof data.active === 'boolean') patch.active = data.active
+  if (typeof data.enrollName === 'string') patch.enrollName = data.enrollName
   const doc = await BiometricMapping.findOneAndUpdate(key, { $set: patch }, { new: true, upsert: true })
   res.json(doc)
 }

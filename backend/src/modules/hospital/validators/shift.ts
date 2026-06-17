@@ -7,6 +7,13 @@ export const shiftCreateSchema = z.object({
   absentCharges: z.coerce.number().nonnegative().optional().default(0),
   lateDeduction: z.coerce.number().nonnegative().optional().default(0),
   earlyOutDeduction: z.coerce.number().nonnegative().optional().default(0),
+  lateThreshold: z.coerce.number().nonnegative().optional().default(0),
+  bonusPerPresent: z.coerce.number().nonnegative().optional().default(0),
+  deductionPerAbsent: z.coerce.number().nonnegative().optional().default(0),
+  deductionPerLate: z.coerce.number().nonnegative().optional().default(0),
+  deductionPerMinLate: z.coerce.number().nonnegative().optional().default(0),
+  deductionPerMinEarlyOut: z.coerce.number().nonnegative().optional().default(0),
+  enableAbsentChargesRate: z.boolean().optional().default(false),
 })
 
 export const shiftUpdateSchema = shiftCreateSchema.partial()

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-
-const API_BASE = (import.meta as any).env?.VITE_API_BASE || ''
+import { dialysisApi } from '../../features/dialysis/dialysis.api'
 
 export default function Dialysis_Login() {
   const navigate = useNavigate()
@@ -32,21 +31,14 @@ export default function Dialysis_Login() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_BASE}/api/dialysis/users/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: uname, password: pwd }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || 'Invalid credentials')
+      const data: any = await dialysisApi.login(uname, pwd)
+      if (!data?.token) {
+        setError(data?.error || 'Invalid credentials')
         return
       }
-      localStorage.setItem('dialysis.session', JSON.stringify(data.user))
-      localStorage.setItem('dialysis.token', data.token)
       navigate('/dialysis')
-    } catch (err) {
-      setError('Login failed. Please try again.')
+    } catch (err: any) {
+      setError(err?.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }

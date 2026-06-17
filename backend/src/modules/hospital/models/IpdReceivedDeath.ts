@@ -6,6 +6,7 @@ const IpdReceivedDeathSchema = new Schema({
   patientId: { type: Schema.Types.ObjectId, ref: 'Lab_Patient', required: true },
   doctorId: { type: Schema.Types.ObjectId, ref: 'Hospital_Doctor' },
   departmentId: { type: Schema.Types.ObjectId, ref: 'Hospital_Department' },
+  rdNo: { type: String, index: true },
   srNo: { type: String },
   patientCnic: { type: String },
   relative: { type: String },
@@ -42,6 +43,7 @@ export type HospitalIpdReceivedDeathDoc = {
   patientId: string
   doctorId?: string
   departmentId?: string
+  rdNo?: string
   srNo?: string
   patientCnic?: string
   relative?: string

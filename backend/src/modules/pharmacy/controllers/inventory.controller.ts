@@ -67,7 +67,12 @@ export async function summary(req: Request, res: Response){
   const expiringSoonCount = items.reduce((s,it)=>{
     const d = parseDate(it.earliestExpiry)
     if (!d) return s
-    return s + (d <= soon ? 1 : 0)
+    return s + (d <= soon && d > now ? 1 : 0)
+  }, 0)
+  const deadCount = items.reduce((s,it)=>{
+    const d = parseDate(it.earliestExpiry)
+    if (!d) return s
+    return s + (d <= now ? 1 : 0)
   }, 0)
 
   res.json({
@@ -77,6 +82,7 @@ export async function summary(req: Request, res: Response){
       lowStockCount,
       outOfStockCount,
       expiringSoonCount,
+      deadCount,
     }
   })
 }

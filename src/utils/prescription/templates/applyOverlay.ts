@@ -1,10 +1,3 @@
-import type { PrescriptionOverlaySettings } from '../../prescriptionPdf'
-
-export async function applyOverlayBeforeOutput(pdf: any) {
-  const overlay: PrescriptionOverlaySettings | undefined = (window as any).__rxOverlaySettings
-  if (!overlay) return
-  if (!overlay.headerImageDataUrl && !overlay.footerImageDataUrl && !overlay.watermark) return
-
-  const { applyPrescriptionOverlays } = await import('../../prescriptionPdf')
-  await applyPrescriptionOverlays(pdf, overlay)
+export async function applyOverlayBeforeOutput(_pdf: any) {
+  // Overlay settings (watermark/header/footer images) are not yet configured in this build.
 }

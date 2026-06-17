@@ -8,7 +8,6 @@ import { StoreIssueModel } from '../models/StoreIssue'
 import { HospitalCounter } from '../models/Counter'
 import { StoreSupplierPaymentModel } from '../models/StoreSupplierPayment'
 import { HospitalDepartment } from '../models/Department'
-import { createSupplierAccount } from '../../finance/services/accountAutoCreate'
 
 // Generate next sequential issue number (e.g., IS-0001)
 async function nextIssueNo(): Promise<string> {
@@ -223,10 +222,6 @@ export const createSupplier = async (req: Request, res: Response) => {
   try {
     const { name, company, phone, address, taxId, status } = req.body
     const sup = await StoreSupplierModel.create({ name, company, phone, address, taxId, status: status || 'Active' })
-    // Auto-create account in Chart of Accounts
-    try {
-      await createSupplierAccount(String(sup._id), name || company || 'Supplier', 'hospital')
-    } catch {}
     res.status(201).json({ supplier: sup })
   } catch (err: any) {
     res.status(400).json({ error: err.message })
@@ -396,8 +391,15 @@ export const listInventory = async (req: Request, res: Response) => {
 
     const filter: any = { active: true }
     if (category) filter.category = category
-    if (status === 'low') filter.$expr = { $lte: ['$currentStock', '$minStock'] }
+    if (status === 'low') filter.$expr = { $and: [{ $gt: ['$currentStock', 0] }, { $lte: ['$currentStock', '$minStock'] }] }
     if (status === 'out') filter.currentStock = 0
+    if (status === 'expiring') {
+      const now = new Date()
+      const nowStr = now.toISOString().slice(0, 10)
+      const soon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+      const soonStr = soon.toISOString().slice(0, 10)
+      filter.earliestExpiry = { $ne: null, $gte: nowStr, $lte: soonStr }
+    }
     if (search) {
       filter.name = new RegExp(search as string, 'i')
     }
@@ -478,6 +480,13 @@ export const exportInventoryCsv = async (req: Request, res: Response) => {
     if (category) filter.category = category
     if (status === 'low') filter.$expr = { $lte: ['$currentStock', '$minStock'] }
     if (status === 'out') filter.currentStock = 0
+    if (status === 'expiring') {
+      const now = new Date()
+      const nowStr = now.toISOString().slice(0, 10)
+      const soon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+      const soonStr = soon.toISOString().slice(0, 10)
+      filter.earliestExpiry = { $ne: null, $gte: nowStr, $lte: soonStr }
+    }
     if (search) {
       filter.name = new RegExp(search as string, 'i')
     }
@@ -831,14 +840,39 @@ export const getReport = async (req: Request, res: Response) => {
           .limit(limitNumFinal)
           .lean()
         
-        data = items.map((item) => ({
-          name: item.name,
-          category: item.category || '',
-          unit: item.unit || 'pcs',
-          stock: item.currentStock,
-          minStock: item.minStock,
-          status: item.currentStock === 0 ? 'out' : item.currentStock <= item.minStock ? 'low' : 'ok',
-        }))
+        data = items.map((item: any) => {
+          const stock = item.currentStock || 0
+          const avgCost = item.avgCost || 0
+          const minStock = item.minStock || 0
+          let status = 'In Stock'
+          if (stock === 0) status = 'Out of Stock'
+          else if (stock <= minStock) status = 'Low Stock'
+          const expiryStr = item.earliestExpiry ? new Date(item.earliestExpiry).toISOString().slice(0, 10) : ''
+          if (expiryStr) {
+            const expiryDate = new Date(expiryStr)
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            if (expiryDate < today) status = 'Expired'
+            else {
+              const thirtyDays = new Date(today)
+              thirtyDays.setDate(thirtyDays.getDate() + 30)
+              if (expiryDate <= thirtyDays) status = 'Expiring Soon'
+            }
+          }
+          return {
+            name: item.name,
+            category: item.category || '',
+            unit: item.unit || 'pcs',
+            currentStock: stock,
+            minStock,
+            avgCost,
+            stockValue: stock * avgCost,
+            earliestExpiry: expiryStr,
+            lastPurchase: item.lastPurchase ? new Date(item.lastPurchase).toISOString().slice(0, 10) : '',
+            lastSupplier: item.lastSupplier || '',
+            status,
+          }
+        })
         
         pagination = {
           page: pageNum,

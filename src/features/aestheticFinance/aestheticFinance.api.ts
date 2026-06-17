@@ -7,7 +7,7 @@
  * - Journal Reversals
  */
 
-import { api, withQuery } from '@/api'
+import { api, withQuery } from '../../api'
 
 export const aestheticFinanceApi = {
   // -------------------------------------------------------------------------
@@ -15,7 +15,7 @@ export const aestheticFinanceApi = {
   // -------------------------------------------------------------------------
   manualDoctorEarning: (data: { doctorId: string; amount: number; revenueAccount?: 'OPD_REVENUE' | 'PROCEDURE_REVENUE' | 'IPD_REVENUE'; paidMethod?: 'Cash' | 'Bank' | 'AR'; memo?: string; patientName?: string; mrn?: string }) =>
     api('/aesthetic/finance/manual-doctor-earning', { method: 'POST', body: JSON.stringify(data) }),
-  doctorPayout: (data: { doctorId: string; amount: number; method?: 'Cash' | 'Bank'; memo?: string }) =>
+  doctorPayout: (data: { doctorId: string; amount: number; method?: 'Cash' | 'Bank'; memo?: string; sourceAccount?: string; destinationAccount?: string }) =>
     api('/aesthetic/finance/doctor-payout', { method: 'POST', body: JSON.stringify(data) }),
   doctorBalance: (doctorId: string) =>
     api(`/aesthetic/finance/doctor/${encodeURIComponent(doctorId)}/balance`),

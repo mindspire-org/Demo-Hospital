@@ -1,15 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
+import { api } from '../../api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { FileText, Receipt, LogOut } from 'lucide-react'
+import { previewGatePassPdf } from '../../utils/hospital_documents'
 
- type Discharge = {
+type BedLocation = {
+  floor: string
+  type: 'room' | 'ward'
+  location: string
+  bed: string
+}
+
+type Discharge = {
   id: string
   patientId?: string
   mrn?: string
   name: string
+  age?: string
+  gender?: string
   doctor?: string
   bed?: number
+  bedLocation?: BedLocation
   admitted?: string
   discharged: string
   note?: string
@@ -46,8 +59,11 @@ export default function Hospital_Discharged() {
         patientId: String((r.patientId?._id)||''),
         mrn: String((r.patientId?.mrn)||''),
         name: String((r.patientId?.fullName)||'').toLowerCase(),
+        age: String(r.patientId?.age || ''),
+        gender: String(r.patientId?.gender || ''),
         doctor: String((r.doctorId?.name)||''),
         bed: r.bedLabel || '',
+        bedLocation: r.bedLocation,
         admitted: r.startAt,
         discharged: r.endAt || r.updatedAt || r.createdAt,
       }))
@@ -110,9 +126,61 @@ export default function Hospital_Discharged() {
     try { window.open(fullUrl, '_blank') } catch {}
   }
 
-  const printSummary = (id: string) => openPrintPreview(`${apiBase}/hospital/ipd/admissions/${encodeURIComponent(id)}/discharge-summary/print`)
-  const printDeathCert = (id: string) => openPrintPreview(`${apiBase}/hospital/ipd/admissions/${encodeURIComponent(id)}/death-certificate/print`)
-  const printInvoice = (id: string) => openPrintPreview(`${apiBase}/hospital/ipd/admissions/${encodeURIComponent(id)}/final-invoice/print`)
+  const printMedicalRecord = (id: string) => {
+    const url = `${apiBase}/hospital/ipd/encounters/${encodeURIComponent(id)}/medical-record/print`
+    openPrintPreview(url)
+  }
+  
+  const printInvoice = async (id: string) => {
+    // First check if invoice exists
+    try {
+      const res: any = await api(`/hospital/ipd/admissions/${encodeURIComponent(id)}/final-invoice`)
+      const hasInvoice = res && (res.invoice || (res.items && res.items.length > 0))
+      if (!hasInvoice) {
+        setToast({ type: 'error', message: 'There is no invoice saved for this encounter' })
+        return
+      }
+    } catch {
+      setToast({ type: 'error', message: 'There is no invoice saved for this encounter' })
+      return
+    }
+    openPrintPreview(`${apiBase}/hospital/ipd/admissions/${encodeURIComponent(id)}/final-invoice/print`)
+  }
+
+  const printGatePass = async (r: Discharge) => {
+    try {
+      const s = await hospitalApi.getSettings()
+      let bedStr = ''
+      if (r.bedLocation) {
+        const bl = r.bedLocation
+        bedStr = `${bl.floor} / ${bl.location} / Bed: ${bl.bed}`
+      } else {
+        bedStr = String(r.bed || '-')
+      }
+
+      await previewGatePassPdf({
+        settings: {
+          name: s?.name,
+          address: s?.address,
+          phone: s?.phone,
+          logoDataUrl: s?.logoDataUrl,
+        },
+        patient: {
+          name: r.name,
+          mrn: r.mrn,
+          age: r.age, 
+          gender: r.gender,
+          department: 'IPD',
+          bed: bedStr,
+          admitDate: r.admitted,
+          dischargeDate: r.discharged,
+          dischargeTime: new Date(r.discharged).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+        }
+      })
+    } catch (e) {
+      setToast({ type: 'error', message: 'Failed to generate gate pass' })
+    }
+  }
 
   const exportCsv = () => {
     const csv = toCsv(filtered)
@@ -184,15 +252,15 @@ export default function Hospital_Discharged() {
                   <td className="px-4 py-2">{r.mrn || '-'}</td>
                   <td className="px-4 py-2 capitalize">{r.name}</td>
                   <td className="px-4 py-2">{r.doctor || '-'}</td>
-                  <td className="px-4 py-2">{r.bed ?? '-'}</td>
+                  <td className="px-4 py-2">{r.bedLocation ? `${r.bedLocation.floor} / ${r.bedLocation.location} / Bed: ${r.bedLocation.bed}` : (r.bed ?? '-')}</td>
                   <td className="px-4 py-2">{r.admitted ? new Date(r.admitted).toLocaleString() : '-'}</td>
                   <td className="px-4 py-2">{new Date(r.discharged).toLocaleString()}</td>
                   <td className="px-4 py-2"><span className="rounded-full bg-emerald-600 px-2 py-1 text-xs text-white">Discharged</span></td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap gap-1">
-                      <button onClick={()=>printSummary(r.id)} className="btn-outline-navy">Summary</button>
-                      <button onClick={()=>printInvoice(r.id)} className="btn-outline-navy">Invoice</button>
-                      <button onClick={()=>printDeathCert(r.id)} className="btn-outline-navy">Death Cert</button>
+                      <button onClick={()=>printMedicalRecord(r.id)} className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"><FileText className="h-3.5 w-3.5" />Print Record</button>
+                      <button onClick={()=>printInvoice(r.id)} className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"><Receipt className="h-3.5 w-3.5" />Invoice</button>
+                      <button onClick={()=>printGatePass(r)} className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"><LogOut className="h-3.5 w-3.5" />Gate Pass</button>
                     </div>
                   </td>
                 </tr>

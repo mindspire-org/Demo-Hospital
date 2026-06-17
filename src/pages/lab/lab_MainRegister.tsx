@@ -23,8 +23,13 @@ type Order = {
   _id: string
   tokenNo?: string
   labNumber?: number
+  sampleType?: 'normal' | 'urgent' | 'stat'
   createdAt: string
   patient?: { fullName?: string; mrn?: string; age?: string; gender?: string }
+  net?: number
+  receivedAmount?: number
+  discount?: number
+  billingType?: string
 }
 
 export default function Lab_MainRegister() {
@@ -39,10 +44,10 @@ export default function Lab_MainRegister() {
     setLoading(true)
     try {
       const [oRes, rRes]: any[] = await Promise.all([
-        labApi.listOrders({ from, to, limit: 1000 }),
+        labApi.listOrders({ from, to, limit: 1000, includeFinancials: true as any }),
         labApi.listResults({ from, to, limit: 1000 }),
       ])
-      setOrders(oRes?.items || [])
+      setOrders((oRes?.items || []).map((o: any) => ({ ...o, net: Number(o.net || 0), receivedAmount: Number(o.receivedAmount || 0), discount: Number(o.discount || 0), billingType: o.billingType })))
       setResults(rRes?.items || [])
     } finally { setLoading(false) }
   }
@@ -63,7 +68,12 @@ export default function Lab_MainRegister() {
     const totalResults = results.length
     const totalParams = results.reduce((s, r) => s + (r.rows?.length || 0), 0)
     const critical = results.reduce((s, r) => s + (r.rows || []).filter(row => row.flag === 'critical').length, 0)
-    return { patients: orders.length, totalResults, totalParams, critical }
+    const totalRevenue = orders.reduce((s, o) => s + (o.net || 0), 0)
+    const totalReceived = orders.reduce((s, o) => s + (o.receivedAmount || 0), 0)
+    const totalPending = Math.max(0, totalRevenue - totalReceived)
+    const totalDiscount = orders.reduce((s, o) => s + (o.discount || 0), 0)
+    const freeCount = orders.filter(o => (o.billingType || '').toLowerCase() === 'free').length
+    return { patients: orders.length, totalResults, totalParams, critical, totalRevenue, totalReceived, totalPending, totalDiscount, freeCount }
   }, [orders, results])
 
   function exportCsv() {
@@ -148,6 +158,30 @@ export default function Lab_MainRegister() {
         </div>
       </div>
 
+      {/* Financial Summary */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 print:hidden">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Revenue</div>
+          <div className="mt-1 text-xl font-extrabold text-slate-900">PKR {kpi.totalRevenue.toLocaleString()}</div>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <div className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Collected</div>
+          <div className="mt-1 text-xl font-extrabold text-emerald-900">PKR {kpi.totalReceived.toLocaleString()}</div>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <div className="text-xs font-medium text-amber-700 uppercase tracking-wide">Pending</div>
+          <div className="mt-1 text-xl font-extrabold text-amber-900">PKR {kpi.totalPending.toLocaleString()}</div>
+        </div>
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
+          <div className="text-xs font-medium text-sky-700 uppercase tracking-wide">Discounts Given</div>
+          <div className="mt-1 text-xl font-extrabold text-sky-900">PKR {kpi.totalDiscount.toLocaleString()}</div>
+        </div>
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+          <div className="text-xs font-medium text-violet-700 uppercase tracking-wide">Free Tests</div>
+          <div className="mt-1 text-xl font-extrabold text-violet-900">{kpi.freeCount}</div>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3 text-sm print:hidden">
         <label className="block"><span className="text-xs font-medium text-slate-600">From</span>
@@ -178,6 +212,7 @@ export default function Lab_MainRegister() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-slate-500">
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-bold uppercase text-[10px] ${o.sampleType === 'urgent' ? 'bg-rose-100 text-rose-700' : o.sampleType === 'stat' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{o.sampleType || 'normal'}</span>
                   <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">Token {o.tokenNo || '-'}</span>
                   <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">Lab# {o.labNumber || '-'}</span>
                   <span>{new Date(o.createdAt).toLocaleString()}</span>

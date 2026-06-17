@@ -302,7 +302,10 @@ export async function update(req: Request, res: Response){
     }
   }
 
-  if (patch.interpretation !== undefined) doc.interpretation = patch.interpretation
+  // Update interpretation only if it's explicitly provided in the patch
+  if (patch.interpretation !== undefined) {
+    doc.interpretation = patch.interpretation
+  }
 
   // Re-enrich on every update so flags + validation stay current
   try {

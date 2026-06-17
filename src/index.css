@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 /* Override Tailwind v4's default dark mode to use class-based only */
+/* stylelint-disable-next-line at-rule-no-unknown */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================
@@ -489,8 +490,22 @@ body {
 .doctor-scope.dark .text-violet-700 { color: #a78bfa !important; }
 .doctor-scope.dark .text-amber-700 { color: #fbbf24 !important; }
 .doctor-scope.dark .text-emerald-700 { color: #34d399 !important; }
-.doctor-scope.dark .from-sky-50 { --tw-gradient-from: #0f172a !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(15,23,42,0)) !important; }
-.doctor-scope.dark .to-violet-50 { --tw-gradient-to: #0b1220 !important; }
+.doctor-scope.dark .text-blue-700 { color: #60a5fa !important; }
+.doctor-scope.dark .text-red-700 { color: #f87171 !important; }
+.doctor-scope.dark .bg-white\/95 { background-color: rgba(15,23,42,0.95) !important; }
+.doctor-scope.dark .bg-red-50 { background-color: #371318 !important; }
+.doctor-scope.dark .border-red-200 { border-color: #7f1d1d !important; }
+.doctor-scope.dark .hover\:bg-red-100:hover { background-color: #450a0a !important; }
+.doctor-scope.dark .ring-blue-100 { --tw-ring-color: #1e3a5f !important; }
+.doctor-scope.dark .ring-purple-100 { --tw-ring-color: #3b2f5e !important; }
+.doctor-scope.dark .ring-amber-100 { --tw-ring-color: #451a03 !important; }
+.doctor-scope.dark .ring-emerald-100 { --tw-ring-color: #064e3b !important; }
+.doctor-scope.dark .from-sky-50,
+.doctor-scope.dark .from-sky-100 { --tw-gradient-from: #0f172a !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(15,23,42,0)) !important; }
+.doctor-scope.dark .to-violet-50,
+.doctor-scope.dark .to-violet-100 { --tw-gradient-to: #0b1220 !important; }
+.doctor-scope.dark .border-white\/40 { border-color: rgba(255,255,255,0.12) !important; }
+.doctor-scope.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #334155 !important; }
 
 .diagnostic-scope { color-scheme: light; } /* Force light native form elements when app dark mode is off */
 .diagnostic-scope.dark { color-scheme: dark; }

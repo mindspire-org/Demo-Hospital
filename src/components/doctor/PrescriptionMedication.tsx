@@ -1,20 +1,28 @@
 import { forwardRef, useState, useImperativeHandle, useEffect, useCallback, useMemo, useRef } from 'react'
 import { pharmacyApi } from '../../utils/api'
+import SuggestField from '../SuggestField'
+import { getPrescriptionOptions, type PrescriptionLanguage } from '../../utils/prescriptionUrdu'
 
 export interface MedicineRow {
   name: string
+  genericName?: string
+  company?: string
   qty?: string
   route?: string
   instruction?: string
+  notes?: string
   durationText?: string
   freqText?: string
-  durationUnit?: 'day(s)' | 'week(s)' | 'month(s)'
+  durationUnit?: 'day(s)' | 'week(s)' | 'month(s)' | 'دن' | 'ہفتہ' | 'مہینہ'
   morning?: string
   noon?: string
   evening?: string
   night?: string
   days?: string
 }
+
+// Re-export for convenience
+export type { MedicineRow as PrescriptionMedicineRow }
 
 interface PrescriptionMedicationProps {
   initialMedicines?: MedicineRow[]
@@ -27,122 +35,46 @@ interface PrescriptionMedicationProps {
     duration?: string[]
     frequency?: string[]
   }
+  language?: PrescriptionLanguage
 }
 
-// Default suggestions for medication fields
-const DEFAULT_DOSES = ['1 mg', '2 mg', '5 mg', '10 mg', '20 mg', '25 mg', '50 mg', '100 mg', '200 mg', '250 mg', '500 mg', '1 g', '1 ml', '2 ml', '5 ml', '10 ml', '1 tsp', '1 tbsp', '1 drop', '2 drops', '1 puff', '1 tablet', '2 tablets', '1 capsule', '1 sachet']
-const DEFAULT_ROUTES = ['Oral', 'IV', 'IM', 'SC', 'Topical', 'Sublingual', 'Rectal', 'Vaginal', 'Inhalation', 'Nasal', 'Ocular', 'Ear drops', 'Local application']
-const DEFAULT_INSTRUCTIONS = ['Before meals', 'After meals', 'With meals', 'Empty stomach', 'Bed time', 'Morning', 'Night', 'Once daily', 'Twice daily', 'Thrice daily', 'Four times daily', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'SOS', 'PRN', 'Stat', 'As directed']
-const DEFAULT_DURATIONS = ['1 day', '2 days', '3 days', '5 days', '7 days', '10 days', '14 days', '1 week', '2 weeks', '3 weeks', '4 weeks', '1 month', '2 months', '3 months', '6 months']
-const DEFAULT_FREQUENCIES = ['Once daily (OD)', 'Twice daily (BD)', 'Thrice daily (TID)', 'Four times daily (QID)', 'Every morning', 'Every night', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'SOS', 'Stat', 'Alternate days', 'Weekly', 'Monthly']
-
-// SelectInput component with working dropdown
-interface SelectInputProps {
-  value: string
-  onChange: (val: string) => void
-  options: string[]
-  placeholder?: string
-  className?: string
-}
-
-const SelectInput = ({ value, onChange, options, placeholder, className }: SelectInputProps) => {
-  const [open, setOpen] = useState(false)
-  const [inputValue, setInputValue] = useState(value || '')
-  const containerRef = useRef<HTMLDivElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    setInputValue(value || '')
-  }, [value])
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    if (open) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [open])
-
-  const filteredOptions = useMemo(() => {
-    const q = inputValue.toLowerCase()
-    if (!q) return options
-    return options.filter(o => o.toLowerCase().includes(q))
-  }, [inputValue, options])
-
-  const selectOption = (opt: string) => {
-    onChange(opt)
-    setInputValue(opt)
-    setOpen(false)
+// Get default suggestions based on language
+const getDefaultSuggestions = (language: PrescriptionLanguage = 'english') => {
+  const options = getPrescriptionOptions(language)
+  return {
+    doses: options.dose,
+    routes: options.route,
+    instructions: options.instruction,
+    durations: options.duration,
+    frequencies: options.frequency
   }
-
-  const toggleOpen = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setOpen(!open)
-  }
-
-  return (
-    <div ref={containerRef} className="relative">
-      <input
-        type="text"
-        value={inputValue}
-        onChange={e => { setInputValue(e.target.value); onChange(e.target.value) }}
-        onFocus={() => setOpen(true)}
-        placeholder={placeholder}
-        className={`${className} pr-8`}
-      />
-      <button
-        ref={buttonRef}
-        type="button"
-        onMouseDown={toggleOpen}
-        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 focus:outline-none"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
-      </button>
-      {open && (
-        <ul className="absolute z-100 mt-1 max-h-48 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg">
-          {filteredOptions.length === 0 ? (
-            <li className="px-3 py-2 text-slate-400 italic">No matches</li>
-          ) : (
-            filteredOptions.map((opt, i) => (
-              <li
-                key={i}
-                onMouseDown={(e) => { e.preventDefault(); selectOption(opt); }}
-                className="cursor-pointer px-3 py-1.5 text-slate-700 hover:bg-slate-100"
-              >
-                {opt}
-              </li>
-            ))
-          )}
-        </ul>
-      )}
-    </div>
-  )
 }
 
 const PrescriptionMedication = forwardRef(function PrescriptionMedication(
-  { initialMedicines = [], onChange, suggestions = {} }: PrescriptionMedicationProps,
+  { initialMedicines = [], onChange, suggestions = {}, language = 'english' }: PrescriptionMedicationProps,
   ref
 ) {
-  const [meds, setMeds] = useState<MedicineRow[]>(initialMedicines.length ? initialMedicines : [emptyRow()])
+  const emptyRow = useCallback((): MedicineRow => ({ name: '', durationUnit: language === 'urdu' ? 'دن' : 'day(s)' }), [language])
+  
+  const [meds, setMeds] = useState<MedicineRow[]>(() => {
+    if (initialMedicines.length > 0) return initialMedicines
+    return Array(5).fill(null).map(() => emptyRow())
+  })
   const [allMedicines, setAllMedicines] = useState<string[]>([])
+  const [medicineDetails, setMedicineDetails] = useState<Record<string, { genericName?: string; company?: string }>>({})
 
+  // Get language-based defaults
+  const defaultSuggestions = useMemo(() => getDefaultSuggestions(language), [language])
+  
   // Merge suggestions with defaults - always include defaults
   const mergedSuggestions = useMemo(() => ({
     medName: allMedicines.length ? allMedicines : (suggestions?.medName || []),
-    dose: Array.from(new Set([...DEFAULT_DOSES, ...(suggestions?.dose || [])])),
-    route: Array.from(new Set([...DEFAULT_ROUTES, ...(suggestions?.route || [])])),
-    instruction: Array.from(new Set([...DEFAULT_INSTRUCTIONS, ...(suggestions?.instruction || [])])),
-    duration: Array.from(new Set([...DEFAULT_DURATIONS, ...(suggestions?.duration || [])])),
-    frequency: Array.from(new Set([...DEFAULT_FREQUENCIES, ...(suggestions?.frequency || [])])),
-  }), [allMedicines, suggestions])
+    dose: Array.from(new Set([...defaultSuggestions.doses, ...(suggestions?.dose || [])])),
+    route: Array.from(new Set([...defaultSuggestions.routes, ...(suggestions?.route || [])])),
+    instruction: Array.from(new Set([...defaultSuggestions.instructions, ...(suggestions?.instruction || [])])),
+    duration: Array.from(new Set([...defaultSuggestions.durations, ...(suggestions?.duration || [])])),
+    frequency: Array.from(new Set([...defaultSuggestions.frequencies, ...(suggestions?.frequency || [])])),
+  }), [allMedicines, suggestions, defaultSuggestions])
 
   // Load all pharmacy medicines on mount
   useEffect(() => {
@@ -151,21 +83,23 @@ const PrescriptionMedication = forwardRef(function PrescriptionMedication(
       try {
         const res: any = await pharmacyApi.getAllMedicines()
         if (cancelled) return
-        const items: any[] = res?.items ?? res ?? []
-        const names = items.map((m: any) => String(m?.name || m?.genericName || m || '').trim()).filter(Boolean)
+        const medicines: any[] = res?.medicines ?? res?.items ?? res ?? []
+        const names = medicines.map((m: any) => String(m?.name || m?.genericName || m || '').trim()).filter(Boolean)
+        const details: Record<string, { genericName?: string; company?: string }> = {}
+        for (const m of medicines) {
+          const n = String(m?.name || '').trim()
+          if (n) details[n] = { genericName: m?.genericName || undefined, company: m?.company || m?.lastCompany || undefined }
+        }
         const parentNames = suggestions?.medName || []
         const merged = Array.from(new Set([...names, ...parentNames])).slice(0, 2000)
         setAllMedicines(merged)
+        setMedicineDetails(details)
       } catch {
         if (!cancelled) setAllMedicines(suggestions?.medName || [])
       }
     })()
     return () => { cancelled = true }
   }, [])
-
-  function emptyRow(): MedicineRow {
-    return { name: '', durationUnit: 'day(s)' }
-  }
 
   // Expose getData for parent ref usage
   useImperativeHandle(ref, () => ({
@@ -176,10 +110,15 @@ const PrescriptionMedication = forwardRef(function PrescriptionMedication(
   const setMed = useCallback((i: number, key: keyof MedicineRow, val: string) => {
     setMeds(prev => {
       const next = [...prev]
-      next[i] = { ...next[i], [key]: val }
+      if (key === 'name') {
+        const d = medicineDetails[val.trim()]
+        next[i] = { ...next[i], name: val, genericName: d?.genericName || next[i].genericName, company: d?.company || next[i].company }
+      } else {
+        next[i] = { ...next[i], [key]: val }
+      }
       return next
     })
-  }, [])
+  }, [medicineDetails])
 
   const addAfter = useCallback((i: number) => {
     setMeds(prev => {
@@ -203,100 +142,184 @@ const PrescriptionMedication = forwardRef(function PrescriptionMedication(
     onChangeRef.current?.(meds)
   }, [meds])
 
+  const isUrdu = language === 'urdu'
+  const lbl = {
+    no:    isUrdu ? '#'          : '#',
+    name:  isUrdu ? 'دوا'        : 'Medicine',
+    dose:  isUrdu ? 'خوراک'      : 'Dose',
+    freq:  isUrdu ? 'تعداد'      : 'Frequency',
+    route: isUrdu ? 'طریقہ'      : 'Route',
+    dur:   isUrdu ? 'مدت'        : 'Duration',
+    instr: isUrdu ? 'ہدایات'     : 'Instructions',
+    notes: isUrdu ? 'نوٹس'       : 'Notes',
+  }
+
+  const fieldCls = "w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 outline-none transition-all"
+
   return (
-    <div className="border border-slate-200">
-      <div className="hidden sm:grid grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
-        <div className="col-span-3">Name</div>
-        <div className="col-span-2">Duration</div>
-        <div className="col-span-2">Dosage</div>
-        <div className="col-span-2">Route</div>
-        <div className="col-span-2">Frequency</div>
-        <div className="col-span-1">Instruction</div>
+    <div className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+
+      {/* ── Column Header ── */}
+      <div className="hidden sm:flex items-center gap-0 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 select-none">
+        <div className="w-7 shrink-0 text-center">{lbl.no}</div>
+        <div className="flex-[2.4] px-2">{lbl.name}</div>
+        <div className="flex-[1.1] px-2">{lbl.dose}</div>
+        <div className="flex-[1.2] px-2">{lbl.freq}</div>
+        <div className="flex-[1.1] px-2">{lbl.route}</div>
+        <div className="flex-[1.1] px-2">{lbl.dur}</div>
+        <div className="flex-[1.4] px-2">{lbl.instr}</div>
+        <div className="w-16 shrink-0" />
       </div>
-      <div className="divide-y divide-slate-200">
+
+      {/* ── Rows ── */}
+      <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
         {meds.map((m, idx) => (
-          <div key={idx} className="px-3 py-2">
-            <div className="grid grid-cols-12 items-start gap-2">
-              {/* Medicine Name */}
-              <div className="col-span-12 sm:col-span-3">
-                <SelectInput
+          <div
+            key={idx}
+            className={`group px-4 py-3 transition-colors ${m.name ? 'hover:bg-sky-50/40 dark:hover:bg-sky-900/10' : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/20'}`}
+          >
+            {/* Main fields row */}
+            <div className="flex items-center gap-0">
+
+              {/* Row number */}
+              <div className="w-7 shrink-0 text-center">
+                <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${m.name ? 'bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
+                  {idx + 1}
+                </span>
+              </div>
+
+              {/* Medicine name */}
+              <div className="flex-[2.4] px-2 min-w-0">
+                <SuggestField
+                  as="input"
                   value={m.name || ''}
                   onChange={v => setMed(idx, 'name', v)}
-                  options={mergedSuggestions.medName}
+                  suggestions={mergedSuggestions.medName}
                   placeholder="Medicine name"
-                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  className={`${fieldCls} font-medium`}
+                  renderSuggestion={(s) => {
+                    const d = medicineDetails[s]
+                    if (!d?.genericName && !d?.company) return s
+                    return (
+                      <div>
+                        <div className="font-medium">{s}</div>
+                        {(d.genericName || d.company) && (
+                          <div className="text-[11px] text-slate-500">
+                            {d.genericName}{d.genericName && d.company ? ' · ' : ''}{d.company}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }}
                 />
               </div>
-              {/* Duration */}
-              <div className="col-span-6 sm:col-span-2">
-                <SelectInput
-                  value={m.durationText || ''}
-                  onChange={v => setMed(idx, 'durationText', v)}
-                  options={mergedSuggestions.duration}
-                  placeholder="Duration"
-                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                />
-              </div>
-              {/* Dosage */}
-              <div className="col-span-6 sm:col-span-2">
-                <SelectInput
+
+              {/* Dose */}
+              <div className="flex-[1.1] px-2 min-w-0">
+                <SuggestField
+                  as="input"
                   value={m.qty || ''}
                   onChange={v => setMed(idx, 'qty', v)}
-                  options={mergedSuggestions.dose}
-                  placeholder="Dosage"
-                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  suggestions={mergedSuggestions.dose}
+                  placeholder="e.g. 1 tab"
+                  className={fieldCls}
                 />
               </div>
-              {/* Route */}
-              <div className="col-span-6 sm:col-span-2">
-                <SelectInput
-                  value={m.route || ''}
-                  onChange={v => setMed(idx, 'route', v)}
-                  options={mergedSuggestions.route}
-                  placeholder="Route"
-                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                />
-              </div>
+
               {/* Frequency */}
-              <div className="col-span-6 sm:col-span-2">
-                <SelectInput
+              <div className="flex-[1.2] px-2 min-w-0">
+                <SuggestField
+                  as="input"
                   value={m.freqText || ''}
                   onChange={v => setMed(idx, 'freqText', v)}
-                  options={mergedSuggestions.frequency}
-                  placeholder="Frequency"
-                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  suggestions={mergedSuggestions.frequency}
+                  placeholder="e.g. BD"
+                  className={fieldCls}
                 />
               </div>
-              {/* Instruction */}
-              <div className="col-span-10 sm:col-span-1">
-                <SelectInput
+
+              {/* Route */}
+              <div className="flex-[1.1] px-2 min-w-0">
+                <SuggestField
+                  as="input"
+                  value={m.route || ''}
+                  onChange={v => setMed(idx, 'route', v)}
+                  suggestions={mergedSuggestions.route}
+                  placeholder="Oral"
+                  className={fieldCls}
+                />
+              </div>
+
+              {/* Duration */}
+              <div className="flex-[1.1] px-2 min-w-0">
+                <SuggestField
+                  as="input"
+                  value={m.durationText || ''}
+                  onChange={v => setMed(idx, 'durationText', v)}
+                  suggestions={mergedSuggestions.duration}
+                  placeholder="5 days"
+                  className={fieldCls}
+                />
+              </div>
+
+              {/* Instructions */}
+              <div className="flex-[1.4] px-2 min-w-0">
+                <SuggestField
+                  as="input"
                   value={m.instruction || ''}
                   onChange={v => setMed(idx, 'instruction', v)}
-                  options={mergedSuggestions.instruction}
-                  placeholder="Instruction"
-                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  suggestions={mergedSuggestions.instruction}
+                  placeholder="After meals"
+                  className={fieldCls}
                 />
               </div>
+
+              {/* Actions */}
+              <div className="w-16 shrink-0 flex items-center justify-end gap-1 pl-2">
+                <button
+                  type="button"
+                  onClick={() => addAfter(idx)}
+                  title="Add row below"
+                  className="h-7 w-7 flex items-center justify-center rounded-md text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeAt(idx)}
+                  title="Remove row"
+                  className="h-7 w-7 flex items-center justify-center rounded-md text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
             </div>
-            <div className="mt-2 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => removeAt(idx)}
-                className="rounded-md bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
-                title="Remove"
-              >
-                🗑️ Remove
-              </button>
-              <button
-                type="button"
-                onClick={() => addAfter(idx)}
-                className="rounded-md bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-700"
-              >
-                + Drug
-              </button>
+
+            {/* Notes — subtle inline field, only shown/focused if non-empty or on hover */}
+            <div className="mt-1.5 flex items-center gap-2 pl-9">
+              <input
+                type="text"
+                value={m.notes || ''}
+                onChange={e => setMed(idx, 'notes', e.target.value)}
+                placeholder="Additional notes (optional)..."
+                className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-xs text-slate-500 dark:text-slate-400 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:border-slate-200 dark:focus:border-slate-700 focus:bg-white dark:focus:bg-slate-800/60 focus:ring-0 outline-none transition-all"
+              />
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── Footer ── */}
+      <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+        <button
+          type="button"
+          onClick={() => addAfter(meds.length - 1)}
+          className="inline-flex items-center gap-2 rounded-lg border border-dashed border-sky-300 dark:border-sky-700 px-4 py-2 text-sm font-medium text-sky-600 dark:text-sky-400 hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-all active:scale-95"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          Add Medicine
+        </button>
+        <span className="text-xs text-slate-400 dark:text-slate-600">{meds.filter(m => m.name).length} / {meds.length} filled</span>
       </div>
     </div>
   )

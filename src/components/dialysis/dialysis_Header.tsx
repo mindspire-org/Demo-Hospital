@@ -1,27 +1,170 @@
-import { useNavigate } from 'react-router-dom'
-import { Droplets } from 'lucide-react'
-import PortalHeader from '../PortalHeader'
+import { Link, useNavigate } from 'react-router-dom'
+import { Menu, Droplets, Sun, Moon, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import LiveClock from '../common/LiveClock'
+
+function useUserRole(storageKey: string) {
+  const [role, setRole] = useState<string>('Admin')
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (raw) {
+        const u = JSON.parse(raw)
+        if (u?.role) setRole(String(u.role))
+        else if (u?.username) setRole(String(u.username))
+      }
+    } catch {}
+  }, [storageKey])
+  return role
+}
 
 type Props = { onToggleSidebar?: () => void; collapsed?: boolean; onToggleTheme?: () => void; theme?: 'light'|'dark'; variant?: 'default' | 'teal' }
 
-export default function Dialysis_Header({ onToggleSidebar, onToggleTheme, theme }: Props){
+export default function Dialysis_Header({ onToggleSidebar, collapsed, onToggleTheme, theme, variant = 'default' }: Props) {
   const navigate = useNavigate()
-  function logout(){
-    try { localStorage.removeItem('dialysis.session') } catch {}
-    try { localStorage.removeItem('dialysis.token') } catch {}
+  const userRole = useUserRole('dialysis.session')
+  const showThemeToggle = !!onToggleTheme && (theme === 'light' || theme === 'dark')
+
+  function handleLogout(){
+    try { localStorage.removeItem('dialysis.session'); localStorage.removeItem('dialysis.user') } catch {}
     navigate('/dialysis/login')
   }
+
+  function handleToggleTheme(){
+    const next = theme === 'dark' ? 'light' : 'dark'
+    try { localStorage.setItem('dialysis.theme', next) } catch {}
+    try {
+      const scope = document.querySelector('.dialysis-scope')
+      if (scope) scope.classList.toggle('dark', next === 'dark')
+    } catch {}
+    onToggleTheme?.()
+  }
+
+  const isTeal = variant === 'teal'
+  const headerCls = isTeal
+    ? 'h-14 w-full'
+    : 'sticky top-0 z-10 h-16 w-full border-b border-slate-200 bg-white/80 backdrop-blur shadow-sm dark:border-slate-700 dark:bg-slate-900/80'
+  const innerCls = isTeal
+    ? 'flex h-full w-full items-center gap-3 px-2 sm:px-3 text-white'
+    : 'flex h-full items-center gap-3 px-4 sm:px-6'
+
+  const btnCls = isTeal
+    ? 'inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/15 bg-white/5 text-white hover:bg-white/10'
+    : 'inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
+  const titleCls = isTeal ? 'font-semibold text-white' : 'font-semibold text-slate-900 dark:text-slate-200'
+  const pillCls = isTeal ? 'ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-white/90' : 'ml-2 rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700'
+  
+  const chipWrapCls = isTeal
+    ? 'hidden sm:flex items-center rounded-full border border-white/15 bg-white/5 shadow-sm backdrop-blur overflow-hidden'
+    : 'hidden sm:flex items-center rounded-full border border-slate-200 bg-white/70 shadow-sm backdrop-blur overflow-hidden dark:border-slate-700 dark:bg-slate-800/50'
+  const chipBtnCls = isTeal
+    ? 'inline-flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 transition'
+    : 'inline-flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50 transition dark:text-slate-200 dark:hover:bg-slate-800'
+  const chipDivCls = isTeal ? 'h-6 w-px bg-white/15' : 'h-6 w-px bg-slate-200 dark:bg-slate-700'
+  const chipTextCls = isTeal ? 'px-3 py-2 text-white capitalize' : 'px-3 py-2 text-slate-700 capitalize dark:text-slate-200'
+  const chipLogoutCls = isTeal
+    ? 'inline-flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 transition'
+    : 'inline-flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition dark:text-slate-200 dark:hover:bg-rose-900/30'
+  const mobileBtnCls = isTeal
+    ? 'inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/15 bg-white/5 text-white hover:bg-white/10 sm:hidden'
+    : 'inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:hidden'
+
   return (
-    <PortalHeader
-      brand="Dialysis ERP"
-      subtitle="Renal dialysis operations"
-      logo={<Droplets className="h-5 w-5" />}
-      to="/dialysis"
-      onToggleSidebar={onToggleSidebar}
-      onToggleTheme={onToggleTheme}
-      theme={theme}
-      onLogout={logout}
-      sessionKey="dialysis.session"
-    />
+    <header className={headerCls}>
+      <div className={innerCls}>
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={btnCls}
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        <Link to="/dialysis" className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-100 text-teal-600 shadow-inner">
+            <Droplets className="h-5 w-5" />
+          </div>
+          <div className="flex flex-col leading-tight">
+            <div className={titleCls}>Dialysis Portal</div>
+            <div className="text-[10px] uppercase tracking-wider text-white/60">Renal Care & Nephrology Services</div>
+          </div>
+          <span className={pillCls}>Online</span>
+        </Link>
+
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          <div className="hidden items-center gap-2 sm:flex">
+             <div className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-1.5 border border-white/10">
+                <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='h-4 w-4 text-sky-400'><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase text-white/40 font-bold">Today</span>
+                  <span className="text-xs font-semibold">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                </div>
+             </div>
+             <div className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-1.5 border border-white/10">
+                <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='h-4 w-4 text-emerald-400'><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase text-white/40 font-bold">Local Time</span>
+                  <LiveClock className="text-xs font-semibold" showSeconds={true} showTimezone={false} showDate={false} compact />
+                </div>
+             </div>
+          </div>
+
+          {showThemeToggle ? (
+            <button
+              type="button"
+              onClick={handleToggleTheme}
+              className={mobileBtnCls}
+              title="Toggle theme"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          ) : null}
+
+          <div className={chipWrapCls}>
+            {showThemeToggle ? (
+              <button
+                type="button"
+                onClick={handleToggleTheme}
+                className={chipBtnCls}
+                title="Toggle theme"
+              >
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                <span className="text-sm font-medium">Theme</span>
+              </button>
+            ) : null}
+
+            {showThemeToggle ? <div className={chipDivCls} /> : null}
+
+            <div className={chipTextCls}>
+              <span className="text-sm font-medium">{userRole}</span>
+            </div>
+
+            <div className={chipDivCls} />
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className={chipLogoutCls}
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="text-sm font-medium">Logout</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={mobileBtnCls}
+            aria-label="Logout"
+            title="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </header>
   )
 }

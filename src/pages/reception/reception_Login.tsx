@@ -33,6 +33,11 @@ export default function Reception_Login() {
       try {
         localStorage.setItem('reception.user', JSON.stringify(user))
         localStorage.setItem('reception.session', JSON.stringify({ username: user.username, role: user.role }))
+        const token = res?.token || res?.data?.token
+        if (token) {
+          localStorage.setItem('reception.token', token)
+          localStorage.setItem('token', token)
+        }
       } catch {}
       navigate("/reception");
     } catch (err: any) {

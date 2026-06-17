@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bell, CheckCircle, Trash2, RefreshCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 
  type Notification = {
   _id: string
@@ -27,7 +27,7 @@ export default function Pharmacy_Notifications(){
       const params: any = { page, limit }
       if (filter === 'unread') params.read = false
       else if (filter !== 'all') params.severity = filter
-      const res: any = await pharmacyApi.getNotifications(params)
+      const res: any = await indoorPharmacyApi.getNotifications(params)
       const list: Notification[] = Array.isArray(res?.items)
         ? res.items
         : Array.isArray(res?.notifications)
@@ -44,10 +44,10 @@ export default function Pharmacy_Notifications(){
 
   useEffect(()=>{ load() }, [page, limit, filter])
 
-  const markAll = async () => { try { await pharmacyApi.markAllNotificationsRead(); await load() } catch(e){ console.error(e) } }
-  const markOne = async (id: string) => { try { await pharmacyApi.markNotificationRead(id); setNotifications(prev=> prev.map(n=> n._id===id? { ...n, read: true } : n)) } catch(e){ console.error(e) } }
-  const removeOne = async (id: string) => { try { await pharmacyApi.deleteNotification(id); setNotifications(prev=> prev.filter(n=> n._id!==id)) } catch(e){ console.error(e) } }
-  const generate = async () => { try { await pharmacyApi.generateNotifications(); await load() } catch(e){ console.error(e) } }
+  const markAll = async () => { try { await indoorPharmacyApi.markAllNotificationsRead(); await load() } catch(e){ console.error(e) } }
+  const markOne = async (id: string) => { try { await indoorPharmacyApi.markNotificationRead(id); setNotifications(prev=> prev.map(n=> n._id===id? { ...n, read: true } : n)) } catch(e){ console.error(e) } }
+  const removeOne = async (id: string) => { try { await indoorPharmacyApi.deleteNotification(id); setNotifications(prev=> prev.filter(n=> n._id!==id)) } catch(e){ console.error(e) } }
+  const generate = async () => { try { await indoorPharmacyApi.generateNotifications(); await load() } catch(e){ console.error(e) } }
 
   const start = (page - 1) * limit + 1
   const end = Math.min(start + notifications.length - 1, total)

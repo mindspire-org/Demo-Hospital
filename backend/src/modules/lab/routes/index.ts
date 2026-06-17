@@ -389,6 +389,8 @@ r.get('/settings/header-history', Settings.listHeaderHistory)
 
 // Patients (MRN find-or-create)
 
+r.get('/patients', Patients.list)
+
 r.post('/patients/find-or-create', Patients.findOrCreate)
 
 r.get('/patients/by-mrn', Patients.getByMrn)
@@ -396,6 +398,12 @@ r.get('/patients/by-mrn', Patients.getByMrn)
 r.get('/patients/search', Patients.search)
 
 r.put('/patients/:id', Patients.update)
+
+r.delete('/patients/:id', Patients.remove)
+
+r.get('/patients/export', Patients.exportCsv)
+
+r.post('/patients/import', Patients.importCsv)
 
 
 
@@ -409,9 +417,7 @@ r.put('/tests/:id', Tests.update)
 
 r.delete('/tests/:id', Tests.remove)
 
-r.post('/tests/seed', Tests.seedTests)
 
-r.get('/tests/seed-status', Tests.getSeedStatus)
 
 
 

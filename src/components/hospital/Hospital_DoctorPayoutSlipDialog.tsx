@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 
 export type DoctorPayoutSlipData = {
   doctorId?: string
@@ -9,6 +10,8 @@ export type DoctorPayoutSlipData = {
   memo?: string
   createdByUsername?: string
   createdAt?: string
+  sourceAccount?: string
+  destinationAccount?: string
 }
 
 let settingsCache: any | null = null
@@ -67,7 +70,7 @@ export default function Hospital_DoctorPayoutSlipDialog({
 
   if (!open) return null
 
-  const dt = (()=>{ try{ return data?.createdAt ? new Date(data.createdAt) : new Date() }catch{ return new Date() } })()
+  const createdAtIso = data?.createdAt || new Date().toISOString()
   const performedBy = data?.createdByUsername || getHospitalUser()
 
   return (
@@ -90,7 +93,7 @@ export default function Hospital_DoctorPayoutSlipDialog({
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-slate-800">
           <div><span className="text-slate-600">Doctor:</span> {data?.doctorName || '-'}</div>
-          <div className="text-right"><span className="text-slate-600">Date/Time:</span> {dt.toLocaleDateString()} {dt.toLocaleTimeString()}</div>
+          <div className="text-right"><span className="text-slate-600">Date/Time:</span> {fmtDateTime12(createdAtIso)}</div>
           <div><span className="text-slate-600">Method:</span> {data?.method || '-'}</div>
           <div className="text-right"><span className="text-slate-600">User:</span> {performedBy || '-'}</div>
           <div className="col-span-2"><span className="text-slate-600">Memo:</span> {data?.memo || '-'}</div>

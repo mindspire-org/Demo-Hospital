@@ -31,8 +31,8 @@ export default function IndoorPharmacy_ReturnHistory() {
 
   useEffect(() => {
     function onReturn(){ setRefreshTick(t=>t+1) }
-    window.addEventListener('pharmacy:return', onReturn as any)
-    return ()=>{ window.removeEventListener('pharmacy:return', onReturn as any) }
+    window.addEventListener('indoor-pharmacy:return', onReturn as any)
+    return ()=>{ window.removeEventListener('indoor-pharmacy:return', onReturn as any) }
   }, [])
 
   useEffect(() => {

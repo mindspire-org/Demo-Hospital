@@ -26,6 +26,7 @@ type Props = {
 }
 
 export default function Aesthetic_AddStaffDialog({ open, onClose, onSave, initial = null, title, submitLabel }: Props) {
+  if (!open) return null
   const [shifts, setShifts] = useState<Shift[]>([])
 
   useEffect(() => {
@@ -40,8 +41,6 @@ export default function Aesthetic_AddStaffDialog({ open, onClose, onSave, initia
     })()
     return () => { mounted = false }
   }, [])
-
-  if (!open) return null
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

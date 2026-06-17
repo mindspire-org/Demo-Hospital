@@ -39,7 +39,16 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
 
-  // Palette - warm amber/orange pharmacy
+  const { ensureUrduNastaleeq, drawUrduText } = await import('../ensureUrduNastaleeq')
+  const urduOk = await ensureUrduNastaleeq(pdf)
+  const hasUrduChars = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrdu = (text: string, x: number, yy: number, opts?: any) => {
+    if (drawUrduText) drawUrduText(pdf, text, x, yy, opts)
+    else pdf.text(text, x, yy, opts)
+  }
+  const wantsUrdu = (data as any).language === 'urdu'
+  const isUrdu = wantsUrdu && urduOk
+
   const amber      = { r: 245, g: 158, b: 11  }
   const dark       = { r: 15,  g: 23,  b: 42  }
   const white      = { r: 255, g: 255, b: 255 }
@@ -56,15 +65,10 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
   const cw = W - 2 * mx
   let y = 6
 
-  // ══════════════════════════════════════════════════════════════
-  // 1. COMPACT HEADER (amber bar + single-line info)
-  // ══════════════════════════════════════════════════════════════
-  // Amber top strip
   pdf.setFillColor(amber.r, amber.g, amber.b)
   pdf.rect(mx, y, cw, 3, 'F')
 
   y += 5
-  // Logo + hospital name inline
   let nameX = mx + 4
   const logoSrc = String(settings.logoDataUrl || '')
   if (logoSrc) {
@@ -85,7 +89,6 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
   pdf.setTextColor(gray.r, gray.g, gray.b)
   pdf.text(`${settings.address || ''}  |  Tel: ${settings.phone || ''}`, nameX, y + 8)
 
-  // Doctor right side compact
   const drX = W - mx - 4
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(10)
@@ -98,15 +101,11 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
   if (drSub) pdf.text(drSub, drX, y + 7, { align: 'right' })
 
   y += 12
-  // Thin amber line
   pdf.setDrawColor(amber.r, amber.g, amber.b)
   pdf.setLineWidth(0.4)
   pdf.line(mx, y, W - mx, y)
   y += 4
 
-  // ══════════════════════════════════════════════════════════════
-  // 2. PATIENT (single compact line)
-  // ══════════════════════════════════════════════════════════════
   pdf.setFillColor(softAmber.r, softAmber.g, softAmber.b)
   pdf.rect(mx, y, cw, 8, 'F')
 
@@ -123,9 +122,6 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
   pdf.text(patInfo, mx + 3, y + 5)
   y += 10
 
-  // ══════════════════════════════════════════════════════════════
-  // 3. VITALS (inline)
-  // ══════════════════════════════════════════════════════════════
   const v: any = (data as any).vitals || {}
   const vitalsArr: string[] = []
   if (v.bloodPressureSys != null && v.bloodPressureDia != null) vitalsArr.push(`BP ${v.bloodPressureSys}/${v.bloodPressureDia}`)
@@ -140,9 +136,6 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
     y += 5
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 4. CLINICAL (compact two-column)
-  // ══════════════════════════════════════════════════════════════
   const addField = (label: string, value: string | undefined, x: number, yy: number): number => {
     if (!value || !String(value).trim()) return yy
     pdf.setFont('helvetica', 'bold')
@@ -172,12 +165,9 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
 
   y = Math.max(leftY, rightY) + 3
 
-  // ══════════════════════════════════════════════════════════════
-  // 5. Rx TABLE (compact, dense)
-  // ══════════════════════════════════════════════════════════════
+  const { translateRxItem } = await import('../../prescriptionUrdu')
   const meds = (data.items || []).filter(m => String(m?.name || '').trim())
   if (meds.length > 0) {
-    // Rx header
     pdf.setFillColor(amber.r, amber.g, amber.b)
     pdf.rect(mx, y, cw, 6, 'F')
     pdf.setTextColor(white.r, white.g, white.b)
@@ -187,7 +177,9 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
     y += 7
 
     const cols = [5, 36, 16, 16, 20, 13, 16, 12]
-    const headers = ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction', 'Qty']
+    const headers = isUrdu
+      ? ['#', 'Medicine', 'خوراک', 'مدت', 'فریکوئنسی', 'طریقہ', 'ہدایت', 'مقدار']
+      : ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction', 'Qty']
 
     pdf.setFillColor(softBrown.r, softBrown.g, softBrown.b)
     pdf.rect(mx, y - 3.5, cw, 4.5, 'F')
@@ -195,13 +187,22 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
     pdf.setFontSize(6)
     pdf.setTextColor(brown.r, brown.g, brown.b)
     let cx = mx + 1
-    headers.forEach((h, i) => { pdf.text(h, cx + 0.5, y); cx += cols[i] })
+    headers.forEach((h, i) => {
+      if (hasUrduChars(h)) { safeUrdu(h, cx + 0.5, y) } else { pdf.text(h, cx + 0.5, y) }
+      cx += cols[i]
+    })
     y += 3.5
 
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(6.5)
     pdf.setTextColor(dark.r, dark.g, dark.b)
     meds.forEach((m, i) => {
+      const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
+      const dose  = String(t?.dose || '').trim()
+      const dur   = String(t?.duration || '').trim()
+      const freq  = String(t?.frequency || '').trim()
+      const route = String(t?.route || '').trim()
+      const instr = String(t?.instruction || '').trim()
       if (i % 2 === 0) {
         pdf.setFillColor(255, 252, 240)
         pdf.rect(mx, y - 2.5, cw, 4, 'F')
@@ -209,17 +210,26 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
       cx = mx + 1
       pdf.text(String(i + 1), cx + 0.5, y); cx += cols[0]
       pdf.text(String(m?.name || '').trim(), cx + 0.5, y); cx += cols[1]
-      pdf.text(String(m?.dose || '').trim(), cx + 0.5, y); cx += cols[2]
-      pdf.text(String(m?.duration || '').trim(), cx + 0.5, y); cx += cols[3]
-      pdf.text(String(m?.frequency || '').trim(), cx + 0.5, y); cx += cols[4]
-      pdf.text(String(m?.route || '').trim(), cx + 0.5, y); cx += cols[5]
-      pdf.text(String(m?.instruction || '').trim(), cx + 0.5, y); cx += cols[6]
+      if (hasUrduChars(dose)) safeUrdu(dose, cx + cols[2] - 1, y, { align: 'right', maxWidth: cols[2] - 2 })
+      else { pdf.text(dose, cx + 0.5, y) }
+      cx += cols[2]
+      if (hasUrduChars(dur)) safeUrdu(dur, cx + cols[3] - 1, y, { align: 'right', maxWidth: cols[3] - 2 })
+      else { pdf.text(dur, cx + 0.5, y) }
+      cx += cols[3]
+      if (hasUrduChars(freq)) safeUrdu(freq, cx + cols[4] - 1, y, { align: 'right', maxWidth: cols[4] - 2 })
+      else { pdf.text(freq, cx + 0.5, y) }
+      cx += cols[4]
+      if (hasUrduChars(route)) safeUrdu(route, cx + cols[5] - 1, y, { align: 'right', maxWidth: cols[5] - 2 })
+      else { pdf.text(route, cx + 0.5, y) }
+      cx += cols[5]
+      if (hasUrduChars(instr)) safeUrdu(instr, cx + cols[6] - 1, y, { align: 'right', maxWidth: cols[6] - 2 })
+      else if (instr) { pdf.text(instr, cx + 0.5, y) }
+      cx += cols[6]
       pdf.text(String((m as any)?.qty || '').trim(), cx + 0.5, y)
       y += 4
     })
   }
 
-  // ── Tests ──
   const labTests = (data.labTests || []).filter(Boolean)
   const diagTests = (data.diagnosticTests || []).filter(Boolean)
   if (labTests.length || diagTests.length) {
@@ -235,9 +245,6 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
     y += 5
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 6. SIGNATURE + FOOTER
-  // ══════════════════════════════════════════════════════════════
   const signY = H - 24
   pdf.setDrawColor(amber.r, amber.g, amber.b)
   pdf.setLineWidth(0.2)
@@ -250,7 +257,6 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
   pdf.setTextColor(dark.r, dark.g, dark.b)
   pdf.text(`Dr. ${doctor.name || ''}`, mx + 2, signY + 6.5)
 
-  // Footer amber bar
   pdf.setFillColor(amber.r, amber.g, amber.b)
   pdf.rect(mx, H - 10, cw, 3, 'F')
   pdf.setFont('helvetica', 'bold')
@@ -258,11 +264,9 @@ export async function previewCompactPharmacyPdf(data: CompactPharmacyPdfData & E
   pdf.setTextColor(white.r, white.g, white.b)
   pdf.text(`${settings.name || ''}  |  ${settings.phone || ''}  |  ${settings.address || ''}`, W / 2, H - 8, { align: 'center' })
 
-  // ── Overlay (header/footer/watermark) ──
   const { applyOverlayBeforeOutput } = await import('./applyOverlay')
   await applyOverlayBeforeOutput(pdf)
 
-  // ── Output ──
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {

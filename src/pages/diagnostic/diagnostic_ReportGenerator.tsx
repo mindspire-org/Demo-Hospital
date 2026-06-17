@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { diagnosticApi } from '../../utils/api'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 import { DiagnosticTemplateRegistry } from '../../components/diagnostic/registry'
 import Toast from '../../components/ui/Toast'
 
@@ -112,7 +113,7 @@ export default function Diagnostic_ReportGenerator(){
           <tbody>
             {items.map(r => (
               <tr key={r.id} className="border-b border-slate-100">
-                <td className="px-4 py-2 whitespace-nowrap">{new Date(r.createdAt || '').toLocaleDateString()} {new Date(r.createdAt || '').toLocaleTimeString()}</td>
+                <td className="px-4 py-2 whitespace-nowrap">{fmtDateTime12(r.createdAt || '')}</td>
                 <td className="px-4 py-2 whitespace-nowrap">{r.patient?.fullName || '-'}</td>
                 <td className="px-4 py-2 whitespace-nowrap">{r.tokenNo || '-'}</td>
                 <td className="px-4 py-2 whitespace-nowrap">{r.testName}</td>

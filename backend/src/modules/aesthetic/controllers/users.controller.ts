@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs'
 import { AestheticUser } from '../models/User'
 import { userCreateSchema, userUpdateSchema } from '../validators/user'
 import { AuditLog } from '../models/AuditLog'
-import { createUserAccount } from '../../finance/services/accountAutoCreate'
 
 export async function list(_req: Request, res: Response){
   const items = await AestheticUser.find().sort({ username: 1 }).lean()
@@ -30,8 +29,6 @@ export async function create(req: Request, res: Response){
       detail: `${u.username} — ${u.role}`,
     })
   } catch {}
-  // Auto-create Chart of Accounts entry for this user
-  try { await createUserAccount(String(u._id), u.username, 'aesthetic') } catch {}
   res.status(201).json(u)
 }
 

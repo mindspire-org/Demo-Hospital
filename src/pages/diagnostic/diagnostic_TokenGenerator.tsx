@@ -303,7 +303,7 @@ export default function Diagnostic_TokenGenerator() {
   const [corpPreAuthNo, setCorpPreAuthNo] = useState('')
   const [corpCoPayPercent, setCorpCoPayPercent] = useState('')
   const [corpCoverageCap] = useState('')
-  const [billingType, setBillingType] = useState<'Cash'|'Card'|'Corporate'>('Cash')
+  const [billingType, setBillingType] = useState<'Cash'|'Bank'|'Corporate'>('Cash')
   // Corporate effective pricing map for DIAG tests
   const [corpTestPriceMap, setCorpTestPriceMap] = useState<Record<string, number>>({})
 
@@ -546,33 +546,7 @@ export default function Diagnostic_TokenGenerator() {
       // Create diagnostic order
       const testIds = selected
       const slipRows = selectedTests.map(t => ({ name: t.name, price: getEffectivePrice(t.id) }))
-      const created = window.location.pathname.startsWith('/reception')
-        ? await receptionApi.createDiagnosticOrder({
-          patientId: String(patient._id),
-          patient: {
-            mrn: patient.mrn || undefined,
-            fullName: fullName.trim(),
-            phone: phone || undefined,
-            age: age || undefined,
-            gender: gender || undefined,
-            address: address || undefined,
-            guardianRelation: guardianRel || undefined,
-            guardianName: guardianName || undefined,
-            cnic: cnic || undefined,
-          },
-          tests: testIds,
-          subtotal,
-          discount: Number(discount) || 0,
-          net,
-          receivedAmount: receivedNum,
-          referringConsultant: referringConsultant || undefined,
-          ...(billingType === 'Corporate' && corpCompanyId ? { corporateId: corpCompanyId } : {}),
-          ...(billingType === 'Corporate' && corpPreAuthNo ? { corporatePreAuthNo: corpPreAuthNo } : {}),
-          ...(billingType === 'Corporate' && corpCoPayPercent ? { corporateCoPayPercent: Number(corpCoPayPercent) } : {}),
-          ...(billingType === 'Corporate' && corpCoverageCap ? { corporateCoverageCap: Number(corpCoverageCap) } : {}),
-          portal: 'reception',
-        } as any)
-        : await diagnosticApi.createOrder({
+      const creationPayload: any = {
         patientId: String(patient._id),
         patient: {
           mrn: patient.mrn || undefined,
@@ -595,8 +569,26 @@ export default function Diagnostic_TokenGenerator() {
         ...(billingType === 'Corporate' && corpPreAuthNo ? { corporatePreAuthNo: corpPreAuthNo } : {}),
         ...(billingType === 'Corporate' && corpCoPayPercent ? { corporateCoPayPercent: Number(corpCoPayPercent) } : {}),
         ...(billingType === 'Corporate' && corpCoverageCap ? { corporateCoverageCap: Number(corpCoverageCap) } : {}),
+      }
+
+      if (billingType === 'Cash') creationPayload.paidMethod = 'Cash'
+      else if (billingType === 'Bank') creationPayload.paidMethod = 'Bank'
+
+      const created = window.location.pathname.startsWith('/reception')
+        ? await receptionApi.createDiagnosticToken({
+          ...creationPayload,
+          portal: 'reception',
+        } as any)
+        : await diagnosticApi.createToken({
+        ...creationPayload,
         portal: window.location.pathname.startsWith('/reception') ? 'reception' : 'diagnostic',
       } as any) as any
+
+      // Auto-convert token to sample so it appears in sample tracking
+      const createdId = created?._id || created?.id || created?.order?._id || created?.order?.id
+      if (createdId && !isEditMode) {
+        try { await diagnosticApi.convertToken(String(createdId)) } catch {}
+      }
 
       // If we are processing a referral, mark it completed and link the token/order
       const tokenNo = created?.tokenNo || created?.order?.tokenNo || 'N/A'
@@ -642,6 +634,31 @@ export default function Diagnostic_TokenGenerator() {
       setSlipData(data)
       setSlipOpen(true)
       setToast({ type: 'success', message: `Token ${data.tokenNo} generated successfully` })
+      
+      // Clear form after successful token generation (only in create mode, not edit mode)
+      if (!isEditMode) {
+        setFullName('')
+        setPhone('')
+        setMrn('')
+        setAge('')
+        setGender('')
+        setGuardianRel('')
+        setGuardianName('')
+        setCnic('')
+        setAddress('')
+        setSelected([])
+        setDiscount('0')
+        setReceivedAmount('0')
+        setCorpCompanyId('')
+        setCorpPreAuthNo('')
+        setCorpCoPayPercent('')
+        setBillingType('Cash')
+        setSelectedPatient(null)
+        setReferringConsultant('')
+        setFromReferralId('')
+        setRequestedTests([])
+        setForceCreatePatient(false)
+      }
     } catch (e: any) {
       setToast({ type: 'error', message: e?.message || 'Failed to create order' })
     }
@@ -793,7 +810,7 @@ export default function Diagnostic_TokenGenerator() {
                     className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                   >
                     <option value="Cash">Cash</option>
-                    <option value="Card">Card</option>
+                    <option value="Bank">Bank</option>
                     <option value="Corporate">Corporate</option>
                   </select>
                 </div>

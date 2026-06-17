@@ -1,37 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { hospitalApi, labApi, pharmacyApi } from '../../utils/api'
+import { hospitalApi, labApi, pharmacyApi, diagnosticApi } from '../../utils/api'
+import { invalidateCache } from '../../utils/apiCache'
 import { previewPrescriptionPdf } from '../../utils/prescriptionPdf'
 import type { PrescriptionPdfTemplate } from '../../utils/prescriptionPdf'
+import { previewPreAnesthesiaPdf } from '../../utils/preAnesthesiaPdf'
 import Doctor_IpdReferralForm from '../../components/doctor/Doctor_IpdReferralForm'
 import { previewIpdReferralPdf } from '../../utils/ipdReferralPdf'
 import PrescriptionPrint from '../../components/doctor/PrescriptionPrint'
-import PrescriptionMedication from '../../components/doctor/PrescriptionMedication'
+import PrescriptionMedication, { type MedicineRow } from '../../components/doctor/PrescriptionMedication'
+import { getSavedPrescriptionLanguage, type PrescriptionLanguage } from '../../utils/prescriptionUrdu'
 import PrescriptionVitals from '../../components/doctor/PrescriptionVitals'
 import PrescriptionDiagnosticOrders from '../../components/doctor/PrescriptionDiagnosticOrders'
+import Doctor_PreAnesthesiaForm from '../../components/doctor/Doctor_PreAnesthesiaForm'
+import type { PreAnesthesiaData } from '../../components/doctor/Doctor_PreAnesthesiaForm'
 import SuggestField from '../../components/SuggestField'
 import Toast from '../../components/ui/Toast'
 import type { ToastState } from '../../components/ui/Toast'
-import DatePickerModern from '../../components/DatePickerModern'
-import { 
-  User, 
-  History, 
-  Stethoscope, 
-  ClipboardList, 
-  Beaker, 
-  Activity, 
-  Printer, 
-  Save, 
-  RotateCcw, 
-  ArrowRight,
-  Plus,
-  Search,
-  Calendar,
-  AlertCircle,
-  Clock,
-  Layout,
-  FileText
-} from 'lucide-react'
+import DoctorCustomEntriesModal from '../../components/doctor/DoctorCustomEntriesModal'
+import PreviousPrescriptionsModal from '../../components/doctor/PreviousPrescriptionsModal'
 
 type DoctorSession = { id: string; name: string; username: string }
 
@@ -47,21 +34,6 @@ type Token = {
   tokenNo?: string
 }
 
-type MedicineRow = {
-  name: string
-  morning?: string
-  noon?: string
-  evening?: string
-  night?: string
-  days?: string
-  qty?: string
-  route?: string
-  instruction?: string
-  durationUnit?: 'day(s)'|'week(s)'|'month(s)'
-  durationText?: string
-  freqText?: string
-}
-
 //
 
 export default function Doctor_Prescription() {
@@ -73,9 +45,41 @@ export default function Doctor_Prescription() {
   const today = new Date().toISOString().slice(0, 10)
   const [from, setFrom] = useState<string>(today)
   const [to, setTo] = useState<string>(today)
-  const [rxMode, setRxMode] = useState<'electronic'|'manual'>('electronic')
-  const [manualAttachment, setManualAttachment] = useState<{ mimeType?: string; fileName?: string; dataUrl?: string } | null>(null)
-  const [manualAttachmentError, setManualAttachmentError] = useState<string>('')
+  const emptyMedRow = (): MedicineRow => ({
+    name: '',
+    morning: '',
+    noon: '',
+    evening: '',
+    night: '',
+    days: '',
+    qty: '',
+    route: '',
+    instruction: '',
+    durationUnit: 'day(s)',
+    durationText: '',
+    freqText: '',
+  })
+  const emptyPreAnesthesia = (): PreAnesthesiaData => ({
+    isApplied: false,
+    history: {
+      cvs: '',
+      respiratory: '',
+      renal: '',
+      hepatic: '',
+      diabetic: '',
+      neurology: '',
+      previousAnesthesia: '',
+      allergies: '',
+    },
+    examination: {
+      mallampatiScore: '',
+      asaClass: '',
+      airway: '',
+      teeth: '',
+      notes: '',
+    },
+    recommendation: '',
+  })
   const [form, setForm] = useState({
     patientKey: '',
     primaryComplaint: '',
@@ -87,17 +91,20 @@ export default function Doctor_Prescription() {
     examFindings: '',
     diagnosis: '',
     advice: '',
+    nextFollowUp: '',
     labTestsText: '',
     vitalsDisplay: {},
     vitalsNormalized: {},
     diagDisplay: { testsText: '' },
-    meds: [{ name: '', morning: '', noon: '', evening: '', night: '', days: '', qty: '', route: '', instruction: '', durationUnit: 'day(s)', durationText: '', freqText: '' }] as MedicineRow[],
+    meds: Array.from({ length: 5 }, () => emptyMedRow()) as MedicineRow[],
+    preAnesthesia: emptyPreAnesthesia(),
   })
   const [saved, setSaved] = useState(false)
   const [settings] = useState<{ name: string; address: string; phone: string; logoDataUrl?: string }>({ name: 'Hospital', address: '', phone: '' })
   const [pat] = useState<{ address?: string; phone?: string; fatherName?: string; gender?: string; age?: string } | null>(null)
   const [doctorInfo, setDoctorInfo] = useState<{ name?: string; specialization?: string; phone?: string; qualification?: string; departmentName?: string } | null>(null)
   const [prescriptionTemplate, setPrescriptionTemplate] = useState<PrescriptionPdfTemplate>('hospital-rx')
+  const [prescriptionLanguage, setPrescriptionLanguage] = useState<PrescriptionLanguage>('english')
   const [openReferral, setOpenReferral] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
   const referralFormRef = useRef<any>(null)
@@ -106,11 +113,14 @@ export default function Doctor_Prescription() {
   const medsRef = useRef<any>(null)
   const [medNameSuggestions, setMedNameSuggestions] = useState<string[]>([])
   const [labTestSuggestions, setLabTestSuggestions] = useState<string[]>([])
-  const [activeTab, setActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'medication'>('details')
+  const [diagnosticTestSuggestions, setDiagnosticTestSuggestions] = useState<string[]>([])
+  const [activeTab, setActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'medication'|'anesthesia'>('details')
   const [showLoadPrevButton, setShowLoadPrevButton] = useState(false)
-  const [lastPrescription, setLastPrescription] = useState<any>(null)
+  const [prevPrescriptionsModalOpen, setPrevPrescriptionsModalOpen] = useState(false)
   const [templates, setTemplates] = useState<any[]>([])
-  const [dbSuggestions, setDbSuggestions] = useState<{
+  const [customEntriesModalOpen, setCustomEntriesModalOpen] = useState(false)
+  const [customEntriesCategory, setCustomEntriesCategory] = useState('primaryComplaint')
+  const [doctorCustomSuggestions, setDoctorCustomSuggestions] = useState<{
     primaryComplaint: string[]
     history: string[]
     primaryComplaintHistory: string[]
@@ -120,24 +130,6 @@ export default function Doctor_Prescription() {
     examFindings: string[]
     diagnosis: string[]
     advice: string[]
-    labTest: string[]
-    diagTest: string[]
-    dose: string[]
-    route: string[]
-    instruction: string[]
-    frequencyTag: string[]
-    durationTag: string[]
-    vitals: {
-      pulse: string[]
-      temperature: string[]
-      sys: string[]
-      dia: string[]
-      resp: string[]
-      sugar: string[]
-      weight: string[]
-      height: string[]
-      spo2: string[]
-    }
   }>({
     primaryComplaint: [],
     history: [],
@@ -148,24 +140,6 @@ export default function Doctor_Prescription() {
     examFindings: [],
     diagnosis: [],
     advice: [],
-    labTest: [],
-    diagTest: [],
-    dose: [],
-    route: [],
-    instruction: [],
-    frequencyTag: [],
-    durationTag: [],
-    vitals: {
-      pulse: [],
-      temperature: [],
-      sys: [],
-      dia: [],
-      resp: [],
-      sugar: [],
-      weight: [],
-      height: [],
-      spo2: [],
-    }
   })
   useEffect(() => {
     try {
@@ -193,15 +167,6 @@ export default function Doctor_Prescription() {
   }, [])
 
   useEffect(() => {
-    try {
-      const k = `doctor.rx.mode.${doc?.id || 'anon'}`
-      const v = localStorage.getItem(k)
-      if (v === 'manual' || v === 'electronic') setRxMode(v)
-      else setRxMode('electronic')
-    } catch { setRxMode('electronic') }
-  }, [doc?.id])
-
-  useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
@@ -211,6 +176,21 @@ export default function Doctor_Prescription() {
         if (!cancelled) setLabTestSuggestions(Array.from(new Set(names)).slice(0, 2000))
       } catch {
         if (!cancelled) setLabTestSuggestions([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res: any = await diagnosticApi.listTests({ q: '', page: 1, limit: 2000 })
+        const tests: any[] = res?.tests ?? res?.items ?? res ?? []
+        const names = tests.map((t: any) => String(t?.name || t?.testName || t || '').trim()).filter(Boolean)
+        if (!cancelled) setDiagnosticTestSuggestions(Array.from(new Set(names)).slice(0, 2000))
+      } catch {
+        if (!cancelled) setDiagnosticTestSuggestions([])
       }
     })()
     return () => { cancelled = true }
@@ -231,7 +211,7 @@ export default function Doctor_Prescription() {
     return () => { cancelled = true }
   }, [])
 
-  // Load prescription template from database
+  // Load prescription template and language from database
   useEffect(() => {
     ;(async () => {
       try {
@@ -239,6 +219,13 @@ export default function Doctor_Prescription() {
           const doctorData: any = await hospitalApi.getDoctor(doc.id)
           if (doctorData?.prescriptionTemplate) {
             setPrescriptionTemplate(doctorData.prescriptionTemplate)
+          }
+          if (doctorData?.prescriptionLanguage) {
+            setPrescriptionLanguage(doctorData.prescriptionLanguage)
+          } else {
+            // Try to load from localStorage as fallback
+            const savedLang = getSavedPrescriptionLanguage(doc.id)
+            setPrescriptionLanguage(savedLang)
           }
         }
       } catch {}
@@ -265,114 +252,35 @@ export default function Doctor_Prescription() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id])
 
-  // Bootstrap suggestions from previous prescriptions
+  // Load doctor custom entries
   useEffect(() => {
     ;(async () => {
       try {
         if (!doc?.id) return
-        const res = await hospitalApi.listPrescriptions({ doctorId: doc.id, page: 1, limit: 200 }) as any
-        const rows: any[] = res?.prescriptions || []
-        // Store suggestions in memory only (not localStorage) to reflect actual DB state
-        const primaries: string[] = []
-        const histories: string[] = []
-        const primHist: string[] = []
-        const family: string[] = []
-        const allergy: string[] = []
-        const treatment: string[] = []
-        const exams: string[] = []
-        const diagnosis: string[] = []
-        const advice: string[] = []
-        const labTestsAll: string[] = []
-        const diagTestsAll: string[] = []
-        const doses: string[] = []
-        const routes: string[] = []
-        const instrs: string[] = []
-        const freqs: string[] = []
-        const durs: string[] = []
-        const vPulse: string[] = []
-        const vTemp: string[] = []
-        const vSys: string[] = []
-        const vDia: string[] = []
-        const vResp: string[] = []
-        const vSugar: string[] = []
-        const vWeight: string[] = []
-        const vHeight: string[] = []
-        const vSpo2: string[] = []
-        for (const r of rows) {
-          if (r.primaryComplaint) primaries.push(String(r.primaryComplaint))
-          if (r.history) histories.push(String(r.history))
-          if (r.primaryComplaintHistory) primHist.push(String(r.primaryComplaintHistory))
-          if (r.familyHistory) family.push(String(r.familyHistory))
-          if (r.allergyHistory) allergy.push(String(r.allergyHistory))
-          if (r.treatmentHistory) treatment.push(String(r.treatmentHistory))
-          if (r.examFindings) exams.push(String(r.examFindings))
-          if (r.diagnosis) diagnosis.push(String(r.diagnosis))
-          if (r.advice) advice.push(String(r.advice))
-          if (Array.isArray(r.labTests)) labTestsAll.push(...(r.labTests as any[]).map(x=>String(x||'')))
-          if (Array.isArray(r.diagnosticTests)) diagTestsAll.push(...(r.diagnosticTests as any[]).map((x:any)=>String(x||'')))
-          // collect vitals suggestions from previous prescriptions
+        const categories = ['primaryComplaint', 'history', 'primaryComplaintHistory', 'familyHistory', 'allergyHistory', 'treatmentHistory', 'examFindings', 'diagnosis', 'advice']
+        const custom: any = {
+          primaryComplaint: [],
+          history: [],
+          primaryComplaintHistory: [],
+          familyHistory: [],
+          allergyHistory: [],
+          treatmentHistory: [],
+          examFindings: [],
+          diagnosis: [],
+          advice: [],
+        }
+        for (const cat of categories) {
           try {
-            const vv = r.vitals || {}
-            if (vv.pulse != null) vPulse.push(String(vv.pulse))
-            if (vv.temperatureC != null) vTemp.push(String(vv.temperatureC))
-            if (vv.bloodPressureSys != null) vSys.push(String(vv.bloodPressureSys))
-            if (vv.bloodPressureDia != null) vDia.push(String(vv.bloodPressureDia))
-            if (vv.respiratoryRate != null) vResp.push(String(vv.respiratoryRate))
-            if (vv.bloodSugar != null) vSugar.push(String(vv.bloodSugar))
-            if (vv.weightKg != null) vWeight.push(String(vv.weightKg))
-            if (vv.heightCm != null) vHeight.push(String(vv.heightCm))
-            if (vv.spo2 != null) vSpo2.push(String(vv.spo2))
-          } catch {}
-          try {
-            const items = Array.isArray(r.items) ? (r.items as any[]) : []
-            for (const it of items) {
-              if (it?.dose) doses.push(String(it.dose))
-              if (it?.frequency) freqs.push(String(it.frequency))
-              if (it?.duration) durs.push(String(it.duration))
-              if (it?.notes) {
-                const notes = String(it.notes)
-                const mRoute = notes.match(/Route:\s*([^;]+)/i)
-                const mInstr = notes.match(/Instruction:\s*([^;]+)/i)
-                if (mRoute && mRoute[1]) routes.push(mRoute[1].trim())
-                if (mInstr && mInstr[1]) instrs.push(mInstr[1].trim())
-              }
-            }
+            const res = await hospitalApi.getDoctorCustomEntriesByCategory(doc.id, cat)
+            custom[cat] = res?.entryTexts || []
           } catch {}
         }
-        // Store in component state instead of localStorage to reflect actual DB state
-        setDbSuggestions({
-          primaryComplaint: Array.from(new Set(primaries)),
-          history: Array.from(new Set(histories)),
-          primaryComplaintHistory: Array.from(new Set(primHist)),
-          familyHistory: Array.from(new Set(family)),
-          allergyHistory: Array.from(new Set(allergy)),
-          treatmentHistory: Array.from(new Set(treatment)),
-          examFindings: Array.from(new Set(exams)),
-          diagnosis: Array.from(new Set(diagnosis)),
-          advice: Array.from(new Set(advice)),
-          labTest: Array.from(new Set(labTestsAll)),
-          diagTest: Array.from(new Set(diagTestsAll)),
-          dose: Array.from(new Set(doses)),
-          route: Array.from(new Set(routes)),
-          instruction: Array.from(new Set(instrs)),
-          frequencyTag: Array.from(new Set(freqs)),
-          durationTag: Array.from(new Set(durs)),
-          vitals: {
-            pulse: Array.from(new Set(vPulse)),
-            temperature: Array.from(new Set(vTemp)),
-            sys: Array.from(new Set(vSys)),
-            dia: Array.from(new Set(vDia)),
-            resp: Array.from(new Set(vResp)),
-            sugar: Array.from(new Set(vSugar)),
-            weight: Array.from(new Set(vWeight)),
-            height: Array.from(new Set(vHeight)),
-            spo2: Array.from(new Set(vSpo2)),
-          }
-        })
+        setDoctorCustomSuggestions(custom)
       } catch {}
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id])
+
 
   useEffect(() => {
     ;(async () => {
@@ -380,7 +288,7 @@ export default function Doctor_Prescription() {
         if (!doc?.id) { setDoctorInfo(null); return }
         const [drRes, depRes] = await Promise.all([
           hospitalApi.listDoctors() as any,
-          hospitalApi.listDepartments() as any,
+          hospitalApi.listDepartments({ limit: 1000 }) as any,
         ])
         const doctors: any[] = drRes?.doctors || []
         const depArray: any[] = ((depRes as any)?.departments || (depRes as any) || []) as any[]
@@ -405,7 +313,7 @@ export default function Doctor_Prescription() {
         createdAt: t.createdAt,
         patientName: t.patientName || '-',
         mrNo: t.mrn || '-',
-        encounterId: String(t.encounterId?._id || t.encounterId || ''),
+        encounterId: t.encounterId?._id || String(t.encounterId || ''),
         doctorId: t.doctorId?._id || String(t.doctorId || ''),
         doctorName: t.doctorId?.name || '',
         status: t.status,
@@ -489,7 +397,6 @@ export default function Doctor_Prescription() {
     const mrn = String(sel?.mrNo || '').trim()
     if (!mrn) {
       setShowLoadPrevButton(false)
-      setLastPrescription(null)
       return
     }
 
@@ -498,24 +405,56 @@ export default function Doctor_Prescription() {
         const res: any = await hospitalApi.listPrescriptions({ patientMrn: mrn, page: 1, limit: 1 })
         const pres = (res?.prescriptions || [])[0]
         if (pres) {
-          setLastPrescription(pres)
           setShowLoadPrevButton(true)
         } else {
           setShowLoadPrevButton(false)
-          setLastPrescription(null)
         }
       } catch {
         setShowLoadPrevButton(false)
-        setLastPrescription(null)
+      }
+    })()
+  }, [form.patientKey, tokens])
+
+  // Load vitals from token when patient is selected
+  useEffect(() => {
+    const sel = tokens.find(t => `${t.id}` === form.patientKey)
+    if (!sel?.id) return
+
+    ;(async () => {
+      try {
+        const tokenRes: any = await hospitalApi.getToken(sel.id)
+        if (tokenRes?.token?.vitals) {
+          const v = tokenRes.token.vitals
+          const vitalsDisplay: any = {
+            pulse: v.pulse != null ? String(v.pulse) : '',
+            temperature: v.temperatureC != null ? String(v.temperatureC) : '',
+            bloodPressureSys: v.bloodPressureSys != null ? String(v.bloodPressureSys) : '',
+            bloodPressureDia: v.bloodPressureDia != null ? String(v.bloodPressureDia) : '',
+            respiratoryRate: v.respiratoryRate != null ? String(v.respiratoryRate) : '',
+            bloodSugar: v.bloodSugar != null ? String(v.bloodSugar) : '',
+            weightKg: v.weightKg != null ? String(v.weightKg) : '',
+            height: v.heightCm != null ? String(v.heightCm) : '',
+            spo2: v.spo2 != null ? String(v.spo2) : '',
+            ar: v.ar != null ? String(v.ar) : '',
+            va: v.va != null ? String(v.va) : '',
+            iop: v.iop != null ? String(v.iop) : '',
+          }
+          setForm(f => ({ ...f, vitalsDisplay, vitalsNormalized: v }))
+          setTimeout(() => {
+            try { vitalsRef.current?.setDisplay?.(vitalsDisplay) } catch {}
+          }, 50)
+        }
+      } catch {
+        // Ignore errors, vitals may not exist
       }
     })()
   }, [form.patientKey, tokens])
 
   // Manual function to load previous prescription data
-  const loadPreviousPrescription = () => {
-    if (!lastPrescription) return
+  const loadPreviousPrescription = async (prescription: any) => {
+    if (!prescription) return
 
-    const pres = lastPrescription
+    const pres = prescription
     // meds mapping
     const meds: MedicineRow[] = (pres.items || []).map((it: any) => {
       const notes = String(it?.notes || '').trim()
@@ -530,6 +469,7 @@ export default function Doctor_Prescription() {
         durationText: String(it?.duration || '').trim(),
         instruction: String(it?.instruction || instruction || '').trim(),
         route: String(it?.route || route || '').trim(),
+        notes: String(it?.notes || '').trim(),
         durationUnit: 'day(s)',
       }
     }).filter((m: any) => m.name)
@@ -537,8 +477,21 @@ export default function Doctor_Prescription() {
     const labTestsText = Array.isArray(pres.labTests) ? pres.labTests.map((x: any) => String(x||'').trim()).filter(Boolean).join('\n') : ''
     const diagTestsText = Array.isArray(pres.diagnosticTests) ? pres.diagnosticTests.map((x: any) => String(x||'').trim()).filter(Boolean).join('\n') : ''
 
-    // Convert normalized vitals to display format
-    const v: any = pres.vitals || {}
+    // Convert normalized vitals to display format - fetch from token collection
+    let v: any = {}
+    try {
+      const sel = tokens.find(t => `${t.id}` === form.patientKey)
+      if (sel?.id) {
+        const tokenRes: any = await hospitalApi.getToken(sel.id)
+        if (tokenRes?.token?.vitals) {
+          v = tokenRes.token.vitals
+        }
+      }
+    } catch {}
+    // Fallback to prescription vitals if token doesn't have vitals
+    if (!v || Object.keys(v).length === 0) {
+      v = pres.vitals || {}
+    }
     const vitalsDisplay: any = {
       pulse: v.pulse != null ? String(v.pulse) : '',
       temperature: v.temperatureC != null ? String(v.temperatureC) : '',
@@ -549,6 +502,9 @@ export default function Doctor_Prescription() {
       weightKg: v.weightKg != null ? String(v.weightKg) : '',
       height: v.heightCm != null ? String(v.heightCm) : '',
       spo2: v.spo2 != null ? String(v.spo2) : '',
+      ar: v.ar != null ? String(v.ar) : '',
+      va: v.va != null ? String(v.va) : '',
+      iop: v.iop != null ? String(v.iop) : '',
     }
 
     setForm(f => ({
@@ -562,11 +518,33 @@ export default function Doctor_Prescription() {
       examFindings: String(pres.examFindings || ''),
       diagnosis: String(pres.diagnosis || ''),
       advice: String(pres.advice || ''),
+      nextFollowUp: String(pres.nextFollowUp || ''),
       labTestsText,
       vitalsDisplay: vitalsDisplay,
-      vitalsNormalized: pres.vitals || f.vitalsNormalized,
+      vitalsNormalized: v || f.vitalsNormalized,
       diagDisplay: { testsText: diagTestsText },
       meds: meds.length ? meds : f.meds,
+      preAnesthesia: pres.preAnesthesia ? {
+        isApplied: pres.preAnesthesia.isApplied ?? true,
+        history: {
+          cvs: pres.preAnesthesia.history?.cvs || '',
+          respiratory: pres.preAnesthesia.history?.respiratory || '',
+          renal: pres.preAnesthesia.history?.renal || '',
+          hepatic: pres.preAnesthesia.history?.hepatic || '',
+          diabetic: pres.preAnesthesia.history?.diabetic || '',
+          neurology: pres.preAnesthesia.history?.neurology || '',
+          previousAnesthesia: pres.preAnesthesia.history?.previousAnesthesia || '',
+          allergies: pres.preAnesthesia.history?.allergies || '',
+        },
+        examination: {
+          mallampatiScore: pres.preAnesthesia.examination?.mallampatiScore || '',
+          asaClass: pres.preAnesthesia.examination?.asaClass || '',
+          airway: pres.preAnesthesia.examination?.airway || '',
+          teeth: pres.preAnesthesia.examination?.teeth || '',
+          notes: pres.preAnesthesia.examination?.notes || '',
+        },
+        recommendation: pres.preAnesthesia.recommendation || '',
+      } : emptyPreAnesthesia(),
     }))
 
     // Also update child widgets if they expose setters
@@ -579,12 +557,15 @@ export default function Doctor_Prescription() {
     try { diagRef.current?.setDisplay?.({ testsText: diagTestsText }) } catch {}
 
     setToast({ type: 'success', message: 'Previous prescription loaded' })
-    setShowLoadPrevButton(false)
   }
 
   async function searchLabTests(q: string){
     try {
-      const query = String(q || '').trim()
+      // Get only the last part after comma or newline for searching
+      const idx = Math.max(q.lastIndexOf(','), q.lastIndexOf('\n'))
+      const query = String(idx >= 0 ? q.slice(idx + 1) : q).trim()
+      if (!query) return
+
       const res: any = await labApi.listTests({ q: query, page: 1, limit: 100 })
       const tests: any[] = res?.tests ?? res?.items ?? res ?? []
       const names = tests.map((t: any) => String(t?.name || t?.testName || t || '').trim()).filter(Boolean)
@@ -594,29 +575,6 @@ export default function Doctor_Prescription() {
     }
   }
 
-
-  const onManualFile = (file?: File | null) => {
-    if (!file) {
-      setManualAttachment(null)
-      setManualAttachmentError('')
-      return
-    }
-
-    const maxBytes = 5 * 1024 * 1024
-    if (file.size > maxBytes) {
-      setManualAttachment(null)
-      setManualAttachmentError('File must be 5 MB or smaller')
-      return
-    }
-
-    setManualAttachmentError('')
-    const reader = new FileReader()
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '')
-      setManualAttachment({ dataUrl, mimeType: file.type || undefined, fileName: file.name || undefined })
-    }
-    reader.readAsDataURL(file)
-  }
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -632,14 +590,11 @@ export default function Doctor_Prescription() {
         duration: (m.durationText && m.durationText.trim()) ? m.durationText.trim() : (m.days ? `${m.days} ${m.durationUnit || 'day(s)'}` : undefined),
         route: m.route ? String(m.route).trim() : undefined,
         instruction: m.instruction ? String(m.instruction).trim() : undefined,
-        notes: (m.route || m.instruction) ? [m.route?`Route: ${m.route}`:null, m.instruction?`Instruction: ${m.instruction}`:null].filter(Boolean).join('; ') : undefined,
+        notes: m.notes ? String(m.notes).trim() : undefined,
       }))
-    if (rxMode === 'manual') {
-      if (manualAttachmentError) { setToast({ type: 'error', message: manualAttachmentError }); return }
-      if (!manualAttachment?.dataUrl) { setToast({ type: 'error', message: 'Attach prescription PDF/image for Manual mode' }); return }
-    } else {
-      if (!items.length) { setToast({ type: 'error', message: 'Add at least one medicine' }); return }
-    }
+    
+    if (!items.length) { setToast({ type: 'error', message: 'Add at least one medicine' }); return }
+    
     const labTests = form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean)
     try {
       let vRaw = undefined as any
@@ -661,6 +616,9 @@ export default function Doctor_Prescription() {
           weightKg: n(d.weightKg),
           heightCm: n(d.height),
           spo2: n(d.spo2),
+          ar: d.ar || undefined,
+          va: d.va || undefined,
+          iop: d.iop || undefined,
         }
       }
       const dRaw = diagRef.current?.getData?.()
@@ -677,10 +635,9 @@ export default function Doctor_Prescription() {
       } catch {}
       
       const prescriptionData = {
-        prescriptionMode: rxMode,
+        prescriptionMode: 'electronic' as const,
         tokenNo: (sel as any)?.tokenNo,
-        manualAttachment: rxMode === 'manual' ? manualAttachment || undefined : undefined,
-        items: rxMode === 'manual' ? (items.length ? items : undefined) : items,
+        items: items,
         labTests: labTests.length ? labTests : undefined,
         diagnosticTests,
         primaryComplaint: form.primaryComplaint || undefined,
@@ -692,7 +649,9 @@ export default function Doctor_Prescription() {
         examFindings: form.examFindings || undefined,
         diagnosis: form.diagnosis || undefined,
         advice: form.advice || undefined,
+        nextFollowUp: form.nextFollowUp || undefined,
         vitals,
+        preAnesthesia: form.preAnesthesia,
       }
       
       if (existingPresId) {
@@ -706,12 +665,21 @@ export default function Doctor_Prescription() {
           ...prescriptionData,
         })
       }
+
+      // Save vitals to the token collection
+      if (vitals && sel.id) {
+        try {
+          await hospitalApi.updateToken(sel.id, { vitals })
+          invalidateCache('/hospital/tokens')
+        } catch (err) {
+          console.error('Failed to save vitals to token:', err)
+        }
+      }
+
       try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
       setSaved(true)
       setToast({ type: 'success', message: 'Prescription saved successfully' })
-      setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: [{ name: '', morning: '', noon: '', evening: '', night: '', qty: '', route: '', instruction: '', durationText: '', freqText: '' }] })
-      setManualAttachment(null)
-      setManualAttachmentError('')
+      setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia() })
       try { vitalsRef.current?.setDisplay?.({}) } catch {}
       try { diagRef.current?.setDisplay?.({ testsText: '' }) } catch {}
       setTimeout(()=>setSaved(false), 2000)
@@ -758,6 +726,8 @@ export default function Doctor_Prescription() {
       .filter(m=>m.name?.trim())
       .map(m=>({
         name: m.name,
+        genericName: (m as any).genericName || undefined,
+        company: (m as any).company || undefined,
         frequency: (m.freqText && m.freqText.trim()) ? m.freqText.trim() : ['morning','noon','evening','night'].map(k=>(m as any)[k]).filter(Boolean).join('/ '),
         duration: (m.durationText && m.durationText.trim()) ? m.durationText.trim() : (m.days?`${m.days} ${m.durationUnit || 'day(s)'}`:undefined),
         dose: m.qty ? String(m.qty) : undefined,
@@ -766,7 +736,7 @@ export default function Doctor_Prescription() {
       }))
     
     // Get doctor details from saved settings, fallback to API data
-    let doctor = { name: doctorInfo?.name || doc?.name || '-', qualification: doctorInfo?.qualification || '', departmentName: doctorInfo?.departmentName || '', phone: doctorInfo?.phone || '' }
+    let doctor = { name: doctorInfo?.name || doc?.name || '-', qualification: doctorInfo?.qualification || '', specialization: doctorInfo?.specialization || '', departmentName: doctorInfo?.departmentName || '', phone: doctorInfo?.phone || '' }
     try {
       const dk = `doctor.details.${doc?.id || 'anon'}`
       const dRaw = localStorage.getItem(dk)
@@ -775,8 +745,9 @@ export default function Doctor_Prescription() {
         doctor = {
           name: savedDetails.name || doctor.name,
           qualification: savedDetails.qualification || doctor.qualification,
+          specialization: savedDetails.specialization || doctor.specialization,
           departmentName: savedDetails.departmentName || doctor.departmentName,
-          phone: savedDetails.phone || doctor.phone
+          phone: savedDetails.phone || doctor.phone,
         }
       }
     } catch {}
@@ -803,6 +774,9 @@ export default function Doctor_Prescription() {
         weightKg: n(d.weightKg),
         heightCm: n(d.height),
         spo2: n(d.spo2),
+        ar: d.ar || undefined,
+        va: d.va || undefined,
+        iop: d.iop || undefined,
       }
     }
     // Build diagnostics data either from live ref or persisted display
@@ -816,10 +790,50 @@ export default function Doctor_Prescription() {
     const tpl: PrescriptionPdfTemplate = prescriptionTemplate
     console.log('openPrint - sel:', sel)
     console.log('openPrint - tokenNo being passed:', (sel as any)?.tokenNo)
-    await previewPrescriptionPdf({ doctor, settings: settingsNorm, patient, items, primaryComplaint: form.primaryComplaint, primaryComplaintHistory: form.primaryComplaintHistory, familyHistory: form.familyHistory, allergyHistory: form.allergyHistory, treatmentHistory: form.treatmentHistory, history: form.history, examFindings: form.examFindings, diagnosis: form.diagnosis, advice: form.advice, vitals, labTests: form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean), diagnosticTests: Array.isArray(dPrint.tests)?dPrint.tests:[], tokenNo: (sel as any)?.tokenNo, createdAt: new Date() }, tpl)
+    await previewPrescriptionPdf({ doctor, settings: settingsNorm, patient, items, primaryComplaint: form.primaryComplaint, primaryComplaintHistory: form.primaryComplaintHistory, familyHistory: form.familyHistory, allergyHistory: form.allergyHistory, treatmentHistory: form.treatmentHistory, history: form.history, examFindings: form.examFindings, diagnosis: form.diagnosis, advice: form.advice, vitals, labTests: form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean), diagnosticTests: Array.isArray(dPrint.tests)?dPrint.tests:[], tokenNo: (sel as any)?.tokenNo, createdAt: new Date(), language: prescriptionLanguage }, tpl)
   }
 
-  const goTab = (tab: 'details'|'vitals'|'labs'|'diagnostics'|'medication') => {
+  async function openAnesthesiaPrint() {
+    const sel = myPatients.find(t => `${t.id}` === form.patientKey)
+    if (!sel) { setToast({ type: 'error', message: 'Select a patient first' }); return }
+    
+    let s: any = settings
+    try { s = await hospitalApi.getSettings() as any } catch {}
+    const settingsNorm = { name: s?.name || 'Hospital', address: s?.address || '', phone: s?.phone || '', logoDataUrl: s?.logoDataUrl || '' }
+    
+    let patient: any = { name: sel.patientName || '-', mrn: sel.mrNo || '-' }
+    try {
+      if (sel?.mrNo) {
+        const resp: any = await labApi.getPatientByMrn(sel.mrNo)
+        const p = resp?.patient
+        if (p) {
+          let ageTxt = ''
+          try {
+            if (p.age != null) ageTxt = String(p.age)
+            else if (p.dob) { const dob = new Date(p.dob); if (!isNaN(dob.getTime())) ageTxt = String(Math.max(0, Math.floor((Date.now()-dob.getTime())/31557600000))) }
+          } catch {}
+          patient = { name: p.fullName || sel.patientName || '-', mrn: p.mrn || sel.mrNo || '-', gender: p.gender || '-', fatherName: p.fatherName || '-', phone: p.phoneNormalized || '-', address: p.address || '-', age: ageTxt }
+        }
+      }
+    } catch {}
+
+    let doctor = { name: doctorInfo?.name || doc?.name || '-', qualification: doctorInfo?.qualification || '', departmentName: doctorInfo?.departmentName || '', phone: doctorInfo?.phone || '', specialization: doctorInfo?.specialization || '' }
+    
+    let vRaw = undefined as any
+    try { vRaw = vitalsRef.current?.getNormalized?.() } catch {}
+    let vitals: any = vRaw || (form as any).vitalsNormalized || {}
+
+    await previewPreAnesthesiaPdf({
+      doctor,
+      settings: settingsNorm,
+      patient,
+      preAnesthesia: form.preAnesthesia,
+      vitals,
+      createdAt: new Date(),
+    })
+  }
+
+  const goTab = (tab: 'details'|'vitals'|'labs'|'diagnostics'|'medication'|'anesthesia') => {
     if (activeTab === 'vitals') {
       try {
         const disp = vitalsRef.current?.getDisplay?.()
@@ -843,7 +857,7 @@ export default function Doctor_Prescription() {
   }
 
   function resetForms(){
-    setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: [{ name: '', morning: '', noon: '', evening: '', night: '', qty: '', route: '', instruction: '', durationText: '', freqText: '' }] })
+    setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia() })
     try { vitalsRef.current?.setDisplay?.({}) } catch {}
     try { diagRef.current?.setDisplay?.({ testsText: '' }) } catch {}
     setActiveTab('details')
@@ -856,6 +870,7 @@ export default function Doctor_Prescription() {
       qty: it.dose || '',
       route: it.route || '',
       instruction: it.instruction || '',
+      notes: it.notes || '',
       durationText: it.duration || '',
       freqText: it.frequency || '',
       morning: '', noon: '', evening: '', night: '', days: '', durationUnit: 'day(s)' as const,
@@ -872,6 +887,7 @@ export default function Doctor_Prescription() {
       examFindings: t.examFindings || f.examFindings,
       diagnosis: t.diagnosis || f.diagnosis,
       advice: t.advice || f.advice,
+      nextFollowUp: t.nextFollowUp || f.nextFollowUp,
       labTestsText: (t.labTests || []).join('\n') || f.labTestsText,
       diagDisplay: { testsText: diagTestsText },
       meds: meds.length ? meds : f.meds,
@@ -881,32 +897,19 @@ export default function Doctor_Prescription() {
   }
 
   const sel = myPatients.find(t => `${t.id}` === form.patientKey)
-  const [patientDetails, setPatientDetails] = useState<any>(null)
 
-  useEffect(() => {
-    if (!sel?.mrNo) {
-      setPatientDetails(null)
-      return
-    }
-    ;(async () => {
-      try {
-        const resp: any = await labApi.getPatientByMrn(sel.mrNo)
-        if (resp?.patient) setPatientDetails(resp.patient)
-      } catch {}
-    })()
-  }, [sel?.mrNo])
-
-  // Suggestions loaded from database (via dbSuggestions state)
-  const sugPrimary = useMemo(() => dbSuggestions.primaryComplaint, [dbSuggestions.primaryComplaint])
-  const sugHistory = useMemo(() => dbSuggestions.history, [dbSuggestions.history])
-  const sugPrimHist = useMemo(() => dbSuggestions.primaryComplaintHistory, [dbSuggestions.primaryComplaintHistory])
-  const sugFamily = useMemo(() => dbSuggestions.familyHistory, [dbSuggestions.familyHistory])
-  const sugAllergy = useMemo(() => dbSuggestions.allergyHistory, [dbSuggestions.allergyHistory])
-  const sugExam = useMemo(() => dbSuggestions.examFindings, [dbSuggestions.examFindings])
-  const sugDiagnosis = useMemo(() => dbSuggestions.diagnosis, [dbSuggestions.diagnosis])
-  const sugAdvice = useMemo(() => dbSuggestions.advice, [dbSuggestions.advice])
-  const sugLabTests = useMemo(() => labTestSuggestions.length ? labTestSuggestions : dbSuggestions.labTest, [labTestSuggestions, dbSuggestions.labTest])
-  const sugDiagTests = useMemo(() => dbSuggestions.diagTest, [dbSuggestions.diagTest])
+  // Suggestions from doctor custom entries
+  const sugPrimary = useMemo(() => doctorCustomSuggestions.primaryComplaint, [doctorCustomSuggestions.primaryComplaint])
+  const sugHistory = useMemo(() => doctorCustomSuggestions.history, [doctorCustomSuggestions.history])
+  const sugPrimHist = useMemo(() => doctorCustomSuggestions.primaryComplaintHistory, [doctorCustomSuggestions.primaryComplaintHistory])
+  const sugFamily = useMemo(() => doctorCustomSuggestions.familyHistory, [doctorCustomSuggestions.familyHistory])
+  const sugAllergy = useMemo(() => doctorCustomSuggestions.allergyHistory, [doctorCustomSuggestions.allergyHistory])
+  const sugTreatment = useMemo(() => doctorCustomSuggestions.treatmentHistory, [doctorCustomSuggestions.treatmentHistory])
+  const sugExam = useMemo(() => doctorCustomSuggestions.examFindings, [doctorCustomSuggestions.examFindings])
+  const sugDiagnosis = useMemo(() => doctorCustomSuggestions.diagnosis, [doctorCustomSuggestions.diagnosis])
+  const sugAdvice = useMemo(() => doctorCustomSuggestions.advice, [doctorCustomSuggestions.advice])
+  const sugLabTests = useMemo(() => labTestSuggestions, [labTestSuggestions])
+  const sugDiagTests = useMemo(() => diagnosticTestSuggestions, [diagnosticTestSuggestions])
   // Default suggestions for medication fields
   const defaultDoses = ['1 mg', '2 mg', '5 mg', '10 mg', '20 mg', '25 mg', '50 mg', '100 mg', '200 mg', '250 mg', '500 mg', '1 g', '1 ml', '2 ml', '5 ml', '10 ml', '1 tsp', '1 tbsp', '1 drop', '2 drops', '1 puff', '1 tablet', '2 tablets', '1 capsule', '1 sachet']
   const defaultRoutes = ['Oral', 'IV', 'IM', 'SC', 'Topical', 'Sublingual', 'Rectal', 'Vaginal', 'Inhalation', 'Nasal', 'Ocular', 'Ear drops', 'Local application']
@@ -914,37 +917,22 @@ export default function Doctor_Prescription() {
   const defaultDurations = ['1 day', '2 days', '3 days', '5 days', '7 days', '10 days', '14 days', '1 week', '2 weeks', '3 weeks', '4 weeks', '1 month', '2 months', '3 months', '6 months']
   const defaultFrequencies = ['Once daily (OD)', 'Twice daily (BD)', 'Thrice daily (TID)', 'Four times daily (QID)', 'Every morning', 'Every night', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'SOS', 'Stat', 'Alternate days', 'Weekly', 'Monthly']
 
-  // Suggestions loaded from database (via dbSuggestions state) + defaults for medication
-  const sugDose = useMemo(() => {
-    const stored = dbSuggestions.dose
-    return stored.length ? stored : defaultDoses
-  }, [dbSuggestions.dose])
-  const sugInstr = useMemo(() => {
-    const stored = dbSuggestions.instruction
-    return stored.length ? stored : defaultInstructions
-  }, [dbSuggestions.instruction])
-  const sugRoute = useMemo(() => {
-    const stored = dbSuggestions.route
-    return stored.length ? stored : defaultRoutes
-  }, [dbSuggestions.route])
-  const sugDuration = useMemo(() => {
-    const stored = dbSuggestions.durationTag
-    return stored.length ? stored : defaultDurations
-  }, [dbSuggestions.durationTag])
-  const sugFreq = useMemo(() => {
-    const stored = dbSuggestions.frequencyTag
-    return stored.length ? stored : defaultFrequencies
-  }, [dbSuggestions.frequencyTag])
-  // Vitals suggestions from database
-  const sugVPulse = useMemo(() => dbSuggestions.vitals.pulse, [dbSuggestions.vitals.pulse])
-  const sugVTemp = useMemo(() => dbSuggestions.vitals.temperature, [dbSuggestions.vitals.temperature])
-  const sugVSys = useMemo(() => dbSuggestions.vitals.sys, [dbSuggestions.vitals.sys])
-  const sugVDia = useMemo(() => dbSuggestions.vitals.dia, [dbSuggestions.vitals.dia])
-  const sugVResp = useMemo(() => dbSuggestions.vitals.resp, [dbSuggestions.vitals.resp])
-  const sugVSugar = useMemo(() => dbSuggestions.vitals.sugar, [dbSuggestions.vitals.sugar])
-  const sugVWeight = useMemo(() => dbSuggestions.vitals.weight, [dbSuggestions.vitals.weight])
-  const sugVHeight = useMemo(() => dbSuggestions.vitals.height, [dbSuggestions.vitals.height])
-  const sugVSpo2 = useMemo(() => dbSuggestions.vitals.spo2, [dbSuggestions.vitals.spo2])
+  // Suggestions for medication fields (defaults only)
+  const sugDose = useMemo(() => defaultDoses, [])
+  const sugInstr = useMemo(() => defaultInstructions, [])
+  const sugRoute = useMemo(() => defaultRoutes, [])
+  const sugDuration = useMemo(() => defaultDurations, [])
+  const sugFreq = useMemo(() => defaultFrequencies, [])
+  // Vitals suggestions (empty - doctors manage their own)
+  const sugVPulse = useMemo(() => [] as string[], [])
+  const sugVTemp = useMemo(() => [] as string[], [])
+  const sugVSys = useMemo(() => [] as string[], [])
+  const sugVDia = useMemo(() => [] as string[], [])
+  const sugVResp = useMemo(() => [] as string[], [])
+  const sugVSugar = useMemo(() => [] as string[], [])
+  const sugVWeight = useMemo(() => [] as string[], [])
+  const sugVHeight = useMemo(() => [] as string[], [])
+  const sugVSpo2 = useMemo(() => [] as string[], [])
 
   async function printReferral(){
     try {
@@ -959,470 +947,370 @@ export default function Doctor_Prescription() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-12 dark:bg-[#0b1220]">
-      <div className="no-print">
-        {/* Modern Sticky Header */}
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-200 dark:shadow-none">
-                <Stethoscope size={22} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">e-Prescription</h1>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Digital Consultation & Medicine Management</p>
-              </div>
+    <div className="w-full min-h-screen bg-slate-50 px-4 py-6">
+      <div className="no-print w-full max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-4 w-full">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-500">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M12 11h4"></path><path d="M12 15h4"></path><path d="M8 11h.01"></path><path d="M8 15h.01"></path></svg>
             </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Prescription</h1>
+              <p className="text-xs text-slate-400">Clinical Care • Digital Health Record</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-3 py-2 shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 text-slate-400 shrink-0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="border-0 p-0 text-xs font-medium text-slate-600 focus:ring-0 bg-transparent w-28" />
+            <span className="text-slate-300 text-xs">–</span>
+            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="border-0 p-0 text-xs font-medium text-slate-600 focus:ring-0 bg-transparent w-28" />
+            <div className="flex gap-1 ml-1 border-l border-slate-100 pl-2">
+              <button type="button" onClick={()=>{ const t = new Date().toISOString().slice(0,10); setFrom(t); setTo(t) }} className="rounded-md px-2 py-1 text-[10px] font-semibold text-sky-600 hover:bg-sky-50 transition-all">Today</button>
+              <button type="button" onClick={()=>{ setFrom(''); setTo('') }} className="rounded-md px-2 py-1 text-[10px] font-semibold text-slate-400 hover:bg-slate-100 transition-all">Clear</button>
+            </div>
+          </div>
+        </div>
 
-            <div className="flex items-center gap-3">
-              <div className="hidden items-center gap-2 rounded-lg bg-slate-100 p-1 dark:bg-slate-800 sm:flex">
-                <button 
-                  type="button" 
-                  onClick={() => setRxMode('electronic')}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition-all ${rxMode === 'electronic' ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-700 dark:text-violet-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                >
-                  <Layout size={14} /> Electronic
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setRxMode('manual')}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition-all ${rxMode === 'manual' ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-700 dark:text-violet-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                >
-                  <FileText size={14} /> Manual Scan
-                </button>
+        <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white shadow-sm w-full overflow-hidden">
+          <div className="grid gap-0 sm:grid-cols-2 border-b border-slate-100">
+            <div className="p-5 sm:border-r border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Patient</label>
+                {showLoadPrevButton && (
+                  <button
+                    type="button"
+                    onClick={() => setPrevPrescriptionsModalOpen(true)}
+                    className="text-xs font-semibold text-amber-500 hover:text-amber-600 flex items-center gap-1 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.81"/></svg>
+                    Load Previous
+                  </button>
+                )}
               </div>
-              
-              <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
-              
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={resetForms} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
-                  <RotateCcw size={16} /> <span className="hidden sm:inline">Reset</span>
-                </button>
-                <button 
-                  type="button" 
-                  onClick={save}
-                  disabled={!form.patientKey}
-                  className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-violet-200 transition hover:bg-violet-700 active:scale-[0.98] disabled:opacity-50 dark:shadow-none"
+              <select 
+                value={form.patientKey} 
+                onChange={e=>setForm(f=>({ ...f, patientKey: e.target.value }))} 
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 transition-all text-slate-800 outline-none"
+              >
+                <option value="">Select patient from queue</option>
+                {myPatients.map(p => (
+                  <option key={p.id} value={p.id}>{p.patientName} • {p.mrNo}</option>
+                ))}
+              </select>
+            </div>
+            <div className="p-5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Template</label>
+              <select
+                onChange={e => {
+                  const id = e.target.value
+                  if (!id) return
+                  const t = templates.find(x => x._id === id)
+                  if (t) applyTemplate(t)
+                  e.target.value = ''
+                }}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 transition-all text-slate-800 outline-none"
+              >
+                <option value="">Choose a template to auto-fill...</option>
+                {templates.map(t => (
+                  <option key={t._id} value={t._id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="px-5 border-b border-slate-100 bg-slate-50/60">
+            <nav className="flex gap-1 overflow-x-auto scrollbar-hide py-2">
+              {[
+                { id: 'details', label: 'Details' },
+                { id: 'medication', label: 'Medication' },
+                { id: 'vitals', label: 'Vitals' },
+                { id: 'labs', label: 'Lab Orders' },
+                { id: 'diagnostics', label: 'Diagnostic' },
+                { id: 'anesthesia', label: 'Pre-Anesthesia' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => goTab(tab.id as any)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-sky-500 text-white shadow-sm shadow-sky-200'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/60'
+                  }`}
                 >
-                  <Save size={16} /> Save Prescription
+                  {tab.label}
                 </button>
+              ))}
+            </nav>
+          </div>
+        {activeTab==='details' && (
+          <div className="p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">Primary Complaint</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('primaryComplaint'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                <SuggestField rows={2} value={form.primaryComplaint} onChange={v=>setForm(f=>({ ...f, primaryComplaint: v }))} suggestions={sugPrimary} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">Risk Factors / Medical History</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('history'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                <SuggestField rows={2} value={form.history} onChange={v=>setForm(f=>({ ...f, history: v }))} suggestions={sugHistory} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">History of Primary Complaint</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('primaryComplaintHistory'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                <SuggestField rows={2} value={form.primaryComplaintHistory} onChange={v=>setForm(f=>({ ...f, primaryComplaintHistory: v }))} suggestions={sugPrimHist} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">Family History</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('familyHistory'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                <SuggestField rows={2} value={form.familyHistory} onChange={v=>setForm(f=>({ ...f, familyHistory: v }))} suggestions={sugFamily} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">Allergy History</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('allergyHistory'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                <SuggestField rows={2} value={form.allergyHistory} onChange={v=>setForm(f=>({ ...f, allergyHistory: v }))} suggestions={sugAllergy} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">Treatment History</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('treatmentHistory'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                <SuggestField rows={2} value={form.treatmentHistory} onChange={v=>setForm(f=>({ ...f, treatmentHistory: v }))} suggestions={sugTreatment} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">Examination Findings</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('examFindings'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                  <SuggestField rows={2} value={form.examFindings} onChange={v=>setForm(f=>({ ...f, examFindings: v }))} suggestions={sugExam} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">Diagnosis / Disease</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('diagnosis'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                <SuggestField as="input" value={form.diagnosis} onChange={v=>setForm(f=>({ ...f, diagnosis: v }))} suggestions={sugDiagnosis} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-sky-500 transition-colors">Advice / Referral</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCustomEntriesCategory('advice'); setCustomEntriesModalOpen(true) }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-sky-500 transition-colors flex items-center gap-0.5"
+                    title="Manage custom entries"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Manage
+                  </button>
+                </div>
+                <SuggestField rows={2} value={form.advice} onChange={v=>setForm(f=>({ ...f, advice: v }))} suggestions={sugAdvice} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
+              </div>
+              <div className="group">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Next Follow Up</label>
+                <SuggestField as="input" value={form.nextFollowUp} onChange={v=>setForm(f=>({ ...f, nextFollowUp: v }))} suggestions={['After 3 days', 'After 1 week', 'After 2 weeks', 'After 1 month', 'SOS']} placeholder="e.g. After 1 week" className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 text-sm transition-all outline-none" />
               </div>
             </div>
           </div>
-        </header>
-
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            
-            {/* Left Sidebar: Patient & Queue */}
-            <aside className="space-y-6 lg:col-span-3">
-              {/* Date Filter */}
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
-                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    <Calendar size={14} /> Queue Period
-                  </h3>
-                </div>
-                <div className="space-y-3 p-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-slate-400">From</label>
-                    <DatePickerModern value={from} onChange={setFrom} className="w-full" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-slate-400">To</label>
-                    <DatePickerModern value={to} onChange={setTo} className="w-full" />
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button type="button" onClick={()=>{ const t = new Date().toISOString().slice(0,10); setFrom(t); setTo(t) }} className="flex-1 rounded-md bg-slate-100 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">Today</button>
-                    <button type="button" onClick={()=>{ setFrom(''); setTo('') }} className="flex-1 rounded-md bg-slate-100 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">Clear</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Patient Selection */}
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
-                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    <User size={14} /> Patient Queue
-                  </h3>
-                </div>
-                <div className="p-4">
-                  <div className="relative">
-                    <select 
-                      value={form.patientKey} 
-                      onChange={e=>setForm(f=>({ ...f, patientKey: e.target.value }))} 
-                      className="w-full appearance-none rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm font-medium outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                    >
-                      <option value="">Select a patient...</option>
-                      {myPatients.map(p => (
-                        <option key={p.id} value={p.id}>{p.patientName} ({p.mrNo})</option>
-                      ))}
-                    </select>
-                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  </div>
-                  
-                  {myPatients.length === 0 && (
-                    <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-4 text-center dark:border-slate-800">
-                      <Clock size={24} className="mx-auto mb-2 text-slate-300 dark:text-slate-700" />
-                      <p className="text-xs font-medium text-slate-400">No pending patients in your queue</p>
-                    </div>
-                  )}
-
-                  {showLoadPrevButton && (
-                    <button
-                      type="button"
-                      onClick={loadPreviousPrescription}
-                      className="group mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700 transition-all hover:bg-amber-100 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-400"
-                    >
-                      <History size={16} className="transition-transform group-hover:rotate-[-18deg]" /> Load Last Rx
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Patient Profile Card (When Selected) */}
-              {sel && (
-                <div className="overflow-hidden rounded-2xl border border-violet-100 bg-linear-to-b from-violet-50 to-white shadow-sm dark:border-violet-900/20 dark:from-violet-900/10 dark:to-slate-900">
-                  <div className="border-b border-violet-100 bg-violet-100/30 px-4 py-3 dark:border-violet-900/30 dark:bg-violet-900/30">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-400">Patient Profile</h3>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-600 text-lg font-bold text-white">
-                        {sel.patientName.charAt(0)}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 dark:text-white">{sel.patientName}</h4>
-                        <p className="text-xs font-bold text-violet-600 dark:text-violet-400">MRN: {sel.mrNo}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 grid grid-cols-2 gap-y-3 gap-x-2 border-t border-violet-100 pt-4 dark:border-violet-900/20">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase text-slate-400">Age / Gender</p>
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{patientDetails?.age || '-'} / {patientDetails?.gender || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase text-slate-400">Father/Guardian</p>
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">{patientDetails?.fatherName || '-'}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-[10px] font-bold uppercase text-slate-400">Phone</p>
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{patientDetails?.phoneNormalized || '-'}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-[10px] font-bold uppercase text-slate-400">Address</p>
-                        <p className="text-xs font-semibold leading-relaxed text-slate-700 dark:text-slate-300 line-clamp-2">{patientDetails?.address || '-'}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </aside>
-
-            {/* Main Content: Tabs and Forms */}
-            <div className="lg:col-span-9">
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                {/* Modern Tabs */}
-                <div className="border-b border-slate-100 bg-slate-50/50 p-2 dark:border-slate-800 dark:bg-slate-800/50">
-                  <nav className="flex flex-wrap gap-1 sm:flex-nowrap">
-                    {[
-                      { id: 'details', label: 'Clinical Details', icon: ClipboardList },
-                      { id: 'medication', label: 'Medication', icon: Beaker },
-                      { id: 'vitals', label: 'Vitals', icon: Activity },
-                      { id: 'labs', label: 'Lab Orders', icon: Search },
-                      { id: 'diagnostics', label: 'Diagnostics', icon: ClipboardList },
-                    ].map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => goTab(tab.id as any)}
-                        className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:flex-none sm:justify-start ${
-                          activeTab === tab.id
-                            ? 'bg-white text-violet-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-violet-400 dark:ring-slate-600'
-                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300'
-                        }`}
-                      >
-                        <tab.icon size={16} />
-                        <span className="hidden md:inline">{tab.label}</span>
-                      </button>
-                    ))}
-                  </nav>
-                </div>
-
-                <div className="p-6">
-                  {/* Template Selection inside Main Area */}
-                  <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-violet-50/50 p-4 ring-1 ring-violet-100 dark:bg-violet-900/10 dark:ring-violet-900/20">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-violet-600 p-1.5 text-white">
-                        <Plus size={18} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">Smart Templates</h4>
-                        <p className="text-[10px] font-medium text-slate-500">Quickly apply pre-filled clinical data</p>
-                      </div>
-                    </div>
-                    <div className="w-full max-w-xs sm:w-auto">
-                      <select
-                        onChange={e => {
-                          const id = e.target.value
-                          if (!id) return
-                          const t = templates.find(x => x._id === id)
-                          if (t) applyTemplate(t)
-                          e.target.value = ''
-                        }}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition-shadow focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                      >
-                        <option value="">Select template...</option>
-                        {templates.map(t => (
-                          <option key={t._id} value={t._id}>{t.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {rxMode === 'manual' && (
-                    <div className="mb-8 animate-in fade-in slide-in-from-top-4">
-                      <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center transition-colors hover:border-violet-300 dark:border-slate-800 dark:hover:border-violet-700">
-                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-900/20 dark:text-violet-400">
-                          <FileText size={32} />
-                        </div>
-                        <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">Scan Manual Prescription</h3>
-                        <p className="mt-1 text-sm text-slate-500">Upload a PDF or Image of the handwritten prescription</p>
-                        
-                        <div className="mt-6">
-                          <input
-                            id="manual-file"
-                            type="file"
-                            accept="image/*,application/pdf"
-                            onChange={e=>onManualFile(e.target.files?.[0])}
-                            className="hidden"
-                          />
-                          <label 
-                            htmlFor="manual-file"
-                            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-violet-200 transition-all hover:bg-violet-700 hover:shadow-violet-300 active:scale-95 dark:shadow-none"
-                          >
-                            <Plus size={18} /> Select File
-                          </label>
-                        </div>
-
-                        {manualAttachmentError && (
-                          <div className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-rose-600">
-                            <AlertCircle size={16} /> {manualAttachmentError}
-                          </div>
-                        )}
-                        
-                        {manualAttachment?.fileName && (
-                          <div className="mt-4 flex flex-col items-center gap-3">
-                            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                              Selected: {manualAttachment.fileName}
-                            </div>
-                            {manualAttachment?.dataUrl && (manualAttachment.mimeType || '').startsWith('image/') && (
-                              <div className="relative overflow-hidden rounded-xl border border-slate-200 shadow-xl dark:border-slate-800">
-                                <img src={manualAttachment.dataUrl} alt="Prescription" className="max-h-64 w-auto" />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="min-h-[400px]">
-                    {activeTab === 'details' && (
-                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 animate-in fade-in slide-in-from-right-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Primary Complaint</label>
-                          <SuggestField 
-                            rows={3} 
-                            value={form.primaryComplaint} 
-                            onChange={v=>setForm(f=>({ ...f, primaryComplaint: v }))} 
-                            suggestions={sugPrimary} 
-                            className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Medical History / Risk Factors</label>
-                          <SuggestField 
-                            rows={3} 
-                            value={form.history} 
-                            onChange={v=>setForm(f=>({ ...f, history: v }))} 
-                            suggestions={sugHistory} 
-                            className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">History of Complaint</label>
-                          <SuggestField 
-                            rows={3} 
-                            value={form.primaryComplaintHistory} 
-                            onChange={v=>setForm(f=>({ ...f, primaryComplaintHistory: v }))} 
-                            suggestions={sugPrimHist} 
-                            className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Examination Findings</label>
-                          <SuggestField 
-                            rows={3} 
-                            value={form.examFindings} 
-                            onChange={v=>setForm(f=>({ ...f, examFindings: v }))} 
-                            suggestions={sugExam} 
-                            className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Diagnosis / Disease</label>
-                              <SuggestField 
-                                as="input" 
-                                value={form.diagnosis} 
-                                onChange={v=>setForm(f=>({ ...f, diagnosis: v }))} 
-                                suggestions={sugDiagnosis} 
-                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Advice / Referral</label>
-                              <SuggestField 
-                                rows={1} 
-                                value={form.advice} 
-                                onChange={v=>setForm(f=>({ ...f, advice: v }))} 
-                                suggestions={sugAdvice} 
-                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="col-span-1 grid grid-cols-2 gap-4 md:col-span-2">
-                           <div className="space-y-1">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Family History</label>
-                            <SuggestField rows={2} value={form.familyHistory} onChange={v=>setForm(f=>({ ...f, familyHistory: v }))} suggestions={sugFamily} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Allergy History</label>
-                            <SuggestField rows={2} value={form.allergyHistory} onChange={v=>setForm(f=>({ ...f, allergyHistory: v }))} suggestions={sugAllergy} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {activeTab === 'medication' && (
-                      <div className="animate-in fade-in slide-in-from-right-4">
-                        <PrescriptionMedication
-                          ref={medsRef}
-                          initialMedicines={form.meds}
-                          onChange={(meds) => setForm(f => ({ ...f, meds }))}
-                          suggestions={{
-                            medName: medNameSuggestions,
-                            dose: sugDose,
-                            route: sugRoute,
-                            instruction: sugInstr,
-                            duration: sugDuration,
-                            frequency: sugFreq,
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {activeTab === 'vitals' && (
-                      <div className="animate-in fade-in slide-in-from-right-4">
-                        <PrescriptionVitals
-                          ref={vitalsRef}
-                          initial={(form as any).vitalsDisplay}
-                          suggestions={{
-                            pulse: sugVPulse,
-                            temperature: sugVTemp,
-                            bloodPressureSys: sugVSys,
-                            bloodPressureDia: sugVDia,
-                            respiratoryRate: sugVResp,
-                            bloodSugar: sugVSugar,
-                            weightKg: sugVWeight,
-                            height: sugVHeight,
-                            spo2: sugVSpo2,
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {activeTab === 'diagnostics' && (
-                      <div className="animate-in fade-in slide-in-from-right-4">
-                        <PrescriptionDiagnosticOrders ref={diagRef} initialTestsText={(form as any).diagDisplay?.testsText} suggestionsTests={sugDiagTests} />
-                      </div>
-                    )}
-
-                    {activeTab === 'labs' && (
-                      <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Search & Order Lab Tests</label>
-                          <SuggestField 
-                            mode="lab-tests" 
-                            rows={6} 
-                            value={form.labTestsText} 
-                            onChange={v=>{ setForm(f=>({ ...f, labTestsText: v })); searchLabTests(v) }} 
-                            suggestions={sugLabTests} 
-                            placeholder="Type test name (e.g. CBC, LFT, Lipid Profile)..." 
-                            className="w-full rounded-2xl border border-slate-200 bg-white p-6 text-sm outline-none transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                          />
-                        </div>
-                        <div className="rounded-xl bg-blue-50/50 p-4 text-xs font-medium text-blue-600 ring-1 ring-blue-100 dark:bg-blue-900/10 dark:text-blue-400 dark:ring-blue-900/20">
-                          Tip: Use commas or new lines to separate multiple lab tests.
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Footer Quick Actions */}
-                <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/50">
-                  <div className="flex items-center gap-2">
-                    <button 
-                      type="button" 
-                      onClick={openPrint} 
-                      disabled={!form.patientKey}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                    >
-                      <Printer size={18} /> Preview & Print
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={()=>setOpenReferral(true)} 
-                      disabled={!sel}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                    >
-                      <Plus size={18} /> Refer to IPD
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {saved && (
-                      <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600 animate-in fade-in zoom-in dark:bg-emerald-900/20 dark:text-emerald-400">
-                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-pulse" /> Saved to Records
-                      </div>
-                    )}
-                    <button 
-                      type="button" 
-                      onClick={save}
-                      disabled={!form.patientKey}
-                      className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-200 transition-all hover:bg-violet-700 hover:shadow-violet-300 active:scale-[0.98] disabled:opacity-50 dark:shadow-none"
-                    >
-                      Finalize & Print <ArrowRight size={18} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+        )}
+        {activeTab==='medication' && (
+          <div>
+            <PrescriptionMedication
+              ref={medsRef}
+              initialMedicines={form.meds}
+              onChange={(meds) => setForm(f => ({ ...f, meds }))}
+              language={prescriptionLanguage}
+              suggestions={{
+                medName: medNameSuggestions,
+                dose: sugDose,
+                route: sugRoute,
+                instruction: sugInstr,
+                duration: sugDuration,
+                frequency: sugFreq,
+              }}
+            />
           </div>
-        </main>
+        )}
+        {activeTab==='vitals' && (
+          <div>
+            <PrescriptionVitals
+              ref={vitalsRef}
+              initial={(form as any).vitalsDisplay}
+              suggestions={{
+                pulse: sugVPulse,
+                temperature: sugVTemp,
+                bloodPressureSys: sugVSys,
+                bloodPressureDia: sugVDia,
+                respiratoryRate: sugVResp,
+                bloodSugar: sugVSugar,
+                weightKg: sugVWeight,
+                height: sugVHeight,
+                spo2: sugVSpo2,
+              }}
+            />
+          </div>
+        )}
+        {activeTab==='diagnostics' && (
+          <div>
+            <PrescriptionDiagnosticOrders ref={diagRef} initialTestsText={(form as any).diagDisplay?.testsText} suggestionsTests={sugDiagTests} />
+          </div>
+        )}
+        {activeTab==='labs' && (
+          <div>
+            <label className="mb-1 block text-sm text-slate-700">Lab Tests (comma or one per line)</label>
+            <SuggestField mode="lab-tests" rows={3} value={form.labTestsText} onChange={v=>{ setForm(f=>({ ...f, labTestsText: v })); searchLabTests(v) }} suggestions={sugLabTests} placeholder="Search lab tests…" />
+          </div>
+        )}
+        {activeTab==='anesthesia' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <Doctor_PreAnesthesiaForm
+              data={form.preAnesthesia}
+              onChange={(preAnesthesia) => setForm(f => ({ ...f, preAnesthesia }))}
+            />
+            {form.preAnesthesia.isApplied && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={openAnesthesiaPrint}
+                  className="flex items-center gap-2 rounded-xl border border-teal-300 bg-teal-50 px-5 py-2.5 text-sm font-bold text-teal-700 hover:bg-teal-100 hover:border-teal-400 transition-all shadow-sm active:scale-[0.98]"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Print Pre-Anesthesia Form
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={openPrint} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={openAnesthesiaPrint}
+              disabled={!form.preAnesthesia.isApplied}
+              title={!form.preAnesthesia.isApplied ? 'Enable Pre-Anesthesia form in the Anesthesia tab first' : 'Print Pre-Anesthesia Form'}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Anesthesia Print
+            </button>
+            <button type="button" onClick={resetForms} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.81"/></svg>
+              Reset
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              type="button" 
+              disabled={!sel} 
+              onClick={()=>setOpenReferral(true)} 
+              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-100 hover:border-sky-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.99 12 19.79 19.79 0 0 1 1.97 3.18 2 2 0 0 1 3.95 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              Referral
+            </button>
+            <button 
+              type="submit" 
+              className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-5 py-2 text-xs font-semibold text-white hover:bg-sky-600 transition-all active:scale-[0.98] shadow-sm shadow-sky-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save Prescription
+            </button>
+          </div>
+        </div>
+        {saved && (
+          <div className="px-5 py-2 border-t border-emerald-100 bg-emerald-50 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-semibold text-emerald-600">Saved successfully</span>
+          </div>
+        )}
+      </form>
       </div>
       {openReferral && (
         <div id="referral-print" className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-2 sm:px-4">
           <style>{`@media print { body * { visibility: hidden !important; } #referral-print, #referral-print * { visibility: visible !important; } #referral-print { position: static !important; inset: auto !important; background: transparent !important; } }`}</style>
           <div className="w-full max-w-4xl rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <div className="text-base font-semibold text-slate-900">Refer to IPD</div>
+              <div className="text-base font-semibold text-slate-900">Referral Form</div>
               <div className="flex items-center gap-2">
                 <button onClick={printReferral} className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950">Print</button>
                 <button onClick={()=>setOpenReferral(false)} className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950">Close</button>
@@ -1464,8 +1352,31 @@ export default function Doctor_Prescription() {
         diagnosis={form.diagnosis}
         advice={form.advice}
         createdAt={new Date()}
+        language={prescriptionLanguage}
       />
       <Toast toast={toast} onClose={()=>setToast(null)} />
+      {customEntriesModalOpen && (
+        <DoctorCustomEntriesModal
+          isOpen={customEntriesModalOpen}
+          onClose={() => setCustomEntriesModalOpen(false)}
+          doctorId={doc?.id || ''}
+          onSelectEntry={(entryText) => {
+            setForm(f => ({ ...f, [customEntriesCategory]: entryText }))
+          }}
+          initialCategory={customEntriesCategory}
+        />
+      )}
+      {prevPrescriptionsModalOpen && (
+        <PreviousPrescriptionsModal
+          isOpen={prevPrescriptionsModalOpen}
+          onClose={() => setPrevPrescriptionsModalOpen(false)}
+          patientMrn={sel?.mrNo || ''}
+          onSelectPrescription={loadPreviousPrescription}
+          doctor={{ name: doc?.name, specialization: doctorInfo?.specialization, qualification: doctorInfo?.qualification, departmentName: doctorInfo?.departmentName, phone: doctorInfo?.phone }}
+          settings={settings}
+          patient={{ name: sel?.patientName || '-', mrn: sel?.mrNo || '-', gender: pat?.gender, fatherName: pat?.fatherName, age: pat?.age, phone: pat?.phone, address: pat?.address }}
+        />
+      )}
     </div>
   )
 }

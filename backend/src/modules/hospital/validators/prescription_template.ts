@@ -27,6 +27,7 @@ export const createPrescriptionTemplateSchema = z.object({
   examFindings: z.string().optional(),
   diagnosis: z.string().optional(),
   advice: z.string().optional(),
+  nextFollowUp: z.string().optional(),
 })
 
 export const updatePrescriptionTemplateSchema = z.object({
@@ -45,4 +46,5 @@ export const updatePrescriptionTemplateSchema = z.object({
   examFindings: z.string().optional(),
   diagnosis: z.string().optional(),
   advice: z.string().optional(),
+  nextFollowUp: z.string().optional(),
 })

@@ -1,5 +1,9 @@
 import React from 'react';
 import { diagnosticApi } from '../../utils/api';
+import Diagnostic_RichTextEditor from './diagnostic_RichTextEditor';
+import { ClipboardList, GitCompare, Wrench, Microscope, Lightbulb, ImagePlus, Trash2 } from 'lucide-react';
+
+const FINDINGS_HTML_MARKER = '__FINDINGS_HTML__'
 
 interface Props {
   value: string;
@@ -16,6 +20,7 @@ const UltrasoundGeneric: React.FC<Props> = ({ value: _value, onChange }) => {
     { label: '', value: '' },
     { label: '', value: '' },
   ]);
+  const [findingsHtml, setFindingsHtml] = React.useState('');
   const [impression, setImpression] = React.useState('');
   const [images, setImages] = React.useState<string[]>([]);
   const [ready, setReady] = React.useState(false)
@@ -27,7 +32,8 @@ const UltrasoundGeneric: React.FC<Props> = ({ value: _value, onChange }) => {
       `Clinical Information\n${get('Clinical Information', clinical)}`,
       `Comparison\n${get('Comparison', comparison)}`,
       `Technique\n${get('Technique', technique)}`,
-      `Findings\n${get('Findings', findings)}`,
+      `Findings\n${FINDINGS_HTML_MARKER}${findingsHtml}`,
+      `FindingsLegacy\n${get('Findings', findings)}`,// kept for backward compat print
       `Impression\n${get('Impression', impression)}`,
     ];
     const imgs = images && images.length ? images : (initialRef.current['Images'] ? initialRef.current['Images'].split(/\r?\n/).filter(Boolean) : [])
@@ -35,7 +41,7 @@ const UltrasoundGeneric: React.FC<Props> = ({ value: _value, onChange }) => {
       parts.push(`Images\n${imgs.join('\n')}`);
     }
     return parts.join('\n\n').trim();
-  }, [clinical, comparison, technique, findings, impression, images]);
+  }, [clinical, comparison, technique, findings, findingsHtml, impression, images]);
 
   React.useEffect(() => {
     if (!ready) return;
@@ -65,6 +71,16 @@ const UltrasoundGeneric: React.FC<Props> = ({ value: _value, onChange }) => {
     if (sections['Comparison']!=null) setComparison(sections['Comparison'])
     if (sections['Technique']!=null) setTechnique(sections['Technique'])
     if (sections['Impression']!=null) setImpression(sections['Impression'])
+    if (sections['Findings']!=null) {
+      const raw = sections['Findings']
+      if (raw.startsWith(FINDINGS_HTML_MARKER)) {
+        setFindingsHtml(raw.slice(FINDINGS_HTML_MARKER.length))
+      } else {
+        // Legacy plain-text findings → convert to simple HTML
+        const html = raw.split(/\r?\n/).filter(Boolean).map((l: string) => `<p>${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')
+        setFindingsHtml(html || '')
+      }
+    }
     if (sections['Images']){
       const imgs = sections['Images'].split(/\r?\n/).map(s=>s.trim()).filter(Boolean)
       if (imgs.length) setImages(imgs)
@@ -117,51 +133,73 @@ const UltrasoundGeneric: React.FC<Props> = ({ value: _value, onChange }) => {
   };
 
   return (
-    <div className="grid gap-3">
-      <div>
-        <label className="block text-sm font-medium mb-1">Clinical Information</label>
-        <textarea className="w-full rounded border px-2 py-2 min-h-[88px]" value={clinical} onChange={e=>setClinical(e.target.value)} placeholder="Enter clinical notes" />
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Comparison</label>
-        <textarea className="w-full rounded border px-2 py-2 min-h-[88px]" value={comparison} onChange={e=>setComparison(e.target.value)} placeholder="Previous studies or NONE" />
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Technique</label>
-        <textarea className="w-full rounded border px-2 py-2 min-h-[88px]" value={technique} onChange={e=>setTechnique(e.target.value)} placeholder="Describe technique" />
-      </div>
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium">Findings</label>
-          <button type="button" className="rounded border px-2 py-1 text-xs" onClick={()=>setFindingRows(rows=>[...rows,{ label: '', value: '' }])}>Add Row</button>
+    <div className="space-y-4">
+      {/* Clinical Information */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <ClipboardList className="w-4 h-4 text-violet-600" />
+          <label className="text-sm font-semibold text-slate-800">Clinical Information</label>
         </div>
-        <div className="grid gap-2">
-          {findingRows.map((row, idx) => (
-            <div key={idx} className="grid grid-cols-1 md:grid-cols-[260px_1fr_auto] gap-2 items-start">
-              <textarea className="w-full rounded border px-2 py-2" value={row.label} onChange={e=>{
-                const v = e.target.value; setFindingRows(r=>r.map((it,i)=> i===idx ? ({...it,label:v}) : it));
-              }} placeholder="Label (e.g., Liver)" />
-              <textarea className="w-full rounded border px-2 py-2" value={row.value} onChange={e=>{
-                const v = e.target.value; setFindingRows(r=>r.map((it,i)=> i===idx ? ({...it,value:v}) : it));
-              }} placeholder="Details (e.g., Mildly enlarged, homogeneous echotexture)" />
-              <button type="button" className="text-xs px-2 py-1" onClick={()=>setFindingRows(r=>r.filter((_,i)=>i!==idx))}>Remove</button>
-            </div>
-          ))}
+        <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2.5 min-h-[80px] text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none transition-all" value={clinical} onChange={e=>setClinical(e.target.value)} placeholder="Enter clinical notes" />
+      </div>
+
+      {/* Comparison */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <GitCompare className="w-4 h-4 text-sky-600" />
+          <label className="text-sm font-semibold text-slate-800">Comparison</label>
         </div>
+        <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2.5 min-h-[80px] text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none transition-all" value={comparison} onChange={e=>setComparison(e.target.value)} placeholder="Previous studies or NONE" />
       </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Impression</label>
-        <textarea className="w-full rounded border px-2 py-2 min-h-[88px]" value={impression} onChange={e=>setImpression(e.target.value)} placeholder="Final impression" />
+
+      {/* Technique */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Wrench className="w-4 h-4 text-amber-600" />
+          <label className="text-sm font-semibold text-slate-800">Technique</label>
+        </div>
+        <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2.5 min-h-[80px] text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none transition-all" value={technique} onChange={e=>setTechnique(e.target.value)} placeholder="Describe technique" />
       </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Images</label>
-        <input type="file" accept="image/*" multiple onChange={onFiles} />
+
+      {/* Findings - Rich Text */}
+      <div className="rounded-xl border border-emerald-200 bg-white shadow-sm p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Microscope className="w-4 h-4 text-emerald-600" />
+          <label className="text-sm font-semibold text-slate-800">Findings / Report</label>
+        </div>
+        <Diagnostic_RichTextEditor
+          value={findingsHtml}
+          onChange={setFindingsHtml}
+        />
+      </div>
+
+      {/* Impression - Rich Text */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Lightbulb className="w-4 h-4 text-fuchsia-600" />
+          <label className="text-sm font-semibold text-slate-800">Impression</label>
+        </div>
+        <Diagnostic_RichTextEditor
+          value={impression}
+          onChange={setImpression}
+        />
+      </div>
+
+      {/* Images */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <ImagePlus className="w-4 h-4 text-indigo-600" />
+          <label className="text-sm font-semibold text-slate-800">Images</label>
+        </div>
+        <input type="file" accept="image/*" multiple onChange={onFiles} className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-violet-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-violet-700 hover:file:bg-violet-100" />
         {images.length>0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
             {images.map((src, idx) => (
-              <div key={idx} className="relative border rounded overflow-hidden">
+              <div key={idx} className="relative rounded-lg border border-slate-200 overflow-hidden group">
                 <img src={src} alt={`img-${idx}`} className="w-full h-24 object-cover" />
-                <button type="button" className="absolute top-1 right-1 bg-white/80 text-xs px-1 rounded" onClick={()=>setImages(imgs=>imgs.filter((_,i)=>i!==idx))}>x</button>
+                <button type="button" className="absolute top-1 right-1 bg-white/90 text-rose-600 rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm" onClick={()=>setImages(imgs=>imgs.filter((_,i)=>i!==idx))}>
+                  <Trash2 className="w-3 h-3" />
+                </button>
               </div>
             ))}
           </div>
@@ -192,8 +230,9 @@ export async function printUltrasoundReport(input: {
 
   const esc = (x: any)=> String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
   const fmt = (iso?: string)=>{ const d = iso? new Date(iso): new Date(); return d.toLocaleDateString()+" "+d.toLocaleTimeString() }
+  const FHTML = '__FINDINGS_HTML__'
   const bodyHtml = (()=>{
-    const labels = ['Clinical Information','Comparison','Technique','Findings','Impression','Images']
+    const labels = ['Clinical Information','Comparison','Technique','Findings','FindingsLegacy','Impression','Images']
     const set = new Set(labels)
     const sections: Record<string,string> = {}
     let cur = ''
@@ -206,11 +245,25 @@ export async function printUltrasoundReport(input: {
     }
     push()
     let html = `<div class="title-mid">ULTRASOUND REPORT</div><div class="box">`
-    for (const key of labels){
-      const val = (sections as any)[key]
+    const printLabels = ['Clinical Information','Comparison','Technique','Findings','Impression','Images']
+    for (const key of printLabels){
+      let val = (sections as any)[key]
+      if (key === 'Findings') {
+        const rawVal = String(val || '')
+        if (rawVal.startsWith(FHTML)) {
+          // New HTML findings
+          const htmlContent = rawVal.slice(FHTML.length)
+          if (htmlContent.replace(/<[^>]+>/g,'').trim()) {
+            html += `<div class="sec"><div class="sec-title">Findings</div><div class="sec-text impression-html">${htmlContent}</div></div>`
+          }
+          continue
+        }
+        // Legacy plain text — fall through to normal render
+      }
       if (key==='Images' && !val) continue
-      if (!(key in sections) && key!=='Clinical Information' && key!=='Comparison' && key!=='Technique' && key!=='Findings' && key!=='Impression') continue
-      html += `<div class="sec"><div class="sec-title">${esc(key)}</div><div class="sec-text">${esc(val||'')}</div></div>`
+      if (!val || !String(val).trim()) continue
+      const isHtml = key === 'Impression'
+      html += `<div class="sec"><div class="sec-title">${esc(key)}</div><div class="sec-text${isHtml ? ' impression-html' : ''}">${isHtml ? val : esc(val)}</div></div>`
     }
     html += `</div>`
     return html
@@ -223,7 +276,6 @@ export async function printUltrasoundReport(input: {
     for (const c of extra) arr.push({ name: c?.name, degrees: c?.degrees, title: c?.title })
     const filtered = arr.filter(c => (c?.name || c?.degrees || c?.title))
     const out = filtered.slice(0,3)
-    if (out.length === 1){ while (out.length < 3) out.push(out[0]) }
     return out
   })())
   const consultHtml = consultants.length ? `<div class=\"consult-grid\">${consultants.map(c=>`<div class=\\\"consult\\\"><div class=\\\"name\\\">${esc(c.name||'')}</div><div class=\\\"deg\\\">${esc(c.degrees||'')}</div><div class=\\\"title\\\">${esc(c.title||'')}</div></div>`).join('')}</div>` : ''
@@ -231,31 +283,37 @@ export async function printUltrasoundReport(input: {
   const html = `<!doctype html><html><head><meta charset="utf-8"/>
   <style>
     @page { size: A4 portrait; margin: 12mm }
-    body{ font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#0f172a; }
-    .wrap{ padding: 0 4mm; min-height: 100vh; display:flex; flex-direction:column }
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+    body{ font-family: 'Poppins', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#1e293b; }
+    .wrap{ padding: 0 6mm; min-height: 100vh; display:flex; flex-direction:column }
     @media print { .wrap{ min-height: calc(100vh - 36mm) } }
-    .hdr{display:grid;grid-template-columns:96px 1fr 96px;align-items:center}
-    .hdr .title{font-size:28px;font-weight:800;text-align:center}
-    .hdr .muted{color:#64748b;font-size:12px;text-align:center}
-    .dept{font-style:italic;text-align:center;margin:8px 0 4px 0}
-    .hr{border-bottom:2px solid #0f172a;margin:6px 0}
-    .box{border:1px solid #e2e8f0;border-radius:10px;padding:6px;margin:8px 0}
-    .kv{display:grid;grid-template-columns: 130px minmax(0,1fr) 130px minmax(0,1fr) 130px minmax(0,1fr);gap:4px 10px;font-size:12px;align-items:start}
-    .kv > div{line-height:1.2}
-    .kv > div:nth-child(2n){word-break:break-word}
-    .title-mid{font-size:18px;font-weight:800;text-align:center;margin-top:4px}
-    .sec{margin-top:6px}
-    .sec-title{font-size:16px;font-weight:800;margin:6px 0 2px 0}
-    .sec-text{white-space:pre-wrap}
-    .content{white-space:pre-wrap;font-size:14px;line-height:1.5}
-    .footnote{margin-top:18px;text-align:center;color:#475569}
-    .foot-hr{border-bottom:1px solid #334155;margin:10px 0}
+    .hdr{display:grid;grid-template-columns:80px 1fr 80px;align-items:center;padding-bottom:10px;border-bottom:3px solid #0f172a;margin-bottom:8px}
+    .hdr .title{font-size:26px;font-weight:800;text-align:center;letter-spacing:0.5px;color:#0f172a}
+    .hdr .muted{color:#64748b;font-size:11px;text-align:center;margin-top:3px}
+    .dept{font-style:italic;text-align:center;margin:6px 0 2px 0;font-size:13px;color:#334155;font-weight:500}
+    .hr{border-bottom:1px solid #cbd5e1;margin:4px 0}
+    .box{border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin:8px 0;background:#fafafa}
+    .kv{display:grid;grid-template-columns: 130px minmax(0,1fr) 130px minmax(0,1fr) 130px minmax(0,1fr);gap:5px 12px;font-size:11.5px;align-items:start}
+    .kv > div{line-height:1.3;color:#475569}
+    .kv > div:nth-child(odd){font-weight:600;color:#334155}
+    .kv > div:nth-child(2n){word-break:break-word;color:#0f172a}
+    .title-mid{font-size:17px;font-weight:700;text-align:center;margin-top:6px;color:#0f172a;letter-spacing:0.3px}
+    .sec{margin-top:10px}
+    .sec-title{font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid #e2e8f0}
+    .sec-text{white-space:pre-wrap;font-size:12.5px;line-height:1.6;color:#1e293b}
+    .impression-html{white-space:normal}
+    .impression-html p{margin:0 0 6px 0}
+    .impression-html ul,.impression-html ol{margin:0 0 6px 16px;padding:0}
+    .impression-html li{margin-bottom:2px}
+    .content{white-space:pre-wrap;font-size:13px;line-height:1.6}
+    .footnote{margin-top:20px;text-align:center;color:#64748b;font-size:10.5px}
+    .foot-hr{border-bottom:1px solid #94a3b8;margin:10px 0}
     .spacer{flex:1}
     .footer-block{ page-break-inside: avoid; break-inside: avoid }
-    .consult-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 18px;margin-top:6px}
-    .consult .name{font-weight:800;text-transform:uppercase}
-    .consult .deg{font-size:12px}
-    .consult .title{font-weight:800}
+    .consult-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 20px;margin-top:8px}
+    .consult .name{font-weight:700;text-transform:uppercase;font-size:12px;color:#0f172a}
+    .consult .deg{font-size:11px;color:#475569}
+    .consult .title{font-weight:600;font-size:11px;color:#334155}
   </style></head><body>
     <div class="wrap">
       <div class="hdr">

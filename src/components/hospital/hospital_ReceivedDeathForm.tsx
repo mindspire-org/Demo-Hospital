@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { hospitalApi, api as coreApi } from '../../utils/api'
 import Toast, { type ToastState } from '../ui/Toast'
+import SuggestField from '../SuggestField'
 
 export type ReceivedDeathFormProps = {
   encounterId?: string
@@ -8,7 +9,7 @@ export type ReceivedDeathFormProps = {
 }
 
 type RDForm = {
-  srNo?: string
+  rdNo?: string
   patientCnic?: string
   relative?: string
   ageSex?: string
@@ -34,14 +35,48 @@ type RDForm = {
 }
 
 export default function Hospital_ReceivedDeathForm({ encounterId, patient }: ReceivedDeathFormProps){
-  const [form, setForm] = useState<RDForm>({ receiving: {} })
+  const [form, setForm] = useState<RDForm>(() => ({
+    emergencyReportedDate: new Date().toISOString().slice(0, 10),
+    emergencyReportedTime: new Date().toTimeString().slice(0, 5),
+    receiving: {},
+  }))
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
+  const [doctors, setDoctors] = useState<Array<{ _id: string; fullName?: string; name?: string }>>([])
+
+  // Load next RD number and doctors list on mount
+  useEffect(()=>{ (async()=>{
+    try {
+      const res: any = await hospitalApi.getNextRdNo()
+      if (res?.rdNo) {
+        setForm(f => ({ ...f, rdNo: res.rdNo }))
+      }
+    } catch {}
+  })() }, [])
+
+  // Load doctors list
+  useEffect(()=>{ (async()=>{
+    try { const res: any = await hospitalApi.listDoctors(); const items = (res?.doctors || res || []) as Array<{ _id: string; fullName?: string; name?: string }>; setDoctors(items) } catch { setDoctors([]) }
+  })() }, [])
+
+  // Doctor names for searchable dropdown
+  const doctorNames = useMemo(() => doctors.map(d => d.fullName || d.name || '').filter(Boolean), [doctors])
+
+  // Ensure defaults are always set on mount
+  useEffect(()=>{
+    setForm(f => ({
+      ...f,
+      emergencyReportedDate: f.emergencyReportedDate || new Date().toISOString().slice(0, 10),
+      emergencyReportedTime: f.emergencyReportedTime || new Date().toTimeString().slice(0, 5),
+    }))
+  }, [])
 
   // Prefill derived fields from patient context once
   useEffect(()=>{
     setForm(f=>({
       ...f,
+      emergencyReportedDate: f.emergencyReportedDate || new Date().toISOString().slice(0, 10),
+      emergencyReportedTime: f.emergencyReportedTime || new Date().toTimeString().slice(0, 5),
       ageSex: f.ageSex ?? deriveAgeSex(patient?.age, patient?.gender),
       attendantAddress: f.attendantAddress ?? (patient?.address || ''),
       patientCnic: f.patientCnic ?? (patient?.cnic || ''),
@@ -56,13 +91,14 @@ export default function Hospital_ReceivedDeathForm({ encounterId, patient }: Rec
       const res: any = await hospitalApi.getIpdReceivedDeath(encounterId)
       const d = res?.receivedDeath
       if (d) {
-        setForm({
-          srNo: d.srNo || '',
-          patientCnic: d.patientCnic || '',
+        setForm(f => ({
+          ...f,
+          rdNo: d.rdNo || f.rdNo || '',
+          patientCnic: d.patientCnic || f.patientCnic || '',
           relative: d.relative || '',
-          ageSex: d.ageSex || form.ageSex || '',
-          emergencyReportedDate: d.emergencyReportedDate ? fmtDateISO(d.emergencyReportedDate) : '',
-          emergencyReportedTime: d.emergencyReportedTime || '',
+          ageSex: d.ageSex || f.ageSex || '',
+          emergencyReportedDate: d.emergencyReportedDate ? fmtDateISO(d.emergencyReportedDate) : f.emergencyReportedDate,
+          emergencyReportedTime: d.emergencyReportedTime || f.emergencyReportedTime,
           receiving: {
             pulse: d.receiving?.pulse || '',
             bloodPressure: d.receiving?.bloodPressure || '',
@@ -75,12 +111,20 @@ export default function Hospital_ReceivedDeathForm({ encounterId, patient }: Rec
           attendantName: d.attendantName || '',
           attendantRelative: d.attendantRelative || '',
           attendantRelation: d.attendantRelation || '',
-          attendantAddress: d.attendantAddress || form.attendantAddress || '',
+          attendantAddress: d.attendantAddress || f.attendantAddress || '',
           attendantCnic: d.attendantCnic || '',
           deathDeclaredBy: d.deathDeclaredBy || '',
           chargeNurseName: d.chargeNurseName || '',
           doctorName: d.doctorName || '',
-        })
+        }))
+      } else {
+        // New record - fetch next RD number
+        try {
+          const rdRes: any = await hospitalApi.getNextRdNo()
+          if (rdRes?.rdNo) {
+            setForm(f => ({ ...f, rdNo: rdRes.rdNo }))
+          }
+        } catch {}
       }
       // Also fetch patient CNIC from encounter if not already present
       try {
@@ -134,23 +178,13 @@ export default function Hospital_ReceivedDeathForm({ encounterId, patient }: Rec
     }
   }
 
-  useEffect(() => {
-    const onAction = (ev: Event) => {
-      const detail = (ev as CustomEvent).detail as any
-      if (!detail || detail.key !== 'ReceivedDeath') return
-      if (detail.action === 'save') { void save() }
-      if (detail.action === 'print') { void printPreview() }
-    }
-    window.addEventListener('dw:form-action', onAction as any)
-    return () => window.removeEventListener('dw:form-action', onAction as any)
-  }, [encounterId, form])
-
   return (
     <div className="space-y-3">
       <Toast toast={toast} onClose={()=>setToast(null)} />
       <div className="text-xl font-bold text-slate-800">Received Death</div>
       <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-        <div className="grid md:grid-cols-4 gap-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Patient Information</div>
+        <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-1">Patient Name</label>
             <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.name||''} />
@@ -167,9 +201,17 @@ export default function Hospital_ReceivedDeathForm({ encounterId, patient }: Rec
             <label className="block text-sm font-bold text-slate-800 mb-1">Phone</label>
             <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.phone||''} />
           </div>
-          <div className="md:col-span-2">
+          <div>
             <label className="block text-sm font-bold text-slate-800 mb-1">Address</label>
             <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.address||''} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Guardian Name</label>
+            <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.guardianName||patient?.fatherName||''} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Patient CNIC (if available)</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.patientCnic||''} onChange={e=>setForm(v=>({ ...v, patientCnic: e.target.value }))} />
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-1">Admission No</label>
@@ -179,84 +221,80 @@ export default function Hospital_ReceivedDeathForm({ encounterId, patient }: Rec
             <label className="block text-sm font-bold text-slate-800 mb-1">Doctor</label>
             <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.doctor||''} />
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Received Details</div>
+        <div className="grid md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-bold text-slate-800 mb-1">Patient CNIC (if available)</label>
-            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.patientCnic||''} onChange={e=>setForm(v=>({ ...v, patientCnic: e.target.value }))} />
+            <label className="block text-sm font-bold text-slate-800 mb-1">RD No</label>
+            <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={form.rdNo||''} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Reported Date</label>
+              <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.emergencyReportedDate||''} onChange={e=>setForm(v=>({ ...v, emergencyReportedDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Time</label>
+              <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.emergencyReportedTime||''} onChange={e=>setForm(v=>({ ...v, emergencyReportedTime: e.target.value }))} />
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-1 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Sr. No</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.srNo||''} onChange={e=>setForm(v=>({ ...v, srNo: e.target.value }))} />
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Receiving Parameters</div>
+        <div className="grid md:grid-cols-3 gap-3">
+          {recvInput('Pulse','pulse')}
+          {recvInput('Blood Pressure','bloodPressure')}
+          {recvInput('Respiratory Rate','respiratoryRate')}
+          {recvInput('Pupils','pupils')}
+          {recvInput('Corneal Reflex','cornealReflex')}
+          {recvInput('ECG','ecg')}
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Relation</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.relative||''} onChange={e=>setForm(v=>({ ...v, relative: e.target.value }))} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-bold text-slate-800 mb-1">Reported Date (Emergency)</label>
-            <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.emergencyReportedDate||''} onChange={e=>setForm(v=>({ ...v, emergencyReportedDate: e.target.value }))} />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-slate-800 mb-1">Time</label>
-            <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.emergencyReportedTime||''} onChange={e=>setForm(v=>({ ...v, emergencyReportedTime: e.target.value }))} />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-3">
-        {recvInput('Pulse','pulse')}
-        {recvInput('Blood Pressure','bloodPressure')}
-        {recvInput('Respiratory Rate','respiratoryRate')}
-        {recvInput('Pupils','pupils')}
-        {recvInput('Corneal Reflex','cornealReflex')}
-        {recvInput('ECG','ecg')}
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-slate-800 mb-1">Diagnosis</label>
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Diagnosis</div>
         <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.diagnosis||''} onChange={e=>setForm(v=>({ ...v, diagnosis: e.target.value }))} />
       </div>
 
-      <div className="grid md:grid-cols-1 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Attendant Name</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.attendantName||''} onChange={e=>setForm(v=>({ ...v, attendantName: e.target.value }))} />
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Attendant Information</div>
+        <div className="grid md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Attendant Name</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.attendantName||''} onChange={e=>setForm(v=>({ ...v, attendantName: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Relation with Patient</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.attendantRelation||''} onChange={e=>setForm(v=>({ ...v, attendantRelation: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Attendant CNIC</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.attendantCnic||''} onChange={e=>setForm(v=>({ ...v, attendantCnic: e.target.value }))} />
+          </div>
         </div>
-      </div>
-
-      <div className="grid md:grid-cols-1 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Relation with the patient</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.attendantRelation||''} onChange={e=>setForm(v=>({ ...v, attendantRelation: e.target.value }))} />
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Attendant CNIC</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.attendantCnic||''} onChange={e=>setForm(v=>({ ...v, attendantCnic: e.target.value }))} />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Death Declared By / Doctors</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.deathDeclaredBy||''} onChange={e=>setForm(v=>({ ...v, deathDeclaredBy: e.target.value }))} />
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Charge Nurse Name</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.chargeNurseName||''} onChange={e=>setForm(v=>({ ...v, chargeNurseName: e.target.value }))} />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Doctor Name</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.doctorName||''} onChange={e=>setForm(v=>({ ...v, doctorName: e.target.value }))} />
+        <div className="grid md:grid-cols-3 gap-3 mt-3">
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Death Declared By / Doctors</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.deathDeclaredBy||''} onChange={e=>setForm(v=>({ ...v, deathDeclaredBy: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Charge Nurse Name</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.chargeNurseName||''} onChange={e=>setForm(v=>({ ...v, chargeNurseName: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Doctor Name</label>
+            <SuggestField
+              value={form.doctorName||''}
+              onChange={v=>setForm(x=>({ ...x, doctorName: v }))}
+              suggestions={doctorNames}
+              className="w-full border rounded-md px-2 py-1 text-sm"
+            />
+          </div>
         </div>
       </div>
 

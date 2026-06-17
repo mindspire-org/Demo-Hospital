@@ -39,11 +39,19 @@ async function ensurePngDataUrl(src: string): Promise<string> {
 
 export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData & Extras) {
   const { jsPDF } = await import('jspdf')
+  const { ensureUrduNastaleeq, drawUrduText } = await import('../ensureUrduNastaleeq')
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true })
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
 
-  // Palette - navy + gold luxury
+  const urduOk = await ensureUrduNastaleeq(pdf)
+  const hasUrdu = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrduText = (text: string, x: number, y: number, opts?: any) => {
+    drawUrduText(pdf, text, x, y, opts)
+  }
+  const wantsUrdu = (data as any).language === 'urdu'
+  const isUrdu = wantsUrdu && urduOk
+
   const navy       = { r: 15,  g: 30,  b: 80  }
   const gold       = { r: 212, g: 175, b: 55  }
   const lightGold  = { r: 252, g: 235, b: 160 }
@@ -61,28 +69,18 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
   const cw = W - 2 * mx
   let y = 8
 
-  // ══════════════════════════════════════════════════════════════
-  // 1. DARK NAVY HEADER with gold accents
-  // ══════════════════════════════════════════════════════════════
   const headerH = 40
   pdf.setFillColor(navy.r, navy.g, navy.b)
   pdf.rect(mx, y, cw, headerH, 'F')
 
-  // Gold line at top
   pdf.setFillColor(gold.r, gold.g, gold.b)
   pdf.rect(mx, y, cw, 1.5, 'F')
-
-  // Gold line at bottom
   pdf.rect(mx, y + headerH - 1.5, cw, 1.5, 'F')
-
-  // Gold corner accents
-  pdf.setFillColor(gold.r, gold.g, gold.b)
   pdf.rect(mx, y, 2, 8, 'F')
   pdf.rect(mx, y, 8, 2, 'F')
   pdf.rect(W - mx - 2, y, 2, 8, 'F')
   pdf.rect(W - mx - 8, y, 8, 2, 'F')
 
-  // Logo
   let nameX = mx + 10
   const logoSrc = String(settings.logoDataUrl || '')
   if (logoSrc) {
@@ -93,20 +91,17 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
     } catch {}
   }
 
-  // Hospital name (gold)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(18)
   pdf.setTextColor(gold.r, gold.g, gold.b)
   pdf.text(String(settings.name || 'Hospital'), nameX, y + 16)
 
-  // Address (white)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
   pdf.setTextColor(white.r, white.g, white.b)
   pdf.text(String(settings.address || ''), nameX, y + 22)
   pdf.text(`Tel: ${settings.phone || ''}`, nameX, y + 27)
 
-  // Doctor right side (white + gold)
   const drX = W - mx - 8
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(14)
@@ -119,7 +114,6 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
   const drSub = [doctor.qualification, (doctor as any).specialization].filter(Boolean).join(' • ')
   if (drSub) pdf.text(drSub, drX, y + 20, { align: 'right' })
 
-  // Department badge (gold on navy)
   if ((doctor as any).departmentName) {
     const dept = String((doctor as any).departmentName).toUpperCase()
     const deptW = Math.min(55, dept.length * 2 + 10)
@@ -133,15 +127,10 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
 
   y += headerH + 6
 
-  // ══════════════════════════════════════════════════════════════
-  // 2. PATIENT (cream card with gold border)
-  // ══════════════════════════════════════════════════════════════
   pdf.setFillColor(cream.r, cream.g, cream.b)
   pdf.setDrawColor(gold.r, gold.g, gold.b)
   pdf.setLineWidth(0.5)
   roundedRect(pdf, mx, y, cw, 22, 3)
-
-  // Gold left bar
   pdf.setFillColor(gold.r, gold.g, gold.b)
   pdf.rect(mx, y + 2, 3, 18, 'F')
 
@@ -153,7 +142,6 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
   pdf.setFont('helvetica', 'bold'); pdf.text('MR#:', c2, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(String(patient.mrn || '-'), c2 + 10, y + 7)
   pdf.setFont('helvetica', 'bold'); pdf.text('Age/Gender:', c3, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(`${patient.age || '-'} / ${patient.gender || '-'}`, c3 + 20, y + 7)
   pdf.setFont('helvetica', 'bold'); pdf.text('Date:', c4, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(dt.toLocaleDateString(), c4 + 10, y + 7)
-
   pdf.setFont('helvetica', 'bold'); pdf.text('Phone:', c1, y + 13); pdf.setFont('helvetica', 'normal'); pdf.text(String(patient.phone || '-'), c1 + 14, y + 13)
   if ((data as any).tokenNo) {
     pdf.setFont('helvetica', 'bold'); pdf.text('Token:', c2, y + 13); pdf.setFont('helvetica', 'normal'); pdf.text(String((data as any).tokenNo), c2 + 10, y + 13)
@@ -164,9 +152,6 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
 
   y += 26
 
-  // ══════════════════════════════════════════════════════════════
-  // 3. VITALS (gold badges)
-  // ══════════════════════════════════════════════════════════════
   const v: any = (data as any).vitals || {}
   const vitalsList: Array<{ label: string; value: string }> = []
   if (v.bloodPressureSys != null && v.bloodPressureDia != null) vitalsList.push({ label: 'BP', value: `${v.bloodPressureSys}/${v.bloodPressureDia}` })
@@ -188,26 +173,20 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
     pdf.setFont('helvetica', 'normal')
     pdf.setTextColor(dark.r, dark.g, dark.b)
     pdf.setFontSize(7.5)
-    pdf.text(vitalsList.map(v => `${v.label}: ${v.value}`).join('   '), mx + 20, y + 7)
+    pdf.text(vitalsList.map(vt => `${vt.label}: ${vt.value}`).join('   '), mx + 20, y + 7)
     y += 14
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 4. CLINICAL SECTIONS
-  // ══════════════════════════════════════════════════════════════
   const addSection = (label: string, value: string | undefined) => {
     if (!value || !String(value).trim()) return
     const text = String(value).trim()
     const lines = (pdf as any).splitTextToSize(text, cw - 12)
-
-    // Gold section header
     pdf.setFillColor(gold.r, gold.g, gold.b)
     pdf.rect(mx, y, cw, 0.8, 'F')
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8)
     pdf.setTextColor(navy.r, navy.g, navy.b)
     pdf.text(label, mx + 4, y + 5)
-
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8)
     pdf.setTextColor(dark.r, dark.g, dark.b)
@@ -222,13 +201,9 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
   addSection('Allergies', data.allergyHistory)
   addSection('Advice / Referral', data.advice)
 
-  // ══════════════════════════════════════════════════════════════
-  // 5. Rx TABLE
-  // ══════════════════════════════════════════════════════════════
   const meds = (data.items || []).filter(m => String(m?.name || '').trim())
   if (meds.length > 0) {
     y += 2
-    // Navy Rx header
     pdf.setFillColor(navy.r, navy.g, navy.b)
     roundedRect(pdf, mx, y, cw, 8, 2)
     pdf.setTextColor(gold.r, gold.g, gold.b)
@@ -252,24 +227,36 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(7.5)
     pdf.setTextColor(dark.r, dark.g, dark.b)
+    const { translateRxItem } = await import('../../prescriptionUrdu')
     meds.forEach((m, i) => {
+      const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
       if (i % 2 === 0) {
         pdf.setFillColor(255, 252, 245)
         pdf.rect(mx, y - 3.5, cw, 5, 'F')
       }
       cx = mx + 2
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5)
       pdf.text(String(i + 1), cx + 1, y); cx += cols[0]
-      pdf.text(String(m?.name || '').trim(), cx + 1, y); cx += cols[1]
-      pdf.text(String(m?.dose || '').trim(), cx + 1, y); cx += cols[2]
-      pdf.text(String(m?.duration || '').trim(), cx + 1, y); cx += cols[3]
-      pdf.text(String(m?.frequency || '').trim(), cx + 1, y); cx += cols[4]
-      pdf.text(String(m?.route || '').trim(), cx + 1, y); cx += cols[5]
-      pdf.text(String(m?.instruction || '').trim(), cx + 1, y)
+      const mName = String(m?.name || '').trim()
+      const mInstr = String(t?.instruction || '').trim()
+      if (hasUrdu(mName)) { pdf.setFontSize(9); safeUrduText(mName, cx + cols[1] - 1, y, { align: 'right' }) }
+      else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mName, cx + 1, y) }
+      cx += cols[1]
+      pdf.setTextColor(dark.r, dark.g, dark.b)
+      const mDose = String(t?.dose || '').trim()
+      const mDur  = String(t?.duration || '').trim()
+      const mFreq = String(t?.frequency || '').trim()
+      const mRoute = String(t?.route || '').trim()
+      if (hasUrdu(mDose))  { pdf.setFontSize(9); safeUrduText(mDose,  cx + cols[2] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mDose,  cx + 1, y) }; cx += cols[2]
+      if (hasUrdu(mDur))   { pdf.setFontSize(9); safeUrduText(mDur,   cx + cols[3] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mDur,   cx + 1, y) }; cx += cols[3]
+      if (hasUrdu(mFreq))  { pdf.setFontSize(9); safeUrduText(mFreq,  cx + cols[4] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mFreq,  cx + 1, y) }; cx += cols[4]
+      if (hasUrdu(mRoute)) { pdf.setFontSize(9); safeUrduText(mRoute, cx + cols[5] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mRoute, cx + 1, y) }; cx += cols[5]
+      if (hasUrdu(mInstr)) { pdf.setFontSize(9); safeUrduText(mInstr, cx + cols[6] - 1, y, { align: 'right' }) }
+      else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mInstr, cx + 1, y) }
       y += 5
     })
   }
 
-  // ── Tests ──
   const labTests = (data.labTests || []).filter(Boolean)
   const diagTests = (data.diagnosticTests || []).filter(Boolean)
   if (labTests.length || diagTests.length) {
@@ -290,9 +277,6 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
     y += 14
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 6. SIGNATURE + FOOTER
-  // ══════════════════════════════════════════════════════════════
   const signY = H - 30
   pdf.setDrawColor(gold.r, gold.g, gold.b)
   pdf.setLineWidth(0.3)
@@ -305,7 +289,6 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
   pdf.setTextColor(navy.r, navy.g, navy.b)
   pdf.text(`Dr. ${doctor.name || ''}`, mx + 4, signY + 8)
 
-  // Footer navy bar with gold text
   pdf.setFillColor(navy.r, navy.g, navy.b)
   pdf.rect(mx, H - 14, cw, 6, 'F')
   pdf.setFillColor(gold.r, gold.g, gold.b)
@@ -315,11 +298,9 @@ export async function previewPremiumDarkHeaderPdf(data: PremiumDarkHeaderPdfData
   pdf.setFontSize(7)
   pdf.text(`${settings.name || ''}  •  ${settings.phone || ''}  •  ${settings.address || ''}`, W / 2, H - 10, { align: 'center' })
 
-  // ── Overlay (header/footer/watermark) ──
   const { applyOverlayBeforeOutput } = await import('./applyOverlay')
   await applyOverlayBeforeOutput(pdf)
 
-  // ── Output ──
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {

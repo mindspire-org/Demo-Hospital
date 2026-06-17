@@ -12,8 +12,8 @@
  * - Sidebar Roles & Permissions
  */
 
-import { api, cachedApi, withQuery } from '@/api'
-import type { CachedApiOptions } from '@/api'
+import { api, cachedApi, withQuery } from '../../api'
+import type { CachedApiOptions } from '../../api'
 
 export const indoorPharmacyApi = {
   // -------------------------------------------------------------------------
@@ -105,9 +105,14 @@ export const indoorPharmacyApi = {
     return { suggestions: items.map((it: any) => ({ id: String(it._id || it.key || it.name || ''), name: String(it.name || '') })) }
   },
   getAllMedicines: async () => {
+    const { fetchMedicinesFromExcel } = await import('../../utils/medicineExcel')
+    const excelItems = await fetchMedicinesFromExcel()
+    if (excelItems.length > 0) {
+      return { medicines: excelItems.map((it: any) => ({ id: String(it.name || ''), name: String(it.name || ''), genericName: String(it.genericName || ''), company: String(it.company || '') })) }
+    }
     const res: any = await api(withQuery('/indoor-pharmacy/inventory', { limit: 2000 }))
     const items: any[] = res?.items ?? res ?? []
-    return { medicines: items.map((it: any) => ({ id: String(it._id || it.key || it.name || ''), name: String(it.name || '') })) }
+    return { medicines: items.map((it: any) => ({ id: String(it._id || it.key || it.name || ''), name: String(it.name || ''), genericName: String(it.genericName || it.lastGenericName || ''), company: String(it.lastCompany || '') })) }
   },
   createMedicine: (data: any) => api('/indoor-pharmacy/medicines', { method: 'POST', body: JSON.stringify(data) }),
 

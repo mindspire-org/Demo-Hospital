@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 
 export type SalarySlipExpense = {
   id?: string
@@ -31,7 +31,7 @@ export default function Pharmacy_SalarySlipDialog({ open, onClose, expense, staf
     let mounted = true
     ;(async()=>{
       try {
-        const s = await pharmacyApi.getSettings()
+        const s = await indoorPharmacyApi.getSettings()
         if (!mounted) return
         setInfo({
           name: s.pharmacyName || 'PHARMACY',

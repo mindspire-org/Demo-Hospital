@@ -1,5 +1,4 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import PortalSwitcher from '../PortalSwitcher'
 import { indoorPharmacyApi } from '../../utils/api'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
@@ -21,6 +20,8 @@ import {
   ClipboardCheck,
   Bell,
   LogOut,
+  TrendingUp,
+  Package,
 } from 'lucide-react'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: LucideIcon }
@@ -35,6 +36,8 @@ const posSection: Section = {
   items: [
     { to: '/indoor-pharmacy/pos', label: 'POS', icon: CreditCard },
     { to: '/indoor-pharmacy/prescriptions', label: 'Prescriptions', icon: ClipboardCheck },
+    { to: '/indoor-pharmacy/integration-dashboard', label: 'Integration Dashboard', icon: TrendingUp },
+    { to: '/indoor-pharmacy/orders', label: 'Order Queue', icon: Package },
     { to: '/indoor-pharmacy/sales-history', label: 'Sales History', icon: ReceiptText },
     { to: '/indoor-pharmacy/returns', label: 'Patient Returns', icon: RotateCcw },
     { to: '/indoor-pharmacy/customers', label: 'Patient Records', icon: Users },
@@ -126,10 +129,9 @@ export default function IndoorPharmacy_Sidebar({ collapsed = false }: { collapse
     return () => { mounted = false }
   }, [role])
 
-  const canShow = (path: string) => {
-    if (path === '/indoor-pharmacy/sidebar-permissions' && String(role||'').toLowerCase() !== 'admin') return false
-    const perm = permMap.get(path)
-    return perm ? perm.visible !== false : true
+  const canShow = (_path: string) => {
+    // All modules visible — permissions disabled
+    return true
   }
 
   const byOrder = (a: NavItem, b: NavItem) => {
@@ -146,21 +148,23 @@ export default function IndoorPharmacy_Sidebar({ collapsed = false }: { collapse
         key={item.to}
         to={item.to}
         title={collapsed ? item.label : undefined}
-        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)' } as any) : undefined)}
+        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' } as any) : undefined)}
         className={({ isActive }) => {
           const base = collapsed
-            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center'
-            : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2'
+            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center transition-all'
+            : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2 transition-all'
           const active = isActive
-            ? 'text-white'
-            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+            ? 'text-sky-800'
+            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
           return `${base} ${active}`
         }}
         end={item.end}
       >
         {({ isActive }) => (
           <>
-            <Icon className={collapsed ? (isActive ? 'h-5 w-5 text-white' : 'h-5 w-5 text-slate-700') : (isActive ? 'h-4 w-4 text-white' : 'h-4 w-4 text-slate-700')} />
+            <Icon className={collapsed
+              ? (isActive ? 'h-5 w-5 text-sky-700' : 'h-5 w-5 text-slate-700 dark:text-slate-400')
+              : (isActive ? 'h-4 w-4 text-sky-700' : 'h-4 w-4 text-slate-700 dark:text-slate-400')} />
             {!collapsed && <span className="truncate">{item.label}</span>}
           </>
         )}
@@ -175,7 +179,7 @@ export default function IndoorPharmacy_Sidebar({ collapsed = false }: { collapse
     return (
       <div key={section.label} className="space-y-1">
         {!collapsed && (
-          <div className="px-3 py-2 text-base font-bold uppercase tracking-wider" style={{ color: 'var(--navy)' }}>
+          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600 mt-4 first:mt-0">
             {section.label}
           </div>
         )}
@@ -195,8 +199,7 @@ export default function IndoorPharmacy_Sidebar({ collapsed = false }: { collapse
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
-        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
+      <div className={collapsed ? 'p-2' : 'p-3'}>
         <button
           onClick={async () => {
             try { await indoorPharmacyApi.logoutUser(username || undefined) } catch {}
@@ -206,10 +209,9 @@ export default function IndoorPharmacy_Sidebar({ collapsed = false }: { collapse
             navigate('/indoor-pharmacy/login')
           }}
           title={collapsed ? 'Logout' : undefined}
-          className={collapsed ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium' : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium'}
-          style={{ backgroundColor: '#ffffff', color: 'var(--navy)', border: '1px solid var(--navy)' }}
-          onMouseEnter={e => { try { ;(e.currentTarget as any).style.backgroundColor = 'rgba(15,45,92,0.06)' } catch {} }}
-          onMouseLeave={e => { try { ;(e.currentTarget as any).style.backgroundColor = '#ffffff' } catch {} }}
+          className={collapsed
+            ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium transition-all bg-white dark:bg-slate-800 text-[#0f2d5c] dark:text-slate-300 border border-[#0f2d5c] dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all bg-white dark:bg-slate-800 text-[#0f2d5c] dark:text-slate-300 border border-[#0f2d5c] dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}
           aria-label="Logout"
         >
           <LogOut className="h-4 w-4" />

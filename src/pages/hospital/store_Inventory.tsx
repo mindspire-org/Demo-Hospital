@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 import Store_InventoryTable from '../../components/hospital/store_InventoryTable'
@@ -39,6 +39,7 @@ type EditForm = {
 
 export default function Store_Inventory() {
   const [items, setItems] = useState<InventoryItem[]>([])
+  const [allItems, setAllItems] = useState<InventoryItem[]>([])
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [stockFilter, setStockFilter] = useState('')
@@ -56,6 +57,7 @@ export default function Store_Inventory() {
   const [viewPurchaseId, setViewPurchaseId] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastState>(null)
   const navigate = useNavigate()
+  const location = useLocation()
 
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false)
@@ -103,6 +105,7 @@ export default function Store_Inventory() {
       await hospitalApi.approveStorePurchaseDraft(id)
       setToast({ type: 'success', message: 'Item approved' })
       loadItems(page)
+      loadAllItems()
     } catch (err: any) {
       setToast({ type: 'error', message: err?.message || 'Failed to approve' })
     }
@@ -120,6 +123,32 @@ export default function Store_Inventory() {
 
   const editDraft = (id: string) => {
     navigate(`/hospital/store/add-purchase?draftId=${id}`)
+  }
+
+  const loadAllItems = async () => {
+    try {
+      const res = await hospitalApi.listStoreInventory({
+        limit: 1000000,
+      }) as any
+      const inventory = (res.items || res.data || res || []).map((i: any) => ({
+        id: String(i._id || i.id),
+        name: i.name,
+        category: i.category,
+        categoryName: i.category || '-',
+        unit: i.unit || 'pcs',
+        currentStock: i.currentStock || 0,
+        minStock: i.minStock || 0,
+        avgCost: i.avgCost || 0,
+        stockValue: (i.currentStock || 0) * (i.avgCost || 0),
+        earliestExpiry: i.earliestExpiry,
+        lastPurchase: i.lastPurchase,
+        lastSupplier: i.lastSupplier,
+        location: i.location,
+      })) as InventoryItem[]
+      setAllItems(inventory)
+    } catch {
+      setAllItems([])
+    }
   }
 
   const loadItems = async (p = 1) => {
@@ -164,6 +193,10 @@ export default function Store_Inventory() {
   }
 
   useEffect(() => {
+    loadAllItems()
+  }, [])
+
+  useEffect(() => {
     cancelledRef.current = false
     const timer = setTimeout(() => {
       if (!cancelledRef.current) loadItems(1)
@@ -178,6 +211,12 @@ export default function Store_Inventory() {
     setPage(1)
     setPendingPage(1)
   }, [categoryFilter, stockFilter, query])
+
+  // Refresh inventory when navigating back from add purchase page
+  useEffect(() => {
+    loadItems(page)
+    loadAllItems()
+  }, [location.key])
 
   useEffect(() => {
     if (stockFilter === 'pending') {
@@ -221,6 +260,7 @@ export default function Store_Inventory() {
       setToast({ type: 'success', message: 'Item updated successfully' })
       setEditOpen(false)
       loadItems(page)
+      loadAllItems()
     } catch (err: any) {
       setToast({ type: 'error', message: err?.message || 'Failed to update item' })
     } finally {
@@ -241,6 +281,7 @@ export default function Store_Inventory() {
       setToast({ type: 'success', message: 'Item deleted successfully' })
       setDeleteOpen(false)
       loadItems(page)
+      loadAllItems()
     } catch (err: any) {
       setToast({ type: 'error', message: err?.message || 'Failed to delete item' })
     } finally {
@@ -248,7 +289,7 @@ export default function Store_Inventory() {
     }
   }
 
-  const totalValue = items.reduce((sum, i) => sum + i.stockValue, 0)
+  const totalValue = allItems.reduce((sum, i) => sum + i.stockValue, 0)
 
   const handleExportCsv = () => {
     hospitalApi.exportStoreInventoryCsv({
@@ -279,7 +320,7 @@ export default function Store_Inventory() {
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
           <div className="text-sm text-slate-500">Total Items</div>
-          <div className="text-xl font-bold text-slate-800">{total}</div>
+          <div className="text-xl font-bold text-slate-800">{allItems.length}</div>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
           <div className="text-sm text-slate-500">Total Stock Value</div>
@@ -289,11 +330,11 @@ export default function Store_Inventory() {
         </div>
         <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
           <div className="text-sm text-rose-600">Out of Stock</div>
-          <div className="text-xl font-bold text-rose-700">{items.filter(i => i.currentStock === 0).length}</div>
+          <div className="text-xl font-bold text-rose-700">{allItems.filter(i => i.currentStock === 0).length}</div>
         </div>
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
           <div className="text-sm text-amber-600">Low Stock</div>
-          <div className="text-xl font-bold text-amber-700">{items.filter(i => i.currentStock > 0 && i.currentStock < i.minStock).length}</div>
+          <div className="text-xl font-bold text-amber-700">{allItems.filter(i => i.currentStock > 0 && i.currentStock < i.minStock).length}</div>
         </div>
       </div>
 

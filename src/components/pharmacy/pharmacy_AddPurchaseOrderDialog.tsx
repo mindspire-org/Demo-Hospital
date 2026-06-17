@@ -338,8 +338,8 @@ const Pharmacy_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSav
                           <div className="inventory-dropdown absolute z-50 mt-1 max-h-48 w-full min-w-[250px] overflow-y-auto rounded-md border border-slate-200 bg-white shadow-xl">
                             {(itemSearchQuery
                               ? inventory.filter(inv => inv.name?.toLowerCase().includes(itemSearchQuery.toLowerCase()))
-                              : inventory.slice(0, 10)
-                            ).slice(0, 10).map(inv => (
+                              : inventory
+                            ).map(inv => (
                               <div
                                 key={inv._id}
                                 className="inventory-dropdown-item cursor-pointer px-3 py-2 text-sm hover:bg-blue-50"

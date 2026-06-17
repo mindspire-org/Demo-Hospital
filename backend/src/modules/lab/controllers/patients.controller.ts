@@ -157,3 +157,103 @@ export async function update(req: Request, res: Response) {
   if (!doc) return res.status(404).json({ error: 'Patient not found' })
   res.json({ patient: doc })
 }
+
+export async function list(req: Request, res: Response) {
+  const { search, page = 1, limit = 50 } = req.query as any
+  const filter: any = {}
+  if (search) {
+    const rx = new RegExp(String(search).trim(), 'i')
+    filter.$or = [
+      { mrn: rx },
+      { fullName: rx },
+      { phoneNormalized: rx },
+      { cnicNormalized: rx },
+    ]
+  }
+  const skip = (Number(page) - 1) * Number(limit)
+  const [items, total] = await Promise.all([
+    LabPatient.find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+    LabPatient.countDocuments(filter)
+  ])
+  res.json({
+    items,
+    total,
+    page: Number(page),
+    limit: Number(limit),
+    totalPages: Math.ceil(total / Number(limit))
+  })
+}
+
+export async function remove(req: Request, res: Response) {
+  const { id } = req.params
+  const pat = await LabPatient.findByIdAndDelete(id)
+  if (!pat) return res.status(404).json({ error: 'Patient not found' })
+  res.json({ ok: true })
+}
+
+export async function exportCsv(_req: Request, res: Response) {
+  const pats = await LabPatient.find().sort({ createdAt: -1 }).lean()
+  let csv = 'MRN,Full Name,Father Name,Phone,CNIC,Gender,Age,Address,Created At\n'
+  for (const p of pats) {
+    const row = [
+      p.mrn || '',
+      p.fullName || '',
+      p.fatherName || '',
+      p.phoneNormalized || '',
+      p.cnicNormalized || '',
+      p.gender || '',
+      p.age || '',
+      (p.address || '').replace(/,/g, ' '),
+      p.createdAtIso || ''
+    ].join(',')
+    csv += row + '\n'
+  }
+  res.setHeader('Content-Type', 'text/csv')
+  res.setHeader('Content-Disposition', 'attachment; filename=patients.csv')
+  res.send(csv)
+}
+
+export async function importCsv(req: Request, res: Response) {
+  const { csvText } = req.body
+  if (!csvText) return res.status(400).json({ error: 'No CSV data provided' })
+  
+  const lines = csvText.split('\n').filter((l: string) => l.trim())
+  if (lines.length <= 1) return res.json({ inserted: 0, skipped: 0 })
+  
+  // Skip header
+  const dataLines = lines.slice(1)
+  let inserted = 0
+  let skipped = 0
+  const errors = []
+
+  for (const line of dataLines) {
+    try {
+      const [mrn, fullName, fatherName, phone, cnic, gender, age, address] = line.split(',')
+      if (!fullName) { skipped++; continue }
+
+      // Check for duplicate MRN or Phone
+      const existing = await LabPatient.findOne({ $or: [{ mrn: mrn?.trim() }, { phoneNormalized: normDigits(phone) }] })
+      if (existing) {
+        skipped++
+        continue
+      }
+
+      await LabPatient.create({
+        mrn: mrn?.trim() || await nextGlobalMrn(),
+        fullName: fullName.trim(),
+        fatherName: fatherName?.trim(),
+        phoneNormalized: normDigits(phone),
+        cnicNormalized: normDigits(cnic),
+        gender: gender?.trim(),
+        age: age?.trim(),
+        address: address?.trim(),
+        createdAtIso: new Date().toISOString()
+      })
+      inserted++
+    } catch (e: any) {
+      errors.push(e.message)
+    }
+  }
+
+  res.json({ inserted, skipped, errors })
+}

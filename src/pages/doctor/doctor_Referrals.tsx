@@ -1,29 +1,17 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
-import { hospitalApi, labApi } from '../../utils/api'
+import React, { useState, useEffect, useRef } from 'react'
+import { hospitalApi } from '../../utils/api'
 import Toast from '../../components/ui/Toast'
 import Doctor_IpdReferralForm from '../../components/doctor/Doctor_IpdReferralForm'
 import { previewIpdReferralPdf } from '../../utils/ipdReferralPdf'
-import { 
-  Printer, 
-  Trash2, 
-  Edit3, 
-  RefreshCw, 
-  Plus, 
-  Filter, 
-  FileStack, 
-  CheckCircle2, 
-  Clock, 
-  Ban,
-  ArrowUpRight,
-  Search,
-  UserPlus,
-  CalendarDays
-} from 'lucide-react'
+import { Printer, Trash2, Edit3, RefreshCw, FileText, Activity, FlaskConical, Pill, AlertCircle, Search } from 'lucide-react'
 
 type DoctorSession = { id: string; name: string; username: string }
 
-type IpdReferral = {
+type ReferralType = 'lab' | 'pharmacy' | 'diagnostic' | 'ipd' | 'er'
+
+type UnifiedReferral = {
   id: string
+  type: ReferralType
   patientId: string
   patientName?: string
   mrNo?: string
@@ -33,35 +21,43 @@ type IpdReferral = {
   phone?: string
   address?: string
   cnic?: string
-  status: 'New' | 'Accepted' | 'Rejected' | 'Admitted'
-  referralDate?: string
-  referralTime?: string
-  reasonOfReferral?: string
+  status: string
+  date: string
+  time?: string
+  reason?: string
   provisionalDiagnosis?: string
   vitals?: { bp?: string; pulse?: number; temperature?: number; rr?: number }
   referredTo?: { departmentId?: string; doctorId?: string; department?: string; doctor?: string }
-  condition?: { stability?: 'Stable' | 'Unstable'; consciousness?: 'Conscious' | 'Unconscious' }
+  condition?: { stability?: string; consciousness?: string }
   remarks?: string
   signStamp?: string
   createdAt: string
   referredBy?: string
+  tests?: string[] // For lab/diag
+  notes?: string   // For lab/pharm/diag
 }
 
 export default function Doctor_Referrals() {
   const [doc, setDoc] = useState<DoctorSession | null>(null)
-  const [referrals, setReferrals] = useState<IpdReferral[]>([])
+  const [referrals, setReferrals] = useState<UnifiedReferral[]>([])
   const [loading, setLoading] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'New' | 'Accepted' | 'Rejected' | 'Admitted'>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [departmentFilter, setDepartmentFilter] = useState<string>('all')
+  const [departments, setDepartments] = useState<any[]>([])
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [q, setQ] = useState('')
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<{id: string, type: ReferralType} | null>(null)
   const [editOpen, setEditOpen] = useState(false)
-  const [editing, setEditing] = useState<IpdReferral | null>(null)
+  const [editing, setEditing] = useState<UnifiedReferral | null>(null)
   const [settings, setSettings] = useState<any>(null)
   const referralFormRef = useRef<any>(null)
   
+  // Stats
+  const [stats, setStats] = useState({ total: 0, today: 0, lab: 0, pharmacy: 0, diagnostic: 0, ipd: 0, er: 0 })
+
   // Pagination state
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
@@ -77,38 +73,17 @@ export default function Doctor_Referrals() {
 
   useEffect(() => {
     if (doc?.id) {
-      setPage(1)
+      setPage(1) // Reset to first page when filters change
     }
-  }, [doc?.id, statusFilter, from, to])
+  }, [doc?.id, statusFilter, typeFilter, departmentFilter, from, to, q])
 
   useEffect(() => {
     if (doc?.id) {
       loadReferrals()
       loadSettings()
+      loadDepartments()
     }
-  }, [doc?.id, statusFilter, from, to, page, limit])
-
-  // Stats calculation
-  const stats = useMemo(() => {
-    const counts = { new: 0, accepted: 0, rejected: 0, admitted: 0 }
-    referrals.forEach(r => {
-      if (r.status === 'New') counts.new++
-      if (r.status === 'Accepted') counts.accepted++
-      if (r.status === 'Rejected') counts.rejected++
-      if (r.status === 'Admitted') counts.admitted++
-    })
-    return counts
-  }, [referrals])
-
-  const filteredReferrals = useMemo(() => {
-    if (!searchTerm.trim()) return referrals
-    const q = searchTerm.toLowerCase()
-    return referrals.filter(r => 
-      r.patientName?.toLowerCase().includes(q) || 
-      r.mrNo?.toLowerCase().includes(q) ||
-      r.reasonOfReferral?.toLowerCase().includes(q)
-    )
-  }, [referrals, searchTerm])
+  }, [doc?.id, statusFilter, typeFilter, departmentFilter, from, to, q, page, limit])
 
   async function loadSettings() {
     try {
@@ -117,94 +92,154 @@ export default function Doctor_Referrals() {
     } catch {}
   }
 
+  async function loadDepartments() {
+    try {
+      const res = await hospitalApi.listDepartments({ limit: 1000 }) as any
+      const deps = res?.departments || res || []
+      setDepartments(Array.isArray(deps) ? deps : [])
+    } catch {}
+  }
+
   async function loadReferrals() {
     if (!doc?.id) return
     setLoading(true)
     try {
-      const params: any = { referredByDoctorId: doc.id, page, limit }
-      if (statusFilter !== 'all') params.status = statusFilter
-      if (from) params.from = from
-      if (to) params.to = to
-      const res: any = await hospitalApi.listIpdReferrals(params)
-      const totalCount = res?.total || 0
-      setTotal(totalCount)
-      const rows: any[] = res?.referrals || []
-      const items: IpdReferral[] = await Promise.all(rows.map(async (r: any) => {
-        const patientData = r.patientId?._id ? r.patientId : r.patientSnapshot
-        const referredToData = r.referredTo || {}
-        
-        let ageStr = patientData?.age || ''
-        let fatherName = patientData?.fatherName || patientData?.fatherHusbandName || ''
-        let phone = patientData?.phone || patientData?.phoneNormalized || ''
-        let address = patientData?.address || ''
-        let cnic = patientData?.cnic || patientData?.cnicNormalized || ''
-        let gender = patientData?.gender || '-'
-        
-        const mrn = patientData?.mrn || patientData?.mrNumber
-        if ((!ageStr || !fatherName || !phone || !address) && mrn) {
-          try {
-            const resp: any = await labApi.getPatientByMrn(mrn)
-            const lp = resp?.patient
-            if (lp) {
-              if (!ageStr && lp.dob) {
-                try {
-                  const dob = new Date(lp.dob)
-                  if (!isNaN(dob as any)) {
-                    const years = Math.floor((Date.now() - dob.getTime()) / 31557600000)
-                    ageStr = String(Math.max(0, years))
-                  }
-                } catch {}
-              }
-              if (!gender || gender === '-') gender = lp.gender || gender
-              if (!fatherName) fatherName = lp.fatherName || ''
-              if (!phone) phone = lp.phone || lp.phoneNormalized || ''
-              if (!address) address = lp.address || ''
-              if (!cnic) cnic = lp.cnic || lp.cnicNormalized || ''
+      const commonParams: any = { doctorId: doc.id, page: 1, limit: 1000 } // Fetch more for local filtering/stats if needed, but pagination is better
+      if (from) commonParams.from = from
+      if (to) commonParams.to = to
+      if (q) commonParams.q = q
+
+      // We need to fetch from multiple endpoints. 
+      // For proper pagination, this is tricky if we merge on client.
+      // But user wants "all referrals", so we'll fetch them and merge.
+      
+      const fetchPromises = []
+      
+      // 1. OPD Referrals (Lab, Pharmacy, Diagnostic)
+      const opdTypes: ReferralType[] = ['lab', 'pharmacy', 'diagnostic']
+      opdTypes.forEach(t => {
+        if (typeFilter === 'all' || typeFilter === t) {
+          const p = { ...commonParams, type: t }
+          if (statusFilter !== 'all') {
+            const opdStatusMap: Record<string, string> = {
+              'new': 'pending',
+              'accepted': 'completed',
+              'rejected': 'cancelled'
             }
-          } catch {}
+            p.status = opdStatusMap[statusFilter.toLowerCase()] || statusFilter.toLowerCase()
+          }
+          fetchPromises.push(hospitalApi.listReferrals(p).then((res: any) => ({ type: t, data: res })))
         }
+      })
+
+      // 2. IPD Referrals
+      if (typeFilter === 'all' || typeFilter === 'ipd') {
+        const ipdParams = { ...commonParams, referredByDoctorId: doc.id }
+        if (statusFilter !== 'all') ipdParams.status = statusFilter
+        if (departmentFilter !== 'all') ipdParams.departmentId = departmentFilter
+        fetchPromises.push(hospitalApi.listIpdReferrals(ipdParams).then((res: any) => ({ type: 'ipd', data: res })))
+      }
+
+      // 3. ER Referrals
+      if (typeFilter === 'all' || typeFilter === 'er') {
+        const erParams = { ...commonParams, referredByDoctorId: doc.id }
+        if (statusFilter !== 'all') erParams.status = statusFilter
+        if (departmentFilter !== 'all') erParams.departmentId = departmentFilter
+        fetchPromises.push(hospitalApi.listErReferrals(erParams).then((res: any) => ({ type: 'er', data: res })))
+      }
+
+      const results = await Promise.all(fetchPromises)
+      
+      let allItems: UnifiedReferral[] = []
+      
+      for (const res of results) {
+        const { type, data } = res
+        const rows = data?.referrals || data?.items || []
         
-        if (!ageStr && patientData?.dob) {
-          try {
-            const dob = new Date(patientData.dob)
-            if (!isNaN(dob as any)) {
-              const years = Math.floor((Date.now() - dob.getTime()) / 31557600000)
-              ageStr = String(Math.max(0, years))
-            }
-          } catch {}
-        }
-        
-        return {
-          id: String(r._id || r.id),
-          patientId: String(r.patientId?._id || r.patientId || r.patientSnapshot?._id),
-          patientName: patientData?.fullName || patientData?.name || '-',
-          mrNo: patientData?.mrn || patientData?.mrNumber || '-',
-          gender: gender,
-          fatherName: fatherName,
-          age: ageStr,
-          phone: phone,
-          address: address,
-          cnic: cnic,
-          status: r.status || 'New',
-          referralDate: r.referralDate,
-          referralTime: r.referralTime,
-          reasonOfReferral: r.reasonOfReferral,
-          provisionalDiagnosis: r.provisionalDiagnosis,
-          vitals: r.vitals,
-          referredTo: {
-            departmentId: referredToData.departmentId,
-            doctorId: referredToData.doctorId,
-            department: referredToData.departmentName || referredToData.department || '-',
-            doctor: referredToData.doctorName || referredToData.doctor || '-',
-          },
-          condition: r.condition,
-          remarks: r.remarks,
-          signStamp: r.signStamp,
-          createdAt: r.createdAt,
-          referredBy: r.referredBy?.doctorName || r.referredBy || r.doctorId?.name,
-        }
-      }))
-      setReferrals(items)
+        const mapped = rows.map((r: any) => {
+          // Robust patient data extraction
+          let patientData = r.patientSnapshot || r.patientId
+          if (type === 'lab' || type === 'pharmacy' || type === 'diagnostic') {
+            patientData = r.encounterId?.patientId || patientData
+          }
+          
+          const referredToData = r.referredTo || {}
+          
+          let ageStr = patientData?.age || ''
+          let fatherName = patientData?.fatherName || patientData?.fatherHusbandName || ''
+          let phone = patientData?.phone || patientData?.phoneNormalized || ''
+          let address = patientData?.address || ''
+          let cnic = patientData?.cnic || patientData?.cnicNormalized || ''
+          let gender = patientData?.gender || '-'
+          
+          const mrn = patientData?.mrn || patientData?.mrNumber || r.mrn || r.mrNo || r.patientMrn
+          
+          // Basic mapping based on type
+          let status = r.status || 'New'
+          if (type === 'lab' || type === 'pharmacy' || type === 'diagnostic') {
+            status = r.status === 'pending' ? 'New' : (r.status === 'completed' ? 'Accepted' : (r.status === 'cancelled' ? 'Rejected' : r.status))
+          }
+
+          return {
+            id: String(r._id || r.id),
+            type: type as ReferralType,
+            patientId: String(r.patientId?._id || r.patientId || r.patientSnapshot?._id || r.encounterId?.patientId?._id || ''),
+            patientName: patientData?.fullName || patientData?.name || patientData?.patientName || '-',
+            mrNo: mrn || '-',
+            gender, fatherName, age: ageStr, phone, address, cnic,
+            status,
+            date: r.referralDate || r.createdAt,
+            time: r.referralTime,
+            reason: r.reasonOfReferral || r.notes || (r.tests && r.tests.length > 0 ? `Tests: ${r.tests.join(', ')}` : ''),
+            provisionalDiagnosis: r.provisionalDiagnosis,
+            vitals: r.vitals,
+            referredTo: {
+              departmentId: referredToData.departmentId,
+              doctorId: referredToData.doctorId,
+              department: referredToData.departmentName || referredToData.department || (type === 'lab' ? 'Laboratory' : type === 'pharmacy' ? 'Pharmacy' : type === 'diagnostic' ? 'Diagnostic' : '-'),
+              doctor: referredToData.doctorName || referredToData.doctor || '-',
+            },
+            condition: r.condition,
+            remarks: r.remarks,
+            signStamp: r.signStamp,
+            createdAt: r.createdAt,
+            referredBy: r.referredBy?.doctorName || r.referredBy || r.doctorId?.name || 'Self',
+            tests: r.tests,
+            notes: r.notes,
+          }
+        })
+        allItems = [...allItems, ...mapped]
+      }
+
+      // Sort by date descending
+      allItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      
+      // Client-side filtering for department (for OPD types which aren't filtered by server)
+      if (departmentFilter !== 'all') {
+        allItems = allItems.filter(r => {
+          if (r.type === 'ipd' || r.type === 'er') return true // Server already filtered these
+          return false // OPD referrals (lab/pharm/diag) don't have a departmentId
+        })
+      }
+
+      // Calculate Stats (on all items fetched for current doctor)
+      const today = new Date().toISOString().slice(0, 10)
+      const newStats = {
+        total: allItems.length,
+        today: allItems.filter(r => r.createdAt.startsWith(today)).length,
+        lab: allItems.filter(r => r.type === 'lab').length,
+        pharmacy: allItems.filter(r => r.type === 'pharmacy').length,
+        diagnostic: allItems.filter(r => r.type === 'diagnostic').length,
+        ipd: allItems.filter(r => r.type === 'ipd').length,
+        er: allItems.filter(r => r.type === 'er').length,
+      }
+      setStats(newStats)
+
+      setTotal(allItems.length)
+      // Client-side pagination for merged results
+      const paginated = allItems.slice((page - 1) * limit, page * limit)
+      setReferrals(paginated)
+
     } catch (e: any) {
       setToast({ type: 'error', message: e?.message || 'Failed to load referrals' })
     } finally {
@@ -212,9 +247,15 @@ export default function Doctor_Referrals() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(deleteInfo: {id: string, type: ReferralType}) {
     try {
-      await hospitalApi.updateIpdReferralStatus(id, 'reject')
+      if (deleteInfo.type === 'ipd') {
+        await hospitalApi.updateIpdReferralStatus(deleteInfo.id, 'reject')
+      } else if (deleteInfo.type === 'er') {
+        await hospitalApi.updateErReferralStatus(deleteInfo.id, 'reject')
+      } else {
+        await hospitalApi.updateReferralStatus(deleteInfo.id, 'cancelled')
+      }
       setToast({ type: 'success', message: 'Referral rejected' })
       setDeleteId(null)
       loadReferrals()
@@ -223,7 +264,7 @@ export default function Doctor_Referrals() {
     }
   }
 
-  async function handlePrint(r: IpdReferral) {
+  async function handlePrint(r: UnifiedReferral) {
     try {
       const settingsNorm = {
         name: settings?.name || 'Hospital',
@@ -243,7 +284,8 @@ export default function Doctor_Referrals() {
         cnic: r.cnic || '',
       }
 
-      let formattedDate = r.referralDate || new Date().toISOString().slice(0, 10)
+      // Format date properly
+      let formattedDate = r.date || new Date().toISOString().slice(0, 10)
       try {
         if (formattedDate) {
           const d = new Date(formattedDate)
@@ -255,8 +297,8 @@ export default function Doctor_Referrals() {
 
       const referralObj = {
         date: formattedDate,
-        time: r.referralTime || new Date().toTimeString().slice(0, 5),
-        reason: r.reasonOfReferral || '-',
+        time: r.time || new Date(r.createdAt).toTimeString().slice(0, 5),
+        reason: r.reason || '-',
         provisionalDiagnosis: r.provisionalDiagnosis || '-',
         vitals: {
           bp: r.vitals?.bp || '-',
@@ -287,248 +329,269 @@ export default function Doctor_Referrals() {
     }
   }
 
-  function openEdit(r: IpdReferral) {
+  function openEdit(r: UnifiedReferral) {
+    if (r.type !== 'ipd' && r.type !== 'er') {
+      setToast({ type: 'error', message: 'Editing only supported for IPD/ER referrals here.' })
+      return
+    }
     setEditing(r)
     setEditOpen(true)
   }
 
   const statusBadge = (status: string) => {
-    switch (status) {
-      case 'New': return 'bg-sky-50 text-sky-700 border-sky-100 ring-sky-500/10'
-      case 'Accepted': return 'bg-emerald-50 text-emerald-700 border-emerald-100 ring-emerald-500/10'
-      case 'Rejected': return 'bg-rose-50 text-rose-700 border-rose-100 ring-rose-500/10'
-      case 'Admitted': return 'bg-violet-50 text-violet-700 border-violet-100 ring-violet-500/10'
-      default: return 'bg-slate-50 text-slate-700 border-slate-100 ring-slate-500/10'
+    const s = status.toLowerCase()
+    if (s === 'new' || s === 'pending') return 'bg-blue-100 text-blue-800'
+    if (s === 'accepted' || s === 'completed' || s === 'admitted') return 'bg-green-100 text-green-800'
+    if (s === 'rejected' || s === 'cancelled') return 'bg-red-100 text-red-800'
+    return 'bg-gray-100 text-gray-800'
+  }
+
+  const typeBadge = (type: ReferralType) => {
+    const colors: Record<ReferralType, string> = {
+      lab: 'bg-violet-100 text-violet-800',
+      pharmacy: 'bg-emerald-100 text-emerald-800',
+      diagnostic: 'bg-amber-100 text-amber-800',
+      ipd: 'bg-indigo-100 text-indigo-800',
+      er: 'bg-rose-100 text-rose-800',
+    }
+    return colors[type] || 'bg-gray-100 text-gray-800'
+  }
+
+  const typeIcon = (type: ReferralType) => {
+    switch (type) {
+      case 'lab': return <FlaskConical className="h-4 w-4" />
+      case 'pharmacy': return <Pill className="h-4 w-4" />
+      case 'diagnostic': return <Activity className="h-4 w-4" />
+      case 'ipd': return <FileText className="h-4 w-4" />
+      case 'er': return <AlertCircle className="h-4 w-4" />
     }
   }
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
-      {/* Header Section */}
-      <div className="flex items-center justify-between flex-wrap gap-4 px-2">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Referral Management</h1>
-          <p className="text-slate-500 text-sm mt-1">Track and manage IPD & Emergency patient referrals.</p>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="space-y-6">
+      {/* Header & Filters */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h1 className="text-2xl font-bold text-slate-800">My Referrals</h1>
           <button
             onClick={loadReferrals}
-            className="p-2.5 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm active:scale-95"
-            title="Refresh List"
+            className="flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700 transition-all active:scale-95"
           >
-            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin text-sky-600' : ''}`} />
-          </button>
-          <button 
-            onClick={() => { setEditing(null); setEditOpen(true) }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-sky-600 text-white rounded-xl hover:bg-sky-700 transition-all font-semibold shadow-md shadow-sky-100 active:scale-95"
-          >
-            <UserPlus className="h-4 w-4" />
-            <span>New Referral</span>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
         </div>
-      </div>
 
-      {/* Mini Dashboard */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-1">
-        {[
-          { label: 'Pending New', value: stats.new, icon: Clock, color: 'sky', border: 'border-sky-100' },
-          { label: 'Accepted', value: stats.accepted, icon: CheckCircle2, color: 'emerald', border: 'border-emerald-100' },
-          { label: 'Admitted', value: stats.admitted, icon: ArrowUpRight, color: 'violet', border: 'border-violet-100' },
-          { label: 'Rejected', value: stats.rejected, icon: Ban, color: 'rose', border: 'border-rose-100' },
-        ].map((stat, i) => (
-          <div key={i} className={`bg-white p-5 rounded-2xl border ${stat.border} shadow-sm hover:shadow-md transition-all group`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">{stat.label}</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1">{stat.value}</h3>
+        {/* Widgets */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-sky-100 p-2 text-sky-600">
+                <FileText className="h-5 w-5" />
               </div>
-              <div className={`p-3 bg-${stat.color}-50 rounded-xl group-hover:scale-110 transition-transform`}>
-                <stat.icon className={`h-6 w-6 text-${stat.color}-600`} />
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Referrals</p>
+                <p className="text-xl font-bold text-slate-900">{stats.total}</p>
               </div>
             </div>
           </div>
-        ))}
-      </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600">
+                <Activity className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Today's Referrals</p>
+                <p className="text-xl font-bold text-slate-900">{stats.today}</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-violet-100 p-2 text-violet-600">
+                <FlaskConical className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Lab / Diag</p>
+                <p className="text-xl font-bold text-slate-900">{stats.lab + stats.diagnostic}</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-rose-100 p-2 text-rose-600">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">IPD / ER</p>
+                <p className="text-xl font-bold text-slate-900">{stats.ipd + stats.er}</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {/* Filters & Dashboard Controls */}
-      <div className="flex flex-col lg:flex-row gap-6 px-1">
-        {/* Left: Search & Status */}
-        <div className="flex-1 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-sm p-5 h-full flex flex-col justify-center">
-            <div className="flex flex-col sm:flex-row gap-4 items-center">
-              <div className="relative flex-1 w-full">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+        {/* Filters Bar */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+            <div className="lg:col-span-1">
+              <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase">Search</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  placeholder="Search by Patient Name or MRN..."
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all font-medium"
+                  value={q}
+                  onChange={e => setQ(e.target.value)}
+                  placeholder="Patient, MRN..."
+                  className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                 />
               </div>
-              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-2 rounded-2xl w-full sm:w-auto">
-                <div className="p-2 bg-white rounded-xl shadow-sm">
-                  <Filter className="h-4 w-4 text-sky-600" />
-                </div>
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value as any)}
-                  className="bg-transparent border-none text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer pr-10"
-                >
-                  <option value="all">All Referrals</option>
-                  <option value="New">Pending New</option>
-                  <option value="Accepted">Accepted</option>
-                  <option value="Rejected">Rejected</option>
-                  <option value="Admitted">Admitted</option>
-                </select>
-              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Right: Modern Queue Period Selector (Matching Reference) */}
-        <div className="w-full lg:w-[420px]">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/30 flex items-center gap-3">
-              <div className="p-2 bg-sky-50 rounded-xl">
-                <CalendarDays className="h-5 w-5 text-sky-600" />
-              </div>
-              <h2 className="text-[13px] font-black text-slate-500 uppercase tracking-[0.15em]">Referral Period</h2>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase">Type</label>
+              <select
+                value={typeFilter}
+                onChange={e => setTypeFilter(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              >
+                <option value="all">All Types</option>
+                <option value="lab">Lab</option>
+                <option value="pharmacy">Pharmacy</option>
+                <option value="diagnostic">Diagnostic</option>
+                <option value="ipd">IPD</option>
+                <option value="er">ER</option>
+              </select>
             </div>
-            
-            <div className="p-6">
-              <div className="grid grid-cols-2 gap-6">
-                {/* From Date */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">From</label>
-                  <div className="relative group">
-                    <input
-                      type="date"
-                      value={from}
-                      onChange={e => setFrom(e.target.value)}
-                      className="w-full pl-4 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all cursor-pointer group-hover:bg-white"
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
-                      <Clock className="h-4 w-4 text-slate-400" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* To Date */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">To</label>
-                  <div className="relative group">
-                    <input
-                      type="date"
-                      value={to}
-                      onChange={e => setTo(e.target.value)}
-                      className="w-full pl-4 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all cursor-pointer group-hover:bg-white"
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
-                      <Clock className="h-4 w-4 text-slate-400" />
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase">Status</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              >
+                <option value="all">All Status</option>
+                <option value="New">New / Pending</option>
+                <option value="Accepted">Accepted / Completed</option>
+                <option value="Rejected">Rejected / Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase">Department</label>
+              <select
+                value={departmentFilter}
+                onChange={e => setDepartmentFilter(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              >
+                <option value="all">All Departments</option>
+                {departments.map(d => (
+                  <option key={d._id || d.id} value={d._id || d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase">From</label>
+              <input
+                type="date"
+                value={from}
+                onChange={e => setFrom(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase">To</label>
+              <input
+                type="date"
+                value={to}
+                onChange={e => setTo(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Referrals Table Container */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mx-1">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200">
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Patient Details</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-center">Referral Info</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Referred To</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <RefreshCw className="h-8 w-8 text-sky-500 animate-spin" />
-                      <span className="text-sm font-medium text-slate-500">Retrieving referrals...</span>
-                    </div>
-                  </td>
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/50">
+          <div className="font-bold text-slate-800">Referral List ({total})</div>
+          <div className="text-sm text-slate-500">
+            Showing {total === 0 ? 0 : (page - 1) * limit + 1}-{Math.min(page * limit, total)} of {total}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="px-6 py-20 text-center">
+            <RefreshCw className="h-10 w-10 animate-spin mx-auto text-sky-500 mb-4" />
+            <p className="text-slate-500 font-medium">Loading referrals...</p>
+          </div>
+        ) : referrals.length === 0 ? (
+          <div className="px-6 py-20 text-center">
+            <FileText className="h-12 w-12 mx-auto text-slate-300 mb-4" />
+            <p className="text-slate-500 font-medium">No referrals found matching your filters</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-[10px] font-bold tracking-wider">
+                  <th className="px-6 py-3 text-left">Type</th>
+                  <th className="px-6 py-3 text-left">Patient Details</th>
+                  <th className="px-6 py-3 text-left">Referral Info</th>
+                  <th className="px-6 py-3 text-left">Referred To</th>
+                  <th className="px-6 py-3 text-left">Status</th>
+                  <th className="px-6 py-3 text-center">Actions</th>
                 </tr>
-              ) : filteredReferrals.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="p-4 bg-slate-50 rounded-full">
-                        <FileStack className="h-10 w-10 text-slate-300" />
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold text-slate-700">No referrals found</p>
-                        <p className="text-sm text-slate-500 mt-1">Try adjusting your filters or search term.</p>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredReferrals.map((r, i) => (
-                  <tr key={r.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400 group-hover:bg-sky-50 group-hover:text-sky-500 transition-all">
-                          {r.patientName?.charAt(0)}
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-900">{r.patientName}</div>
-                          <div className="text-[11px] text-slate-500 font-medium mt-0.5">MRN: {r.mrNo} • {r.gender} • {r.age}y</div>
-                        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {referrals.map(r => (
+                  <tr key={`${r.type}-${r.id}`} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${typeBadge(r.type)}`}>
+                        {typeIcon(r.type)}
+                        {r.type.toUpperCase()}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-center">
-                        <div className="text-sm font-semibold text-slate-700">
-                          {r.referralDate ? new Date(r.referralDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—'}
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1 truncate max-w-[140px] mx-auto" title={r.reasonOfReferral}>
-                          {r.reasonOfReferral || 'No Reason'}
-                        </div>
+                      <div className="font-bold text-slate-900">{r.patientName}</div>
+                      <div className="text-xs text-slate-500 font-medium">MRN: {r.mrNo}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-xs font-bold text-slate-700">
+                        {r.date ? new Date(r.date).toLocaleDateString() : new Date(r.createdAt).toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-slate-500 max-w-[200px] truncate mt-0.5" title={r.reason}>
+                        {r.reason || '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                          <span className="p-1 bg-slate-100 rounded text-[10px]">{r.referredTo?.department || 'OPD'}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-medium italic">Dr. {r.referredTo?.doctor || 'General Duty'}</div>
-                      </div>
+                      <div className="text-xs font-bold text-slate-700">{r.referredTo?.department}</div>
+                      <div className="text-[10px] text-slate-500 font-medium">Dr. {r.referredTo?.doctor}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${statusBadge(r.status)}`}>
+                      <span className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${statusBadge(r.status)}`}>
                         {r.status}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handlePrint(r)}
-                          className="p-2 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-all"
+                          className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-white hover:border-sky-500 hover:text-sky-600 transition-all shadow-sm"
                           title="Print Referral"
                         >
                           <Printer className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => openEdit(r)}
-                          className="p-2 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-all"
-                          title="Edit Details"
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </button>
-                        {r.status === 'New' && (
+                        {(r.type === 'ipd' || r.type === 'er') && (
                           <button
-                            onClick={() => setDeleteId(r.id)}
-                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            onClick={() => openEdit(r)}
+                            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-white hover:border-amber-500 hover:text-amber-600 transition-all shadow-sm"
+                            title="Edit Referral"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                        )}
+                        {r.status.toLowerCase() === 'new' && (
+                          <button
+                            onClick={() => setDeleteId({id: r.id, type: r.type})}
+                            className="rounded-lg border border-slate-200 p-2 text-rose-500 hover:bg-rose-50 hover:border-rose-200 transition-all shadow-sm"
                             title="Reject Referral"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -537,43 +600,43 @@ export default function Doctor_Referrals() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        {/* Improved Pagination */}
-        {total > limit && (
-          <div className="bg-slate-50/50 border-t border-slate-100 px-6 py-4 flex items-center justify-between">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-              Showing {Math.min((page - 1) * limit + 1, total)} to {Math.min(page * limit, total)} of {total}
+        {/* Pagination Controls */}
+        {total > 0 && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 bg-slate-50/30 text-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-slate-500 font-medium text-xs uppercase tracking-wider">Rows per page:</span>
+              <select
+                value={limit}
+                onChange={e => { setLimit(Number(e.target.value)); setPage(1) }}
+                className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-bold focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-4 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50 transition-all shadow-sm"
+                className="rounded-lg px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
-                Previous
+                Prev
               </button>
-              <div className="flex items-center gap-1">
-                {[...Array(Math.ceil(total / limit))].map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setPage(i + 1)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                      page === i + 1 ? 'bg-sky-600 text-white shadow-md shadow-sky-100' : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
+              <div className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-xs font-bold text-slate-700 shadow-sm">
+                Page {page} of {Math.ceil(total / limit)}
               </div>
               <button
                 onClick={() => setPage(p => Math.min(Math.ceil(total / limit), p + 1))}
                 disabled={page >= Math.ceil(total / limit)}
-                className="px-4 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50 transition-all shadow-sm"
+                className="rounded-lg px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
                 Next
               </button>
@@ -582,42 +645,45 @@ export default function Doctor_Referrals() {
         )}
       </div>
 
-      {/* Modals & Overlays */}
+      {/* Delete/Reject Confirmation */}
       {deleteId && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 border border-rose-100">
-                <Trash2 className="h-7 w-7 text-rose-600" />
+            <div className="mb-4 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                <Trash2 className="h-7 w-7" />
               </div>
               <h3 className="text-xl font-bold text-slate-900">Reject Referral?</h3>
-              <p className="text-sm text-slate-500 mt-2 leading-relaxed">This patient referral will be marked as rejected and archived. This action can be reversed by editing.</p>
+              <p className="text-sm text-slate-500 mt-2">Are you sure you want to mark this referral as rejected? This action cannot be undone.</p>
             </div>
-            <div className="flex gap-3 mt-8">
+            <div className="flex gap-3">
               <button
                 onClick={() => setDeleteId(null)}
-                className="flex-1 px-4 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50"
+                className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDelete(deleteId)}
-                className="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-rose-600 rounded-xl hover:bg-rose-700 shadow-md shadow-rose-100"
+                className="flex-1 rounded-xl bg-rose-600 py-3 text-sm font-bold text-white shadow-lg shadow-rose-200 hover:bg-rose-700 transition-all active:scale-95"
               >
-                Reject Referral
+                Confirm Reject
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {editOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="w-full max-w-5xl max-h-[92vh] rounded-3xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-8 py-5">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{editing ? 'Modify Referral' : 'Create New Referral'}</h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium uppercase tracking-wider">Patient Transfer Protocol</p>
+      {/* Edit Modal with IPD Referral Form */}
+      {editOpen && editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6">
+          <div className="w-full max-w-5xl max-h-[95vh] rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className={`rounded-lg p-2 ${typeBadge(editing.type)}`}>
+                  {typeIcon(editing.type)}
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">Edit {editing.type.toUpperCase()} Referral</h3>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -632,28 +698,28 @@ export default function Doctor_Referrals() {
                       setToast({ type: 'error', message: e?.message || 'Failed to print' })
                     }
                   }}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-white hover:border-sky-500 hover:text-sky-600 transition-all shadow-sm"
                 >
                   <Printer className="h-4 w-4" />
-                  <span>Print Preview</span>
+                  Print
                 </button>
                 <button
                   onClick={() => setEditOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-all"
+                  className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900 transition-all active:scale-95 shadow-lg shadow-slate-200"
                 >
-                  <Plus className="h-6 w-6 rotate-45" />
+                  Close
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
               <Doctor_IpdReferralForm
                 ref={referralFormRef}
-                mrn={editing?.mrNo}
+                mrn={editing.mrNo}
                 doctor={{ id: doc?.id, name: doc?.name }}
-                initialData={editing ? {
-                  referralDate: editing.referralDate,
-                  referralTime: editing.referralTime,
-                  reasonOfReferral: editing.reasonOfReferral,
+                initialData={{
+                  referralDate: editing.date,
+                  referralTime: editing.time,
+                  reasonOfReferral: editing.reason,
                   provisionalDiagnosis: editing.provisionalDiagnosis,
                   vitals: editing.vitals ? {
                     bp: editing.vitals.bp,
@@ -662,14 +728,13 @@ export default function Doctor_Referrals() {
                     rr: String(editing.vitals.rr || ''),
                   } : undefined,
                   referredTo: editing.referredTo,
-                  condition: editing.condition,
+                  condition: editing.condition as any,
                   remarks: editing.remarks,
                   signStamp: editing.signStamp,
-                } : undefined}
+                }}
                 onSaved={() => {
                   setEditOpen(false)
                   loadReferrals()
-                  setToast({ type: 'success', message: 'Referral processed successfully' })
                 }}
               />
             </div>

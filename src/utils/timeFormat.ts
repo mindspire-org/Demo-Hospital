@@ -38,11 +38,26 @@ export function fmtDate(d: any): string {
 
 export function fmtDateTime12(d: any): string {
   try{
-    const x = d instanceof Date ? d : new Date(d)
+    let x = d instanceof Date ? d : new Date(d)
     if (!x || isNaN(x.getTime())) return ''
-    const hh = String(x.getHours()).padStart(2, '0')
-    const mm = String(x.getMinutes()).padStart(2, '0')
-    return `${fmtDate(x)}, ${fmt12(`${hh}:${mm}`)}`
+    
+    // Add 5 hours for Pakistan timezone (UTC+5) if it looks like a UTC date
+    // Most ISO strings ending in Z or from MongoDB are UTC
+    const PAKISTAN_OFFSET_MS = 5 * 60 * 60 * 1000
+    const pakTime = new Date(x.getTime() + PAKISTAN_OFFSET_MS)
+    
+    // Use UTC getters on the offset date to get correct Pakistan parts
+    const dd = String(pakTime.getUTCDate()).padStart(2, '0')
+    const mm = String(pakTime.getUTCMonth() + 1).padStart(2, '0')
+    const yyyy = String(pakTime.getUTCFullYear())
+    const hh = pakTime.getUTCHours()
+    const mins = String(pakTime.getUTCMinutes()).padStart(2, '0')
+    
+    const am = hh < 12
+    const h12 = (hh % 12) || 12
+    const hhStr = String(h12).padStart(2, '0')
+    
+    return `${dd}/${mm}/${yyyy}, ${hhStr}:${mins} ${am ? 'AM' : 'PM'}`
   } catch {
     return ''
   }

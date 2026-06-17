@@ -22,7 +22,7 @@ export default function Hospital_ManageFloorsModal({ open, onClose, floors, onUp
     <Hospital_Modal open={open} onClose={onClose}>
       <div className="px-1">
         <div className="text-lg font-semibold text-slate-800">Manage Floors</div>
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 space-y-3 max-h-96 overflow-y-auto pr-2">
           {rows.map(f => {
             const e = edits[f.id]
             return (

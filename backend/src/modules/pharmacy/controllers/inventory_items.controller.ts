@@ -22,12 +22,12 @@ export async function list(req: Request, res: Response){
 
 export async function listFiltered(req: Request, res: Response){
   const search = (req.query.search as string) || ''
-  const status = String(req.query.status || '').toLowerCase() // 'low' | 'out' | 'expiring'
+  const status = String(req.query.status || '').toLowerCase() // 'low' | 'out' | 'expiring' | 'dead'
   const limit = Math.max(1, Number(req.query.limit || 100))
   const page = Math.max(1, Number((req.query.page as any) || 1))
   const skip = (page - 1) * limit
 
-  if (!['low','out','expiring'].includes(status)){
+  if (!['low','out','expiring','dead'].includes(status)){
     return res.status(400).json({ error: 'Invalid status' })
   }
 
@@ -41,10 +41,12 @@ export async function listFiltered(req: Request, res: Response){
   let query: any = nameFilter
   let sort: any = { name: 1 }
 
+  const now = new Date()
+  const nowStr = now.toISOString().slice(0,10)
+
   if (status === 'out'){
     query = { ...nameFilter, onHand: { $lte: 0 } }
   } else if (status === 'low'){
-    // onHand > 0 AND onHand < minStock AND minStock != null
     query = {
       ...nameFilter,
       $expr: {
@@ -55,12 +57,24 @@ export async function listFiltered(req: Request, res: Response){
         ]
       }
     }
+  } else if (status === 'dead'){
+    // Dead: expiry <= today
+    query = { ...nameFilter, earliestExpiry: { $ne: null, $lte: nowStr } }
+    sort = { earliestExpiry: 1, name: 1 }
   } else if (status === 'expiring'){
-    const now = new Date()
     const soon = new Date(now.getTime() + 30*24*60*60*1000)
     const soonStr = soon.toISOString().slice(0,10)
-    // earliestExpiry is stored as yyyy-mm-dd string; lexical compare works
-    query = { ...nameFilter, earliestExpiry: { $lte: soonStr } }
+    
+    // Expiring: 
+    // (earliestExpiry > today) AND (earliestExpiryAlert <= today OR earliestExpiry <= soon)
+    query = {
+      ...nameFilter,
+      earliestExpiry: { $ne: null, $gt: nowStr },
+      $or: [
+        { earliestExpiryAlert: { $ne: null, $lte: nowStr } },
+        { earliestExpiry: { $lte: soonStr } }
+      ]
+    }
     sort = { earliestExpiry: 1, name: 1 }
   }
 
@@ -94,14 +108,30 @@ export async function summary(req: Request, res: Response){
   const soonStr = soon.toISOString().slice(0,10)
   const stockSaleValue = allItems.reduce((s:any,it:any)=> s + (Number(it.onHand||0) * Number(it.lastSalePerUnit||0)), 0)
   // Counts via DB queries to exactly match filtered lists
-  const [lowStockCount, outOfStockCount, expiringSoonCount] = await Promise.all([
+  const nowStr = now.toISOString().slice(0,10)
+  const [lowStockCount, outOfStockCount, expiringSoonCount, deadCount] = await Promise.all([
     InventoryItem.countDocuments({ ...filter, $expr: { $and: [ { $gt: ['$onHand', 0] }, { $ne: ['$minStock', null] }, { $lt: ['$onHand', '$minStock'] } ] } }),
     InventoryItem.countDocuments({ ...filter, onHand: { $lte: 0 } }),
-    InventoryItem.countDocuments({ ...filter, earliestExpiry: { $lte: soonStr } }),
+    InventoryItem.countDocuments({ 
+      ...filter, 
+      earliestExpiry: { $ne: null, $gt: nowStr },
+      $or: [
+        { earliestExpiryAlert: { $ne: null, $lte: nowStr } },
+        { earliestExpiry: { $lte: soonStr } }
+      ]
+    }),
+    InventoryItem.countDocuments({ ...filter, earliestExpiry: { $ne: null, $lte: nowStr } }),
   ])
   const totalInventoryOnHand = allItems.reduce((s:any,it:any)=> s + Number(it.onHand||0), 0)
   const distinctCount = allItems.length
-  const expiringSoonItems = await InventoryItem.find({ ...filter, earliestExpiry: { $lte: soonStr } })
+  const expiringSoonItems = await InventoryItem.find({ 
+    ...filter, 
+    earliestExpiry: { $ne: null, $gt: nowStr },
+    $or: [
+      { earliestExpiryAlert: { $ne: null, $lte: nowStr } },
+      { earliestExpiry: { $lte: soonStr } }
+    ]
+  })
     .sort({ earliestExpiry: 1, name: 1 })
     .limit(50)
     .select({ name: 1, earliestExpiry: 1, onHand: 1 })
@@ -115,6 +145,8 @@ export async function summary(req: Request, res: Response){
     minStock: it.minStock,
     onHand: it.onHand,
     earliestExpiry: it.earliestExpiry,
+    earliestExpiryAlert: it.earliestExpiryAlert,
+    shelfNumber: it.shelfNumber,
     lastInvoice: it.lastInvoice,
     lastSupplier: it.lastSupplier,
     lastGenericName: it.genericName,
@@ -128,6 +160,7 @@ export async function summary(req: Request, res: Response){
       lowStockCount,
       outOfStockCount,
       expiringSoonCount,
+      deadCount,
       totalInventoryOnHand: Number(totalInventoryOnHand),
       distinctCount,
     },
@@ -136,7 +169,7 @@ export async function summary(req: Request, res: Response){
 }
 
 export async function remove(req: Request, res: Response){
-  const { key } = req.params
+  const key = (req.params.key || req.query.key) as string
   const norm = String(key || '').trim().toLowerCase()
   if (!norm) return res.status(400).json({ error: 'Key required' })
   const before: any = await InventoryItem.findOne({ key: norm }).lean()
@@ -157,7 +190,7 @@ export async function remove(req: Request, res: Response){
 }
 
 export async function update(req: Request, res: Response){
-  const { key } = req.params
+  const key = (req.params.key || req.query.key) as string
   const norm = String(key || '').trim().toLowerCase()
   if (!norm) return res.status(400).json({ error: 'Key required' })
 
@@ -170,6 +203,8 @@ export async function update(req: Request, res: Response){
     onHand,
     salePerUnit,
     expiry,
+    expiryAlertDate,
+    shelfNumber,
     invoice,
     date,
     supplierId,
@@ -204,6 +239,10 @@ export async function update(req: Request, res: Response){
   if (companyId !== undefined) doc.lastCompanyId = companyId || undefined
   if (companyName !== undefined) doc.lastCompany = companyName || undefined
   if (defaultDiscountPct !== undefined && defaultDiscountPct !== '') doc.defaultDiscountPct = Math.max(0, Math.min(100, Number(defaultDiscountPct)))
+  
+  if (expiryAlertDate !== undefined) doc.expiryAlertDate = expiryAlertDate || undefined
+  if (shelfNumber !== undefined) doc.shelfNumber = shelfNumber || undefined
+  
   if (expiry){
     const e = String(expiry)
     doc.lastExpiry = e
@@ -211,6 +250,14 @@ export async function update(req: Request, res: Response){
     const prev = doc.earliestExpiry ? new Date(doc.earliestExpiry) : undefined
     const cur = new Date(e)
     if (!prev || (cur < prev)) doc.earliestExpiry = e
+  }
+
+  if (expiryAlertDate){
+    const ea = String(expiryAlertDate)
+    // maintain earliestExpiryAlert as min
+    const prev = doc.earliestExpiryAlert ? new Date(doc.earliestExpiryAlert) : undefined
+    const cur = new Date(ea)
+    if (!prev || (cur < prev)) doc.earliestExpiryAlert = ea
   }
 
   try {

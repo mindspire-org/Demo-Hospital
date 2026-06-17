@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 type Line = { name: string; qty: number; price: number; discountRs?: number }
 
 type Props = {
   open: boolean
   onClose: () => void
   receiptNo: string
-  method: 'cash' | 'credit'
+  method: 'cash' | 'credit' | 'patient'
   lines: Line[]
   discountPct?: number
   lineDiscountRs?: number
@@ -40,7 +40,7 @@ export default function Pharmacy_POSReceiptDialog({ open, onClose, receiptNo, me
     let mounted = true
     ;(async () => {
       try {
-        const s = await pharmacyApi.getSettings()
+        const s = await indoorPharmacyApi.getSettings()
         if (!mounted) return
         setInfo({
           name: s.pharmacyName || 'PHARMACY',
@@ -110,7 +110,7 @@ export default function Pharmacy_POSReceiptDialog({ open, onClose, receiptNo, me
                 <div>Walk-in{customer ? ` - ${customer}` : ''}</div>
                 {customerPhone ? <div>Phone : {customerPhone}</div> : null}
                 <div>Bill No: {receiptNo}</div>
-                <div>Payment Mode: {method}</div>
+                <div>Payment Mode: {method === 'patient' ? 'Bill to Patient' : method}</div>
               </div>
 
               <div className="mt-3 border-t border-dashed pt-2 text-sm print:text-black">
@@ -153,17 +153,23 @@ export default function Pharmacy_POSReceiptDialog({ open, onClose, receiptNo, me
               <hr className="my-3 border-dashed" />
               {(() => {
                 const st = String(fbr?.status || '').toUpperCase().trim()
+                const showFbr = Boolean(fbr) && Boolean(st)
                 const isSuccess = st === 'SUCCESS' && Boolean(fbr?.qrCode)
-                if (!isSuccess) return null
+                if (!showFbr) return null
                 return (
                   <div className="text-xs print:text-black">
                     <div className="text-center font-medium">FBR</div>
                     <div className="mt-1 text-center">
-                      <img src={fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
+                      {isSuccess ? (
+                        <img src={fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
+                      ) : (
+                        <div className="font-semibold text-rose-600 print:text-black">FBR FAILED</div>
+                      )}
                     </div>
                     <div className="mt-1 space-y-0.5 text-[11px] text-slate-700 print:text-black">
                       <div>FBR No: {fbr?.fbrInvoiceNo || '—'}</div>
                       <div>Mode: {fbr?.mode || '—'}</div>
+                      <div>Error: {fbr?.error || '—'}</div>
                     </div>
                   </div>
                 )

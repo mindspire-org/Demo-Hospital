@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
+import { getLocalDate } from '../../utils/date'
 import Hospital_ErPaymentSlip from '../../components/hospital/Hospital_ErPaymentSlip'
 
 function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog: any[], onSelect: (svc: any) => void, initialValue?: string }) {
@@ -34,7 +35,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-100 mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+        <div className="absolute z-[100] mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id}
@@ -58,16 +59,86 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
   )
 }
 
+type BedLocation = {
+  floor: string
+  type: 'room' | 'ward'
+  location: string
+  bed: string
+}
+
+function DoctorSelect({ doctors, onSelect, initialValue = '' }: { doctors: any[], onSelect: (doc: any) => void, initialValue?: string }) {
+  const [q, setQ] = useState(initialValue)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const filtered = useMemo(() => {
+    const s = q.toLowerCase().trim()
+    if (!s) return doctors
+    return doctors.filter(doc => (doc.name || '').toLowerCase().includes(s))
+  }, [doctors, q])
+
+  useEffect(() => {
+    const clickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', clickOutside)
+    return () => document.removeEventListener('mousedown', clickOutside)
+  }, [])
+
+  return (
+    <div className="relative w-full" ref={ref}>
+      <input
+        value={q}
+        autoComplete="off"
+        onChange={e => { setQ(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder="Search doctor..."
+        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-[100] mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+          {filtered.map(doc => (
+            <button
+              key={doc.id || doc._id}
+              type="button"
+              className="w-full px-3 py-2 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+              onClick={() => {
+                onSelect(doc)
+                setQ(doc.name)
+                setOpen(false)
+              }}
+            >
+              <span className="text-sm font-medium text-slate-900">{doc.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatBedLocation(bedLoc?: BedLocation) {
+  if (!bedLoc) return '-'
+  return `${bedLoc.floor} / ${bedLoc.location} / Bed: ${bedLoc.bed}`
+}
+
 export default function Hospital_ERBilling() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   
-  const urlTokenId = String(id || searchParams.get('token') || '')
-  const [availableTokens, setAvailableTokens] = useState<any[]>([])
-  const [loadingTokens, setLoadingTokens] = useState(false)
+  const urlEncounterId = String(id || searchParams.get('encounter') || '')
+  const [availableEncounters, setAvailableEncounters] = useState<any[]>([])
+  const [loadingEncounters, setLoadingEncounters] = useState(false)
 
-  const tokenId = urlTokenId
+  // Date filters - default to empty (reset)
+  const [fromDate, setFromDate] = useState<string>('')
+  const [toDate, setToDate] = useState<string>('')
+  
+  // Patient search query
+  const [searchQuery, setSearchQuery] = useState<string>('')
+
+  const encounterIdFromUrl = urlEncounterId
 
   const [openCharge, setOpenCharge] = useState(false)
   const [editCharge, setEditCharge] = useState<null | { id: string; description: string; qty: number; unitPrice: number }>(null)
@@ -94,12 +165,30 @@ export default function Hospital_ERBilling() {
   const [confirmDel, setConfirmDel] = useState<{ open: boolean; chargeId: string } | null>(null)
 
   const [erDepartmentId, setErDepartmentId] = useState<string>('')
+  const [openDoctorService, setOpenDoctorService] = useState(false)
+  const [doctors, setDoctors] = useState<Array<{ id: string; name: string }>>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadDoctors() {
+      try {
+        const res: any = await hospitalApi.listDoctors({ active: true, limit: 500 })
+        const rows: any[] = res?.doctors || res || []
+        if (cancelled) return
+        setDoctors(rows.map((d: any) => ({ id: String(d._id || d.id), name: String(d.name || '') })))
+      } catch {
+        if (!cancelled) setDoctors([])
+      }
+    }
+    loadDoctors()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
     async function loadErDept() {
       try {
-        const deps: any = await hospitalApi.listDepartments()
+        const deps: any = await hospitalApi.listDepartments({ limit: 1000 })
         const list: any[] = deps?.departments || deps || []
         const er = list.find((d: any) => String(d?.name || '').trim().toLowerCase() === 'emergency')
         if (!cancelled && er) setErDepartmentId(String(er._id || er.id))
@@ -110,20 +199,44 @@ export default function Hospital_ERBilling() {
   }, [])
 
   useEffect(() => {
-    if (!urlTokenId && erDepartmentId) {
-      setLoadingTokens(true)
-      Promise.all([
-        hospitalApi.listTokens({ departmentId: erDepartmentId, status: 'queued', limit: 50 }),
-        hospitalApi.listTokens({ departmentId: erDepartmentId, status: 'in-progress', limit: 50 })
-      ])
-        .then(([res1, res2]: any[]) => {
-          const tokens = [...(res1?.tokens || []), ...(res2?.tokens || [])]
-          setAvailableTokens(tokens)
-        })
-        .catch(() => setAvailableTokens([]))
-        .finally(() => setLoadingTokens(false))
+    if (!urlEncounterId && erDepartmentId) {
+      loadEncounters()
     }
-  }, [urlTokenId, erDepartmentId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlEncounterId, erDepartmentId])
+
+  async function loadEncounters() {
+    if (!erDepartmentId) return
+    setLoadingEncounters(true)
+    try {
+      const res: any = await hospitalApi.listEREncounters({
+        status: 'in-progress',
+        departmentId: erDepartmentId,
+        from: fromDate || undefined,
+        to: toDate || undefined,
+        limit: 500
+      })
+      
+      let encounters = res?.encounters || []
+      setAvailableEncounters(encounters)
+    } catch {
+      setAvailableEncounters([])
+    } finally {
+      setLoadingEncounters(false)
+    }
+  }
+
+  // Filtered encounters based on search query
+  const filteredEncounters = useMemo(() => {
+    if (!searchQuery.trim()) return availableEncounters
+    const q = searchQuery.toLowerCase().trim()
+    return availableEncounters.filter((enc: any) => {
+      const patientName = String(enc.patientId?.fullName || enc.patientName || '').toLowerCase()
+      const mrn = String(enc.patientId?.mrn || enc.mrn || '').toLowerCase()
+      const tokenNo = String(enc.tokenId?.tokenNo || enc.tokenNo || '').toLowerCase()
+      return patientName.includes(q) || mrn.includes(q) || tokenNo.includes(q)
+    })
+  }, [availableEncounters, searchQuery])
 
   useEffect(() => {
     if (!toast) return
@@ -134,21 +247,20 @@ export default function Hospital_ERBilling() {
   useEffect(() => {
     let cancelled = false
     async function load(){
-      if (!tokenId) return
+      if (!encounterIdFromUrl) return
       setLoadingEnc(true)
       try{
-        const res: any = await hospitalApi.getToken(tokenId)
-        const t: any = res?.token
-        const encId = String(t?.encounterId?._id || t?.encounterId || '')
-        const pmrn = String(t?.patientId?.mrn || t?.mrn || '')
-        const patient = t?.patientId || {}
+        const res: any = await hospitalApi.getEREncounterById(encounterIdFromUrl)
+        const enc: any = res?.encounter
+        const patient = enc?.patientId || {}
+        const token = enc?.tokenId || {}
         if (!cancelled){
-          setEncounterId(encId)
+          setEncounterId(String(enc?._id || ''))
           setFullPatient(patient)
-          setTokenData(t)
-          setMrn(pmrn)
-          setPatientName(String(patient.fullName || patient.name || t?.patientName || ''))
-          setTokenNo(String(t?.tokenNo || t?.displayTokenNo || ''))
+          setTokenData(token)
+          setMrn(String(patient.mrn || enc?.mrn || ''))
+          setPatientName(String(patient.fullName || patient.name || enc?.patientName || ''))
+          setTokenNo(String(token.tokenNo || enc?.tokenNo || ''))
         }
       }catch{
         if (!cancelled){ setEncounterId(''); setMrn(''); setPatientName(''); setTokenNo('') }
@@ -158,7 +270,7 @@ export default function Hospital_ERBilling() {
     }
     load()
     return () => { cancelled = true }
-  }, [tokenId])
+  }, [encounterIdFromUrl])
 
   async function reloadCharges(){
     if (!encounterId) { setCharges([]); return }
@@ -251,6 +363,7 @@ export default function Hospital_ERBilling() {
       const res: any = await hospitalApi.erCreatePayment(encounterId, {
         amount: amt,
         method: 'Advance',
+        paymentMode: d.method,
         refNo: d.refNo || '',
         notes: d.notes || '',
         receivedBy: 'hospital',
@@ -297,12 +410,7 @@ export default function Hospital_ERBilling() {
     } catch (e: any) { setToast({ type: 'error', message: e?.message || 'Failed to record advance' }) }
   }
 
-  const discharge = () => {
-    if (!encounterId) { setToast({ type: 'error', message: 'Encounter not loaded yet' }); return }
-    navigate(`/hospital/discharge/${encounterId}`)
-  }
-
-  if (!tokenId) {
+  if (!encounterIdFromUrl) {
     return (
       <div className="space-y-4 p-4 md:p-6">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -311,12 +419,68 @@ export default function Hospital_ERBilling() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          {loadingTokens ? (
-            <div className="py-8 text-center text-slate-500">Loading active ER tokens...</div>
-          ) : availableTokens.length === 0 ? (
+          {/* Date Filters and Search */}
+          <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-slate-100 pb-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">From Date</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">To Date</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <button
+              onClick={() => { setFromDate(getLocalDate()); setToDate(getLocalDate()); }}
+              className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => { setFromDate(''); setToDate(''); }}
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Reset
+            </button>
+            <button
+              onClick={loadEncounters}
+              disabled={loadingEncounters}
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {loadingEncounters ? 'Loading...' : 'Apply Filters'}
+            </button>
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-xs font-medium text-slate-600">Search (Name, MR No, Token No)</label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search patients..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          {loadingEncounters ? (
+            <div className="py-8 text-center text-slate-500">Loading active ER encounters...</div>
+          ) : availableEncounters.length === 0 ? (
             <div className="py-8 text-center text-slate-500">
-              <div className="text-lg mb-2">No active ER tokens found</div>
-              <div className="text-sm">Go to <button onClick={() => navigate('/hospital/emergency')} className="text-indigo-600 hover:underline">Emergency Queue</button> to create a token.</div>
+              <div className="text-lg mb-2">No active ER encounters found</div>
+              <div className="text-sm">Go to <button onClick={() => navigate('/hospital/emergency')} className="text-indigo-600 hover:underline">Emergency Queue</button> to create an encounter.</div>
+            </div>
+          ) : filteredEncounters.length === 0 ? (
+            <div className="py-8 text-center text-slate-500">
+              <div className="text-lg mb-2">No matching encounters found</div>
+              <div className="text-sm">Try adjusting your date range or search query.</div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -332,29 +496,29 @@ export default function Hospital_ERBilling() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {availableTokens.map((t: any) => (
-                    <tr key={String(t._id || t.id)} className="hover:bg-slate-50">
+                  {filteredEncounters.map((enc: any) => (
+                    <tr key={String(enc._id)} className="hover:bg-slate-50">
                       <td className="px-3 py-2 font-medium text-slate-900">
-                        {t.patientName || t.patientId?.fullName || 'Unknown'}
+                        {enc.patientId?.fullName || enc.patientName || 'Unknown'}
                       </td>
                       <td className="px-3 py-2 text-slate-600">
-                        {t.mrn || t.patientId?.mrn || '-'}
+                        {enc.patientId?.mrn || enc.mrn || '-'}
                       </td>
                       <td className="px-3 py-2 text-slate-600">
-                        #{t.tokenNo || t.displayTokenNo || String(t._id || t.id).slice(-6)}
+                        #{enc.tokenId?.tokenNo || enc.tokenNo || String(enc._id).slice(-6)}
                       </td>
                       <td className="px-3 py-2 text-slate-600">
-                        {t.createdAt ? new Date(t.createdAt).toLocaleString() : t.admittedAt ? new Date(t.admittedAt).toLocaleString() : '-'}
+                        {enc.startAt ? new Date(enc.startAt).toLocaleString() : enc.createdAt ? new Date(enc.createdAt).toLocaleString() : '-'}
                       </td>
                       <td className="px-3 py-2 text-slate-600">
-                        {t.bedNo || t.bed?.bedNo || t.bed?.name || '-'}
+                        {formatBedLocation(enc.bedLocation || enc.bedId)}
                       </td>
                       <td className="px-3 py-2">
                         <button
                           onClick={() => {
                             const isReception = window.location.pathname.startsWith('/reception')
                             const basePath = isReception ? '/reception/er-billing/add' : '/hospital/er-billing'
-                            navigate(`${basePath}?token=${String(t._id || t.id)}`)
+                            navigate(`${basePath}?encounter=${String(enc._id)}`)
                           }}
                           className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700"
                         >
@@ -381,7 +545,6 @@ export default function Hospital_ERBilling() {
             <div className="mt-1 text-sm text-slate-600">Manage emergency services, charges, and payments.</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={discharge} className="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700">Discharge</button>
             <button onClick={()=>{
               const isReception = window.location.pathname.startsWith('/reception')
               navigate(isReception ? '/reception/er-billing/add' : '/hospital/er-billing')
@@ -401,6 +564,7 @@ export default function Hospital_ERBilling() {
             </div>
             <div className="flex items-center gap-2">
               <button disabled={!encounterId || loadingEnc} onClick={()=>setOpenCharge(true)} className="btn disabled:opacity-50">Add Service</button>
+              <button disabled={!encounterId || loadingEnc} onClick={()=>setOpenDoctorService(true)} className="btn-outline-navy disabled:opacity-50">Doctor Services</button>
               <button disabled={!encounterId || loadingEnc} onClick={()=>setOpenAdvance(true)} className="btn-outline-navy disabled:opacity-50">Add Advance</button>
               <button disabled={!encounterId || loadingCharges} onClick={async()=>{ await reloadCharges(); await reloadBillingSummary() }} className="btn-outline-navy disabled:opacity-50">Refresh</button>
             </div>
@@ -689,6 +853,71 @@ export default function Hospital_ERBilling() {
         </div>
       )}
 
+      {openDoctorService && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <form
+            data-er-doctor-form="true"
+            onSubmit={async (e)=>{
+              e.preventDefault()
+              if (!encounterId) return
+              const fd = new FormData(e.currentTarget)
+              const doctorId = String(fd.get('doctorId') || '').trim()
+              const serviceType = String(fd.get('serviceType') || '').trim()
+              const fee = Number(fd.get('fee') || 0)
+              if (!doctorId){ setToast({ type: 'error', message: 'Doctor is required' }); return }
+              if (!serviceType){ setToast({ type: 'error', message: 'Service type is required' }); return }
+              const doctor = doctors.find(d => d.id === doctorId)
+              const description = `Doctor Service - ${doctor?.name || doctorId} (${serviceType})`
+              try{
+                await hospitalApi.createErCharge(encounterId, { description, qty: 1, unitPrice: fee, billedBy: 'hospital' })
+                setOpenDoctorService(false)
+                await reloadCharges()
+                await reloadBillingSummary()
+                setToast({ type: 'success', message: 'Doctor service added' })
+              }catch(e: any){
+                setToast({ type: 'error', message: e?.message || 'Failed to add doctor service' })
+              }
+            }}
+            className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5"
+          >
+            <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Doctor Services</div>
+            <div className="space-y-3 px-5 py-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Doctor</label>
+                <DoctorSelect
+                  doctors={doctors}
+                  onSelect={(doc) => {
+                    const form = document.querySelector('form[data-er-doctor-form="true"]')
+                    if (!form) return
+                    const idEl = form.querySelector<HTMLInputElement>('input[name="doctorId"]')
+                    if (idEl) idEl.value = String(doc.id || doc._id || '')
+                  }}
+                />
+                <input name="doctorId" type="hidden" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Service Type</label>
+                <select name="serviceType" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                  <option value="">Select type...</option>
+                  <option value="Visit">Visit</option>
+                  <option value="Minor Surgery">Minor Surgery</option>
+                  <option value="Major Surgery">Major Surgery</option>
+                  <option value="Anesthesia">Anesthesia</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Fee</label>
+                <input name="fee" type="number" defaultValue={0} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+              <button type="button" onClick={()=>setOpenDoctorService(false)} className="btn-outline-navy">Cancel</button>
+              <button type="submit" className="btn">Add</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {openAdvance && (
         <AdvanceDialog open={openAdvance} onClose={()=>setOpenAdvance(false)} onSave={saveAdvance} />
       )}
@@ -711,6 +940,7 @@ export default function Hospital_ERBilling() {
                 const res: any = await hospitalApi.erCreatePayment(encounterId, {
                   amount,
                   method,
+                  paymentMode: method,
                   refNo,
                   notes: `Payment for: ${openCollectPayment.description}`,
                   receivedBy: 'hospital',
@@ -791,7 +1021,7 @@ export default function Hospital_ERBilling() {
       )}
 
       {toast && (
-        <div className="fixed right-4 top-16 z-60 max-w-sm">
+        <div className="fixed right-4 top-16 z-[60] max-w-sm">
           <div className={toast.type==='success' ? 'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow' : toast.type==='error' ? 'rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow' : 'rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow'}>
             <div className="flex items-start justify-between gap-3">
               <div>{toast.message}</div>

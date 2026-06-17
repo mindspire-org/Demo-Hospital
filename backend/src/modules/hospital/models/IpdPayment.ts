@@ -6,14 +6,15 @@ const AllocationSchema = new Schema({
 }, { _id: false })
 
 const IpdPaymentSchema = new Schema({
-  patientId: { type: Schema.Types.ObjectId, ref: 'Lab_Patient', required: true, index: true },
+  patientId: { type: Schema.Types.ObjectId, ref: 'Lab_Patient', required: true },
   encounterId: { type: Schema.Types.ObjectId, ref: 'Hospital_Encounter', required: true },
   amount: { type: Number, required: true },
   type: { type: String, enum: ['payment', 'refund', 'adjustment'], default: 'payment' },
   method: { type: String },
+  paymentMode: { type: String },
   refNo: { type: String },
   receivedBy: { type: String },
-  receivedAt: { type: Date, default: Date.now, index: true },
+  receivedAt: { type: Date, default: Date.now },
   notes: { type: String },
   allocations: { type: [AllocationSchema], default: [] },
   createdByUserId: { type: String },
@@ -23,7 +24,7 @@ const IpdPaymentSchema = new Schema({
   fbrStatus: { type: String },
   fbrMode: { type: String },
   fbrError: { type: String },
-  portal: { type: String, enum: ['hospital', 'reception', 'lab', 'diagnostic', 'pharmacy', 'aesthetic'], index: true },
+  portal: { type: String, enum: ['hospital', 'reception', 'lab', 'diagnostic', 'pharmacy', 'aesthetic'] },
 }, { timestamps: true })
 
 IpdPaymentSchema.index({ encounterId: 1, receivedAt: -1 })
@@ -35,6 +36,7 @@ export type HospitalIpdPaymentDoc = {
   amount: number
   type?: 'payment' | 'refund' | 'adjustment'
   method?: string
+  paymentMode?: string
   refNo?: string
   receivedBy?: string
   receivedAt: Date

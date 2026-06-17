@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
-import { ClinicalDialogShell, ClinicalDatePicker, clinicalInp, clinicalLbl } from '../ui/ClinicalDialog'
-import { ClipboardList } from 'lucide-react'
+import { ipdApi } from '../../utils/api'
 
 export default function PreoperativeNotes({ encounterId }: { encounterId: string }){
   const [rows, setRows] = useState<Array<{ id: string; when: string; npoFrom?: string; maintainIV?: string; shavePrepare?: string; specialConsent?: string; medication?: string; specialInstructions?: string }>>([])
@@ -11,18 +9,18 @@ export default function PreoperativeNotes({ encounterId }: { encounterId: string
 
   async function reload(){
     try{
-      const res = await hospitalApi.listIpdClinicalNotes(encounterId, { type: 'preop', limit: 200 }) as any
-      const items = (res.notes || []).map((n: any)=>{
-        const d = n.data || {}
+      const res = await ipdApi.listIpdSurgeryRecords(encounterId, { status: 'scheduled', limit: 200 }) as any
+      const items = (res.surgeryRecords || []).map((n: any)=>{
+        const checklist = n.preOpChecklist || {}
         return {
           id: String(n._id),
-          when: String(n.recordedAt || n.createdAt || ''),
-          npoFrom: d.npoFrom || '',
-          maintainIV: d.maintainIV || '',
-          shavePrepare: d.shavePrepare || '',
-          specialConsent: d.specialConsent || '',
-          medication: d.medication || '',
-          specialInstructions: d.specialInstructions || '',
+          when: String(n.surgeryDate || n.createdAt || ''),
+          npoFrom: checklist.npoStatus || '',
+          maintainIV: checklist.ivAccess || '',
+          shavePrepare: checklist.sitePreparation || '',
+          specialConsent: checklist.consentStatus || '',
+          medication: checklist.preOpMedications || '',
+          specialInstructions: n.preOpNotes || '',
         }
       })
       setRows(items)
@@ -32,17 +30,17 @@ export default function PreoperativeNotes({ encounterId }: { encounterId: string
   const add = async (d: { npoFrom?: string; maintainIV?: string; shavePrepare?: string; specialConsent?: string; medication?: string; specialInstructions?: string; when?: string }) => {
     try{
       const when = d.when || new Date().toISOString()
-      await hospitalApi.createIpdClinicalNote(encounterId, {
-        type: 'preop',
-        recordedAt: when,
-        data: {
-          npoFrom: d.npoFrom,
-          maintainIV: d.maintainIV,
-          shavePrepare: d.shavePrepare,
-          specialConsent: d.specialConsent,
-          medication: d.medication,
-          specialInstructions: d.specialInstructions,
+      await ipdApi.createIpdSurgeryRecord(encounterId, {
+        surgeryDate: when,
+        preOpNotes: d.specialInstructions,
+        preOpChecklist: {
+          npoStatus: d.npoFrom,
+          ivAccess: d.maintainIV,
+          sitePreparation: d.shavePrepare,
+          consentStatus: d.specialConsent,
+          preOpMedications: d.medication,
         },
+        status: 'scheduled',
       })
       setOpen(false)
       await reload()
@@ -93,47 +91,63 @@ export default function PreoperativeNotes({ encounterId }: { encounterId: string
 }
 
 function PreopDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void; onSave: (d: { npoFrom?: string; maintainIV?: string; shavePrepare?: string; specialConsent?: string; medication?: string; specialInstructions?: string; when?: string })=>void }){
-  const [form, setForm] = useState({ when: new Date().toISOString().slice(0,16), npoFrom: '', maintainIV: '', shavePrepare: '', specialConsent: '', medication: '', specialInstructions: '' })
-
-  useEffect(()=>{
-    if (open) setForm({ when: new Date().toISOString().slice(0,16), npoFrom: '', maintainIV: '', shavePrepare: '', specialConsent: '', medication: '', specialInstructions: '' })
-  }, [open])
-
-  const submit = (e: React.FormEvent) => {
+  if(!open) return null
+  const now = new Date()
+  const defaultDateTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16)
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    onSave(form)
+    const fd = new FormData(e.currentTarget)
+    onSave({
+      when: String(fd.get('when')||''),
+      npoFrom: String(fd.get('npoFrom')||''),
+      maintainIV: String(fd.get('maintainIV')||''),
+      shavePrepare: String(fd.get('shavePrepare')||''),
+      specialConsent: String(fd.get('specialConsent')||''),
+      medication: String(fd.get('medication')||''),
+      specialInstructions: String(fd.get('specialInstructions')||''),
+    })
   }
   return (
-    <ClinicalDialogShell open={open} title="Add Pre-Operative Note" subtitle="Pre-Surgical Orders" icon={ClipboardList} onClose={onClose} onSubmit={submit}>
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ClinicalDatePicker label="Date/Time" value={form.when} onChange={v=>setForm({...form,when:v})} />
-          <div>
-            <label className={clinicalLbl}>NPO From</label>
-            <input value={form.npoFrom} onChange={e=>setForm({...form,npoFrom:e.target.value})} placeholder="e.g. 12:00 AM" className={clinicalInp} />
-          </div>
-          <div>
-            <label className={clinicalLbl}>Maintain I/V Line</label>
-            <input value={form.maintainIV} onChange={e=>setForm({...form,maintainIV:e.target.value})} placeholder="e.g. Yes / 18G cannula" className={clinicalInp} />
-          </div>
-          <div>
-            <label className={clinicalLbl}>Shave & Prepare / Mark Site</label>
-            <input value={form.shavePrepare} onChange={e=>setForm({...form,shavePrepare:e.target.value})} placeholder="details" className={clinicalInp} />
-          </div>
-          <div>
-            <label className={clinicalLbl}>Take Special Consent</label>
-            <input value={form.specialConsent} onChange={e=>setForm({...form,specialConsent:e.target.value})} placeholder="e.g. Taken / Pending" className={clinicalInp} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <form onSubmit={submit} className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+        <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Add Pre-Operative Note</div>
+        <div className="px-5 py-4 text-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="preop-when" className="block text-xs font-medium text-slate-600">Date/Time</label>
+              <input id="preop-when" name="when" type="datetime-local" defaultValue={defaultDateTime} className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div>
+              <label htmlFor="preop-npo" className="block text-xs font-medium text-slate-600">NPO From</label>
+              <input id="preop-npo" name="npoFrom" placeholder="e.g. 12:00 AM" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div>
+              <label htmlFor="preop-iv" className="block text-xs font-medium text-slate-600">Maintain I/V Line</label>
+              <input id="preop-iv" name="maintainIV" placeholder="e.g. Yes / 18G cannula" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div>
+              <label htmlFor="preop-shave" className="block text-xs font-medium text-slate-600">Shave & prepare / mark site</label>
+              <input id="preop-shave" name="shavePrepare" placeholder="details" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div>
+              <label htmlFor="preop-consent" className="block text-xs font-medium text-slate-600">Take Special Consent</label>
+              <input id="preop-consent" name="specialConsent" placeholder="e.g. Taken / Pending" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="preop-medication" className="block text-xs font-medium text-slate-600">Medication</label>
+              <textarea id="preop-medication" name="medication" className="h-20 w-full rounded-md border border-slate-300 px-3 py-2"></textarea>
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="preop-instructions" className="block text-xs font-medium text-slate-600">Special Instructions</label>
+              <textarea id="preop-instructions" name="specialInstructions" className="h-20 w-full rounded-md border border-slate-300 px-3 py-2"></textarea>
+            </div>
           </div>
         </div>
-        <div>
-          <label className={clinicalLbl}>Medication</label>
-          <textarea value={form.medication} onChange={e=>setForm({...form,medication:e.target.value})} rows={3} className={clinicalInp + ' resize-none'}></textarea>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>
+          <button type="submit" className="btn">Save</button>
         </div>
-        <div>
-          <label className={clinicalLbl}>Special Instructions</label>
-          <textarea value={form.specialInstructions} onChange={e=>setForm({...form,specialInstructions:e.target.value})} rows={3} className={clinicalInp + ' resize-none'}></textarea>
-        </div>
-      </div>
-    </ClinicalDialogShell>
+      </form>
+    </div>
   )
 }

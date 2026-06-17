@@ -1,166 +1,148 @@
-import React, { useEffect, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
-import { useEncounterDefaults } from '../../hooks/useEncounterDefaults'
-import { ClinicalDialogShell, ClinicalDatePicker, clinicalInp, clinicalLbl } from '../ui/ClinicalDialog'
-import { Stethoscope, Pencil, Trash2, Printer, Plus } from 'lucide-react'
-import ConfirmDialog from '../ui/ConfirmDialog'
+import React, { useEffect, useState, useRef } from 'react'
+import { ipdApi, hospitalApi } from '../../utils/api'
 
 export default function ConsultantNotes({ encounterId }: { encounterId: string }){
-  const [rows, setRows] = useState<Array<{ id: string; when: string; text: string; doctorName?: string; sign?: string }>>([])
+  const [rows, setRows] = useState<Array<{ id: string; when: string; text: string; doctorName?: string }>>([])
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<typeof rows[0] | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const encDefaults = useEncounterDefaults(encounterId)
+  const [doctors, setDoctors] = useState<Array<{ _id: string; name: string }>>([])
 
   useEffect(()=>{ if(encounterId){ reload() } }, [encounterId])
 
+  useEffect(()=>{ (async()=>{ try { const res = await hospitalApi.listDoctors() as any; const items = (res?.doctors || res || []) as Array<{ _id: string; name: string }>; setDoctors(items) } catch { setDoctors([]) } })() }, [])
+
   async function reload(){
     try{
-      const res = await hospitalApi.listIpdClinicalNotes(encounterId, { type: 'consultant', limit: 200 }) as any
-      const items = (res.notes || []).map((n: any)=>({
+      const res = await ipdApi.listIpdEmrClinicalNotes(encounterId, { noteType: 'progress-note', limit: 200 }) as any
+      const items = (res.clinicalNotes || []).map((n: any)=>({
         id: String(n._id),
-        when: String(n.recordedAt || n.createdAt || ''),
-        text: String((n.data||{}).text || ''),
-        doctorName: n.doctorName || '',
-        sign: n.sign || '',
+        when: String(n.noteDate || n.createdAt || ''),
+        text: String(n.content || ''),
+        doctorName: n.authorName || '',
       }))
       setRows(items)
     }catch{}
   }
 
-  const add = async (d: { when?: string; text?: string; doctorName?: string; sign?: string }) => {
+  const add = async (d: { when?: string; text?: string; doctorName?: string }) => {
     try{
-      if (editing?.id) {
-        await hospitalApi.updateIpdClinicalNote(editing.id, {
-          recordedAt: d.when || new Date().toISOString(),
-          doctorName: d.doctorName,
-          sign: d.sign,
-          data: { text: d.text || '' },
-        })
-      } else {
-        const when = d.when || new Date().toISOString()
-        await hospitalApi.createIpdClinicalNote(encounterId, {
-          type: 'consultant',
-          recordedAt: when,
-          doctorName: d.doctorName,
-          sign: d.sign,
-          data: { text: d.text || '' },
-        })
-      }
-      setOpen(false); setEditing(null)
+      const when = d.when || new Date().toISOString()
+      await ipdApi.createIpdEmrClinicalNote(encounterId, {
+        noteType: 'progress-note',
+        noteDate: when,
+        content: d.text || '',
+        authorName: d.doctorName,
+        authorRole: 'doctor',
+        status: 'final',
+      })
+      setOpen(false)
       await reload()
-    }catch(e: any){ alert(e?.message || 'Failed to save consultant note') }
+    }catch(e: any){ alert(e?.message || 'Failed to add consultant note') }
   }
-
-  const deleteRow = async () => {
-    if (!confirmDeleteId) return
-    try {
-      await hospitalApi.deleteIpdClinicalNote(confirmDeleteId)
-      setConfirmDeleteId(null)
-      await reload()
-    } catch (e: any) { alert(e?.message || 'Failed to delete') }
-  }
-
-  const printRow = (r: typeof rows[0]) => {
-    const w = window.open('', '_blank'); if (!w) return
-    const esc = (v?: string) => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"/><style>@page{size:A4;margin:12mm}body{font-family:system-ui;color:#111;font-size:13px}.lbl{font-weight:700;color:#555}.val{border-bottom:1px solid #222;min-height:20px;padding:2px 0}</style></head><body>
-      <h2 style="text-align:center;margin-bottom:4px">Consultant Note</h2>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:#666;margin-bottom:12px"><span>Date: ${esc(new Date(r.when).toLocaleString())}</span><span>Dr: ${esc(r.doctorName)}</span></div>
-      <div style="white-space:pre-wrap;line-height:1.6">${esc(r.text)}</div>
-      <div style="margin-top:24px;font-size:11px;color:#666">Sign: ${esc(r.sign)}</div>
-      <script>setTimeout(()=>window.print(),200)</script>
-    </body></html>`)
-    w.document.close(); w.focus()
-  }
-
-  const onEdit = (r: typeof rows[0]) => { setEditing(r); setOpen(true) }
-  const onAdd = () => { setEditing(null); setOpen(true) }
-  const onClose = () => { setOpen(false); setEditing(null) }
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4" data-encounterid={encounterId}>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white"><Stethoscope className="h-4 w-4" /></div>
-          <span className="text-sm font-bold text-slate-900">Consultant / MO / WMO Notes</span>
-        </div>
-        <button onClick={onAdd} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.98]">
-          <Plus className="h-3.5 w-3.5 inline mr-1" />Add Note
-        </button>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-lg font-semibold text-slate-900">CONSULTANT / MO / WMO - NOTES</div>
+        <button onClick={()=>setOpen(true)} className="btn">Add Note</button>
       </div>
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-400">No consultant notes yet.</div>
+        <div className="text-slate-500">No notes yet.</div>
       ) : (
-        <div className="space-y-3">
+        <ul className="space-y-2 text-sm text-slate-800">
           {rows.map(r => (
-            <div key={r.id} className="rounded-lg border border-slate-200 p-4 transition-shadow hover:shadow-sm">
+            <li key={r.id} className="rounded-md border border-slate-200 p-3">
               <div className="flex items-start justify-between gap-3">
-                <div className="whitespace-pre-wrap text-sm text-slate-800 flex-1">{r.text || '-'}</div>
-                <div className="text-right text-xs text-slate-500 shrink-0">
+                <div className="whitespace-pre-wrap">{r.text || '-'}</div>
+                <div className="text-right text-xs text-slate-600">
                   <div>{new Date(r.when).toLocaleString()}</div>
                   {r.doctorName ? <div>Dr: {r.doctorName}</div> : null}
-                  {r.sign ? <div>Sign: {r.sign}</div> : null}
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-end gap-2 border-t border-slate-100 pt-2">
-                <button onClick={()=>onEdit(r)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"><Pencil className="h-3 w-3" />Edit</button>
-                <button onClick={()=>setConfirmDeleteId(r.id)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"><Trash2 className="h-3 w-3" />Delete</button>
-                <button onClick={()=>printRow(r)} className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"><Printer className="h-3 w-3" />Print</button>
-              </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-      <ConsultantDialog open={open} onClose={onClose} onSave={add} defaults={encDefaults} initial={editing} />
-      <ConfirmDialog open={!!confirmDeleteId} title="Delete Consultant Note" message="Are you sure you want to delete this note?" confirmText="Delete" onCancel={()=>setConfirmDeleteId(null)} onConfirm={deleteRow} />
+      <ConsultantDialog open={open} onClose={()=>setOpen(false)} onSave={add} doctors={doctors} />
     </div>
   )
 }
 
-type ConsultNote = { id: string; when: string; text: string; doctorName?: string; sign?: string }
+function ConsultantDialog({ open, onClose, onSave, doctors }: { open: boolean; onClose: ()=>void; onSave: (d: { when?: string; text?: string; doctorName?: string })=>void; doctors: Array<{ _id: string; name: string }> }){
+  if(!open) return null
+  const now = new Date()
+  const defaultDateTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16)
+  const [doctorSearch, setDoctorSearch] = useState('')
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false)
+  const [selectedDoctor, setSelectedDoctor] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const filteredDoctors = doctors.filter(d => d.name.toLowerCase().includes(doctorSearch.toLowerCase()))
 
-function ConsultantDialog({ open, onClose, onSave, defaults, initial }: { open: boolean; onClose: ()=>void; onSave: (d: { when?: string; text?: string; doctorName?: string; sign?: string })=>void; defaults?: any; initial?: ConsultNote | null }){
-  const [form, setForm] = useState({ when: '', text: '', doctorName: '', sign: '' })
-
-  useEffect(()=>{
-    if (!open) return
-    if (initial) {
-      setForm({
-        when: initial.when ? new Date(initial.when).toISOString().slice(0,16) : '',
-        text: initial.text || '',
-        doctorName: initial.doctorName || defaults?.doctorName || '',
-        sign: initial.sign || '',
-      })
-    } else {
-      setForm({ when: new Date().toISOString().slice(0,16), text: '', doctorName: defaults?.doctorName || '', sign: '' })
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDoctorDropdown(false)
+      }
     }
-  }, [open, initial])
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
-  const submit = (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    onSave({ when: form.when, text: form.text, doctorName: form.doctorName, sign: form.sign })
+    const fd = new FormData(e.currentTarget)
+    onSave({
+      when: String(fd.get('when')||''),
+      text: String(fd.get('text')||''),
+      doctorName: selectedDoctor,
+    })
   }
-
   return (
-    <ClinicalDialogShell open={open} title={initial ? 'Edit Consultant Note' : 'Add Consultant Note'} subtitle="Clinical Documentation" icon={Stethoscope} onClose={onClose} onSubmit={submit}>
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <ClinicalDatePicker label="Date/Time" value={form.when} onChange={v=>setForm({...form, when:v})} />
-          <div>
-            <label className={clinicalLbl}>Doctor Name</label>
-            <input value={form.doctorName} onChange={e=>setForm({...form, doctorName:e.target.value})} className={clinicalInp} />
-          </div>
-          <div>
-            <label className={clinicalLbl}>Sign</label>
-            <input value={form.sign} onChange={e=>setForm({...form, sign:e.target.value})} className={clinicalInp} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <form onSubmit={submit} className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+        <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Add Note</div>
+        <div className="px-5 py-4 text-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="cn-when" className="block text-xs font-medium text-slate-600">Date/Time</label>
+              <input id="cn-when" name="when" type="datetime-local" defaultValue={defaultDateTime} className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div>
+              <label htmlFor="cn-doctor" className="block text-xs font-medium text-slate-600">Doctor Name</label>
+              <div className="relative" ref={dropdownRef}>
+                <input
+                  type="text"
+                  value={selectedDoctor || doctorSearch}
+                  onChange={(e) => { setDoctorSearch(e.target.value); setShowDoctorDropdown(true); setSelectedDoctor(''); }}
+                  onFocus={() => setShowDoctorDropdown(true)}
+                  placeholder="Search doctor..."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+                {showDoctorDropdown && filteredDoctors.length > 0 && (
+                  <div className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-md border border-slate-300 bg-white shadow-lg">
+                    {filteredDoctors.map(d => (
+                      <div
+                        key={d._id}
+                        onClick={() => { setSelectedDoctor(d.name); setDoctorSearch(d.name); setShowDoctorDropdown(false); }}
+                        className="cursor-pointer px-3 py-2 hover:bg-slate-100"
+                      >
+                        {d.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="cn-text" className="block text-xs font-medium text-slate-600">Notes</label>
+              <textarea id="cn-text" name="text" className="h-40 w-full rounded-md border border-slate-300 px-3 py-2"></textarea>
+            </div>
           </div>
         </div>
-        <div>
-          <label className={clinicalLbl}>Notes</label>
-          <textarea value={form.text} onChange={e=>setForm({...form, text:e.target.value})} rows={6} className={clinicalInp + ' resize-none'}></textarea>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>
+          <button type="submit" className="btn">Save</button>
         </div>
-      </div>
-    </ClinicalDialogShell>
+      </form>
+    </div>
   )
 }

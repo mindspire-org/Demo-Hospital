@@ -10,8 +10,7 @@ export function adminGuard(req: Request, res: Response, next: NextFunction){
     try{
       const payload: any = jwt.verify(bearer, env.JWT_SECRET)
       const role = String(payload?.role || '')
-      // Accept exact 'admin' or roles containing 'admin' (e.g. 'Super Admin', 'Admin')
-      if (/admin/i.test(role)) return next()
+      if (/^admin$/i.test(role)) return next()
     }catch{}
   }
 

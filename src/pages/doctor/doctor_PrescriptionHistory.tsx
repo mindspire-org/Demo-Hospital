@@ -1,31 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { hospitalApi, labApi } from '../../utils/api'
+import { hospitalApi, labApi, pharmacyApi, diagnosticApi } from '../../utils/api'
+import PrescriptionPrint from '../../components/doctor/PrescriptionPrint'
 import { previewPrescriptionPdf } from '../../utils/prescriptionPdf'
 import type { PrescriptionPdfTemplate } from '../../utils/prescriptionPdf'
+import { previewPreAnesthesiaPdf } from '../../utils/preAnesthesiaPdf'
+import Doctor_PreAnesthesiaForm from '../../components/doctor/Doctor_PreAnesthesiaForm'
+import type { PreAnesthesiaData } from '../../components/doctor/Doctor_PreAnesthesiaForm'
 import PrescriptionVitals from '../../components/doctor/PrescriptionVitals'
 import PrescriptionDiagnosticOrders from '../../components/doctor/PrescriptionDiagnosticOrders'
 import Doctor_IpdReferralForm from '../../components/doctor/Doctor_IpdReferralForm'
-import { 
-  History, 
-  Search, 
-  CalendarDays, 
-  Printer, 
-  Edit3, 
-  Trash2, 
-  ExternalLink, 
-  Clock, 
-  ClipboardCheck, 
-  Stethoscope,
-  Pill,
-  Microscope,
-  FileSearch,
-  ArrowUpRight,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  Plus,
-  Save
-} from 'lucide-react'
+import { opdApi } from '../../features/hospital/opd/opd.api'
+import SuggestField from '../../components/SuggestField'
 
 type DoctorSession = { id: string; name: string; username: string }
 
@@ -47,11 +32,16 @@ type Prescription = {
   examFindings?: string
   advice?: string
   medicines?: string
-  itemsCount?: number
-  labCount?: number
-  diagCount?: number
+  preAnesthesia?: any
   createdAt: string
 }
+
+const emptyPreAnesthesia = (): PreAnesthesiaData => ({
+  isApplied: false,
+  history: { cvs: '', respiratory: '', renal: '', hepatic: '', diabetic: '', neurology: '', previousAnesthesia: '', allergies: '' },
+  examination: { mallampatiScore: '', asaClass: '', airway: '', teeth: '', notes: '' },
+  recommendation: '',
+})
 
 export default function Doctor_PrescriptionHistory() {
   const [doc, setDoc] = useState<DoctorSession | null>(null)
@@ -62,12 +52,25 @@ export default function Doctor_PrescriptionHistory() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
   const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
+  const [printData, setPrintData] = useState<any | null>(null)
   const [editOpen, setEditOpen] = useState(false)
-  const [editActiveTab, setEditActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'meds'>('details')
+  const [editActiveTab, setEditActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'meds'|'anesthesia'>('details')
   const [editingId, setEditingId] = useState<string>('')
-  const [editForm, setEditForm] = useState<{ primaryComplaint?: string; primaryComplaintHistory?: string; familyHistory?: string; allergyHistory?: string; treatmentHistory?: string; history?: string; examFindings?: string; diagnosis?: string; advice?: string; labTestsText?: string; labNotes?: string; items: Array<{ name: string; frequency?: string; duration?: string; dose?: string; route?: string; instruction?: string; notes?: string }> }>({ items: [], labTestsText: '', labNotes: '' })
-  
+  const [editForm, setEditForm] = useState<{
+    primaryComplaint?: string
+    primaryComplaintHistory?: string
+    familyHistory?: string
+    allergyHistory?: string
+    treatmentHistory?: string
+    history?: string
+    examFindings?: string
+    diagnosis?: string
+    advice?: string
+    nextFollowUp?: string
+    labTestsText?: string
+    preAnesthesia?: PreAnesthesiaData
+    items: Array<{ name: string; frequency?: string; duration?: string; dose?: string; route?: string; instruction?: string; notes?: string }>
+  }>({ items: [], labTestsText: '', preAnesthesia: emptyPreAnesthesia() })
   const vitalsEditRef = useRef<any>(null)
   const diagEditRef = useRef<any>(null)
   const [editVitalsDisplay, setEditVitalsDisplay] = useState<any>({})
@@ -78,27 +81,151 @@ export default function Doctor_PrescriptionHistory() {
   const [attachView, setAttachView] = useState<{ open: boolean; fileName?: string; mimeType?: string; dataUrl?: string }>(()=>({ open: false }))
   const [ipdReferralOpen, setIpdReferralOpen] = useState(false)
   const [ipdReferralPrescription, setIpdReferralPrescription] = useState<Prescription | null>(null)
+  const [medNameSuggestions, setMedNameSuggestions] = useState<string[]>([])
+  const [labTestSuggestions, setLabTestSuggestions] = useState<string[]>([])
+  const [diagnosticTestSuggestions, setDiagnosticTestSuggestions] = useState<string[]>([])
+  const [doctorCustomSuggestions, setDoctorCustomSuggestions] = useState<{
+    primaryComplaint: string[]
+    history: string[]
+    primaryComplaintHistory: string[]
+    familyHistory: string[]
+    allergyHistory: string[]
+    treatmentHistory: string[]
+    examFindings: string[]
+    diagnosis: string[]
+    advice: string[]
+  }>({
+    primaryComplaint: [],
+    history: [],
+    primaryComplaintHistory: [],
+    familyHistory: [],
+    allergyHistory: [],
+    treatmentHistory: [],
+    examFindings: [],
+    diagnosis: [],
+    advice: [],
+  })
+
+  const defaultDoses = ['1 mg', '2 mg', '5 mg', '10 mg', '20 mg', '25 mg', '50 mg', '100 mg', '200 mg', '250 mg', '500 mg', '1 g', '1 ml', '2 ml', '5 ml', '10 ml', '1 tsp', '1 tbsp', '1 drop', '2 drops', '1 puff', '1 tablet', '2 tablets', '1 capsule', '1 sachet']
+  const defaultRoutes = ['Oral', 'IV', 'IM', 'SC', 'Topical', 'Sublingual', 'Rectal', 'Vaginal', 'Inhalation', 'Nasal', 'Ocular', 'Ear drops', 'Local application']
+  const defaultInstructions = ['Before meals', 'After meals', 'With meals', 'Empty stomach', 'Bed time', 'Morning', 'Night', 'Once daily', 'Twice daily', 'Thrice daily', 'Four times daily', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'SOS', 'PRN', 'Stat', 'As directed']
+  const defaultDurations = ['1 day', '2 days', '3 days', '5 days', '7 days', '10 days', '14 days', '1 week', '2 weeks', '3 weeks', '4 weeks', '1 month', '2 months', '3 months', '6 months']
+  const defaultFrequencies = ['Once daily (OD)', 'Twice daily (BD)', 'Thrice daily (TID)', 'Four times daily (QID)', 'Every morning', 'Every night', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'SOS', 'Stat', 'Alternate days', 'Weekly', 'Monthly']
+
+  const sugDose = useMemo(() => defaultDoses, [])
+  const sugInstr = useMemo(() => defaultInstructions, [])
+  const sugRoute = useMemo(() => defaultRoutes, [])
+  const sugDuration = useMemo(() => defaultDurations, [])
+  const sugFreq = useMemo(() => defaultFrequencies, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res: any = await labApi.listTests({ q: '', page: 1, limit: 2000 })
+        const tests: any[] = res?.tests ?? res?.items ?? res ?? []
+        const names = tests.map((t: any) => String(t?.name || t?.testName || t || '').trim()).filter(Boolean)
+        if (!cancelled) setLabTestSuggestions(Array.from(new Set(names)).slice(0, 2000))
+      } catch {
+        if (!cancelled) setLabTestSuggestions([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // Load doctor custom entries
+  useEffect(() => {
+    ;(async () => {
+      try {
+        if (!doc?.id) return
+        const categories = ['primaryComplaint', 'history', 'primaryComplaintHistory', 'familyHistory', 'allergyHistory', 'treatmentHistory', 'examFindings', 'diagnosis', 'advice']
+        const custom: any = {
+          primaryComplaint: [],
+          history: [],
+          primaryComplaintHistory: [],
+          familyHistory: [],
+          allergyHistory: [],
+          treatmentHistory: [],
+          examFindings: [],
+          diagnosis: [],
+          advice: [],
+        }
+        for (const cat of categories) {
+          try {
+            const res = await hospitalApi.getDoctorCustomEntriesByCategory(doc.id, cat)
+            custom[cat] = res?.entryTexts || []
+          } catch {}
+        }
+        setDoctorCustomSuggestions(custom)
+      } catch {}
+    })()
+  }, [doc?.id])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res: any = await diagnosticApi.listTests({ q: '', page: 1, limit: 2000 })
+        const tests: any[] = res?.tests ?? res?.items ?? res ?? []
+        const names = tests.map((t: any) => String(t?.name || t?.testName || t || '').trim()).filter(Boolean)
+        if (!cancelled) setDiagnosticTestSuggestions(Array.from(new Set(names)).slice(0, 2000))
+      } catch {
+        if (!cancelled) setDiagnosticTestSuggestions([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res: any = await pharmacyApi.getAllMedicines()
+        const meds: any[] = res?.medicines ?? res?.items ?? res ?? []
+        const names = meds.map((m: any) => String(m?.name || m?.genericName || m || '').trim()).filter(Boolean)
+        if (!cancelled) setMedNameSuggestions(Array.from(new Set(names)).slice(0, 2000))
+      } catch {
+        // ignore
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem('doctor.session')
       const sess = raw ? JSON.parse(raw) : null
       setDoc(sess)
+      const hex24 = /^[a-f\d]{24}$/i
+      if (sess && !hex24.test(String(sess.id||''))) {
+        ;(async () => {
+          try {
+            const res = await hospitalApi.listDoctors() as any
+            const docs: any[] = res?.doctors || []
+            const match = docs.find(d => String(d.username||'').toLowerCase() === String(sess.username||'').toLowerCase()) ||
+                          docs.find(d => String(d.name||'').toLowerCase() === String(sess.name||'').toLowerCase())
+            if (match) {
+              const fixed = { ...sess, id: String(match._id || match.id) }
+              try { localStorage.setItem('doctor.session', JSON.stringify(fixed)) } catch {}
+              setDoc(fixed)
+            }
+          } catch {}
+        })()
+      }
     } catch {}
   }, [])
 
   useEffect(() => { load() }, [doc?.id, from, to, page, limit])
-  
   useEffect(() => {
     const h = () => { load() }
     window.addEventListener('doctor:pres-saved', h as any)
     return () => window.removeEventListener('doctor:pres-saved', h as any)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id])
 
   async function load(){
-    if (!doc?.id) { setList([]); return }
-    setLoading(true)
     try {
+      if (!doc?.id) { setList([]); return }
       const res = await hospitalApi.listPrescriptions({ doctorId: doc.id, from: from || undefined, to: to || undefined, page, limit }) as any
       const rows: any[] = res?.prescriptions || []
       const items: Prescription[] = rows.map((r: any) => ({
@@ -111,15 +238,20 @@ export default function Doctor_PrescriptionHistory() {
         manualAttachment: r.manualAttachment,
         diagnosis: r.diagnosis,
         primaryComplaint: r.primaryComplaint || r.complaints,
-        itemsCount: r.items?.length || 0,
-        labCount: r.labTests?.length || 0,
-        diagCount: r.diagnosticTests?.length || 0,
+        primaryComplaintHistory: r.primaryComplaintHistory,
+        familyHistory: r.familyHistory,
+        allergyHistory: r.allergyHistory,
+        treatmentHistory: r.treatmentHistory,
+        history: r.history,
+        examFindings: r.examFindings,
+        advice: r.advice,
         medicines: (r.items || []).map((it: any) => `${it.name}${it.frequency?` • ${it.frequency}`:''}${it.duration?` • ${it.duration}`:''}${it.dose?` • ${it.dose}`:''}`).join('\n'),
+        preAnesthesia: r.preAnesthesia,
         createdAt: r.createdAt,
       }))
       setList(items)
       setTotal(Number(res?.total || items.length))
-      
+      // load referral flags for visible range
       try {
         const [ph, lb, dg] = await Promise.all([
           hospitalApi.listReferrals({ type: 'pharmacy', doctorId: doc.id, from: from || undefined, to: to || undefined, page: 1, limit: 200 }) as any,
@@ -135,47 +267,72 @@ export default function Doctor_PrescriptionHistory() {
     } catch {
       setList([])
       setTotal(0)
-    } finally {
-      setLoading(false)
     }
   }
 
-  const filteredList = useMemo(() => {
+  const mine = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return list.filter(p => !s || `${p.patientName} ${p.mrNo || ''} ${p.diagnosis || ''}`.toLowerCase().includes(s))
-  }, [list, q])
-
-  const historyStats = useMemo(() => {
-    return {
-      total: total,
-      thisMonth: list.filter(p => new Date(p.createdAt).getMonth() === new Date().getMonth()).length,
-      referred: Object.keys(refFlags).length
-    }
-  }, [total, list, refFlags])
+    return (list || []).filter(p => p.doctorId === doc?.id && (!s || `${p.patientName} ${p.mrNo || ''} ${p.diagnosis || ''}`.toLowerCase().includes(s)))
+  }, [list, doc, q])
 
   async function handlePrint(id: string){
+    const data: any = await fetchPrintData(id)
+    setPrintData(data)
+    // Fetch template from database
+    let tpl: PrescriptionPdfTemplate = 'hospital-rx'
     try {
-      const data: any = await fetchPrintData(id)
-      let tpl: PrescriptionPdfTemplate = 'hospital-rx'
       if (doc?.id) {
         const doctorData: any = await hospitalApi.getDoctor(doc.id)
-        if (doctorData?.doctor?.prescriptionTemplate) tpl = doctorData.doctor.prescriptionTemplate
+        if (doctorData?.doctor?.prescriptionTemplate) {
+          tpl = doctorData.doctor.prescriptionTemplate
+        }
       }
+    } catch {}
+    await previewPrescriptionPdf({
+      doctor: data.doctor || {},
+      settings: data.settings || {},
+      patient: data.patient || {},
+      items: data.items || [],
+      vitals: data.vitals,
+      primaryComplaint: data.primaryComplaint,
+      primaryComplaintHistory: data.primaryComplaintHistory,
+      familyHistory: data.familyHistory,
+      allergyHistory: data.allergyHistory,
+      treatmentHistory: data.treatmentHistory,
+      history: data.history,
+      examFindings: data.examFindings,
+      diagnosis: data.diagnosis,
+      advice: data.advice,
+      labTests: data.labTests || [],
+      labNotes: data.labNotes || '',
+      diagnosticTests: data.diagnosticTests || [],
+      diagnosticNotes: data.diagnosticNotes || '',
+      tokenNo: data.tokenNo,
+      createdAt: data.createdAt,
+    }, tpl)
+  }
 
-      await previewPrescriptionPdf({
+  async function handlePrintPreAssessment(prescriptionId: string) {
+    try {
+      const data = await fetchPrintData(prescriptionId)
+      const res: any = await hospitalApi.getPrescription(prescriptionId)
+      const p = res?.prescription
+      if (!p?.preAnesthesia?.isApplied) {
+        setToast({ msg: 'No pre-assessment form attached', kind: 'error' })
+        return
+      }
+      await previewPreAnesthesiaPdf({
         doctor: data.doctor || {},
         settings: data.settings || {},
         patient: data.patient || {},
-        items: data.items || [],
-        vitals: data.vitals,
-        primaryComplaint: data.primaryComplaint,
-        diagnosis: data.diagnosis,
-        advice: data.advice,
-        labTests: data.labTests || [],
-        diagnosticTests: data.diagnosticTests || [],
-        createdAt: data.createdAt,
-      }, tpl)
-    } catch {}
+        preAnesthesia: p.preAnesthesia,
+        vitals: p.vitals || {},
+        createdAt: p.createdAt,
+      })
+    } catch (e) {
+      console.error('Failed to print pre-assessment:', e)
+      setToast({ msg: 'Failed to print pre-assessment', kind: 'error' })
+    }
   }
 
   async function openAttachment(p: Prescription){
@@ -195,66 +352,87 @@ export default function Doctor_PrescriptionHistory() {
 
   async function referToPharmacy(p: Prescription){
     try {
-      if (!doc?.id) return
+      if (!doc?.id) { setToast({ msg: 'Session missing', kind: 'error' }); return }
       await hospitalApi.createReferral({ type: 'pharmacy', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id })
+      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
       setToast({ msg: 'Pharmacy referral created', kind: 'success' })
       setRefFlags(prev => ({ ...prev, [p.id]: { ...(prev[p.id]||{}), ph: true } }))
     } catch (e: any) {
-      setToast({ msg: e?.message || 'Failed to refer', kind: 'error' })
+      setToast({ msg: e?.message || 'Failed to refer to pharmacy', kind: 'error' })
     }
   }
 
   async function referToLab(p: Prescription){
     try {
-      if (!doc?.id) return
-      await hospitalApi.createReferral({ type: 'lab', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id })
+      if (!doc?.id) { setToast({ msg: 'Session missing', kind: 'error' }); return }
+      let tests: string[] | undefined
+      let notes: string | undefined
+      try {
+        const res: any = await hospitalApi.getPrescription(p.id)
+        const pres = res?.prescription
+        if (pres?.labTests?.length) tests = pres.labTests as string[]
+        if (pres?.labNotes) notes = String(pres.labNotes)
+      } catch {}
+      await hospitalApi.createReferral({ type: 'lab', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id, tests, notes })
+      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
       setToast({ msg: 'Lab referral created', kind: 'success' })
       setRefFlags(prev => ({ ...prev, [p.id]: { ...(prev[p.id]||{}), lab: true } }))
     } catch (e: any) {
-      setToast({ msg: e?.message || 'Failed to refer', kind: 'error' })
+      setToast({ msg: e?.message || 'Failed to create lab referral', kind: 'error' })
     }
   }
 
   async function referToDiagnostic(p: Prescription){
     try {
-      if (!doc?.id) return
-      await hospitalApi.createReferral({ type: 'diagnostic', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id })
+      if (!doc?.id) { setToast({ msg: 'Session missing', kind: 'error' }); return }
+      let tests: string[] | undefined
+      let notes: string | undefined
+      try {
+        const res: any = await hospitalApi.getPrescription(p.id)
+        const pres = res?.prescription
+        if (pres?.diagnosticTests?.length) tests = pres.diagnosticTests as string[]
+        if (pres?.diagnosticNotes) notes = String(pres.diagnosticNotes)
+      } catch {}
+      await hospitalApi.createReferral({ type: 'diagnostic', encounterId: p.encounterId, doctorId: doc.id, prescriptionId: p.id, tests, notes })
+      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
       setToast({ msg: 'Diagnostic referral created', kind: 'success' })
       setRefFlags(prev => ({ ...prev, [p.id]: { ...(prev[p.id]||{}), diag: true } }))
     } catch (e: any) {
-      setToast({ msg: e?.message || 'Failed to refer', kind: 'error' })
+      setToast({ msg: e?.message || 'Failed to create diagnostic referral', kind: 'error' })
     }
   }
 
   function openConfirm(type: 'lab'|'pharmacy'|'diagnostic'|'delete', p: Prescription){
+    if (type==='pharmacy' && (refFlags[p.id]?.ph)) { setToast({ msg: 'Already referred to pharmacy', kind: 'success' }); return }
+    if (type==='lab' && (refFlags[p.id]?.lab)) { setToast({ msg: 'Already referred to lab', kind: 'success' }); return }
+    if (type==='diagnostic' && (refFlags[p.id]?.diag)) { setToast({ msg: 'Already referred to diagnostic', kind: 'success' }); return }
     setConfirmDlg({ open: true, type, target: p })
   }
 
-  async function confirmAction(){
+  async function confirmReferral(){
     const p = confirmDlg.target
-    if (!p) return
+    if (!confirmDlg.open || !confirmDlg.type || !p) { setConfirmDlg({ open: false }); return }
+    const t = confirmDlg.type
     setConfirmDlg({ open: false })
-    if (confirmDlg.type === 'pharmacy') await referToPharmacy(p)
-    if (confirmDlg.type === 'lab') await referToLab(p)
-    if (confirmDlg.type === 'diagnostic') await referToDiagnostic(p)
-    if (confirmDlg.type === 'delete') await deletePres(p.id)
+    if (t === 'pharmacy') await referToPharmacy(p)
+    if (t === 'lab') await referToLab(p)
+    if (t === 'diagnostic') await referToDiagnostic(p)
+    if (t === 'delete') await deletePres(p.id)
   }
 
-  async function deletePres(id: string){
-    try {
-      await hospitalApi.deletePrescription(id)
-      load()
-      setToast({ msg: 'Prescription removed', kind: 'success' })
-    } catch (e: any) {
-      setToast({ msg: e?.message || 'Failed to delete', kind: 'error' })
+  useEffect(() => {
+    if (toast) {
+      const id = setTimeout(() => setToast(null), 2000)
+      return () => clearTimeout(id)
     }
-  }
+  }, [toast])
 
   async function openEditor(id: string){
     try {
       const res: any = await hospitalApi.getPrescription(id)
       const p = res?.prescription
       setEditingId(id)
+      // parse route/instruction from notes for each item
       const items = (p?.items || []).map((m: any) => {
         const nt = String(m?.notes || '')
         const mRoute = nt.match(/Route:\s*([^;]+)/i)
@@ -271,12 +449,48 @@ export default function Doctor_PrescriptionHistory() {
         examFindings: p?.examFindings || '',
         diagnosis: p?.diagnosis || '',
         advice: p?.advice || '',
+        nextFollowUp: (p as any)?.nextFollowUp || '',
         labTestsText: Array.isArray(p?.labTests) && p.labTests.length ? (p.labTests as string[]).join(', ') : '',
-        labNotes: p?.labNotes || '',
+        preAnesthesia: p?.preAnesthesia ? {
+          isApplied: p.preAnesthesia.isApplied ?? true,
+          history: {
+            cvs: p.preAnesthesia.history?.cvs || '',
+            respiratory: p.preAnesthesia.history?.respiratory || '',
+            renal: p.preAnesthesia.history?.renal || '',
+            hepatic: p.preAnesthesia.history?.hepatic || '',
+            diabetic: p.preAnesthesia.history?.diabetic || '',
+            neurology: p.preAnesthesia.history?.neurology || '',
+            previousAnesthesia: p.preAnesthesia.history?.previousAnesthesia || '',
+            allergies: p.preAnesthesia.history?.allergies || '',
+          },
+          examination: {
+            mallampatiScore: p.preAnesthesia.examination?.mallampatiScore || '',
+            asaClass: p.preAnesthesia.examination?.asaClass || '',
+            airway: p.preAnesthesia.examination?.airway || '',
+            teeth: p.preAnesthesia.examination?.teeth || '',
+            notes: p.preAnesthesia.examination?.notes || '',
+          },
+          recommendation: p.preAnesthesia.recommendation || '',
+        } : emptyPreAnesthesia(),
         items,
       })
+      // seed vitals/diagnostics display for tabs - fetch from token collection
       try {
-        const v = p?.vitals || {}
+        let v: any = {}
+        // Try to fetch vitals from token collection
+        try {
+          if (p?.encounterId) {
+            const tokenRes: any = await opdApi.listTokens({ limit: 100 })
+            const token = tokenRes?.tokens?.find((t: any) => t.encounterId === p.encounterId)
+            if (token?.vitals) {
+              v = token.vitals
+            }
+          }
+        } catch {}
+        // Fallback to prescription vitals if token doesn't have vitals
+        if (!v || Object.keys(v).length === 0) {
+          v = p?.vitals || {}
+        }
         setEditVitalsDisplay({
           pulse: v.pulse!=null?String(v.pulse):'',
           temperature: v.temperatureC!=null?String(v.temperatureC):'',
@@ -287,6 +501,9 @@ export default function Doctor_PrescriptionHistory() {
           weightKg: v.weightKg!=null?String(v.weightKg):'',
           height: v.heightCm!=null?String(v.heightCm):'',
           spo2: v.spo2!=null?String(v.spo2):'',
+          ar: v.ar!=null?String(v.ar):'',
+          va: v.va!=null?String(v.va):'',
+          iop: v.iop!=null?String(v.iop):'',
         })
       } catch {}
       try {
@@ -310,7 +527,7 @@ export default function Doctor_PrescriptionHistory() {
   const addItemAfter = (i: number) => setEditForm(f => ({ ...f, items: [...f.items.slice(0,i+1), { name: '', frequency: '', duration: '', dose: '', notes: '' }, ...f.items.slice(i+1)] }))
   const removeItemAt = (i: number) => setEditForm(f => ({ ...f, items: f.items.length>1 ? f.items.filter((_,idx)=>idx!==i) : f.items }))
 
-  function goEditTab(tab: 'details'|'vitals'|'labs'|'diagnostics'|'meds'){
+  function goEditTab(tab: 'details'|'vitals'|'labs'|'diagnostics'|'meds'|'anesthesia'){
     if (editActiveTab === 'vitals') {
       try { const disp = vitalsEditRef.current?.getDisplay?.(); if (disp) setEditVitalsDisplay(disp) } catch {}
     }
@@ -331,13 +548,23 @@ export default function Doctor_PrescriptionHistory() {
       examFindings: editForm.examFindings || undefined,
       diagnosis: editForm.diagnosis || undefined,
       advice: editForm.advice || undefined,
-      items: (editForm.items||[]).filter(it => (it.name||'').trim()).map(it => ({ name: String(it.name).trim(), frequency: it.frequency || undefined, duration: it.duration || undefined, dose: it.dose || undefined, notes: (it.route||it.instruction) ? [it.route?`Route: ${it.route}`:null, it.instruction?`Instruction: ${it.instruction}`:null].filter(Boolean).join('; ') : (it.notes || undefined) })),
+      nextFollowUp: editForm.nextFollowUp || undefined,
+      preAnesthesia: editForm.preAnesthesia,
+      items: (editForm.items||[]).filter(it => (it.name||'').trim()).map(it => ({ 
+        name: String(it.name).trim(), 
+        frequency: it.frequency || undefined, 
+        duration: it.duration || undefined, 
+        dose: it.dose || undefined, 
+        route: it.route || undefined,
+        instruction: it.instruction || undefined,
+        notes: it.notes || undefined 
+      })),
     }
     if (editForm.labTestsText !== undefined) {
       const tests = String(editForm.labTestsText||'').split(/\n|,/).map(s=>s.trim()).filter(Boolean)
       payload.labTests = tests.length ? tests : []
     }
-    if (editForm.labNotes !== undefined) payload.labNotes = editForm.labNotes || undefined
+    // diagnostics from tab
     try {
       let dRaw: any = {}
       try { dRaw = diagEditRef.current?.getData?.() || {} } catch {}
@@ -348,11 +575,12 @@ export default function Doctor_PrescriptionHistory() {
     } catch {}
     if (!payload.items || payload.items.length===0){ setToast({ msg: 'Add at least one medicine', kind: 'error' }); return }
     try {
+      // vitals from tab - save to token instead of prescription
+      let vitals: any = undefined
       try {
         let vRaw: any
         try { vRaw = vitalsEditRef.current?.getNormalized?.() } catch {}
         const hasVitals = vRaw && Object.values(vRaw).some((x: any) => x != null && !(typeof x === 'number' && isNaN(x)))
-        let vitals: any = undefined
         if (hasVitals) vitals = vRaw
         else if ((editVitalsDisplay) && Object.values(editVitalsDisplay).some(Boolean)){
           const d: any = editVitalsDisplay
@@ -369,438 +597,429 @@ export default function Doctor_PrescriptionHistory() {
             spo2: n(d.spo2),
           }
         }
-        if (vitals) payload.vitals = vitals
       } catch {}
       await hospitalApi.updatePrescription(editingId, payload)
+      // Save vitals to the token collection
+      if (vitals) {
+        try {
+          const tokenRes: any = await opdApi.listTokens({ limit: 100 })
+          const token = tokenRes?.tokens?.find((t: any) => t.encounterId === payload.encounterId)
+          if (token?.id) {
+            await opdApi.updateToken(token.id, { vitals })
+          }
+        } catch (err) {
+          console.error('Failed to save vitals to token:', err)
+        }
+      }
       setEditOpen(false)
       await load()
+      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
     } catch (e: any) {
       setToast({ msg: e?.message || 'Failed to update prescription', kind: 'error' })
     }
   }
 
+  async function deletePres(id: string){
+    try {
+      await hospitalApi.deletePrescription(id)
+      await load()
+      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
+      setToast({ msg: 'Prescription deleted', kind: 'success' })
+    } catch (e: any) {
+      setToast({ msg: e?.message || 'Failed to delete prescription', kind: 'error' })
+    }
+  }
+
   return (
-    <div className="max-w-[1600px] mx-auto px-4 py-6 animate-in fade-in duration-500">
-      {/* Header & Dashboard */}
-      <div className="flex flex-col lg:flex-row justify-between items-start gap-6 mb-8">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <History className="h-6 w-6 text-sky-600" />
-            Clinical History
-          </h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium italic">Chronological record of patient encounters and interventions.</p>
+    <div className="space-y-4">
+      <div className="no-print space-y-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="text-xl font-semibold text-slate-800">Prescription History</div>
+        <div className="flex items-center gap-2">
+          <input type="date" value={from} onChange={e=>{ setPage(1); setFrom(e.target.value) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          <span className="text-slate-500 text-sm">to</span>
+          <input type="date" value={to} onChange={e=>{ setPage(1); setTo(e.target.value) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          <select value={limit} onChange={e=>{ setPage(1); setLimit(parseInt(e.target.value)||20) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
-
-        <div className="flex gap-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm min-w-[160px] flex flex-col justify-center">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Issued</p>
-            <h3 className="text-2xl font-black text-slate-900 mt-1">{historyStats.total}</h3>
-          </div>
-          <div className="bg-sky-600 rounded-3xl p-5 shadow-lg shadow-sky-100 min-w-[160px] flex flex-col justify-center">
-            <p className="text-[10px] font-black text-sky-100 uppercase tracking-widest">This Month</p>
-            <h3 className="text-2xl font-black text-white mt-1">+{historyStats.thisMonth}</h3>
-          </div>
         </div>
-      </div>
-
-      {/* Modern Filter Bar */}
-      <div className="bg-white border border-slate-200 rounded-[32px] shadow-sm p-5 mb-8">
-        <div className="flex flex-col lg:flex-row gap-6 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <input
-              type="text"
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              placeholder="Search by Patient Name, MRN or Diagnosis..."
-              className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-end">
-            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-2 rounded-2xl">
-              <div className="p-2 bg-white rounded-xl shadow-sm">
-                <CalendarDays className="h-4 w-4 text-sky-600" />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={from}
-                  onChange={e => { setPage(1); setFrom(e.target.value) }}
-                  className="bg-transparent border-none text-xs font-black text-slate-700 focus:ring-0 p-0 cursor-pointer"
-                />
-                <span className="text-[10px] font-bold text-slate-400">TO</span>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={e => { setPage(1); setTo(e.target.value) }}
-                  className="bg-transparent border-none text-xs font-black text-slate-700 focus:ring-0 p-0 cursor-pointer"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-2 rounded-2xl">
-              <div className="p-2 bg-white rounded-xl shadow-sm text-[10px] font-black text-slate-400">ROWS</div>
-              <select
-                value={limit}
-                onChange={e => { setPage(1); setLimit(parseInt(e.target.value)) }}
-                className="bg-transparent border-none text-xs font-black text-sky-600 focus:ring-0 cursor-pointer p-0 pr-6"
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
-          </div>
+        <div className="rounded-xl border border-slate-200 bg-white">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-sm">
+          <div className="font-medium text-slate-800">Results</div>
+          <div className="text-slate-600">{total ? `${(page-1)*limit+1}-${Math.min(page*limit,total)} of ${total}` : ''}</div>
         </div>
-      </div>
-
-      {/* History Grid */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <div className="h-12 w-12 border-4 border-sky-100 border-t-sky-600 rounded-full animate-spin"></div>
-          <p className="text-slate-500 font-bold text-sm uppercase tracking-widest italic">Syncing Clinical Records...</p>
-        </div>
-      ) : filteredList.length === 0 ? (
-        <div className="bg-white rounded-[40px] border-2 border-dashed border-slate-200 p-24 text-center">
-          <div className="p-6 bg-slate-50 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6">
-            <FileSearch className="h-10 w-10 text-slate-300" />
-          </div>
-          <h2 className="text-xl font-black text-slate-800">No Prescriptions Found</h2>
-          <p className="mt-2 text-slate-500 max-w-md mx-auto font-medium">Try adjusting your search query or date filters to find specific clinical records.</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-1 xl:grid-cols-2">
-          {filteredList.map(p => (
-            <div key={p.id} className="group bg-white rounded-[32px] border border-slate-200 p-7 shadow-sm hover:shadow-xl hover:border-sky-200 transition-all duration-300 relative overflow-hidden flex flex-col">
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 bg-slate-100 rounded-[20px] flex items-center justify-center font-black text-xl text-slate-400 group-hover:bg-sky-50 group-hover:text-sky-600 transition-all">
-                    {p.patientName.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900 group-hover:text-sky-700 transition-colors">{p.patientName}</h3>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="px-2.5 py-0.5 bg-slate-100 rounded-lg text-[10px] font-black text-slate-500 uppercase tracking-tighter">MRN: {p.mrNo}</span>
-                      <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
-                        <Clock className="h-3 w-3" />
-                        {new Date(p.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  {p.prescriptionMode === 'manual' ? (
-                    <span className="px-3 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-widest">Manual Scan</span>
-                  ) : (
-                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-widest italic">Digital Record</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-4 flex-1">
-                {p.diagnosis && (
-                  <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Stethoscope className="h-3.5 w-3.5 text-sky-600" />
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Diagnosis</span>
-                    </div>
-                    <p className="text-sm font-bold text-slate-700 leading-relaxed italic">"{p.diagnosis}"</p>
-                  </div>
+        <div className="divide-y divide-slate-200">
+          {mine.map(p => (
+            <div key={p.id} className="px-4 py-3 text-sm">
+              <div className="font-medium">{p.patientName} <span className="text-xs text-slate-500">{p.mrNo || ''}</span></div>
+              <div className="text-xs text-slate-600">{new Date(p.createdAt).toLocaleString()} • {p.diagnosis || '-'}</div>
+              {p.primaryComplaint && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Primary Complaint:</span> {p.primaryComplaint}</div>}
+              {p.primaryComplaintHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">History of Primary Complaint:</span> {p.primaryComplaintHistory}</div>}
+              {p.familyHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Family History:</span> {p.familyHistory}</div>}
+              {p.allergyHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Allergy History:</span> {p.allergyHistory}</div>}
+              {p.treatmentHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Treatment History:</span> {p.treatmentHistory}</div>}
+              {p.history && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">History:</span> {p.history}</div>}
+              {p.examFindings && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Findings:</span> {p.examFindings}</div>}
+              {p.advice && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Advice:</span> {p.advice}</div>}
+              {p.medicines && <pre className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{p.medicines}</pre>}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>handlePrint(p.id)}>Print</button>
+                <button
+                  onClick={() => handlePrintPreAssessment(p.id)}
+                  disabled={!p.preAnesthesia?.isApplied}
+                  className="flex items-center gap-1 rounded-md border border-teal-600 bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={!p.preAnesthesia?.isApplied ? 'No Preassessment form in this prescription' : 'Print Preassessment Form'}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Print Preassessment
+                </button>
+                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>{ setIpdReferralPrescription(p); setIpdReferralOpen(true) }}>Referral Form</button>
+                {p.prescriptionMode === 'manual' && (p.manualAttachment?.dataUrl || p.manualAttachment?.fileName) && (
+                  <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openAttachment(p)}>View Attachment</button>
                 )}
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center text-center group-hover:border-sky-100 transition-colors">
-                    <Pill className="h-4 w-4 text-rose-500 mb-1" />
-                    <span className="text-[14px] font-black text-slate-900">{p.itemsCount}</span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Meds</span>
-                  </div>
-                  <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center text-center group-hover:border-sky-100 transition-colors">
-                    <Microscope className="h-4 w-4 text-sky-500 mb-1" />
-                    <span className="text-[14px] font-black text-slate-900">{p.labCount}</span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Labs</span>
-                  </div>
-                  <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center text-center group-hover:border-sky-100 transition-colors">
-                    <ClipboardCheck className="h-4 w-4 text-emerald-500 mb-1" />
-                    <span className="text-[14px] font-black text-slate-900">{p.diagCount}</span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Img</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Toolbar */}
-              <div className="mt-8 pt-6 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
+                {(() => { const done = !!refFlags[p.id]?.ph; return (
                   <button
-                    onClick={() => handlePrint(p.id)}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-md active:scale-95"
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    Print Rx
-                  </button>
+                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
+                    disabled={done}
+                    title={done?'Already referred to pharmacy':''}
+                    onClick={()=>openConfirm('pharmacy', p)}
+                  >Refer to Pharmacy</button>
+                )})()}
+                {(() => { const done = !!refFlags[p.id]?.lab; return (
                   <button
-                    onClick={() => { setIpdReferralPrescription(p); setIpdReferralOpen(true) }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
-                  >
-                    <ArrowUpRight className="h-3.5 w-3.5 text-sky-600" />
-                    IPD Refer
-                  </button>
-                  {p.prescriptionMode === 'manual' && (p.manualAttachment?.dataUrl || p.manualAttachment?.fileName) && (
-                    <button
-                      onClick={() => openAttachment(p)}
-                      className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 text-amber-600" />
-                      Attachment
-                    </button>
-                  )}
+                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
+                    disabled={done}
+                    title={done?'Already referred to lab':''}
+                    onClick={()=>openConfirm('lab', p)}
+                  >Refer to Lab</button>
+                )})()}
+                {(() => { const done = !!refFlags[p.id]?.diag; return (
                   <button
-                    onClick={() => openEditor(p.id)}
-                    className="p-2 bg-slate-50 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all"
-                    title="Edit Record"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Referral Badges */}
-                  <div className="flex -space-x-2">
-                    <button 
-                      onClick={() => openConfirm('pharmacy', p)}
-                      disabled={refFlags[p.id]?.ph}
-                      className={`h-8 w-8 rounded-full border-2 border-white flex items-center justify-center transition-all ${refFlags[p.id]?.ph ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600'}`}
-                      title="Pharmacy Referral"
-                    >
-                      <Pill className="h-3.5 w-3.5" />
-                    </button>
-                    <button 
-                      onClick={() => openConfirm('lab', p)}
-                      disabled={refFlags[p.id]?.lab}
-                      className={`h-8 w-8 rounded-full border-2 border-white flex items-center justify-center transition-all ${refFlags[p.id]?.lab ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600'}`}
-                      title="Lab Referral"
-                    >
-                      <Microscope className="h-3.5 w-3.5" />
-                    </button>
-                    <button 
-                      onClick={() => openConfirm('diagnostic', p)}
-                      disabled={refFlags[p.id]?.diag}
-                      className={`h-8 w-8 rounded-full border-2 border-white flex items-center justify-center transition-all ${refFlags[p.id]?.diag ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600'}`}
-                      title="Radiology Referral"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => openConfirm('delete', p)}
-                    className="p-2 text-rose-300 hover:text-rose-600 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
+                    disabled={done}
+                    title={done?'Already referred to diagnostic':''}
+                    onClick={()=>openConfirm('diagnostic', p)}
+                  >Refer to Diagnostic</button>
+                )})()}
+                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openEditor(p.id)}>Edit</button>
+                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openConfirm('delete', p)}>Delete</button>
               </div>
             </div>
           ))}
+          {mine.length === 0 && <div className="px-4 py-8 text-center text-slate-500 text-sm">No prescriptions</div>}
         </div>
-      )}
-
-      {/* Refined Pagination */}
-      {total > limit && (
-        <div className="mt-12 flex items-center justify-between bg-white rounded-[32px] border border-slate-200 px-8 py-4 shadow-sm">
-          <div className="text-xs font-black text-slate-400 uppercase tracking-widest italic">
-            Visualizing {Math.min((page - 1) * limit + 1, total)} - {Math.min(page * limit, total)} of {total} Records
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-6 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-white hover:text-sky-600 transition-all disabled:opacity-30 shadow-sm"
-            >
-              Previous
-            </button>
-            <div className="px-4 text-xs font-black text-slate-900 bg-slate-50 py-2 rounded-xl border border-slate-200">
-              PAGE {page}
-            </div>
-            <button
-              onClick={() => setPage(p => Math.min(Math.ceil(total / limit), p + 1))}
-              disabled={page * limit >= total}
-              className="px-6 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-white hover:text-sky-600 transition-all disabled:opacity-30 shadow-sm"
-            >
-              Next
-            </button>
-          </div>
+        <div className="flex items-center justify-between px-4 py-3 text-sm">
+          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</button>
+          <div className="text-slate-600">Page {page}</div>
+          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page*limit>=total} onClick={()=>setPage(p=>p+1)}>Next</button>
         </div>
-      )}
+        </div>
+      </div>
 
-      {/* Modals & Overlays */}
+      {printData && (
+        <PrescriptionPrint
+          printId="prescription-print-history"
+          doctor={printData.doctor || {}}
+          settings={printData.settings || { name: '', address: '', phone: '' }}
+          patient={printData.patient || {}}
+          items={printData.items || []}
+          labTests={printData.labTests || []}
+          labNotes={printData.labNotes || ''}
+          diagnosticTests={printData.diagnosticTests || []}
+          diagnosticNotes={printData.diagnosticNotes || ''}
+          primaryComplaint={printData.primaryComplaint}
+          primaryComplaintHistory={printData.primaryComplaintHistory}
+          familyHistory={printData.familyHistory}
+          allergyHistory={printData.allergyHistory}
+          treatmentHistory={printData.treatmentHistory}
+          history={printData.history}
+          examFindings={printData.examFindings}
+          diagnosis={printData.diagnosis}
+          advice={printData.advice}
+          createdAt={printData.createdAt}
+        />
+      )}
+      {/* Confirm referral modal */}
       {confirmDlg.open && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="w-full max-w-sm rounded-[32px] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
-            <div className="text-center">
-              <div className={`mx-auto mb-5 h-16 w-16 flex items-center justify-center rounded-[24px] ${confirmDlg.type === 'delete' ? 'bg-rose-50 text-rose-600' : 'bg-sky-50 text-sky-600'}`}>
-                {confirmDlg.type === 'delete' ? <Trash2 className="h-8 w-8" /> : <AlertCircle className="h-8 w-8" />}
-              </div>
-              <h3 className="text-xl font-black text-slate-900">
-                {confirmDlg.type === 'delete' ? 'Remove Record?' : 'Confirm Referral'}
-              </h3>
-              <p className="text-sm text-slate-500 mt-2 font-medium leading-relaxed">
-                {confirmDlg.type === 'delete' 
-                  ? 'This prescription will be permanently removed from clinical history.' 
-                  : `Are you sure you want to initiate a new ${confirmDlg.type} referral for this patient?`}
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-sm rounded-xl bg-white p-4">
+            <div className="mb-3 text-lg font-semibold text-slate-800">{confirmDlg.type==='delete' ? 'Delete Prescription' : 'Confirm Referral'}</div>
+            <div className="text-sm text-slate-700">
+              {confirmDlg.type==='delete' ? 'Are you sure you want to delete this prescription? This action cannot be undone.' : `Create a ${confirmDlg.type==='pharmacy'?'Pharmacy':confirmDlg.type==='lab'?'Lab':'Diagnostic'} referral for this prescription?`}
             </div>
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={() => setConfirmDlg({ open: false })}
-                className="flex-1 px-4 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-2xl transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmAction}
-                className={`flex-1 px-4 py-3 text-sm font-black text-white rounded-2xl shadow-lg transition-all active:scale-95 ${confirmDlg.type === 'delete' ? 'bg-rose-600 shadow-rose-100 hover:bg-rose-700' : 'bg-sky-600 shadow-sky-100 hover:bg-sky-700'}`}
-              >
-                Confirm
-              </button>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button onClick={()=>setConfirmDlg({ open: false })} className="btn-outline-navy">Cancel</button>
+              <button onClick={confirmReferral} className="btn">Confirm</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Toast */}
       {toast && (
-        <div className="fixed right-6 top-6 z-120 animate-in slide-in-from-top-4 duration-500">
-          <div className={`rounded-2xl px-6 py-4 shadow-2xl flex items-center gap-3 border ${toast.kind === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
-            {toast.kind === 'success' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertCircle className="h-5 w-5 text-rose-600" />}
-            <span className="text-sm font-black uppercase tracking-wider">{toast.msg}</span>
-          </div>
+        <div className="fixed right-4 top-4 z-60">
+          <div className={`rounded-md px-3 py-2 text-sm shadow ${toast.kind==='success'?'bg-emerald-600 text-white':'bg-rose-600 text-white'}`}>{toast.msg}</div>
         </div>
       )}
 
       {attachView.open && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-6 animate-in fade-in" onClick={() => setAttachView({ open: false })}>
-          <div className="w-full max-w-5xl rounded-[40px] bg-white shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300" onClick={e => e.stopPropagation()}>
-            <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between">
-              <div><h3 className="text-xl font-black text-slate-900">Manual Prescription Scan</h3><p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Archived Document</p></div>
-              <div className="flex items-center gap-4">
-                {attachView.dataUrl && <a href={attachView.dataUrl} download={attachView.fileName || 'prescription-attachment'} className="flex items-center gap-2 px-6 py-2.5 bg-slate-100 text-slate-700 rounded-2xl text-sm font-black hover:bg-slate-200 transition-all">Download</a>}
-                <button onClick={() => setAttachView({ open: false })} className="p-3 hover:bg-slate-100 rounded-full transition-all"><X className="h-6 w-6 text-slate-400" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={()=>setAttachView({ open: false })}>
+          <div className="w-full max-w-4xl rounded-xl bg-white p-4" onClick={(e)=>e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-800">Prescription Attachment</div>
+              <div className="flex items-center gap-2">
+                {attachView.dataUrl && (
+                  <a className="rounded-md border border-slate-300 px-3 py-1 text-sm" href={attachView.dataUrl} download={attachView.fileName || 'prescription-attachment'}>Download</a>
+                )}
+                <button className="btn" onClick={()=>setAttachView({ open: false })}>Close</button>
               </div>
             </div>
-            <div className="flex-1 bg-slate-50 p-10 flex items-center justify-center overflow-hidden">
-              <div className="w-full h-full bg-white rounded-3xl shadow-inner border border-slate-200 overflow-auto p-4 flex items-center justify-center">
-                {attachView.dataUrl && (attachView.mimeType || '').startsWith('image/') ? <img src={attachView.dataUrl} alt="Attachment" className="max-w-full max-h-full object-contain shadow-sm" /> : attachView.dataUrl && (attachView.mimeType || '').includes('pdf') ? <iframe title="Attachment" src={attachView.dataUrl} className="w-full h-[70vh] border-0" /> : <div className="flex flex-col items-center gap-4 py-20"><FileSearch className="h-16 w-16 text-slate-200" /><p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Visual Preview Unavailable</p></div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {ipdReferralOpen && ipdReferralPrescription && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-6 animate-in fade-in">
-          <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-            <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div><h3 className="text-xl font-black text-slate-900">Initiate IPD Admission</h3><p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Clinical Transfer Protocol</p></div>
-              <button className="p-3 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-900 shadow-sm border border-transparent hover:border-slate-200" onClick={() => { setIpdReferralOpen(false); setIpdReferralPrescription(null) }}><Plus className="h-7 w-7 rotate-45" /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-10">
-              {ipdReferralPrescription && (
-                <Doctor_IpdReferralForm mrn={ipdReferralPrescription.mrNo} doctor={doc ? { id: doc.id, name: doc.name } : undefined} initialData={{ provisionalDiagnosis: ipdReferralPrescription.diagnosis }} onSaved={() => { setToast({ msg: 'IPD referral created', kind: 'success' }); setIpdReferralOpen(false); setIpdReferralPrescription(null) }} />
+            <div className="mt-3 max-h-[75vh] overflow-auto rounded-lg border border-slate-200 p-2">
+              {attachView.dataUrl && (attachView.mimeType || '').startsWith('image/') && (
+                <img src={attachView.dataUrl} alt="Attachment" className="mx-auto max-h-[70vh]" />
+              )}
+              {attachView.dataUrl && (attachView.mimeType || '').includes('pdf') && (
+                <iframe title="Attachment" src={attachView.dataUrl} className="h-[70vh] w-full" />
+              )}
+              {!attachView.dataUrl && (
+                <div className="p-6 text-center text-sm text-slate-500">No attachment data</div>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {editOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="max-h-[92vh] w-full max-w-4xl bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8">
-            <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between">
-              <div><h3 className="text-xl font-black text-slate-900">Modify Clinical Record</h3><p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Prescription Revision Engine</p></div>
-              <div className="flex items-center gap-3">
-                <button onClick={saveEdit} className="flex items-center gap-2 px-6 py-2.5 bg-sky-600 text-white rounded-2xl text-sm font-black hover:bg-sky-700 transition-all shadow-lg shadow-sky-100"><Save className="h-4 w-4" /> Save Revisions</button>
-                <button onClick={() => setEditOpen(false)} className="p-3 hover:bg-slate-100 rounded-full transition-all text-slate-400 hover:text-slate-900"><X className="h-6 w-6" /></button>
-              </div>
+      {/* IPD Referral Dialog */}
+      {ipdReferralOpen && ipdReferralPrescription && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-lg font-semibold text-slate-800">Referral Form</div>
+              <button className="btn-outline-navy" onClick={()=>{ setIpdReferralOpen(false); setIpdReferralPrescription(null) }}>Close</button>
             </div>
-            <div className="bg-slate-50 px-10 py-4 border-b border-slate-100">
-              <nav className="flex gap-2">
+            <Doctor_IpdReferralForm
+              mrn={ipdReferralPrescription.mrNo}
+              doctor={doc ? { id: doc.id, name: doc.name } : undefined}
+              initialData={{
+                provisionalDiagnosis: ipdReferralPrescription.diagnosis,
+              }}
+              onSaved={(_id) => {
+                setToast({ msg: 'IPD referral created', kind: 'success' })
+                setIpdReferralOpen(false)
+                setIpdReferralPrescription(null)
+              }}
+            />
+          </div>
+        </div>
+      )}
+      {/* Edit modal */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex flex-col w-full max-w-5xl h-[85vh] rounded-xl bg-white p-6 shadow-2xl overflow-hidden">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-800">Edit Prescription</h3>
+              <button onClick={()=>setEditOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="border-b border-slate-200">
+              <nav className="-mb-px flex gap-6">
                 {[
-                  { id: 'details', label: 'Case Details', icon: FileSearch },
-                  { id: 'vitals', label: 'Vitals', icon: Stethoscope },
-                  { id: 'labs', label: 'Labs', icon: Microscope },
-                  { id: 'diagnostics', label: 'Imaging', icon: ExternalLink },
-                  { id: 'meds', label: 'Medications', icon: Pill },
-                ].map(tab => (
-                  <button key={tab.id} onClick={() => goEditTab(tab.id as any)} className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${editActiveTab === tab.id ? 'bg-white text-sky-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}><tab.icon className={`h-4 w-4 ${editActiveTab === tab.id ? 'text-sky-600' : 'text-slate-300'}`} />{tab.label}</button>
+                  { id: 'details', label: 'Details' },
+                  { id: 'vitals', label: 'Vitals' },
+                  { id: 'labs', label: 'Lab Orders' },
+                  { id: 'diagnostics', label: 'Diagnostic Orders' },
+                  { id: 'meds', label: 'Medicines' },
+                  { id: 'anesthesia', label: 'Anesthesia' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => goEditTab(tab.id as any)}
+                    className={`pb-3 text-sm font-bold transition-all border-b-2 ${
+                      editActiveTab === tab.id
+                        ? 'border-sky-600 text-sky-600'
+                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
                 ))}
               </nav>
             </div>
-            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
-              {editActiveTab === 'details' && (
-                <div className="grid gap-8 lg:grid-cols-2">
-                  <div className="space-y-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Working Diagnosis</label>
-                      <textarea rows={2} value={editForm.diagnosis||''} onChange={e=>setEditForm(f=>({ ...f, diagnosis: e.target.value }))} className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-800 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all bg-slate-50/50" placeholder="Enter diagnosis..." />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Primary Complaint</label>
-                      <textarea rows={3} value={editForm.primaryComplaint||''} onChange={e=>setEditForm(f=>({ ...f, primaryComplaint: e.target.value }))} className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm font-medium focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all" placeholder="Describe complaints..." />
-                    </div>
+
+            <div className="flex-1 overflow-y-auto py-6">
+              {editActiveTab==='details' && (
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Primary Complaint</label>
+                    <SuggestField rows={3} value={editForm.primaryComplaint||''} onChange={v=>setEditForm(f=>({ ...f, primaryComplaint: v }))} suggestions={doctorCustomSuggestions.primaryComplaint} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
                   </div>
-                  <div className="space-y-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Clinical Advice</label>
-                      <textarea rows={6} value={editForm.advice||''} onChange={e=>setEditForm(f=>({ ...f, advice: e.target.value }))} className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm font-medium focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all h-full" placeholder="Special instructions..." />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Risk Factors / Medical History</label>
+                    <SuggestField rows={3} value={editForm.history||''} onChange={v=>setEditForm(f=>({ ...f, history: v }))} suggestions={doctorCustomSuggestions.history} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">History of Primary Complaint</label>
+                    <SuggestField rows={3} value={editForm.primaryComplaintHistory||''} onChange={v=>setEditForm(f=>({ ...f, primaryComplaintHistory: v }))} suggestions={doctorCustomSuggestions.primaryComplaintHistory} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Family History</label>
+                    <SuggestField rows={3} value={editForm.familyHistory||''} onChange={v=>setEditForm(f=>({ ...f, familyHistory: v }))} suggestions={doctorCustomSuggestions.familyHistory} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Allergy History</label>
+                    <SuggestField rows={3} value={editForm.allergyHistory||''} onChange={v=>setEditForm(f=>({ ...f, allergyHistory: v }))} suggestions={doctorCustomSuggestions.allergyHistory} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Treatment History</label>
+                    <SuggestField rows={3} value={editForm.treatmentHistory||''} onChange={v=>setEditForm(f=>({ ...f, treatmentHistory: v }))} suggestions={doctorCustomSuggestions.treatmentHistory} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Examination Findings</label>
+                    <SuggestField rows={3} value={editForm.examFindings||''} onChange={v=>setEditForm(f=>({ ...f, examFindings: v }))} suggestions={doctorCustomSuggestions.examFindings} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Diagnosis / Disease</label>
+                    <SuggestField as="input" value={editForm.diagnosis||''} onChange={v=>setEditForm(f=>({ ...f, diagnosis: v }))} suggestions={doctorCustomSuggestions.diagnosis} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Advice/Referral</label>
+                    <SuggestField rows={3} value={editForm.advice||''} onChange={v=>setEditForm(f=>({ ...f, advice: v }))} suggestions={doctorCustomSuggestions.advice} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Next Follow Up</label>
+                    <SuggestField as="input" value={editForm.nextFollowUp||''} onChange={v=>setEditForm(f=>({ ...f, nextFollowUp: v }))} suggestions={['After 3 days', 'After 1 week', 'After 2 weeks', 'After 1 month', 'SOS']} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" />
                   </div>
                 </div>
               )}
-              {editActiveTab === 'vitals' && (
-                <div className="bg-slate-50/50 rounded-[32px] border border-slate-200 p-8 shadow-inner">
+              {editActiveTab==='vitals' && (
+                <div className="animate-in fade-in duration-300">
                   <PrescriptionVitals ref={vitalsEditRef} initial={editVitalsDisplay} />
                 </div>
               )}
-              {editActiveTab === 'labs' && (
-                <div className="space-y-8 max-w-2xl mx-auto">
-                  <div className="bg-white rounded-[32px] border border-slate-200 p-8 shadow-sm">
-                    <div className="flex items-center gap-2 mb-6 text-sky-600"><Microscope className="h-5 w-5" /><h4 className="text-xs font-black uppercase tracking-[0.2em]">Laboratory Investigations</h4></div>
-                    <div className="space-y-6">
-                      <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tests Required</label><textarea rows={4} value={editForm.labTestsText} onChange={e => setEditForm(f => ({ ...f, labTestsText: e.target.value }))} placeholder="Enter tests separated by commas or lines..." className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all" /></div>
-                      <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lab Instructions</label><textarea rows={2} value={editForm.labNotes} onChange={e => setEditForm(f => ({ ...f, labNotes: e.target.value }))} placeholder="e.g. Fasting required..." className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm font-medium focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all" /></div>
+              {editActiveTab==='labs' && (
+                <div className="animate-in fade-in duration-300 max-w-2xl mx-auto">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">Lab Tests (comma or one per line)</label>
+                    <SuggestField mode="multi" rows={6} value={editForm.labTestsText||''} onChange={v=>setEditForm(f=>({ ...f, labTestsText: v }))} suggestions={labTestSuggestions} className="w-full rounded-lg border-slate-200 px-4 py-3 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm transition-all" placeholder="CBC, LFT, KFT" />
+                  </div>
+                </div>
+              )}
+              {editActiveTab==='diagnostics' && (
+                <div className="animate-in fade-in duration-300 max-w-2xl mx-auto">
+                  <PrescriptionDiagnosticOrders ref={diagEditRef} initialTestsText={editDiagDisplay.testsText} suggestionsTests={diagnosticTestSuggestions} />
+                </div>
+              )}
+              {editActiveTab==='meds' && (
+                <div className="animate-in fade-in duration-300">
+                  <div className="mb-4 flex items-center justify-between">
+                    <label className="text-sm font-semibold text-slate-700">Medicines</label>
+                    <button type="button" onClick={()=>setEditForm(f=>({ ...f, items: [...f.items, { name: '', frequency: '', duration: '', dose: '', route: '', instruction: '', notes: '' }] }))} className="text-xs font-bold text-sky-600 hover:text-sky-700 transition-colors flex items-center gap-1">
+                      <span>➕</span> Add Medicine
+                    </button>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="hidden sm:grid grid-cols-3 gap-6 bg-slate-50 px-6 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      <div>Medicine Info</div>
+                      <div>Dosage Info</div>
+                      <div>Timing Info</div>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {editForm.items.map((m, idx) => (
+                        <div key={idx} className="group hover:bg-slate-50/50 transition-colors px-6 py-6">
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700">Medicine Name</label>
+                                <SuggestField placeholder="Medicine name" value={m.name || ''} onChange={v=>setItem(idx, 'name', v)} suggestions={medNameSuggestions} className="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700">Dose</label>
+                                <SuggestField placeholder="Dose" value={m.dose || ''} onChange={v=>setItem(idx, 'dose', v)} suggestions={sugDose} className="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700">Frequency</label>
+                                <SuggestField placeholder="Frequency" value={m.frequency || ''} onChange={v=>setItem(idx, 'frequency', v)} suggestions={sugFreq} className="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm" />
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700">Duration</label>
+                                <SuggestField placeholder="Duration" value={m.duration || ''} onChange={v=>setItem(idx, 'duration', v)} suggestions={sugDuration} className="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700">Route</label>
+                                <SuggestField placeholder="Route" value={m.route || ''} onChange={v=>setItem(idx, 'route', v)} suggestions={sugRoute} className="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700">Instruction</label>
+                                <SuggestField placeholder="Instruction" value={m.instruction || ''} onChange={v=>setItem(idx, 'instruction', v)} suggestions={sugInstr} className="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm" />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold text-slate-700">Medicine Notes</label>
+                              <input
+                                type="text"
+                                value={m.notes || ''}
+                                onChange={e => setItem(idx, 'notes', e.target.value)}
+                                placeholder="Medicine notes (optional)..."
+                                className="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500 shadow-sm"
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 pt-2">
+                              <button type="button" onClick={()=>addItemAfter(idx)} className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100 transition-all text-xs font-bold border border-sky-100" title="Add medicine below">
+                                <span>➕</span> Add Another
+                              </button>
+                              <button type="button" onClick={()=>removeItemAt(idx)} className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all text-xs font-bold border border-rose-100" title="Remove medicine">
+                                <span>🗑️</span> Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {editForm.items.length===0 && (
+                        <div className="p-12 text-center">
+                          <p className="text-sm text-slate-500 mb-4">No medicines added yet</p>
+                          <button type="button" onClick={()=>setEditForm(f=>({ ...f, items: [{ name: '', frequency: '', duration: '', dose: '', route: '', instruction: '', notes: '' }] }))} className="rounded-lg bg-sky-50 px-6 py-2 text-sm font-bold text-sky-600 hover:bg-sky-100 transition-colors">Add first medicine</button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               )}
-              {editActiveTab === 'diagnostics' && (
-                <div className="bg-white rounded-[32px] border border-slate-200 p-8 shadow-sm max-w-2xl mx-auto">
-                  <PrescriptionDiagnosticOrders ref={diagEditRef} initialTestsText={editDiagDisplay.testsText} />
+              {editActiveTab==='anesthesia' && (
+                <div className="animate-in fade-in duration-300">
+                  <Doctor_PreAnesthesiaForm
+                    data={editForm.preAnesthesia || emptyPreAnesthesia()}
+                    onChange={(preAnesthesia) => setEditForm(f => ({ ...f, preAnesthesia }))}
+                  />
+                  {editForm.preAnesthesia?.isApplied && (
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={() => handlePrintPreAssessment(editingId)}
+                        className="flex items-center gap-2 rounded-lg bg-teal-600 px-6 py-2 text-sm font-bold text-white hover:bg-teal-700 transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                        Print Pre-Assessment Form
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-              {editActiveTab === 'meds' && (
-                <div className="bg-slate-50/50 rounded-[32px] border border-slate-200 p-8 shadow-inner">
-                  <div className="flex items-center gap-2 mb-6 text-rose-500"><Pill className="h-5 w-5" /><h4 className="text-xs font-black uppercase tracking-[0.2em]">Treatment Plan Revisions</h4></div>
-                  <div className="space-y-4">
-                    {editForm.items.map((it, i) => (
-                      <div key={i} className="flex gap-4 items-start animate-in fade-in slide-in-from-left-2 duration-300">
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 flex-1 shadow-sm group hover:border-sky-200 transition-all">
-                          <div className="grid gap-6 sm:grid-cols-2 mb-4">
-                            <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Medicine Name</label><input value={it.name} onChange={e=>setItem(i, 'name', e.target.value)} className="w-full bg-slate-50/50 border-none rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/10 transition-all" /></div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Freq</label><input value={it.frequency} onChange={e=>setItem(i, 'frequency', e.target.value)} className="w-full bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-bold" /></div>
-                              <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dur</label><input value={it.duration} onChange={e=>setItem(i, 'duration', e.target.value)} className="w-full bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-bold" /></div>
-                            </div>
-                          </div>
-                          <div className="grid gap-4 sm:grid-cols-3"><input value={it.dose} onChange={e=>setItem(i, 'dose', e.target.value)} placeholder="Dose" className="bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-medium" /><input value={it.route} onChange={e=>setItem(i, 'route', e.target.value)} placeholder="Route" className="bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-medium" /><input value={it.instruction} onChange={e=>setItem(i, 'instruction', e.target.value)} placeholder="Instructions" className="bg-slate-50/50 border-none rounded-xl px-3 py-2 text-xs font-medium" /></div>
-                        </div>
-                        <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={()=>addItemAfter(i)} className="p-2.5 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-600 hover:text-white transition-all shadow-sm"><Plus className="h-4 w-4" /></button>
-                          <button onClick={()=>removeItemAt(i)} className="p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><Trash2 className="h-4 w-4" /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+            </div>
+            
+            <div className="mt-6 flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+              <button onClick={()=>setEditOpen(false)} className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">Cancel</button>
+              <button onClick={saveEdit} className="rounded-xl bg-sky-600 px-8 py-2.5 text-sm font-bold text-white hover:bg-sky-700 hover:shadow-lg hover:shadow-sky-200 transition-all active:scale-[0.98]">Save Changes</button>
             </div>
           </div>
         </div>
@@ -809,8 +1028,11 @@ export default function Doctor_PrescriptionHistory() {
   )
 }
 
-async function fetchPrintData(id: string) {
-  const [detail, settings] = await Promise.all([hospitalApi.getPrescription(id) as any, hospitalApi.getSettings() as any])
+async function fetchPrintData(id: string){
+  const [detail, settings] = await Promise.all([
+    hospitalApi.getPrescription(id) as any,
+    hospitalApi.getSettings() as any,
+  ])
   const pres = detail?.prescription
   let patient: any = { name: pres?.encounterId?.patientId?.fullName || '-', mrn: pres?.encounterId?.patientId?.mrn || '-' }
   try {
@@ -821,16 +1043,13 @@ async function fetchPrintData(id: string) {
         let ageTxt = ''
         try {
           if (p.age != null) ageTxt = String(p.age)
-          else if (p.dob) { 
-            const dob = new Date(p.dob)
-            if (!isNaN(dob.getTime())) ageTxt = String(Math.max(0, Math.floor((Date.now()-dob.getTime())/31557600000))) 
-          }
+          else if (p.dob) { const dob = new Date(p.dob); if (!isNaN(dob.getTime())) ageTxt = String(Math.max(0, Math.floor((Date.now()-dob.getTime())/31557600000))) }
         } catch {}
         patient = { name: p.fullName || patient.name, mrn: p.mrn || patient.mrn, gender: p.gender || '-', fatherName: p.fatherName || '-', phone: p.phoneNormalized || '-', address: p.address || '-', age: ageTxt }
       }
     }
   } catch {}
-  
+  // Try to enrich doctor info
   let doctor: any = { name: pres?.encounterId?.doctorId?.name || '-', specialization: '', qualification: '', departmentName: '', phone: '' }
   try {
     const drList: any = await hospitalApi.listDoctors()
@@ -839,46 +1058,18 @@ async function fetchPrintData(id: string) {
     const d = doctors.find(x => String(x._id || x.id) === drId)
     if (d) doctor = { name: d.name || doctor.name, specialization: d.specialization || '', qualification: d.qualification || '', departmentName: '', phone: d.phone || '' }
     try {
-      const depRes: any = await hospitalApi.listDepartments()
+      const depRes: any = await hospitalApi.listDepartments({ limit: 1000 })
       const depArray: any[] = (depRes?.departments || depRes || []) as any[]
       const deptName = d?.primaryDepartmentId ? (depArray.find((z: any)=> String(z._id||z.id) === String(d.primaryDepartmentId))?.name || '') : ''
       if (deptName) doctor.departmentName = deptName
     } catch {}
   } catch {}
-
-  return { 
-    settings, 
-    doctor, 
-    patient, 
-    items: (pres?.items || []).map((m: any) => {
-      const nt = String(m?.notes || '')
-      const mRoute = nt.match(/Route:\s*([^;]+)/i)
-      const mInstr = nt.match(/Instruction:\s*([^;]+)/i)
-      return { 
-        name: m.name || '', 
-        frequency: m.frequency || '', 
-        duration: m.duration || '', 
-        dose: m.dose || '', 
-        route: mRoute?.[1]?.trim() || m.route || '', 
-        instruction: mInstr?.[1]?.trim() || m.instruction || '' 
-      }
-    }), 
-    vitals: pres?.vitals, 
-    labTests: pres?.labTests || [], 
-    labNotes: pres?.labNotes, 
-    diagnosticTests: pres?.diagnosticTests || [], 
-    diagnosticNotes: pres?.diagnosticNotes, 
-    primaryComplaint: pres?.primaryComplaint || pres?.complaints, 
-    primaryComplaintHistory: pres?.primaryComplaintHistory, 
-    familyHistory: pres?.familyHistory, 
-    treatmentHistory: pres?.treatmentHistory, 
-    history: pres?.history, 
-    examFindings: pres?.examFindings, 
-    diagnosis: pres?.diagnosis, 
-    advice: pres?.advice, 
-    createdAt: pres?.createdAt, 
-    tokenNo: pres?.tokenNo || '' 
-  }
+  return { settings, doctor, patient, items: (pres?.items || []).map((m: any) => {
+    const nt = String(m?.notes || '')
+    const mRoute = nt.match(/Route:\s*([^;]+)/i)
+    const mInstr = nt.match(/Instruction:\s*([^;]+)/i)
+    return { name: m.name || '', frequency: m.frequency || '', duration: m.duration || '', dose: m.dose || '', route: mRoute?.[1]?.trim() || m.route || '', instruction: mInstr?.[1]?.trim() || m.instruction || '' }
+  }), vitals: pres?.vitals, labTests: pres?.labTests || [], labNotes: pres?.labNotes, diagnosticTests: pres?.diagnosticTests || [], diagnosticNotes: pres?.diagnosticNotes, primaryComplaint: pres?.primaryComplaint || pres?.complaints, primaryComplaintHistory: pres?.primaryComplaintHistory, familyHistory: pres?.familyHistory, treatmentHistory: pres?.treatmentHistory, history: pres?.history, examFindings: pres?.examFindings, diagnosis: pres?.diagnosis, advice: pres?.advice, createdAt: pres?.createdAt, tokenNo: pres?.tokenNo || '' }
 }
 
 // helper for fetching data used by both print and download

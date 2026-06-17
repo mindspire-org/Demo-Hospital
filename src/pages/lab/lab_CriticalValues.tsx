@@ -17,7 +17,26 @@ type CritEvent = {
   doctor?: string
   comment?: string
   infoMode?: string
+  resolvedAt?: string
 }
+
+// Calculate minutes since detection
+function getMinutesSince(date: string): number {
+  try {
+    const ms = new Date().getTime() - new Date(date).getTime()
+    return Math.max(0, Math.floor(ms / 60000))
+  } catch { return 0 }
+}
+
+// Format minutes to readable time
+function formatAging(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`
+}
+
+// Escalation threshold in minutes (30 minutes)
+const ESCALATION_THRESHOLD = 30
 
 type CritParam = {
   _id?: string
@@ -88,6 +107,13 @@ function EventsTab() {
   const openCount = items.filter(e => e.status === 'open').length
   const resolvedCount = items.filter(e => e.status === 'resolved').length
   const totalCount = items.length
+  
+  // Calculate aging for open events
+  const openEvents = items.filter(e => e.status === 'open')
+  const avgOpenTime = openEvents.length > 0 
+    ? Math.round(openEvents.reduce((sum, e) => sum + getMinutesSince(e.detectedAt), 0) / openEvents.length)
+    : 0
+  const overdueCount = openEvents.filter(e => getMinutesSince(e.detectedAt) > ESCALATION_THRESHOLD).length
 
   const paramCounts = useMemo(() => {
     const m: Record<string, number> = {}
@@ -121,11 +147,22 @@ function EventsTab() {
   return (
     <>
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-rose-200 bg-linear-to-br from-rose-50 to-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-rose-600"><AlertTriangle className="h-4 w-4" /> OPEN ALERTS</div>
           <div className="mt-1 text-3xl font-extrabold text-rose-700">{openCount}</div>
           <div className="mt-1 text-xs text-rose-500">Require immediate attention</div>
+        </div>
+        <div className={`rounded-xl border p-4 shadow-sm ${overdueCount > 0 ? 'border-rose-300 bg-rose-100' : 'border-amber-200 bg-linear-to-br from-amber-50 to-white'}`}>
+          <div className={`flex items-center gap-2 text-xs font-semibold ${overdueCount > 0 ? 'text-rose-700' : 'text-amber-600'}`}>
+            <Clock className="h-4 w-4" /> {overdueCount > 0 ? 'ESCALATION' : 'AVG OPEN TIME'}
+          </div>
+          <div className={`mt-1 text-3xl font-extrabold ${overdueCount > 0 ? 'text-rose-800' : 'text-amber-700'}`}>
+            {overdueCount > 0 ? overdueCount : formatAging(avgOpenTime)}
+          </div>
+          <div className={`mt-1 text-xs ${overdueCount > 0 ? 'text-rose-600 font-semibold' : 'text-amber-500'}`}>
+            {overdueCount > 0 ? `${overdueCount} critical value${overdueCount !== 1 ? 's' : ''} > ${ESCALATION_THRESHOLD}min` : 'Average time open'}
+          </div>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-linear-to-br from-emerald-50 to-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600"><CheckCircle2 className="h-4 w-4" /> RESOLVED</div>
@@ -205,6 +242,17 @@ function EventsTab() {
               <tr key={e._id} className={`hover:bg-slate-50/60 ${e.status === 'open' ? 'bg-rose-50/30' : ''}`}>
                 <td className="px-4 py-3 whitespace-nowrap text-slate-700">
                   <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 text-slate-400" />{new Date(e.detectedAt).toLocaleString()}</div>
+                  {e.status === 'open' && (
+                    <div className={`mt-1 text-xs font-semibold ${getMinutesSince(e.detectedAt) > ESCALATION_THRESHOLD ? 'text-rose-600' : 'text-amber-600'}`}>
+                      {getMinutesSince(e.detectedAt) > ESCALATION_THRESHOLD ? '⏰ ESCALATED: ' : '⏱️ Open: '}
+                      {formatAging(getMinutesSince(e.detectedAt))}
+                    </div>
+                  )}
+                  {e.status === 'resolved' && e.resolvedAt && (
+                    <div className="mt-1 text-xs text-emerald-600">
+                      ✓ Resolved in {formatAging(Math.floor((new Date(e.resolvedAt).getTime() - new Date(e.detectedAt).getTime()) / 60000))}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-900">{e.patientName || '-'}</div>
@@ -276,15 +324,19 @@ function ResolveModal({ value, onClose, onResolved }: { value: CritEvent; onClos
   })
 
   const resolve = async () => {
+    if (!doctor.trim()) { alert('Doctor name is required'); return }
+    if (!comment.trim()) { alert('Comment is required'); return }
     setBusy(true)
     try {
+      const normalizedInfoMode = infoMode === 'text' ? 'sms' : infoMode
       await api(`/lab/critical-events/${value._id}/resolve`, {
         method: 'POST',
-        body: JSON.stringify({ doctor: doctor.trim() || undefined, comment: comment.trim() || undefined, infoMode, date: date ? new Date(date).toISOString() : undefined }),
+        body: JSON.stringify({ doctor: doctor.trim() || undefined, comment: comment.trim() || undefined, infoMode: normalizedInfoMode, date: date ? new Date(date).toISOString() : undefined }),
       })
       onResolved()
-    } catch {
-      alert('Failed to resolve')
+    } catch (err: any) {
+      const msg = err?.message || err?.data?.message || err?.data?.error || (typeof err === 'string' ? err : '')
+      alert(msg ? `Failed to resolve: ${msg}` : 'Failed to resolve critical event. Please try again.')
     } finally {
       setBusy(false)
     }
@@ -379,7 +431,7 @@ function ResolveModal({ value, onClose, onResolved }: { value: CritEvent; onClos
               >
                 <option value="verbal">Verbal</option>
                 <option value="phone">Phone</option>
-                <option value="sms">SMS</option>
+                <option value="sms">Text message</option>
                 <option value="email">Email</option>
               </select>
             </div>

@@ -10,7 +10,7 @@
  * - Sidebar roles & permissions
  */
 
-import { api, withQuery } from '@/api'
+import { api, withQuery } from '../../api'
 
 export const receptionApi = {
   // -------------------------------------------------------------------------
@@ -49,8 +49,8 @@ export const receptionApi = {
   createLabOrder: (data: any) =>
     api('/reception/intake/lab/orders', { method: 'POST', body: JSON.stringify(data) }),
 
-  createDiagnosticOrder: (data: any) =>
-    api('/reception/intake/diagnostic/orders', { method: 'POST', body: JSON.stringify(data) }),
+  createDiagnosticToken: (data: any) =>
+    api('/reception/intake/diagnostic/tokens', { method: 'POST', body: JSON.stringify(data) }),
 
   // -------------------------------------------------------------------------
   // Users
@@ -89,6 +89,21 @@ export const receptionApi = {
 
   resetSidebarPermissions: (role: string) =>
     api(`/reception/sidebar-permissions/${encodeURIComponent(role)}/reset`, { method: 'POST' }),
+
+  // -------------------------------------------------------------------------
+  // Cash Movements (Pay In/Out)
+  // -------------------------------------------------------------------------
+  listCashMovements: (params?: { from?: string; to?: string; type?: 'IN' | 'OUT'; search?: string; page?: number; limit?: number }) =>
+    api(withQuery('/reception/cash-movements', params)),
+
+  createCashMovement: (data: { date: string; type: 'IN' | 'OUT'; category?: string; amount: number; receiver?: string; handoverBy?: string; note?: string }) =>
+    api('/reception/cash-movements', { method: 'POST', body: JSON.stringify(data) }),
+
+  deleteCashMovement: (id: string) =>
+    api(`/reception/cash-movements/${id}`, { method: 'DELETE' }),
+
+  cashMovementSummary: (params?: { from?: string; to?: string }) =>
+    api(withQuery('/reception/cash-movements/summary', params)),
 }
 
 export default receptionApi

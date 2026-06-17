@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { Plus, Grid, List, Trash2, EyeOff, Eye, Search } from 'lucide-react'
+import { Plus, Grid, List, Trash2 } from 'lucide-react'
 import Pharmacy_POSCart from '../../components/pharmacy/pharmacy_POSCart'
 import Pharmacy_ProcessPaymentDialog from '../../components/pharmacy/pharmacy_ProcessPaymentDialog'
 import Pharmacy_POSReceiptDialog from '../../components/pharmacy/pharmacy_POSReceiptDialog'
@@ -9,6 +9,7 @@ type Product = {
   id: string
   name: string
   genericName?: string
+  company?: string
   salePerPack: number
   unitsPerPack: number
   unitPrice: number
@@ -54,10 +55,8 @@ export default function Pharmacy_POS() {
   const [receiptFbr, setReceiptFbr] = useState<any>(null)
   const [view, setView] = useState<'grid'|'list'>('list')
   const [sel, setSel] = useState(0)
-  const [hideMedicines, setHideMedicines] = useState(false)
-  const [focusedCartIdx, setFocusedCartIdx] = useState(-1)
   
-  const [receiptItems, setReceiptItems] = useState<Array<{ name: string; qty: number; price: number; discountRs: number }>>([])
+  const [receiptItems, setReceiptItems] = useState<Array<{ name: string; qty: number; price: number }>>([])
   const [billDiscountPct, setBillDiscountPct] = useState<number>(0)
   // Current pharmacy username to stamp sales
   const currentUser = useMemo(() => {
@@ -158,6 +157,7 @@ export default function Pharmacy_POS() {
           id: it._id || it.key || it.name,
           name: it.name,
           genericName: it.genericName || it.lastGenericName || undefined,
+          company: it.lastCompany || undefined,
           salePerPack: Number(it.lastSalePerPack || 0),
           unitsPerPack: Number(it.unitsPerPack || 1),
           unitPrice: Number(it.lastSalePerUnit || ((it.unitsPerPack && it.lastSalePerPack) ? it.lastSalePerPack/it.unitsPerPack : 0)),
@@ -426,6 +426,7 @@ export default function Pharmacy_POS() {
           id: it._id || it.key || it.name,
           name: it.name,
           genericName: it.genericName || it.lastGenericName || undefined,
+          company: it.lastCompany || undefined,
           salePerPack: Number(it.lastSalePerPack || 0),
           unitsPerPack: Number(it.unitsPerPack || 1),
           unitPrice: Number(it.lastSalePerUnit || ((it.unitsPerPack && it.lastSalePerPack) ? it.lastSalePerPack/it.unitsPerPack : 0)),
@@ -462,35 +463,18 @@ export default function Pharmacy_POS() {
       const tag = (t?.tagName || '').toLowerCase()
       const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select' || !!t?.isContentEditable
 
-      // When search dropdown is open and search input is focused, skip only the keys
-      // that the search input's own onKeyDownCapture handles (ArrowUp/Down, plain Enter)
-      // to avoid double-triggering. Other keys (Delete, +/-, Shift+Enter) must still work.
+      // When search dropdown is open and search input is focused, do not handle here.
+      // The input's onKeyDownCapture manages ArrowUp/Down and Enter to avoid double increments.
       const searchFocused = document.activeElement === searchInputRef.current
-      if (searchOpen && searchFocused && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || (e.key === 'Enter' && !e.shiftKey))) { return }
+      if (searchOpen && searchFocused) { return }
 
       if (e.key === 'Enter' && e.shiftKey) { if (!payOpen && !receiptOpen && cart.length > 0) { e.preventDefault(); openPayment() } return }
       if (isTyping) return
 
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        if (focusedCartIdx >= 0) { setFocusedCartIdx(i => Math.min(i + 1, cart.length - 1)); const nextLine = cart[Math.min(focusedCartIdx + 1, cart.length - 1)]; if (nextLine) { const el = document.getElementById(`pharmacy-pos-qty-${nextLine.id}`) as HTMLInputElement | null; el?.focus(); el?.select() } }
-        else { setSel(s => Math.min(s + 1, visible.length - 1)) }
-        return
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        if (focusedCartIdx > 0) { setFocusedCartIdx(i => Math.max(i - 1, 0)); const prevLine = cart[Math.max(focusedCartIdx - 1, 0)]; if (prevLine) { const el = document.getElementById(`pharmacy-pos-qty-${prevLine.id}`) as HTMLInputElement | null; el?.focus(); el?.select() } }
-        else if (focusedCartIdx === 0) { setFocusedCartIdx(-1); try { searchInputRef.current?.focus() } catch {} }
-        else { setSel(s => Math.max(s - 1, 0)) }
-        return
-      }
-      if (e.key === 'Enter') { const item = visible[sel]; if (item) { e.preventDefault(); addToCart(item.id, { focusQty: false }); setFocusedCartIdx(cart.length) } return }
-      if (e.key === 'Delete') {
-        e.preventDefault()
-        if (focusedCartIdx >= 0 && focusedCartIdx < cart.length) { const id = cart[focusedCartIdx].id; remove(id); setFocusedCartIdx(i => Math.min(i, cart.length - 2)) }
-        else if (cart.length > 0) { const id = cart[cart.length - 1].id; remove(id) }
-        return
-      }
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSel(s => Math.min(s + 1, visible.length - 1)); return }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSel(s => Math.max(s - 1, 0)); return }
+      if (e.key === 'Enter') { const item = visible[sel]; if (item) { e.preventDefault(); addToCart(item.id, { focusQty: false }) } return }
+      if (e.key === 'Delete') { if (cart.length>0) { e.preventDefault(); const id = cart[cart.length-1].id; remove(id) } return }
       if (e.key === '+' || e.key === '=') { if (cart.length>0) { e.preventDefault(); const id = cart[cart.length-1].id; inc(id) } return }
       if (e.key === '-' || e.key === '_') { if (cart.length>0) { e.preventDefault(); const id = cart[cart.length-1].id; dec(id) } return }
     }
@@ -635,51 +619,6 @@ export default function Pharmacy_POS() {
     return () => window.removeEventListener('keydown', handler as any, true)
   }, [products, payOpen, receiptOpen])
 
-  // Auto-hold bill when navigating away from POS page
-  const billDiscountPctRef = useRef(billDiscountPct)
-  useEffect(() => { billDiscountPctRef.current = billDiscountPct }, [billDiscountPct])
-
-  useEffect(() => {
-    return () => {
-      // Component unmounting = user navigated away — auto-hold if cart has items
-      const currentCart = cartRef.current
-      if (currentCart.length > 0) {
-        const payload = {
-          billDiscountPct: billDiscountPctRef.current || 0,
-          lines: currentCart.map(l => {
-            const unitsQty = Number(lineUnits(l) || 0)
-            const sub = Number(l.unitPrice || 0) * unitsQty
-            const disc = Math.max(0, Math.min(100, Number(l.discountPct || 0))) * sub / 100
-            return { medicineId: l.productId, name: l.name, unitPrice: Number(l.unitPrice || 0), qty: unitsQty, discountRs: Number(disc.toFixed(2)) }
-          })
-        }
-        pharmacyApi.createHoldSale(payload).catch(() => {})
-      }
-    }
-  }, [])
-
-  // Warn + auto-hold on browser close/refresh
-  useEffect(() => {
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (cartRef.current.length > 0) {
-        // Auto-hold silently
-        const payload = {
-          billDiscountPct: billDiscountPctRef.current || 0,
-          lines: cartRef.current.map(l => {
-            const unitsQty = Number(lineUnits(l) || 0)
-            const sub = Number(l.unitPrice || 0) * unitsQty
-            const disc = Math.max(0, Math.min(100, Number(l.discountPct || 0))) * sub / 100
-            return { medicineId: l.productId, name: l.name, unitPrice: Number(l.unitPrice || 0), qty: unitsQty, discountRs: Number(disc.toFixed(2)) }
-          })
-        }
-        pharmacyApi.createHoldSale(payload).catch(() => {})
-        e.preventDefault()
-      }
-    }
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [])
-
   // Clean up toast timer
   useEffect(() => () => { if (toastTimerRef.current) { window.clearTimeout(toastTimerRef.current); toastTimerRef.current = null } }, [])
 
@@ -697,10 +636,10 @@ export default function Pharmacy_POS() {
       const code = query.trim()
       if (code) {
         const byBarcode = products.find(p => (p.barcode || '') === code)
-        if (byBarcode) { e.preventDefault(); e.stopPropagation(); addToCart(byBarcode.id, { focusQty: true }); setQuery(''); setSearchOpen(false); return }
+        if (byBarcode) { e.preventDefault(); e.stopPropagation(); addToCart(byBarcode.id, { focusQty: false }); setQuery(''); setSearchOpen(false); try { searchInputRef.current?.focus(); searchInputRef.current?.select() } catch {}; return }
       }
       const item = suggestions[suggestionSel]
-      if (item) { e.preventDefault(); e.stopPropagation(); addToCart(item.id, { focusQty: true }); setQuery(''); setSearchOpen(false) }
+      if (item) { e.preventDefault(); e.stopPropagation(); addToCart(item.id, { focusQty: false }); setQuery(''); setSearchOpen(false); try { searchInputRef.current?.focus(); searchInputRef.current?.select() } catch {} }
       return
     }
     if (e.key === 'Escape') { e.stopPropagation(); setSearchOpen(false) }
@@ -711,7 +650,7 @@ export default function Pharmacy_POS() {
   const computedReceiptNo = useMemo(() => receiptNo || `B-${new Date().toISOString().slice(2,10).replace(/-/g,'')}-${String(receiptItems.length).padStart(3,'0')}`,[receiptNo, receiptItems])
 
   return (
-    <div className={`grid gap-4 ${hideMedicines ? 'grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_560px]'}`}>
+    <div className={"grid gap-4 lg:grid-cols-3"}>
       {toast && (
         <div className="fixed right-4 top-4 z-70 w-[min(92vw,420px)]">
           <div className={`flex items-start gap-3 rounded-xl border p-4 shadow-lg ring-1 ring-black/5 ${toast.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rose-200 bg-rose-50 text-rose-900'}`} role="status" aria-live="polite">
@@ -736,10 +675,9 @@ export default function Pharmacy_POS() {
         </div>
       ) : null}
 
-      <div className={hideMedicines ? '' : 'space-y-3'}>
+      <div className="lg:col-span-2 space-y-3">
           <div className="flex flex-col gap-3">
             <div className="relative w-full">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 ref={searchInputRef}
                 id="pharmacy-pos-search"
@@ -748,7 +686,7 @@ export default function Pharmacy_POS() {
                 onFocus={() => setSearchOpen(true)}
                 onBlur={() => { setTimeout(() => setSearchOpen(false), 150) }}
                 onKeyDownCapture={onSearchKeyDown}
-                className="w-full rounded-2xl border border-slate-300 py-4 pl-12 pr-14 text-lg shadow-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-200/60"
+                className="w-full rounded-2xl border border-slate-300 px-5 py-4 pr-14 text-lg shadow-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-200/60"
                 placeholder="Search / scan barcode…"
               />
 
@@ -763,7 +701,7 @@ export default function Pharmacy_POS() {
                       {i === suggestionSel ? <span className="absolute left-0 top-0 h-full w-1 bg-sky-600" /> : null}
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-semibold text-slate-900">{p.name}</div>
-                        <div className="truncate text-xs text-slate-500">{p.genericName || ''}</div>
+                        <div className="truncate text-xs text-slate-500">{p.genericName || ''}{p.genericName && p.company ? ' · ' : ''}{p.company || ''}</div>
                       </div>
                       <div className="shrink-0 text-right">
                         <div className="text-xs font-semibold text-slate-700">PKR {p.unitPrice.toFixed(2)}</div>
@@ -775,12 +713,12 @@ export default function Pharmacy_POS() {
               )}
             </div>
 
-            {!hideMedicines && <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={()=> setView('grid')} className={`flex-1 sm:flex-none rounded-xl border px-4 py-2 text-sm font-semibold transition ${view==='grid' ? 'border-navy-600 bg-navy-50 text-navy-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-                <Grid className="mr-2 inline h-4 w-4" /> Grid
+                <Grid className="mr-2 inline h-4 w-4" /> Grid View
               </button>
               <button type="button" onClick={()=> setView('list')} className={`flex-1 sm:flex-none rounded-xl border px-4 py-2 text-sm font-semibold transition ${view==='list' ? 'border-navy-600 bg-navy-50 text-navy-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-                <List className="mr-2 inline h-4 w-4" /> List
+                <List className="mr-2 inline h-4 w-4" /> List View
               </button>
               <div className="ml-auto flex items-center gap-2">
                 <div className="text-sm text-slate-700">Rows per page</div>
@@ -793,14 +731,10 @@ export default function Pharmacy_POS() {
                 <button type="button" onClick={()=> setPage(p => Math.max(1, p-1))} disabled={page<=1} className="rounded-xl border border-slate-200 px-3 py-2 text-sm disabled:opacity-50">Prev</button>
                 <button type="button" onClick={()=> setPage(p => Math.min(totalPages, p+1))} disabled={page>=totalPages} className="rounded-xl border border-slate-200 px-3 py-2 text-sm disabled:opacity-50">Next</button>
               </div>
-            </div>}
-            <button type="button" onClick={()=> setHideMedicines(v => !v)} className={`flex-1 sm:flex-none rounded-xl border px-4 py-2 text-sm font-semibold transition ${hideMedicines ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-              {hideMedicines ? <Eye className="mr-2 inline h-4 w-4" /> : <EyeOff className="mr-2 inline h-4 w-4" />}
-              {hideMedicines ? 'Show Medicines' : 'Hide Medicines'}
-            </button>
+            </div>
           </div>
 
-          {!hideMedicines && (view==='grid' ? (
+          {view==='grid' ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {visible.map((p) => {
                 const stock = Number(p.stock || 0)
@@ -816,7 +750,7 @@ export default function Pharmacy_POS() {
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="font-semibold text-slate-800 capitalize">{p.name}</div>
-                        {p.genericName ? <div className="text-xs text-slate-500 capitalize">{p.genericName}</div> : null}
+                        {p.genericName || p.company ? <div className="text-xs text-slate-500 capitalize">{p.genericName || ''}{p.genericName && p.company ? ' · ' : ''}{p.company || ''}</div> : null}
                       </div>
                       <div className={`rounded-full px-2 py-1 text-xs font-medium ${
                         isOutOfStock ? 'bg-rose-100 text-rose-800' :
@@ -870,9 +804,8 @@ export default function Pharmacy_POS() {
               })}
               {filtered.length===0 && <div className="p-4 text-sm text-slate-500">No items</div>}
             </div>
-          ))}
-
-      </div>
+          )}
+        </div>
 
       <div className="space-y-4">
         <Pharmacy_POSCart
@@ -885,9 +818,7 @@ export default function Pharmacy_POS() {
           onClear={clear}
           onSetQty={setQty}
           onSetSellBy={setSellBy}
-          focusedLineIdx={focusedCartIdx}
           onQtyEnter={() => {
-            setFocusedCartIdx(-1)
             try {
               searchInputRef.current?.focus()
               searchInputRef.current?.select()
@@ -897,11 +828,11 @@ export default function Pharmacy_POS() {
           onSetLineDiscountPct={(id, pct)=> setCart(prev => prev.map(l => (l.id===id ? { ...l, discountPct: pct } : l)))}
         />
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
-          <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">Bill Summary</div>
+        <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800">
+          <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800 dark:border-slate-600 dark:text-slate-100">Bill Summary</div>
           <div className="space-y-2 p-4 text-sm text-slate-700 dark:text-slate-200">
-            <div className="flex items-center justify-between"><span className="text-slate-500">Subtotal</span><span className="tabular-nums">PKR {totals.subtotal.toFixed(2)}</span></div>
-            {totals.lineDiscount > 0 && <div className="flex items-center justify-between"><span className="text-slate-500">Line Discounts</span><span className="tabular-nums text-amber-600">- PKR {totals.lineDiscount.toFixed(2)}</span></div>}
+            <div className="flex items-center justify-between"><span>Subtotal:</span><span>PKR {totals.subtotal.toFixed(2)}</span></div>
+            <div className="flex items-center justify-between"><span>Line Discounts:</span><span>PKR {totals.lineDiscount.toFixed(2)}</span></div>
             <div className="grid grid-cols-2 gap-2">
               <label className="block text-xs text-slate-600 dark:text-slate-300">
                 <span className="mb-1 block">Bill Discount (%)</span>
@@ -912,7 +843,7 @@ export default function Pharmacy_POS() {
                   step={0.01}
                   value={Number(billDiscountPct||0)}
                   onChange={e=> setBillDiscountPct(Math.max(0, Math.min(100, parseFloat(e.target.value)||0)))}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </label>
               <label className="block text-xs text-slate-600 dark:text-slate-300">
@@ -928,31 +859,21 @@ export default function Pharmacy_POS() {
                     const pct = base>0 ? (rs / base) * 100 : 0
                     setBillDiscountPct(Math.max(0, Math.min(100, Number(pct.toFixed(6)))))
                   }}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </label>
             </div>
-            <div className="relative -mx-4 mt-3 overflow-hidden bg-linear-to-r from-emerald-600 to-teal-600 px-4 py-3 text-white">
-              <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-white/10 blur-xl" />
-              <div className="relative flex items-center justify-between">
-                <span className="text-sm font-medium text-white/80">Total Amount</span>
-                <span className="text-xl font-bold tabular-nums">PKR {totals.total.toFixed(2)}</span>
-              </div>
-            </div>
+            <div className="flex items-center justify-between"><span>Sales Tax (0%):</span><span>PKR {totals.tax.toFixed(2)}</span></div>
+            <div className="mt-2 flex items-center justify-between text-base font-semibold text-navy dark:text-sky-300"><span>Total Amount:</span><span>PKR {totals.total.toFixed(2)}</span></div>
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <button type="button" onClick={holdBill} disabled={cart.length===0} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Hold</button>
-              <button type="button" onClick={()=> setHeldOpen(true)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Held Bills</button>
-              <button type="button" disabled={busy || cart.length===0} onClick={openPayment} className="rounded-lg bg-linear-to-r from-emerald-600 to-teal-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:shadow-md disabled:opacity-40">{busy? 'Processing…' : 'Pay ⇧↵'}</button>
+              <button type="button" onClick={holdBill} disabled={cart.length===0} className="rounded-md bg-navy px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Hold Bill</button>
+              <button type="button" onClick={()=> setHeldOpen(true)} className="rounded-md bg-navy px-3 py-2 text-sm font-semibold text-white">Held Bills</button>
+              <button type="button" disabled={busy || cart.length===0} onClick={openPayment} className="btn w-full disabled:opacity-50">{busy? 'Processing...' : 'Process Payment'}</button>
             </div>
           </div>
         </div>
 
-        <Pharmacy_ProcessPaymentDialog 
-          open={payOpen} 
-          onClose={()=>setPayOpen(false)} 
-          onConfirm={confirmPayment} 
-          totalAmount={totals.total}
-        />
+        <Pharmacy_ProcessPaymentDialog open={payOpen} onClose={()=>setPayOpen(false)} onConfirm={confirmPayment} />
         <Pharmacy_POSReceiptDialog
           open={receiptOpen}
           onClose={()=>{ setReceiptOpen(false); setCart([]) }}
@@ -967,6 +888,7 @@ export default function Pharmacy_POS() {
           }, 0)}
           customer={payment?.customer}
           customerPhone={payment?.customerPhone}
+          autoPrint={true}
           datetime={new Date().toISOString()}
           fbr={receiptFbr}
         />

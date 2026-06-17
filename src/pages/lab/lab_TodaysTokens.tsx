@@ -4,11 +4,12 @@ import {
   Search, Clock, FlaskConical, CheckCircle2, FileText,
   Stamp, RefreshCw, Download, Pencil, XCircle, Printer,
   Ban, ArrowRightToLine, ListChecks, ChevronLeft, ChevronRight,
-  Beaker, Activity, Calendar, Filter, User, Hash, Zap
+  Beaker, Activity, Calendar, Filter, User, Hash, Zap, Plus, Trash2
 } from 'lucide-react'
 import { labApi } from '../../utils/api'
 import { printLabTokenSlip } from '../../utils/printLabToken'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
+import Lab_SampleCollectionDialog from '../../components/lab/lab_SampleCollectionDialog'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 import { useLabSession } from '../../hooks/useLabSession'
 
@@ -17,6 +18,7 @@ type TokenStatus = 'token_generated' | 'converted_to_sample' | 'sample_received'
 type LabToken = {
   _id: string
   tokenNo: string
+  labNumber?: string
   patient: {
     fullName: string
     phone?: string
@@ -26,6 +28,7 @@ type LabToken = {
   }
   tests: string[]
   status: TokenStatus
+  sampleType?: 'normal' | 'urgent' | 'stat'
   barcode?: string
   generatedAt: string
   generatedBy: string
@@ -84,14 +87,22 @@ export default function Lab_TodaysTokens() {
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<TokenStatus | 'all'>('all')
-  const [trackOpen, setTrackOpen] = useState(false)
-  const [trackTokenNo, setTrackTokenNo] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [convertingId, setConvertingId] = useState<string | null>(null)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelToken, setCancelToken] = useState<LabToken | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteToken, setDeleteToken] = useState<LabToken | null>(null)
+  const [modifyOpen, setModifyOpen] = useState(false)
+  const [modifyToken, setModifyToken] = useState<LabToken | null>(null)
+  const [modifyTestIds, setModifyTestIds] = useState<string[]>([])
+  const [modifySaving, setModifySaving] = useState(false)
+  const [trackOpen, setTrackOpen] = useState(false)
+  const [trackTokenNo, setTrackTokenNo] = useState<string | null>(null)
+  
+  // Sample Collection Dialog state
+  const [sampleDialogOpen, setSampleDialogOpen] = useState(false)
+  const [sampleDialogToken, setSampleDialogToken] = useState<LabToken | null>(null)
   const todayIso = new Date().toISOString().slice(0, 10)
   const [from, setFrom] = useState(todayIso)
   const [to, setTo] = useState(todayIso)
@@ -119,14 +130,17 @@ export default function Lab_TodaysTokens() {
     getTestNamesArray(tests).join(', ')
 
   const handleConvertToSample = async (t: LabToken) => {
-    setConvertingId(t._id)
-    try {
-      await labApi.convertTokenToSample(t._id, { tests: t.tests || [], subtotal: t.subtotal || 0, discount: t.discount || 0, net: t.net || 0, receivedAmount: t.receivedAmount || 0 })
-      setToast({ type: 'success', message: `Token #${t.tokenNo} converted to sample` })
-      refresh()
-    } catch (e: any) {
-      setToast({ type: 'error', message: e?.message || 'Failed to convert to sample' })
-    } finally { setConvertingId(null) }
+    // Open the comprehensive sample collection dialog
+    setSampleDialogToken(t)
+    setSampleDialogOpen(true)
+  }
+  
+  const onSampleCollectionComplete = () => {
+    setSampleDialogOpen(false)
+    setSampleDialogToken(null)
+    setConvertingId(null)
+    refresh()
+    setToast({ type: 'success', message: 'Sample collection recorded successfully' })
   }
 
   const confirmCancel = async () => {
@@ -170,7 +184,7 @@ export default function Lab_TodaysTokens() {
     return (tokens || []).filter(t => {
       if (!qq) return true
       const testsText = getTestNames(t.tests || []).toLowerCase()
-      return [t.tokenNo, t.patient?.fullName, t.patient?.mrn, t.patient?.phone, t.barcode, t.status, testsText].filter(Boolean).join(' ').toLowerCase().includes(qq)
+      return [t.tokenNo, t.patient?.fullName, t.patient?.mrn, t.patient?.phone, t.barcode, t.status, t.sampleType, testsText].filter(Boolean).join(' ').toLowerCase().includes(qq)
     })
   }, [tokens, q, testsMap])
 
@@ -181,11 +195,11 @@ export default function Lab_TodaysTokens() {
   }, [tokens])
 
   const exportCsv = () => {
-    const cols = ['Token No', 'Date', 'Time', 'Patient', 'MR No', 'Phone', 'Tests', 'Barcode', 'Status']
+    const cols = ['Token No', 'Date', 'Time', 'Patient', 'MR No', 'Phone', 'Tests', 'Sample Type', 'Barcode', 'Status']
     const esc = (v: any) => { const s = String(v ?? ''); return /[,\n\r\"]/g.test(s) ? `"${s.replace(/\"/g, '""')}"` : s }
     const rowsCsv = (filteredTokens || []).map(t => {
       const dt = new Date(t.generatedAt)
-      return [t.tokenNo, isNaN(dt.getTime()) ? '' : dt.toLocaleDateString(), isNaN(dt.getTime()) ? '' : dt.toLocaleTimeString(), t.patient?.fullName || '', t.patient?.mrn || '', t.patient?.phone || '', getTestNames(t.tests || []), t.barcode || '', t.status].map(esc).join(',')
+      return [t.tokenNo, isNaN(dt.getTime()) ? '' : dt.toLocaleDateString(), isNaN(dt.getTime()) ? '' : dt.toLocaleTimeString(), t.patient?.fullName || '', t.patient?.mrn || '', t.patient?.phone || '', getTestNames(t.tests || []), t.sampleType || 'normal', t.barcode || '', t.status].map(esc).join(',')
     })
     const csv = [cols.join(','), ...rowsCsv].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -401,13 +415,14 @@ export default function Lab_TodaysTokens() {
 
       {/* ── HIGH DENSITY TOKEN LIST ── */}
       <div style={{ background:'#FFFFFF', borderRadius:'24px', border:'1px solid rgba(226, 232, 240, 0.8)', overflow:'hidden', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'120px 2fr 2fr 160px 200px', gap:'0', padding:'16px 24px', background:'#F8FAFC', borderBottom:'1px solid #F1F5F9' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'120px 2fr 100px 2fr 140px 200px', gap:'0', padding:'16px 24px', background:'#F8FAFC', borderBottom:'1px solid #F1F5F9' }}>
           {[
-            { label: 'TOKEN ID', icon: Hash },
-            { label: 'PATIENT PROFILE', icon: User },
-            { label: 'LABORATORY TESTS', icon: Beaker },
-            { label: 'CURRENT STATUS', icon: Activity },
-            { label: 'QUICK ACTIONS', icon: Zap },
+            { label: 'TOKEN / LAB #', icon: Hash },
+            { label: 'PATIENT', icon: User },
+            { label: 'TYPE', icon: Activity },
+            { label: 'TESTS', icon: Beaker },
+            { label: 'STATUS', icon: Activity },
+            { label: 'ACTIONS', icon: Zap },
           ].map(h => (
             <div key={h.label} style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:800, color:'#94A3B8', letterSpacing:'1px' }}>
               <h.icon size={12} /> {h.label}
@@ -430,7 +445,7 @@ export default function Lab_TodaysTokens() {
             const [c1, c2] = getAvatarColor(t.patient?.fullName || '')
             return (
               <div key={t._id} style={{
-                display:'grid', gridTemplateColumns:'120px 2fr 2fr 160px 200px',
+                display:'grid', gridTemplateColumns:'120px 2fr 100px 2fr 140px 200px',
                 alignItems:'center', padding:'18px 24px',
                 borderBottom: idx < filteredTokens.length - 1 ? '1px solid #F1F5F9' : 'none',
                 transition:'all 0.2s',
@@ -440,8 +455,11 @@ export default function Lab_TodaysTokens() {
               >
                 {/* ID */}
                 <div style={{ position:'relative' }}>
-                  <div style={{ fontSize:'16px', fontWeight:800, color:'#1E293B', fontVariantNumeric:'tabular-nums' }}>#{t.tokenNo.split('-').pop()}</div>
-                  <div style={{ fontSize:'11px', fontWeight:600, color:'#94A3B8', marginTop:'2px' }}>{formatTime(t.generatedAt)}</div>
+                  <div style={{ fontSize:'15px', fontWeight:800, color:'#1E293B', fontVariantNumeric:'tabular-nums' }}>#{t.tokenNo.split('-').pop()}</div>
+                  {t.labNumber && (
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#6366F1', marginTop:'2px' }}>LAB: {t.labNumber}</div>
+                  )}
+                  <div style={{ fontSize:'10px', fontWeight:600, color:'#94A3B8', marginTop:'2px' }}>{formatTime(t.generatedAt)}</div>
                 </div>
 
                 {/* Patient */}
@@ -453,6 +471,13 @@ export default function Lab_TodaysTokens() {
                     <div style={{ fontSize:'15px', fontWeight:700, color:'#1E293B', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.patient?.fullName}</div>
                     <div style={{ fontSize:'12px', fontWeight:500, color:'#64748B', marginTop:'2px' }}>{t.patient?.mrn || 'Walk-in'} • {t.patient?.age || 'N/A'} • {t.patient?.gender}</div>
                   </div>
+                </div>
+
+                {/* Type */}
+                <div>
+                  <span style={{ padding:'3px 8px', borderRadius:'999px', background: t.sampleType === 'urgent' ? '#FEE2E2' : t.sampleType === 'stat' ? '#FEF9C3' : '#EFF6FF', color: t.sampleType === 'urgent' ? '#B91C1C' : t.sampleType === 'stat' ? '#B45309' : '#1D4ED8', fontSize:'11px', fontWeight:700, textTransform:'uppercase' }}>
+                    {t.sampleType || 'normal'}
+                  </span>
                 </div>
 
                 {/* Tests */}
@@ -496,6 +521,27 @@ export default function Lab_TodaysTokens() {
 
                 {/* Actions */}
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', justifyContent:'flex-end' }}>
+                  <ModernActionBtn icon={<Clock size={16} />} onClick={() => { setTrackTokenNo(t.tokenNo); setTrackOpen(true) }} />
+                  <ModernActionBtn icon={<Pencil size={16} />} onClick={() => openEdit(t)} />
+                  <ModernActionBtn icon={<Printer size={16} />} onClick={async () => {
+                    try {
+                      await printLabTokenSlip({
+                        tokenNo: t.tokenNo,
+                        labNumber: t.labNumber,
+                        createdAt: t.generatedAt,
+                        patient: t.patient,
+                        tests: getTestNamesArray(t.tests).map(name => ({ name, price: 0 })),
+                        subtotal: t.subtotal || 0,
+                        discount: t.discount || 0,
+                        net: t.net || 0,
+                        receivedAmount: t.receivedAmount,
+                        receivableAmount: t.receivableAmount,
+                      })
+                    } catch (e: any) {
+                      setToast({ type: 'error', message: 'Print failed: ' + (e?.message || 'Unknown error') })
+                    }
+                  }} />
+                  
                   {t.status === 'token_generated' ? (
                     <button onClick={() => handleConvertToSample(t)} disabled={convertingId === t._id} style={{
                       display:'flex', alignItems:'center', gap:'8px', padding:'8px 16px', borderRadius:'10px', border:'none', cursor: convertingId === t._id ? 'not-allowed' : 'pointer',
@@ -510,19 +556,14 @@ export default function Lab_TodaysTokens() {
                     </button>
                   ) : (
                     <>
-                      <ModernActionBtn icon={<Clock size={16} />} onClick={() => { setTrackTokenNo(t.tokenNo); setTrackOpen(true) }} />
-                      <ModernActionBtn icon={<Pencil size={16} />} onClick={() => openEdit(t)} />
-                      <ModernActionBtn icon={<Printer size={16} />} onClick={() => printLabTokenSlip({
-                          tokenNo: t.tokenNo,
-                          createdAt: t.generatedAt,
-                          patient: t.patient,
-                          tests: (t.tests || []).map(id => ({ name: testsMap[id] || id, price: 0 })),
-                          subtotal: t.subtotal || 0,
-                          discount: t.discount || 0,
-                          net: t.net || 0,
-                          receivedAmount: t.receivedAmount,
-                          receivableAmount: t.receivableAmount,
-                        })} />
+                      {isSameDay(t.generatedAt) && (
+                        <ModernActionBtn icon={<Plus size={16} />} onClick={() => { 
+                          setModifyToken(t); 
+                          const ids = (t.tests || []).map(x => typeof x === 'object' ? (x as any).testId : String(x));
+                          setModifyTestIds(ids); 
+                          setModifyOpen(true) 
+                        }} />
+                      )}
                     </>
                   )}
                   {t.status === 'token_generated' && (
@@ -580,9 +621,73 @@ export default function Lab_TodaysTokens() {
         />
       )}
 
+      {modifyOpen && modifyToken && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800">Modify Tests — Token #{modifyToken.tokenNo}</div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {modifyTestIds.map(id => (
+                  <span key={id} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-100 px-3 py-1.5 text-xs font-bold text-violet-700 ring-1 ring-violet-200">
+                    {testsMap[id] || id}
+                    <button type="button" onClick={() => setModifyTestIds(prev => prev.filter(x => x !== id))} className="text-violet-400 hover:text-rose-500"><Trash2 size={12} /></button>
+                  </span>
+                ))}
+                {modifyTestIds.length === 0 && <div className="text-sm text-slate-400 italic">No tests selected</div>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Add Test</label>
+                <select
+                  value=""
+                  onChange={e => { const v = e.target.value; if (v && !modifyTestIds.includes(v)) setModifyTestIds(prev => [...prev, v]); e.target.value = '' }}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="">Select test to add...</option>
+                  {tests.filter(t => !modifyTestIds.includes(t.id)).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+              <button onClick={() => { setModifyOpen(false); setModifyToken(null) }} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button onClick={async () => {
+                if (!modifyToken || modifySaving) return
+                setModifySaving(true)
+                try {
+                  await labApi.updateToken(modifyToken._id, { tests: modifyTestIds })
+                  setToast({ type: 'success', message: `Tests updated for token #${modifyToken.tokenNo}` })
+                  setModifyOpen(false); setModifyToken(null); refresh()
+                } catch (e: any) {
+                  setToast({ type: 'error', message: e?.message || 'Failed to update tests' })
+                } finally { setModifySaving(false) }
+              }} disabled={modifySaving || modifyTestIds.length === 0} className="rounded-md bg-violet-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-40">{modifySaving ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sample Collection Dialog */}
+      <Lab_SampleCollectionDialog
+        open={sampleDialogOpen}
+        onClose={() => { setSampleDialogOpen(false); setSampleDialogToken(null); setConvertingId(null) }}
+        tokenNo={sampleDialogToken?.tokenNo || ''}
+        tokenId={sampleDialogToken?._id || ''}
+        patientName={sampleDialogToken?.patient?.fullName || ''}
+        onConvert={onSampleCollectionComplete}
+      />
+      
       <Lab_TrackDialog open={trackOpen} onClose={() => setTrackOpen(false)} tokenNo={trackTokenNo || undefined} />
     </div>
   )
+}
+
+function isSameDay(iso: string): boolean {
+  try {
+    const d = new Date(iso)
+    const now = new Date()
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+  } catch { return false }
 }
 
 function ModernActionBtn({ icon, onClick }: { icon: any; onClick: () => void }) {

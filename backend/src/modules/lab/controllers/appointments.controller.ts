@@ -77,12 +77,19 @@ export async function list(req: Request, res: Response) {
     }
 
     const limit = Math.min(500, Number(q.limit || 200))
-    const items = await LabAppointment.find(filter)
-      .sort({ dateIso: -1, time: 1, createdAt: -1 })
-      .limit(limit)
-      .lean()
+    const page = Math.max(1, Number(q.page || 1))
+    const skip = (page - 1) * limit
 
-    res.json({ appointments: items })
+    const [items, total] = await Promise.all([
+      LabAppointment.find(filter)
+        .sort({ dateIso: -1, time: 1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      LabAppointment.countDocuments(filter)
+    ])
+
+    res.json({ appointments: items, total, page, limit })
   } catch {
     res.status(500).json({ error: 'Internal Server Error' })
   }

@@ -13,7 +13,7 @@ export default function ModuleCard({
   title: string
   description: string
   icon: ReactNode
-  tone?: 'sky' | 'emerald' | 'violet' | 'amber' | 'teal' | 'indigo' | 'slate'
+  tone?: 'sky' | 'emerald' | 'violet' | 'amber' | 'teal' | 'slate' | 'indigo' | 'rose' | 'cyan' | 'fuchsia' | 'blue' | 'lime'
 }) {
   const toneMap: Record<string, string> = {
     sky: 'bg-sky-50 border-sky-100 dark:bg-sky-900/20 dark:border-sky-800/50',
@@ -21,8 +21,13 @@ export default function ModuleCard({
     violet: 'bg-violet-50 border-violet-100 dark:bg-violet-900/20 dark:border-violet-800/50',
     amber: 'bg-amber-50 border-amber-100 dark:bg-amber-900/20 dark:border-amber-800/50',
     teal: 'bg-teal-50 border-teal-100 dark:bg-teal-900/20 dark:border-teal-800/50',
-    indigo: 'bg-indigo-50 border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800/50',
     slate: 'bg-slate-50 border-slate-100 dark:bg-slate-900/20 dark:border-slate-800/50',
+    indigo: 'bg-indigo-50 border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800/50',
+    rose: 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50',
+    cyan: 'bg-cyan-50 border-cyan-100 dark:bg-cyan-900/20 dark:border-cyan-800/50',
+    fuchsia: 'bg-fuchsia-50 border-fuchsia-100 dark:bg-fuchsia-900/20 dark:border-fuchsia-800/50',
+    blue: 'bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800/50',
+    lime: 'bg-lime-50 border-lime-100 dark:bg-lime-900/20 dark:border-lime-800/50',
   }
 
   const cardRef = useRef<HTMLDivElement>(null)

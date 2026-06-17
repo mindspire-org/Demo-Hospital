@@ -5,6 +5,7 @@ import * as Sidebar from '../controllers/sidebarPermission.controller'
 import * as Reports from '../controllers/reports.controller'
 import * as Intake from '../controllers/intake.controller'
 import * as Shifts from '../controllers/shifts.controller'
+import * as CashMovements from '../controllers/cash_movement.controller'
 import { auth } from '../../../common/middleware/auth'
 
 const r = Router()
@@ -39,6 +40,12 @@ r.get('/reports/my-activity', auth, Reports.myActivity)
 
 // Intake (create Lab/Diagnostic tokens from Reception portal)
 r.post('/intake/lab/orders', auth, Intake.createLabOrder)
-r.post('/intake/diagnostic/orders', auth, Intake.createDiagnosticOrder)
+r.post('/intake/diagnostic/tokens', auth, Intake.createDiagnosticToken)
+
+// Cash Movements (Pay In/Out)
+r.get('/cash-movements', CashMovements.list)
+r.post('/cash-movements', CashMovements.create)
+r.delete('/cash-movements/:id', CashMovements.remove)
+r.get('/cash-movements/summary', CashMovements.summary)
 
 export default r

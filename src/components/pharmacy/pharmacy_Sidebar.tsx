@@ -1,5 +1,4 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import PortalSwitcher from '../PortalSwitcher'
 import { pharmacyApi } from '../../utils/api'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
@@ -12,10 +11,7 @@ import {
   ReceiptText,
   ShoppingCart,
   RotateCcw,
-  CalendarCheck,
-  UserCog,
   Settings,
-  CalendarDays,
   BarChart3,
   BookText,
   FileClock,
@@ -60,16 +56,6 @@ const inventorySection: Section = {
   ],
 }
 
-const staffSection: Section = {
-  label: 'STAFF MANAGEMENT',
-  items: [
-    { to: '/pharmacy/staff-management', label: 'Staff Management', icon: UserCog },
-    { to: '/pharmacy/staff-attendance', label: 'Staff Attendance', icon: CalendarCheck },
-    { to: '/pharmacy/staff-monthly', label: 'Staff Monthly', icon: CalendarDays },
-    { to: '/pharmacy/staff-settings', label: 'Staff Settings', icon: Settings },
-  ],
-}
-
 const financeSection: Section = {
   label: 'FINANCE',
   items: [
@@ -95,7 +81,6 @@ const dashboardItem: NavItem = { to: '/pharmacy', label: 'Dashboard', icon: Layo
 const allSections: Section[] = [
   posSection,
   inventorySection,
-  staffSection,
   financeSection,
   adminSection,
 ]
@@ -139,10 +124,9 @@ export default function Pharmacy_Sidebar({ collapsed = false }: { collapsed?: bo
     return () => { mounted = false }
   }, [role])
 
-  const canShow = (path: string) => {
-    if (path === '/pharmacy/sidebar-permissions' && String(role||'').toLowerCase() !== 'admin') return false
-    const perm = permMap.get(path)
-    return perm ? perm.visible !== false : true
+  const canShow = (_path: string) => {
+    // All modules visible — permissions disabled
+    return true
   }
 
   const byOrder = (a: NavItem, b: NavItem) => {
@@ -155,30 +139,31 @@ export default function Pharmacy_Sidebar({ collapsed = false }: { collapsed?: bo
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon
     return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            title={collapsed ? item.label : undefined}
-            className={({ isActive }) => `
-              relative flex items-center transition-all duration-200 group
-              ${collapsed ? 'justify-center p-2.5 mx-2 my-1' : 'gap-3 px-3 py-2.5 mx-3 my-0.5'}
-              ${isActive 
-                ? 'bg-slate-900 text-white shadow-md shadow-slate-200 ring-1 ring-slate-800' 
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}
-              rounded-xl
-            `}
-            end={item.end}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon className={`shrink-0 transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'h-5 w-5' : 'h-4.5 w-4.5'} ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-900'}`} />
-                {!collapsed && <span className="font-medium tracking-tight truncate">{item.label}</span>}
-                {!collapsed && isActive && (
-                  <div className="absolute right-2 h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
-                )}
-              </>
-            )}
-          </NavLink>
+      <NavLink
+        key={item.to}
+        to={item.to}
+        title={collapsed ? item.label : undefined}
+        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' } as any) : undefined)}
+        className={({ isActive }) => {
+          const base = collapsed
+            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center transition-all'
+            : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2 transition-all'
+          const active = isActive
+            ? 'text-sky-800'
+            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+          return `${base} ${active}`
+        }}
+        end={item.end}
+      >
+        {({ isActive }) => (
+          <>
+            <Icon className={collapsed
+              ? (isActive ? 'h-5 w-5 text-sky-700' : 'h-5 w-5 text-slate-700 dark:text-slate-400')
+              : (isActive ? 'h-4 w-4 text-sky-700' : 'h-4 w-4 text-slate-700 dark:text-slate-400')} />
+            {!collapsed && <span className="truncate">{item.label}</span>}
+          </>
+        )}
+      </NavLink>
     )
   }
 
@@ -189,7 +174,7 @@ export default function Pharmacy_Sidebar({ collapsed = false }: { collapsed?: bo
     return (
       <div key={section.label} className="space-y-1">
         {!collapsed && (
-          <div className="px-6 py-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600 mt-4 first:mt-0">
             {section.label}
           </div>
         )}
@@ -200,19 +185,16 @@ export default function Pharmacy_Sidebar({ collapsed = false }: { collapsed?: bo
 
   return (
     <aside
-      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col border-r border-slate-100 bg-white dark:bg-slate-950 dark:border-slate-800 transition-all duration-300 ease-in-out`}
+      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col md:border-r bg-white/80 backdrop-blur-md shadow-sm dark:bg-slate-900/60 dark:border-slate-700`}
     >
-      <nav className={`flex-1 overflow-y-auto scrollbar-hide space-y-6 pt-4`}>
+      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2' : 'p-3'} space-y-4`}>
         {/* Dashboard at top */}
-        <div className="px-3">
-          {canShow(dashboardItem.to) && renderNavItem(dashboardItem)}
-        </div>
+        {canShow(dashboardItem.to) && renderNavItem(dashboardItem)}
 
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
-        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
+      <div className={collapsed ? 'p-2' : 'p-3'}>
         <button
           onClick={async () => {
             try { await pharmacyApi.logoutUser(username || undefined) } catch {}
@@ -222,10 +204,9 @@ export default function Pharmacy_Sidebar({ collapsed = false }: { collapsed?: bo
             navigate('/pharmacy/login')
           }}
           title={collapsed ? 'Logout' : undefined}
-          className={collapsed ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium' : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium'}
-          style={{ backgroundColor: '#ffffff', color: 'var(--navy)', border: '1px solid var(--navy)' }}
-          onMouseEnter={e => { try { ;(e.currentTarget as any).style.backgroundColor = 'rgba(15,45,92,0.06)' } catch {} }}
-          onMouseLeave={e => { try { ;(e.currentTarget as any).style.backgroundColor = '#ffffff' } catch {} }}
+          className={collapsed
+            ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium transition-all bg-white dark:bg-slate-800 text-[#0f2d5c] dark:text-slate-300 border border-[#0f2d5c] dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all bg-white dark:bg-slate-800 text-[#0f2d5c] dark:text-slate-300 border border-[#0f2d5c] dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}
           aria-label="Logout"
         >
           <LogOut className="h-4 w-4" />

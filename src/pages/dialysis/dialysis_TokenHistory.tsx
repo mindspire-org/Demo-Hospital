@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { dialysisApi } from '../../utils/api'
 import { getLocalDate } from '../../utils/date'
 import Dialysis_TokenSlip, { type DialysisTokenSlipData } from '../../components/dialysis/Dialysis_TokenSlip'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 
 interface TokenRow {
   _id: string
@@ -55,7 +56,7 @@ export default function Dialysis_TokenHistory() {
         return {
           _id: String(t._id),
           date: getLocalDate(dt),
-          time: dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          time: fmtDateTime12(t.createdAt || t.dateIso || new Date().toISOString()).split(', ').pop() || '',
           tokenNo: t.tokenNo || '-',
           mrNo: t.mrn || '-',
           patient: t.patientName || '-',

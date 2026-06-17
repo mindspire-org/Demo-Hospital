@@ -1,8 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import PortalSwitcher from '../PortalSwitcher'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { LayoutDashboard, LogOut, Ticket, ListChecks, Settings as Cog, UserCog, FileText, Clock } from 'lucide-react'
+import { LayoutDashboard, LogOut, Ticket, ListChecks, Settings as Cog, UserCog, FileText, Clock, ArrowLeftRight } from 'lucide-react'
 import { receptionApi } from '../../utils/api'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: LucideIcon }
@@ -49,7 +48,9 @@ const diagnosticSection: Section = {
   label: 'DIAGNOSTIC',
   items: [
     { to: '/reception/diagnostic/token-generator', label: 'Diag. Token Generator', icon: Ticket },
+    { to: '/reception/diagnostic/token-history', label: 'Diag. Token History', icon: ListChecks },
     { to: '/reception/diagnostic/sample-tracking', label: 'Diag. Sample Tracking', icon: ListChecks },
+    { to: '/reception/diagnostic/referrals', label: 'Diag. Referrals', icon: FileText },
   ],
 }
 
@@ -58,6 +59,14 @@ const labSection: Section = {
   items: [
     { to: '/reception/lab/sample-intake', label: 'Lab Token Generator', icon: Ticket },
     { to: '/reception/lab/tokens', label: 'Lab Token History', icon: ListChecks },
+    { to: '/reception/lab/referrals', label: 'Lab Referrals', icon: FileText },
+  ],
+}
+
+const cashSection: Section = {
+  label: 'CASH',
+  items: [
+    { to: '/reception/pay-in-out', label: 'Pay In / Pay Out', icon: ArrowLeftRight },
   ],
 }
 
@@ -84,6 +93,7 @@ const allSections: Section[] = [
   erSection,
   diagnosticSection,
   labSection,
+  cashSection,
   reportsSection,
   adminSection,
 ]
@@ -128,10 +138,9 @@ export default function Reception_Sidebar({ collapsed = false }: { collapsed?: b
     navigate('/reception/login')
   }
 
-  const canShow = (path: string) => {
-    if (path === '/reception/sidebar-permissions' && String(role || '').toLowerCase() !== 'admin') return false
-    const perm = permMap.get(path)
-    return perm ? perm.visible !== false : true
+  const canShow = (_path: string) => {
+    // All modules visible — permissions disabled
+    return true
   }
 
   const byOrder = (a: NavItem, b: NavItem) => {
@@ -194,8 +203,7 @@ export default function Reception_Sidebar({ collapsed = false }: { collapsed?: b
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
-        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
+      <div className={collapsed ? 'p-2' : 'p-3'}>
         <button
           onClick={logout}
           title={collapsed ? 'Logout' : undefined}

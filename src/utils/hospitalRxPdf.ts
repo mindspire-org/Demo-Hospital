@@ -14,325 +14,376 @@ type RxPdfExtras = {
   corporatePreAuthNo?: string
   visitCategory?: string
   isReprint?: boolean
+  manualRxFields?: Record<string, boolean>
 }
 
 export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtras) {
   const { jsPDF } = await import('jspdf')
+  const { ensurePoppins } = await import('./prescription/ensurePoppins')
+  const { ensureUrduNastaleeq, drawUrduText } = await import('./prescription/ensureUrduNastaleeq')
+  const { translateRxItem } = await import('./prescriptionUrdu')
 
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true })
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
 
-  const black = { r: 0, g: 0, b: 0 }
-  const slate = { r: 15, g: 23, b: 42 }
-  const red = { r: 185, g: 28, b: 28 }
+  // Load Poppins — detect whether it actually registered
+  let poppinsOk = false
+  try {
+    await ensurePoppins(pdf)
+    // Probe: setFont throws if font not registered
+    pdf.setFont('Poppins', 'normal')
+    poppinsOk = true
+  } catch { poppinsOk = false }
 
-  const settings = data.settings || {}
-  const patient = data.patient || {}
-  const doctor = data.doctor || {} as any
-  const dt = data.createdAt ? new Date(data.createdAt as any) : new Date()
-
-  const marginX = 15
-  let y = 12
-
-  // === HEADER ===
-  // Hospital Name (center, bold, large)
-  pdf.setTextColor(black.r, black.g, black.b)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(20)
-  pdf.text(String(settings.name || 'SIALKOT MEDICAL COMPLEX'), W / 2, y + 6, { align: 'center' })
-
-  // REPRINTED badge (top-right corner)
-  if (data.isReprint) {
-    const badgeW = 28
-    const badgeX = W - marginX - badgeW
-    pdf.setFillColor(red.r, red.g, red.b)
-    pdf.roundedRect(badgeX, y, badgeW, 6, 1.5, 1.5, 'F')
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(7)
-    pdf.setTextColor(255, 255, 255)
-    pdf.text('REPRINTED', badgeX + badgeW / 2, y + 4.5, { align: 'center' })
-    // Reset text color to black for rest of document
-    pdf.setTextColor(black.r, black.g, black.b)
+  // Load Urdu font into browser (for canvas image rendering)
+  const urduOk = await ensureUrduNastaleeq(pdf)
+  const hasUrdu = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrduText = (text: string, x: number, y: number, opts?: any) => {
+    drawUrduText(pdf, text, x, y, opts)
   }
 
-  y += 10
+  // Always safe font setter
+  const POP = (style: 'normal' | 'bold') => {
+    if (poppinsOk) { try { pdf.setFont('Poppins', style); return } catch {} }
+    pdf.setFont('helvetica', style)
+  }
 
-  // Doctor info row with logo
+  // Field visibility helper
+  const rawManualRxFields = data.manualRxFields
+  const show = (k: string) => !rawManualRxFields || rawManualRxFields[k] !== false
+
+  // Safe splitTextToSize: temporarily switch to helvetica so jsPDF always has metrics
+  const safeSplit = (text: string, maxW: number): string[] => {
+    const prev = (pdf as any).getFont?.()
+    pdf.setFont('helvetica', 'normal')
+    const lines = (pdf as any).splitTextToSize(String(text || ''), maxW) as string[]
+    try { if (prev) pdf.setFont(prev.fontName, prev.fontStyle) } catch {}
+    return lines
+  }
+
+  // ── Palette ────────────────────────────────────────────────
+  const black     = { r: 0,   g: 0,   b: 0   }
+  const navy      = { r: 15,  g: 23,  b: 42  }
+  const accent    = { r: 14,  g: 165, b: 233 }  // bright sky blue
+  const accentLt  = { r: 240, g: 249, b: 255 }  // very light sky tint
+  const white     = { r: 255, g: 255, b: 255 }
+  const red       = { r: 185, g: 28,  b: 28  }
+  const muted     = { r: 100, g: 116, b: 139 }  // slate-500
+
+  const settings = data.settings || {}
+  const patient  = data.patient  || {}
+  const doctor   = data.doctor   || {} as any
+  const dt = (() => {
+    try {
+      const d = data.createdAt ? new Date(data.createdAt as any) : new Date()
+      return isNaN(d.getTime()) ? new Date() : d
+    } catch { return new Date() }
+  })()
+
+  const mx = 14   // margin x
+  let y = 0
+
+  // ══════════════════════════════════════════════════════════════
+  // HEADER BAND (COMPACT) - Very light background, black text
+  // ══════════════════════════════════════════════════════════════
+  const hdrH = 28
+  pdf.setFillColor(accentLt.r, accentLt.g, accentLt.b)
+  pdf.rect(0, 0, W, hdrH, 'F')
+
+  // Logo
   const logo = String((settings as any).logoDataUrl || '')
-  const docStartY = y
-
-  // Doctor info on left
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(11)
-  pdf.text(String(doctor.name ? `Dr ${doctor.name}` : 'Dr Waris Ali Rana'), marginX, y)
-  y += 5
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9)
-  pdf.text(String(doctor.specialization || ''), marginX, y)
-  y += 4
-  pdf.text(String(doctor.qualification || ''), marginX, y)
-  y += 8
-
-  // Logo on right (if available)
+  let textCenterOffset = 0
   if (logo) {
     try {
       const normalized = await ensurePngDataUrl(logo)
-      pdf.addImage(normalized, 'PNG' as any, W - marginX - 20, docStartY - 5, 18, 18, undefined, 'FAST')
-    } catch { }
+      pdf.addImage(normalized, 'PNG' as any, mx, 6, 20, 20, undefined, 'FAST')
+      textCenterOffset = 0   // still center on full width
+    } catch {}
+  }
+  void textCenterOffset
+
+  // Hospital name - black text
+  POP('bold')
+  pdf.setFontSize(16)
+  pdf.setTextColor(black.r, black.g, black.b)
+  pdf.text(String(settings.name || 'Hospital'), W / 2, 12, { align: 'center' })
+
+  // Address · phone - black text
+  POP('normal')
+  pdf.setFontSize(7)
+  pdf.setTextColor(60, 60, 70)
+  const subLine = [settings.address, settings.phone ? `PH: ${settings.phone}` : ''].filter(Boolean).join('   ·   ')
+  if (subLine) pdf.text(subLine, W / 2, 18, { align: 'center' })
+
+  // Accent rule below header
+  pdf.setFillColor(125, 211, 252)
+  pdf.rect(0, hdrH, W, 0.6, 'F')
+
+  y = hdrH + 4
+
+  // ══════════════════════════════════════════════════════════════
+  // DOCTOR BLOCK
+  // ══════════════════════════════════════════════════════════════
+  const docName = show('doctorName') && doctor.name ? `Dr ${String(doctor.name)}` : ''
+  const docQual = show('qualification') && doctor.qualification ? String(doctor.qualification) : ''
+  const docSpec = doctor.specialization ? String(doctor.specialization) : ''
+  const docDept = show('departmentName') && doctor.departmentName ? String(doctor.departmentName) : ''
+
+  if (docName || docQual || docSpec || docDept) {
+    pdf.setTextColor(navy.r, navy.g, navy.b)
+    POP('bold')
+    pdf.setFontSize(10)
+    if (docName) { pdf.text(docName, mx, y); y += 5 }
+    POP('normal')
+    pdf.setFontSize(8)
+    pdf.setTextColor(muted.r, muted.g, muted.b)
+    const docSub = [docQual, docSpec, docDept].filter(Boolean).join('  ·  ')
+    if (docSub) { pdf.text(docSub, mx, y); y += 4.5 }
+    y += 2
   }
 
-  // Separator line
-  pdf.setDrawColor(black.r, black.g, black.b)
-  pdf.setLineWidth(0.5)
-  pdf.line(marginX, y, W - marginX, y)
-  y += 6
-
-  // === PATIENT INFO SECTION ===
-  const rowH = 5.5
-  const col1X = marginX
-  const col2X = marginX + 55
-  const col3X = marginX + 110
-  const col4X = marginX + 155
-
-  pdf.setFontSize(9)
-
-  // Row 1: Name | Relation | (empty) | MR No | Token No
-  // Name
-  pdf.setFont('helvetica', 'normal')
-  pdf.text('Name', col1X, y)
-  pdf.line(col1X + 12, y + 1, col2X - 5, y + 1)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text(String(patient.name || '').toUpperCase(), col1X + 14, y - 0.5)
-
-  // Relation/S/O
-  pdf.setFont('helvetica', 'normal')
-  pdf.text('S/O', col2X, y)
-  pdf.line(col2X + 10, y + 1, col2X + 35, y + 1)
-  pdf.text(String(data.fatherName || patient.fatherName || ''), col2X + 12, y - 0.5)
-  y += rowH
-
-  // Row 2: Age/Sex | Computer No | Outdoor No
-  pdf.setFont('helvetica', 'normal')
-  pdf.text('Age /Sex', col1X, y)
-  pdf.line(col1X + 18, y + 1, col1X + 50, y + 1)
-  pdf.text(`${String(patient.age || '')} Year / ${String(patient.gender || '')}`, col1X + 20, y - 0.5)
-
-  pdf.text('MR No:', col2X + 10, y)
-  pdf.line(col2X + 28, y + 1, col2X + 65, y + 1)
-  pdf.text(String(data.mrn || patient.mrn || ''), col2X + 30, y - 0.5)
-
-  pdf.text('Token No:', col4X - 10, y)
+  // Thin rule
+  pdf.setDrawColor(210, 220, 235)
   pdf.setLineWidth(0.3)
-  pdf.circle(col4X + 18, y - 1, 6, 'S')
-  pdf.setFont('helvetica', 'bold')
-  pdf.text(String(data.tokenNo || data.outdoorNo || ''), col4X + 16, y - 0.5)
-  y += rowH
-
-  // Row 3: Address and Date/Time
-  pdf.setFont('helvetica', 'normal')
-  pdf.text('Address', col1X, y)
-  pdf.line(col1X + 15, y + 1, col3X - 10, y + 1)
-  pdf.text(String(patient.address || ''), col1X + 17, y - 0.5)
-
-  pdf.text('Date & Time', col3X, y)
-  pdf.line(col3X + 22, y + 1, W - marginX, y + 1)
-  const dtStr = dt.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  pdf.text(dtStr, col3X + 24, y - 0.5)
-  y += rowH
-
-  // Row 4: Phone and CNIC
-  pdf.setFont('helvetica', 'normal')
-  pdf.text('Phone', col1X, y)
-  pdf.line(col1X + 15, y + 1, col3X - 10, y + 1)
-  pdf.text(String(patient.phone || ''), col1X + 17, y - 0.5)
-
-  pdf.text('CNIC', col3X, y)
-  pdf.line(col3X + 14, y + 1, W - marginX, y + 1)
-  pdf.text(String((patient as any).cnic || ''), col3X + 16, y - 0.5)
-  y += 8
-
-  if (data.corporatePanelName || data.corporatePreAuthNo) {
-    pdf.setFont('helvetica', 'normal')
-    pdf.text('Panel', col1X, y)
-    pdf.line(col1X + 11, y + 1, col3X - 10, y + 1)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text(String(data.corporatePanelName || ''), col1X + 13, y - 0.5)
-    if (data.corporatePreAuthNo) {
-      pdf.setFont('helvetica', 'normal')
-      pdf.text('Pre-Auth #', col3X, y)
-      pdf.line(col3X + 20, y + 1, W - marginX, y + 1)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text(String(data.corporatePreAuthNo || ''), col3X + 22, y - 0.5)
-    }
-    y += rowH
-  }
-
-  // Token Type (Public/Private)
-  if (data.visitCategory) {
-    pdf.setFont('helvetica', 'normal')
-    pdf.text('Token Type', col1X, y)
-    pdf.line(col1X + 20, y + 1, col3X - 10, y + 1)
-    pdf.setFont('helvetica', 'bold')
-    const cat = String(data.visitCategory).toLowerCase() === 'private' ? 'Private' : 'General'
-    pdf.text(cat, col1X + 22, y - 0.5)
-    y += rowH
-  }
-
-  // Main separator line
-  pdf.setDrawColor(black.r, black.g, black.b)
-  pdf.setLineWidth(0.5)
-  pdf.line(marginX, y, W - marginX, y)
+  pdf.line(mx, y, W - mx, y)
   y += 3
 
-  // === MAIN CONTENT: Two Column Layout ===
-  const contentTop = y
-  const leftColW = 55
-  const gap = 4
-  const rightColX = marginX + leftColW + gap
-  const rightColW = W - marginX - rightColX
-  const contentHeight = H - y - 30 // Leave space for footer
+  // ══════════════════════════════════════════════════════════════
+  // PATIENT INFO BAND — light tinted background, two columns
+  // ══════════════════════════════════════════════════════════════
+  const dtStr = dt.toLocaleString('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+  const fatherVal  = String(data.fatherName || patient.fatherName || '-')
+  const nameVal    = String(patient.name  || '-').toUpperCase()
+  const ageVal     = `${String(patient.age || '')}${patient.age ? ' Yr' : ''}  ${String(patient.gender || '')}`.trim()
+  const mrnVal     = String(data.mrn || (patient as any).mrn || '-')
+  const addressVal = String(patient.address || '-')
+  const phoneVal   = String(patient.phone || '-')
+  const cnicVal    = String((patient as any).cnic || '-')
+  const tokenVal   = String(data.tokenNo || data.outdoorNo || '')
+  const catVal     = data.visitCategory
+    ? (String(data.visitCategory).toLowerCase() === 'private' ? 'Private' : 'General')
+    : ''
 
-  // Draw vertical separator between columns
-  pdf.setLineWidth(0.3)
-  pdf.line(rightColX - gap / 2, contentTop, rightColX - gap / 2, contentTop + contentHeight)
+  // Left col  = mx … (W/2 - 4),  Right col = W/2 + 4 … W - mx
+  const halfW  = (W - mx * 2 - 10) / 2
+  const lx     = mx
+  const rx2    = mx + halfW + 10
+  const rowH   = 6
+  const labelFs = 6.5
+  const valueFs = 8
 
-  // === LEFT SIDEBAR SECTIONS ===
-  let leftY = contentTop + 3
+  // Compact patient info - all fields in 3 rows (respecting manualRxFields from settings)
+  const rows: Array<[string, string, string, string]> = []
 
-  // 1. CLINICAL NOTES
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(10)
-  const clinicalNotesText = 'CLINICAL NOTES'
-  pdf.text(clinicalNotesText, marginX, leftY)
-  pdf.setLineWidth(0.2)
-  const clinicalNotesW = pdf.getTextWidth(clinicalNotesText)
-  pdf.line(marginX, leftY + 1, marginX + clinicalNotesW, leftY + 1)
-  leftY += 8
+  // Row 1: Patient Name + Father | MR No + Token No
+  const nameFather = [nameVal, show('fatherName') ? fatherVal : ''].filter(Boolean).join(' S/O ')
+  const mrToken = [show('mrn') ? mrnVal : '', show('tokenNo') ? tokenVal : ''].filter(Boolean).join(' · ')
+  if (show('patientName')) rows.push(['Name', nameFather, 'MR / Token', mrToken || '-'])
 
-  // Clinical notes content area (blank for writing)
-  const clinicalNotesH = 35
-  // Print saved notes if any
-  if (data.clinicalNotes) {
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    const noteLines = (pdf as any).splitTextToSize(String(data.clinicalNotes), leftColW - 8)
-    pdf.text(noteLines, marginX + 1, leftY)
-  }
-  leftY += clinicalNotesH + 8
+  // Row 2: Age/Gender | Phone + Date
+  const ageGender = [show('age') ? patient.age : '', show('gender') ? patient.gender : ''].filter(Boolean).join(' / ')
+  const phoneDate = [show('phone') ? phoneVal : '', show('dateTime') ? dtStr.split(',')[0] : ''].filter(Boolean).join(' · ')
+  if (show('age') || show('gender')) rows.push(['Age / Gender', ageGender || '-', 'Phone / Date', phoneDate || '-'])
 
-  // 2. INVESTIGATIONS
-  pdf.setDrawColor(black.r, black.g, black.b)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(10)
-  const investigationsText = 'INVESTIGATIONS'
-  pdf.text(investigationsText, marginX, leftY)
-  pdf.setLineWidth(0.2)
-  const investigationsW = pdf.getTextWidth(investigationsText)
-  pdf.line(marginX, leftY + 1, marginX + investigationsW, leftY + 1)
-  leftY += 8
+  // Row 3: Address | CNIC + Token Type
+  const addrVal = show('address') ? addressVal : ''
+  const cnicType = [show('cnic') ? cnicVal : '', catVal].filter(Boolean).join(' · ')
+  if (show('address') || show('cnic') || catVal) rows.push(['Address', addrVal || '-', 'CNIC / Type', cnicType || '-'])
 
-  // Investigations content area
-  const investigationsH = 50
-  // Print saved investigations if any
-  if (data.investigations) {
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    const invLines = (pdf as any).splitTextToSize(String(data.investigations), leftColW - 8)
-    pdf.text(invLines, marginX + 1, leftY)
-  }
-  leftY += investigationsH + 8
+  const bandPadT = 2
+  const bandPadB = 2
+  const bandH = bandPadT + rows.length * rowH + bandPadB
 
-  // 3. PROVISIONAL DIAGNOSIS
-  pdf.setDrawColor(black.r, black.g, black.b)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(10)
-  const provisionalText = 'PROVISIONAL DIAGNOSIS'
-  pdf.text(provisionalText, marginX, leftY)
-  pdf.setLineWidth(0.2)
-  const provisionalW = pdf.getTextWidth(provisionalText)
-  pdf.line(marginX, leftY + 1, marginX + provisionalW, leftY + 1)
-  leftY += 8
+  // Patient info band - no background tint (clean look), no side accent bar
 
-  // Provisional diagnosis content area
-  // Print saved diagnosis if any
-  if (data.provisionalDiagnosis) {
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    const diagLines = (pdf as any).splitTextToSize(String(data.provisionalDiagnosis), leftColW - 8)
-    pdf.text(diagLines, marginX + 1, leftY)
+  let ry = y + bandPadT
+
+  // Helper: draw one label+value pair in a column
+  const cell = (label: string, value: string, cx: number, cy: number, colW: number) => {
+    POP('normal')
+    pdf.setFontSize(labelFs)
+    pdf.setTextColor(muted.r, muted.g, muted.b)
+    pdf.text(label, cx, cy)
+
+    POP('bold')
+    pdf.setFontSize(valueFs)
+    pdf.setTextColor(navy.r, navy.g, navy.b)
+    // clip value to column width
+    const maxValW = colW - 2
+    const valStr  = String(value || '')
+    const valLines = safeSplit(valStr, maxValW)
+    pdf.text(valLines[0] || '', cx, cy + 2.8)
+
   }
 
-  leftY += 25
+  for (const [lLabel, lVal, rLabel, rVal] of rows) {
+    cell(lLabel, lVal, lx + 3, ry, halfW)
+    if (rLabel) cell(rLabel, rVal, rx2, ry, halfW)
+    ry += rowH
+  }
 
-  // === RIGHT COLUMN: Rx SECTION ===
-  const rxX = rightColX
-  const rxY = contentTop
-  const rxW = rightColW
+  // Token No pill — right-aligned, vertically centred in band
+  if (tokenVal && show('tokenNo')) {
+    const pillW = 22
+    const pillH = 12
+    const pillX = W - mx - pillW - 2
+    const pillY = y + (bandH - pillH) / 2 - 2
+    pdf.setFillColor(accent.r, accent.g, accent.b)
+    pdf.roundedRect(pillX, pillY, pillW, pillH, pillH / 2, pillH / 2, 'F')
+    POP('bold')
+    pdf.setFontSize(9)
+    pdf.setTextColor(white.r, white.g, white.b)
+    pdf.text('Token', pillX + pillW / 2, pillY + 4, { align: 'center' })
+    pdf.setFontSize(10)
+    pdf.text(tokenVal, pillX + pillW / 2, pillY + 9.5, { align: 'center' })
+  }
 
-  // Rx Symbol - R with x
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(26)
-  pdf.setTextColor(black.r, black.g, black.b)
-  // Main R
-  pdf.text('R', rxX + 5, rxY + 12)
-  // x next to R (small gap)
-  pdf.setFontSize(16)
-  pdf.text('x', rxX + 13, rxY + 12)
+  y += bandH + 3
 
-  // Prescription content
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(10)
-  pdf.setTextColor(slate.r, slate.g, slate.b)
-
-  const meds = (data.items || [])
-    .map((m: any, i: number) => {
-      const name = String(m?.name || '').trim()
-      if (!name) return ''
-      const parts = [m?.frequency, m?.dose, m?.duration, m?.instruction].filter((x: any) => String(x || '').trim())
-      return `${i + 1}. ${name}${parts.length ? ' - ' + parts.join(' - ') : ''}`
-    })
-    .filter(Boolean)
-    .join('\n')
-
-  const rawRx = String(meds || '')
-  const maxW = rxW - 15
-  const lines = (pdf as any).splitTextToSize(rawRx || ' ', maxW)
-  pdf.text(lines, rxX + 5, rxY + 25)
-
-  // === FOOTER ===
-  const footerY = H - 18
-
-  // Bottom line
-  pdf.setDrawColor(black.r, black.g, black.b)
+  // ══════════════════════════════════════════════════════════════
+  // MAIN CONTENT — two columns
+  // ══════════════════════════════════════════════════════════════
+  pdf.setDrawColor(navy.r, navy.g, navy.b)
   pdf.setLineWidth(0.5)
-  pdf.line(marginX, footerY, W - marginX, footerY)
+  pdf.line(mx, y, W - mx, y)
+  y += 4
 
-  // Address text
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9)
-  pdf.setTextColor(black.r, black.g, black.b)
-  pdf.text(String(settings.address || 'COMMISSIONER ROAD, SIALKOT'), W / 2, footerY + 5, { align: 'center' })
+  const contentTop  = y
+  const leftColW    = 38
+  const colGap      = 4
+  const rightColX   = mx + leftColW + colGap
+  const rightColW   = W - mx - rightColX
+  const contentH    = H - y - 22
 
-  // Phone if available
-  if (settings.phone) {
+  // Vertical divider
+  pdf.setDrawColor(210, 220, 235)
+  pdf.setLineWidth(0.4)
+  pdf.line(rightColX - colGap / 2, contentTop, rightColX - colGap / 2, contentTop + contentH)
+
+  // ── LEFT: CLINICAL NOTES ──
+  let leftY = contentTop + 4
+  POP('bold')
+  pdf.setFontSize(8)
+  pdf.setTextColor(accent.r, accent.g, accent.b)
+  pdf.text('CLINICAL NOTES', mx + 2, leftY)
+  pdf.setDrawColor(accent.r, accent.g, accent.b)
+  pdf.setLineWidth(0.25)
+  pdf.line(mx + 2, leftY + 1, mx + 2 + pdf.getTextWidth('CLINICAL NOTES'), leftY + 1)
+  leftY += 5
+
+  if (data.clinicalNotes) {
+    POP('normal')
     pdf.setFontSize(8)
-    pdf.text(`PH: ${String(settings.phone)}`, W / 2, footerY + 9, { align: 'center' })
+    pdf.setTextColor(navy.r, navy.g, navy.b)
+    const noteLines = safeSplit(String(data.clinicalNotes), leftColW - 6)
+    pdf.text(noteLines, mx + 2, leftY)
   }
 
-  // Preview via Electron or browser
+  // ── RIGHT: Rx SYMBOL + meds ──
+  const rxX = rightColX
+  const rxY = contentTop + 2
+
+  // Stylised Rₓ
+  if (show('showRxSymbol')) {
+    POP('bold')
+    pdf.setFontSize(28)
+    pdf.setTextColor(accent.r, accent.g, accent.b)
+    pdf.text('R', rxX + 4, rxY + 13)
+    pdf.setFontSize(17)
+    pdf.setTextColor(navy.r, navy.g, navy.b)
+    pdf.text('x', rxX + 14, rxY + 13)
+  }
+
+  // Medicines with Urdu support
+  if (data.items && data.items.length > 0) {
+    let my = show('showRxSymbol') ? rxY + 22 : rxY + 4
+    const lineH = 5.5
+    ;(data.items as any[]).forEach((m: any, i: number) => {
+      const name = String(m?.name || '').trim()
+      if (!name) return
+      const line = `${i + 1}.  ${name}`
+      const t = (data as any).language === 'urdu' ? translateRxItem(m, 'urdu') : m
+      const parts = [t?.dose, t?.frequency, t?.duration, t?.route, t?.instruction]
+        .map((x: any) => String(x || ''))
+        .filter((x: any) => x.trim())
+      const detail = parts.join('  ·  ')
+      const detailHasUrdu = hasUrdu(detail)
+      const fullLine = detail ? `${line}  —  ${detail}` : line
+
+      if (detailHasUrdu) {
+        // English name on left; each field rendered separately on right
+        POP('normal')
+        pdf.setFontSize(9.5)
+        pdf.setTextColor(navy.r, navy.g, navy.b)
+        pdf.text(line, rxX + 4, my)
+        let fx = rxX + 4 + pdf.getTextWidth(line) + 6
+        let first = true
+        const fields = [
+          { val: t?.dose },
+          { val: t?.frequency },
+          { val: t?.duration },
+          { val: t?.route },
+          { val: t?.instruction },
+        ]
+        for (const f of fields) {
+          const txt = String(f.val || '').trim()
+          if (!txt) continue
+          if (!first) {
+            pdf.text('·', fx, my)
+            fx += 4
+          }
+          first = false
+          if (hasUrdu(txt)) {
+            const remaining = (rxX + rightColW - 4) - fx
+            const slotW = Math.min(remaining, 28)
+            safeUrduText(txt, fx + slotW - 1, my, { align: 'right', maxWidth: slotW - 2 })
+            fx += slotW + 2
+          } else {
+            pdf.text(txt, fx, my)
+            fx += pdf.getTextWidth(txt) + 3
+          }
+        }
+      } else if (hasUrdu(fullLine)) {
+        safeUrduText(fullLine, rxX + rightColW - 4, my, { align: 'right', maxWidth: rightColW - 8 })
+      } else {
+        POP('normal')
+        pdf.setFontSize(9.5)
+        pdf.setTextColor(navy.r, navy.g, navy.b)
+        const lines = safeSplit(fullLine, rightColW - 8)
+        pdf.text(lines, rxX + 4, my)
+        my += (lines.length - 1) * 3.5
+      }
+      my += lineH
+    })
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // FOOTER
+  // ══════════════════════════════════════════════════════════════
+  const footerY = H - 16
+  pdf.setFillColor(accent.r, accent.g, accent.b)
+  pdf.rect(0, footerY - 1, W, 0.8, 'F')
+
+  POP('normal')
+  pdf.setFontSize(8)
+  pdf.setTextColor(black.r, black.g, black.b)
+  const footerLine = [settings.address, settings.phone ? `PH: ${settings.phone}` : ''].filter(Boolean).join('   ·   ')
+  pdf.text(footerLine || '', W / 2, footerY + 5, { align: 'center' })
+
+  // Preview
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {
-      const dataUrl = pdf.output('datauristring') as string
-      await api.printPreviewPdf(dataUrl)
+      await api.printPreviewPdf(pdf.output('datauristring') as string)
       return
     }
-  } catch { }
+  } catch {}
 
-  const blob = pdf.output('blob') as Blob
-  const url = URL.createObjectURL(blob)
-  window.open(url, '_blank')
+  window.open(URL.createObjectURL(pdf.output('blob') as Blob), '_blank')
 }
 
 async function ensurePngDataUrl(src: string): Promise<string> {

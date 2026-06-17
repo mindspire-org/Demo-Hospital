@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { z } from 'zod'
 import { FinanceJournal } from '../models/FinanceJournal'
-import { createDoctorPayout, manualDoctorEarning, computeDoctorBalance, reverseJournalById } from './finance_ledger'
+import { createDoctorPayout, manualDoctorEarning, computeDoctorBalance, reverseJournalById, round2 } from './finance_ledger'
 import { HospitalCashSession } from '../models/CashSession'
 
 const manualDoctorEarningSchema = z.object({
@@ -24,6 +24,8 @@ const doctorPayoutSchema = z.object({
   amount: z.number().positive(),
   method: z.enum(['Cash','Bank']).default('Cash'),
   memo: z.string().optional(),
+  sourceAccount: z.string().optional(),
+  destinationAccount: z.string().optional(),
 })
 
 export async function postManualDoctorEarning(req: Request, res: Response){
@@ -134,8 +136,13 @@ export async function listDoctorEarnings(req: Request, res: Response){
     const isOpd = r.refType === 'opd_token'
     const fee = Number(r?.fee ?? 0)
     const discount = Number(r?.discount ?? 0)
-    const gross = (Number.isFinite(fee) ? fee : 0) + (Number.isFinite(discount) ? discount : 0)
-    const sharePercent = (isOpd && fee > 0) ? ((doctorAmount / fee) * 100) : null
+    // For OPD tokens: gross = net fee + discount = original price before discount
+    // For manual entries (no token): gross = doctorAmount since that's the full earning
+    const gross = isOpd
+      ? ((Number.isFinite(fee) ? fee : 0) + (Number.isFinite(discount) ? discount : 0))
+      : doctorAmount
+    // sharePercent = (doctorAmount / gross) * 100, or 100% for manual entries
+    const sharePercent = (gross > 0) ? round2((doctorAmount / gross) * 100) : null
     const revenueAccount = String(r.revenueAccount || r.revenueAccountFromTags || '')
     return ({
       id: String(r._id),
@@ -154,7 +161,7 @@ export async function listDoctorEarnings(req: Request, res: Response){
       phone: r.phone,
       fee: Number.isFinite(fee) ? fee : undefined,
       discount: Number.isFinite(discount) ? discount : undefined,
-      gross: Number.isFinite(gross) ? gross : undefined,
+      gross: Number.isFinite(gross) && gross > 0 ? gross : undefined,
       sharePercent: sharePercent != null ? sharePercent : null,
     })
   })
@@ -173,7 +180,7 @@ export async function postDoctorPayout(req: Request, res: Response){
       }
     }
   } catch {}
-  const j: any = await createDoctorPayout(data.doctorId, data.amount, data.method, data.memo, sessionId)
+  const j: any = await createDoctorPayout(data.doctorId, data.amount, data.method, data.memo, sessionId, data.sourceAccount, data.destinationAccount)
   // Best-effort tagging of createdBy for reporting
   try {
     const createdByUserId = String((req as any).user?._id || (req as any).user?.id || '')

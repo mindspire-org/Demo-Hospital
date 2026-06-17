@@ -10,7 +10,7 @@
  * - Reports
  */
 
-import { api, withQuery, baseURL } from '@/api'
+import { api, withQuery, baseURL } from '../../api'
 
 export const corporateApi = {
   // -------------------------------------------------------------------------

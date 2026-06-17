@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { hospitalApi, ipdApi } from '../../utils/api'
 
 type RecordItem = { id: string; createdAt?: string; parsed?: any }
 
@@ -25,14 +25,16 @@ export default function Hospital_IpdSurgicalSafetySignIn({ encounterId }: { enco
     setLoading(true)
     setError(null)
     try {
-      const res = (await hospitalApi.listIpdClinicalNotes(encounterId, { type: 'surgical-signin', limit: 200 })) as any
-      const rows = (res?.notes || []) as any[]
+      const res = (await ipdApi.listIpdSurgicalSafety(encounterId, { limit: 200 })) as any
+      const rows = (res?.surgicalSafetyRecords || []) as any[]
 
-      const filtered: RecordItem[] = rows.map((n: any) => ({
-        id: String(n?._id || n?.id || Math.random()),
-        createdAt: n?.recordedAt || n?.createdAt,
-        parsed: n?.data || null,
-      }))
+      const filtered: RecordItem[] = rows
+        .filter((n: any) => n?.signIn?.signInCompletedAt) // Only show completed Sign In records
+        .map((n: any) => ({
+          id: String(n?._id || n?.id || Math.random()),
+          createdAt: n?.signIn?.signInCompletedAt || n?.createdAt,
+          parsed: n?.signIn || null,
+        }))
       setItems(filtered)
     } catch (e: any) {
       setError(e?.message || 'Failed to load records')
@@ -45,10 +47,22 @@ export default function Hospital_IpdSurgicalSafetySignIn({ encounterId }: { enco
     setLoading(true)
     setError(null)
     try {
-      await hospitalApi.createIpdClinicalNote(encounterId, {
-        type: 'surgical-signin',
-        sign: form?.signedBy || '',
-        data: form,
+      await ipdApi.createIpdSurgicalSafety(encounterId, {
+        signIn: {
+          patientConfirmed: form.confirmIdentity && form.confirmSite && form.confirmProcedure && form.confirmConsent,
+          siteMarked: form.siteMarked === 'YES',
+          anesthesiaSafetyCheckCompleted: form.anaesthesiaSafetyCheckCompleted,
+          pulseOximeterOn: form.pulseOximeterOnAndFunctioning,
+          knownAllergy: form.knownAllergy,
+          difficultAirwayRisk: form.difficultAirwayAspirationRisk,
+          aspirationRisk: form.difficultAirwayAspirationRisk,
+          bloodLossRisk: form.riskBloodLoss,
+          bloodProductsAvailable: form.riskBloodLossIvAccessAndFluidsPlanned,
+          signInCompletedAt: form.date ? new Date(form.date).toISOString() : new Date().toISOString(),
+          signInCompletedBy: form.doctorName,
+        },
+        surgeonSignature: form.signature,
+        status: 'sign-in-complete',
       })
       setOpen(false)
       await reload()
@@ -85,16 +99,15 @@ export default function Hospital_IpdSurgicalSafetySignIn({ encounterId }: { enco
 
               {it.parsed ? (
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                  <Field label="Patient has confirmed" value={(it.parsed?.confirmIdentity && it.parsed?.confirmSite && it.parsed?.confirmProcedure && it.parsed?.confirmConsent) ? 'Yes' : 'No'} />
-                  <Field label="Site marked" value={it.parsed?.siteMarked || '-'} />
-                  <Field label="Anaesthesia safety check completed" value={it.parsed?.anaesthesiaSafetyCheckCompleted ? 'Yes' : 'No'} />
-                  <Field label="Pulse oximeter on patient and functioning" value={it.parsed?.pulseOximeterOnAndFunctioning ? 'Yes' : 'No'} />
+                  <Field label="Patient has confirmed" value={it.parsed?.patientConfirmed ? 'Yes' : 'No'} />
+                  <Field label="Site marked" value={it.parsed?.siteMarked ? 'Yes' : 'No'} />
+                  <Field label="Anaesthesia safety check completed" value={it.parsed?.anesthesiaSafetyCheckCompleted ? 'Yes' : 'No'} />
+                  <Field label="Pulse oximeter on patient and functioning" value={it.parsed?.pulseOximeterOn ? 'Yes' : 'No'} />
                   <Field label="Known allergy" value={it.parsed?.knownAllergy || '-'} />
-                  <Field label="Difficult airway/aspiration risk" value={it.parsed?.difficultAirwayAspirationRisk || '-'} />
-                  <Field label="Risk of >500ml blood loss (7ml/kg in children)" value={it.parsed?.riskBloodLoss || '-'} />
-                  <Field label="Doctor Name" value={it.parsed?.doctorName} />
-                  <Field label="Signature" value={it.parsed?.signature} />
-                  <Field label="Date" value={it.parsed?.date} />
+                  <Field label="Difficult airway/aspiration risk" value={it.parsed?.difficultAirwayRisk || it.parsed?.aspirationRisk || '-'} />
+                  <Field label="Risk of >500ml blood loss" value={it.parsed?.bloodLossRisk || '-'} />
+                  <Field label="Doctor Name" value={it.parsed?.signInCompletedBy} />
+                  <Field label="Date" value={it.parsed?.signInCompletedAt?.slice(0, 10)} />
                 </div>
               ) : (
                 <div className="mt-3 text-sm text-slate-600">Invalid record data.</div>
@@ -136,6 +149,37 @@ function SignInDialog({ open, onClose, onSave }: { open: boolean; onClose: () =>
     signature: '',
     date: new Date().toISOString().slice(0, 10),
   })
+  const [doctors, setDoctors] = useState<Array<{ _id: string; name: string }>>([])
+  const [doctorSearch, setDoctorSearch] = useState('')
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const filteredDoctors = doctors.filter(d => d.name.toLowerCase().includes(doctorSearch.toLowerCase()))
+
+  useEffect(() => {
+    if (open) {
+      setDoctorSearch('')
+      setShowDoctorDropdown(false)
+      ;(async () => {
+        try {
+          const res = await hospitalApi.listDoctors() as any
+          const items = (res?.doctors || res || []) as Array<{ _id: string; name: string }>
+          setDoctors(items)
+        } catch {
+          setDoctors([])
+        }
+      })()
+    }
+  }, [open])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDoctorDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   if (!open) return null
 
@@ -229,7 +273,30 @@ function SignInDialog({ open, onClose, onSave }: { open: boolean; onClose: () =>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-4">
-            <Input label="Doctor Name" value={form.doctorName} onChange={(v) => setForm({ ...form, doctorName: v })} />
+            <div ref={dropdownRef} className="relative">
+              <label className="mb-1 block text-sm font-medium text-slate-700">Doctor Name</label>
+              <input
+                type="text"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                value={form.doctorName || doctorSearch}
+                onChange={(e) => { setDoctorSearch(e.target.value); setShowDoctorDropdown(true); setForm({ ...form, doctorName: '' }); }}
+                onFocus={() => setShowDoctorDropdown(true)}
+                placeholder="Search doctor..."
+              />
+              {showDoctorDropdown && filteredDoctors.length > 0 && (
+                <div className="absolute left-0 right-0 z-10 mt-1 max-h-40 overflow-auto rounded-md border border-slate-300 bg-white shadow-lg">
+                  {filteredDoctors.map(d => (
+                    <div
+                      key={d._id}
+                      onClick={() => { setForm({ ...form, doctorName: d.name }); setDoctorSearch(d.name); setShowDoctorDropdown(false); }}
+                      className="cursor-pointer px-3 py-2 text-sm hover:bg-slate-100"
+                    >
+                      {d.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <Input label="Signature" value={form.signature} onChange={(v) => setForm({ ...form, signature: v })} />
             <Input label="Date" type="date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
           </div>

@@ -6,7 +6,7 @@ import { AestheticDoctorSchedule } from '../models/DoctorSchedule'
 import { AestheticAppointment } from '../models/Appointment'
 import { LabPatient } from '../../lab/models/Patient'
 import { nextGlobalMrn } from '../../../common/mrn'
-import { postOpdTokenJournal, postProcedurePaymentJournal } from './finance_ledger'
+import { postOpdTokenJournal, postProcedurePaymentJournal, reverseJournalByRef } from './finance_ledger'
 import { postFbrInvoiceViaSDC } from '../../hospital/services/fbr'
 
 function dateKey(dateIso?: string) {
@@ -403,8 +403,37 @@ export async function update(req: Request, res: Response) {
   }
 
   if (!Object.keys(patch).length) return res.status(400).json({ error: 'No fields to update' })
+
+  const currentDoc: any = await AestheticToken.findById(id).lean()
+  if (!currentDoc) return res.status(404).json({ error: 'Token not found' })
+
   const doc: any = await AestheticToken.findByIdAndUpdate(id, { $set: patch }, { new: true }).lean()
-  if (!doc) return res.status(404).json({ error: 'Token not found' })
+
+  const currentFee = Number(currentDoc.fee || 0)
+  const currentDiscount = Number(currentDoc.discount || 0)
+  const newFee = Number(doc.fee || 0)
+  const newDiscount = Number(doc.discount || 0)
+
+  // Finance: reverse and repost when fee/doctor changes
+  try {
+    const feeChanged = Number(currentFee) !== Number(newFee) || Number(currentDiscount) !== Number(newDiscount)
+    const docChanged = String(currentDoc.doctorId || '') !== String(patch.doctorId || currentDoc.doctorId || '')
+    const patientChanged = false // simplified for now
+    if (feeChanged || docChanged || patientChanged) {
+      await reverseJournalByRef('aesthetic_opd_token', String(id), 'Repost for token edit')
+      await postOpdTokenJournal({
+        tokenId: String(id),
+        dateIso: String((doc as any)?.dateIso || new Date().toISOString().slice(0, 10)),
+        fee: Math.max(0, newFee - newDiscount),
+        doctorId: patch.doctorId || doc.doctorId || undefined,
+        patientName: patch.patientName || doc.patientName || undefined,
+        mrn: patch.mrNumber || doc.mrNumber || undefined,
+        tokenNo: String((doc as any)?.number || ''),
+        paidMethod: 'Cash',
+      })
+    }
+  } catch (e) { console.warn('Finance repost failed for token edit', e) }
+
   res.json({ token: doc })
 }
 

@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react'
+import { dialysisApi } from '../../features/dialysis/dialysis.api'
 
 type User = { _id: string; id?: string; username: string; role: string; fullName?: string; active?: boolean }
-
-const API_BASE = (import.meta as any).env?.VITE_API_BASE || ''
-
-function getToken() {
-  try { return localStorage.getItem('dialysis.token') || '' } catch { return '' }
-}
 
 export default function Dialysis_UserManagement() {
   const [users, setUsers] = useState<User[]>([])
@@ -16,7 +11,6 @@ export default function Dialysis_UserManagement() {
   const [newUsername, setNewUsername] = useState('')
   const [newRole, setNewRole] = useState<string>('staff')
   const [newPassword, setNewPassword] = useState('')
-  const [createFinanceAccount, setCreateFinanceAccount] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<{ _id: string; username: string; role: string; password?: string } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -30,19 +24,13 @@ export default function Dialysis_UserManagement() {
     ;(async () => {
       setLoading(true)
       try {
-        const res = await fetch(`${API_BASE}/api/dialysis/users`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        })
-        const data = await res.json()
-        if (mounted && res.ok) {
+        const data: any = await dialysisApi.listUsers()
+        if (mounted) {
           setUsers((data.users || []).map((u: any) => ({ ...u, _id: u.id || u._id })))
         }
         // Fetch roles
-        const rolesRes = await fetch(`${API_BASE}/api/dialysis/users/roles`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        })
-        const rolesData = await rolesRes.json()
-        if (mounted && rolesRes.ok && rolesData.roles?.length) {
+        const rolesData: any = await dialysisApi.listRoles()
+        if (mounted && rolesData.roles?.length) {
           setRoles(rolesData.roles)
         }
       } catch (e) { 
@@ -60,40 +48,9 @@ export default function Dialysis_UserManagement() {
     if (!newPassword || newPassword.length < 4) { setAddUserError('Password must be at least 4 characters'); return }
     
     try {
-      const res = await fetch(`${API_BASE}/api/dialysis/users`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ username: newUsername.trim(), role: newRole, password: newPassword }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setAddUserError(data.error || 'Failed to add user')
-        return
-      }
+      const data: any = await dialysisApi.createUser({ username: newUsername.trim(), role: newRole, password: newPassword })
       setUsers(prev => [...prev, { ...data.user, _id: data.user.id || data.user._id }])
-      
-      // Create finance account if checkbox is checked
-      if (createFinanceAccount && data.user?.id) {
-        try {
-          await fetch(`${API_BASE}/api/finance/chart-of-accounts/create-user-account`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              portal: 'dialysis',
-              userId: String(data.user.id),
-              username: data.user.username
-            })
-          })
-        } catch (e) {
-          console.error('Failed to create finance account:', e)
-        }
-      }
-      
       setNewUsername(''); setNewPassword(''); setNewRole(roles[0] || 'staff')
-      setCreateFinanceAccount(false)
       setNotice({ text: 'User added', kind: 'success' })
       setTimeout(()=> setNotice(null), 2500)
     } catch (e) {
@@ -105,11 +62,8 @@ export default function Dialysis_UserManagement() {
     const id = deleteId
     if (!id) { setDeleteOpen(false); return }
     try {
-      const res = await fetch(`${API_BASE}/api/dialysis/users/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` },
-      })
-      if (res.ok) {
+      await dialysisApi.deleteUser(id)
+      {
         setUsers(prev=> prev.filter(u=> (u._id !== id && u.id !== id)))
         setNotice({ text: 'User deleted', kind: 'success' })
       }
@@ -123,15 +77,8 @@ export default function Dialysis_UserManagement() {
     if (!editing) return
     setSavingEdit(true)
     try {
-      const res = await fetch(`${API_BASE}/api/dialysis/users/${editing._id}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ username: editing.username, role: editing.role, ...(editing.password && editing.password.trim() ? { password: editing.password } : {}) }),
-      })
-      if (res.ok) {
+      await dialysisApi.updateUser(editing._id, { username: editing.username, role: editing.role, ...(editing.password && editing.password.trim() ? { password: editing.password } : {}) })
+      {
         setUsers(prev => prev.map(x => ((x._id === editing._id || x.id === editing._id) ? { ...x, username: editing.username, role: editing.role } : x)))
         setNotice({ text: 'User updated', kind: 'success' })
       }
@@ -234,15 +181,6 @@ export default function Dialysis_UserManagement() {
                   {(roles||[]).map(r=> <option key={r} value={r}>{r}</option>)}
                 </select>
                 <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Password (min 4 chars)" />
-                <label className="flex items-center gap-2 cursor-pointer sm:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={createFinanceAccount}
-                    onChange={e => setCreateFinanceAccount(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-slate-700">Create Finance Account</span>
-                </label>
                 <button onClick={addUser} className="rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Add User</button>
                 {addUserError && <div className="sm:col-span-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{addUserError}</div>}
               </div>

@@ -11,7 +11,15 @@ export async function get(_req: Request, res: Response) {
 
 export async function update(req: Request, res: Response) {
   const data = settingsUpdateSchema.parse(req.body)
-  const s = await HospitalSettings.findOneAndUpdate({}, { $set: data }, { new: true, upsert: true })
+  
+  // Handle logo removal: if logoDataUrl is explicitly undefined/null/empty, unset it
+  const updateOp: any = { $set: data }
+  if (data.logoDataUrl === undefined || data.logoDataUrl === null || data.logoDataUrl === '') {
+    delete data.logoDataUrl
+    updateOp.$unset = { logoDataUrl: '' }
+  }
+  
+  const s = await HospitalSettings.findOneAndUpdate({}, updateOp, { new: true, upsert: true })
   try {
     const actor = (req as any).user?.name || (req as any).user?.email || 'system'
     await HospitalAuditLog.create({

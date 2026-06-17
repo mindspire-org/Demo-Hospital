@@ -23,6 +23,7 @@ export default function Dialysis_TokenGenerator() {
     fee: '',
     discount: '0',
     receivedAmount: '',
+    billingType: 'Cash',
   })
 
   const [loading, setLoading] = useState(false)
@@ -129,6 +130,7 @@ export default function Dialysis_TokenGenerator() {
           fee: String(t.fee || '0'),
           discount: String(t.discount || '0'),
           receivedAmount: String(t.receivedAmount || '0'),
+          billingType: t.paidMethod === 'Bank' ? 'Bank' : (t.paidMethod === 'AR' ? 'Corporate' : 'Cash'),
         })
       } catch (err: any) {
         showToast('error', err?.message || 'Failed to load token')
@@ -390,6 +392,7 @@ export default function Dialysis_TokenGenerator() {
       fee: '',
       discount: '0',
       receivedAmount: '',
+      billingType: 'Cash',
     })
     setSelectedPatientId('')
     setForceCreateSamePhone(false)
@@ -447,29 +450,33 @@ export default function Dialysis_TokenGenerator() {
         }
       }
 
-      const tokenData = {
-        patientId: patientIdToUse,
-        mrn: mrnToUse,
-        patientName: form.patientName,
-        phone: form.phone,
-        age: form.age,
-        gender: form.gender,
-        sessionTypeId: form.sessionTypeId,
-        sessionTypeName: sessionType?.name,
-        shiftId: form.shiftId,
-        shiftName: shift?.name,
-        machineId: form.machineId,
-        machineName: machine?.name,
-        dialyzerTypeId: form.dialyzerTypeId,
-        dialyzerTypeName: dialyzerType?.name,
-        duration: parseInt(form.duration) || 4,
-        notes: form.notes,
-        fee: parseFloat(form.fee || '0'),
-        discount: parseFloat(form.discount || '0'),
-        receivedAmount: receivedNum,
-      }
+        const tokenData: any = {
+          patientId: patientIdToUse,
+          mrn: mrnToUse,
+          patientName: form.patientName,
+          phone: form.phone,
+          age: form.age,
+          gender: form.gender,
+          sessionTypeId: form.sessionTypeId,
+          sessionTypeName: sessionType?.name,
+          shiftId: form.shiftId,
+          shiftName: shift?.name,
+          machineId: form.machineId,
+          machineName: machine?.name,
+          dialyzerTypeId: form.dialyzerTypeId,
+          dialyzerTypeName: dialyzerType?.name,
+          duration: parseInt(form.duration) || 4,
+          notes: form.notes,
+          fee: parseFloat(form.fee || '0'),
+          discount: parseFloat(form.discount || '0'),
+          receivedAmount: receivedNum,
+        }
 
-      let token: any
+        if (form.billingType === 'Cash') tokenData.paidMethod = 'Cash'
+        else if (form.billingType === 'Bank') tokenData.paidMethod = 'Bank'
+        else if (form.billingType === 'Corporate') tokenData.paidMethod = 'AR'
+
+        let token: any
       if (editTokenId) {
         // Update existing token
         const res: any = await dialysisApi.updateToken(editTokenId, tokenData)
@@ -780,6 +787,18 @@ export default function Dialysis_TokenGenerator() {
           <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-5">
             <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-200">Billing</h3>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Billing Type</label>
+                <select
+                  value={form.billingType}
+                  onChange={e => update('billingType', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Bank">Bank</option>
+                  <option value="Corporate">Corporate</option>
+                </select>
+              </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Session Fee (Rs.)</label>
                 <input

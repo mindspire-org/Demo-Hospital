@@ -9,6 +9,16 @@ const StaffSchema = new Schema({
   joinDate: { type: String },
   address: { type: String },
   active: { type: Boolean, default: true },
+  leaveQuotas: {
+    annual: { type: Number, default: 0 },
+    casual: { type: Number, default: 0 },
+    sick: { type: Number, default: 0 },
+  },
+  leaveBalances: {
+    annual: { type: Number, default: 0 },
+    casual: { type: Number, default: 0 },
+    sick: { type: Number, default: 0 },
+  }
 }, { timestamps: true })
 
 export type HospitalStaffDoc = {
@@ -21,6 +31,16 @@ export type HospitalStaffDoc = {
   joinDate?: string
   address?: string
   active: boolean
+  leaveQuotas?: {
+    annual: number
+    casual: number
+    sick: number
+  }
+  leaveBalances?: {
+    annual: number
+    casual: number
+    sick: number
+  }
 }
 
 export const HospitalStaff = models.Hospital_Staff || model('Hospital_Staff', StaffSchema)

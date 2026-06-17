@@ -25,7 +25,7 @@ export default function EquipmentForm({ initialData, onSave, onCancel }: Equipme
     const loadData = async () => {
       try {
         const [depRes, supRes] = await Promise.all([
-          equipmentApi.listDepartments(),
+          equipmentApi.listDepartments({ limit: 1000 }),
           equipmentApi.list() // supplier list
         ]);
         setDepartments(depRes.items || depRes.departments || depRes || []);

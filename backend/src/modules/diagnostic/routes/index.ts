@@ -8,6 +8,7 @@ import * as Audit from '../controllers/audit.controller'
 import * as Auth from '../controllers/auth.controller'
 import * as Sidebar from '../controllers/sidebarPermission.controller'
 import * as IncomeLedger from '../controllers/income_ledger.controller'
+import * as Tokens from '../controllers/tokens.controller'
 
 const r = Router()
 
@@ -37,6 +38,14 @@ r.delete('/orders/:id', Orders.remove)
 r.post('/orders/:tokenNo/receive-payment', Orders.receivePayment)
 r.post('/orders/:id/return', Orders.returnOrder)
 r.post('/orders/:id/undo-return', Orders.undoReturn)
+
+// Tokens
+r.get('/tokens', Tokens.list)
+r.post('/tokens', Tokens.create)
+r.post('/tokens/:id/convert', Tokens.convertToSample)
+r.put('/tokens/:id/status', Tokens.updateStatus)
+r.put('/tokens/:id', Tokens.update)
+r.delete('/tokens/:id', Tokens.remove)
 
 // Income Ledger
 r.get('/income-ledger', IncomeLedger.listIncomeLedger)

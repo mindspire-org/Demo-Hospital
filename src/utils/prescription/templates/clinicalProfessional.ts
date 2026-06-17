@@ -43,7 +43,16 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
 
-  // Palette - teal/emerald clinical
+  const { ensureUrduNastaleeq, drawUrduText } = await import('../ensureUrduNastaleeq')
+  const urduOk = await ensureUrduNastaleeq(pdf)
+  const hasUrduChars = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrdu = (text: string, x: number, yy: number, opts?: any) => {
+    if (drawUrduText) drawUrduText(pdf, text, x, yy, opts)
+    else pdf.text(text, x, yy, opts)
+  }
+  const wantsUrdu = (data as any).language === 'urdu'
+  const isUrdu = wantsUrdu && urduOk
+
   const teal       = { r: 20,  g: 184, b: 166 }
   const emerald    = { r: 16,  g: 185, b: 129 }
   const darkTeal   = { r: 13,  g: 148, b: 136 }
@@ -65,21 +74,15 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
   const cw = W - 2 * mx
   let y = 8
 
-  // ══════════════════════════════════════════════════════════════
-  // 1. HEADER - Teal top bar + white content
-  // ══════════════════════════════════════════════════════════════
   const headerH = 36
-  // Teal top section
   pdf.setFillColor(teal.r, teal.g, teal.b)
   pdf.rect(mx, y, cw, 8, 'F')
 
-  // White card below
   pdf.setFillColor(white.r, white.g, white.b)
   pdf.setDrawColor(200, 230, 225)
   pdf.setLineWidth(0.3)
   roundedRect(pdf, mx, y + 8, cw, headerH - 8, 0)
 
-  // Logo
   let nameX = mx + 8
   const logoSrc = String(settings.logoDataUrl || '')
   if (logoSrc) {
@@ -90,7 +93,6 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
     } catch {}
   }
 
-  // Hospital name
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(16)
   pdf.setTextColor(dark.r, dark.g, dark.b)
@@ -101,7 +103,6 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
   pdf.text(String(settings.address || ''), nameX, y + 26)
   pdf.text(`Phone: ${settings.phone || ''}`, nameX, y + 31)
 
-  // Doctor right
   const drX = W - mx - 8
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(13)
@@ -124,15 +125,10 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
 
   y += headerH + 6
 
-  // ══════════════════════════════════════════════════════════════
-  // 2. PATIENT INFO (teal-bordered card)
-  // ══════════════════════════════════════════════════════════════
   pdf.setFillColor(softTeal.r, softTeal.g, softTeal.b)
   pdf.setDrawColor(teal.r, teal.g, teal.b)
   pdf.setLineWidth(0.4)
   roundedRect(pdf, mx, y, cw, 20, 3)
-
-  // Left teal bar
   pdf.setFillColor(teal.r, teal.g, teal.b)
   pdf.rect(mx, y + 2, 3, 16, 'F')
 
@@ -144,7 +140,6 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
   pdf.setFont('helvetica', 'bold'); pdf.text('MR#:', c2, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(String(patient.mrn || '-'), c2 + 10, y + 7)
   pdf.setFont('helvetica', 'bold'); pdf.text('Age/Gender:', c3, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(`${patient.age || '-'} / ${patient.gender || '-'}`, c3 + 20, y + 7)
   pdf.setFont('helvetica', 'bold'); pdf.text('Date:', c4, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(dt.toLocaleDateString(), c4 + 10, y + 7)
-
   pdf.setFont('helvetica', 'bold'); pdf.text('Phone:', c1, y + 13); pdf.setFont('helvetica', 'normal'); pdf.text(String(patient.phone || '-'), c1 + 14, y + 13)
   if ((data as any).tokenNo) {
     pdf.setFont('helvetica', 'bold'); pdf.text('Token:', c2, y + 13); pdf.setFont('helvetica', 'normal'); pdf.text(String((data as any).tokenNo), c2 + 10, y + 13)
@@ -152,9 +147,6 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
 
   y += 24
 
-  // ══════════════════════════════════════════════════════════════
-  // 3. VITALS (emerald badges)
-  // ══════════════════════════════════════════════════════════════
   const v: any = (data as any).vitals || {}
   const vitalsList: Array<{ label: string; value: string }> = []
   if (v.bloodPressureSys != null && v.bloodPressureDia != null) vitalsList.push({ label: 'BP', value: `${v.bloodPressureSys}/${v.bloodPressureDia}` })
@@ -177,20 +169,14 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
     pdf.setFont('helvetica', 'normal')
     pdf.setTextColor(dark.r, dark.g, dark.b)
     pdf.setFontSize(7.5)
-    pdf.text(vitalsList.map(v => `${v.label}: ${v.value}`).join('   '), mx + 20, y + 7)
+    pdf.text(vitalsList.map(vt => `${vt.label}: ${vt.value}`).join('   '), mx + 20, y + 7)
     y += 14
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 4. CLINICAL SECTIONS (structured with teal headers)
-  // ══════════════════════════════════════════════════════════════
   const addSection = (label: string, value: string | undefined, accent: { r: number; g: number; b: number }) => {
     if (!value || !String(value).trim()) return
     const text = String(value).trim()
     const lines = (pdf as any).splitTextToSize(text, cw - 12)
-
-    // Section header bar
-    pdf.setFillColor(accent.r, accent.g, accent.b)
     pdf.setFillColor(Math.min(255, accent.r + 180), Math.min(255, accent.g + 180), Math.min(255, accent.b + 180))
     pdf.rect(mx, y, cw, 5, 'F')
     pdf.setFont('helvetica', 'bold')
@@ -198,7 +184,6 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
     pdf.setTextColor(accent.r, accent.g, accent.b)
     pdf.text(label.toUpperCase(), mx + 4, y + 3.5)
     y += 6
-
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8)
     pdf.setTextColor(dark.r, dark.g, dark.b)
@@ -215,9 +200,7 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
   addSection('Diagnosis', data.diagnosis, amber)
   addSection('Advice / Referral', data.advice, teal)
 
-  // ══════════════════════════════════════════════════════════════
-  // 5. Rx TABLE
-  // ══════════════════════════════════════════════════════════════
+  const { translateRxItem } = await import('../../prescriptionUrdu')
   const meds = (data.items || []).filter(m => String(m?.name || '').trim())
   if (meds.length > 0) {
     y += 2
@@ -230,7 +213,9 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
     y += 9
 
     const cols = [6, 38, 18, 18, 22, 15, 18]
-    const headers = ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction']
+    const headers = isUrdu
+      ? ['#', 'Medicine', 'خوراک', 'مدت', 'فریکوئنسی', 'طریقہ', 'ہدایت']
+      : ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction']
 
     pdf.setFillColor(softTeal.r, softTeal.g, softTeal.b)
     pdf.rect(mx, y - 4, cw, 5.5, 'F')
@@ -238,13 +223,22 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
     pdf.setFontSize(7)
     pdf.setTextColor(teal.r, teal.g, teal.b)
     let cx = mx + 2
-    headers.forEach((h, i) => { pdf.text(h, cx + 1, y); cx += cols[i] })
+    headers.forEach((h, i) => {
+      if (hasUrduChars(h)) { safeUrdu(h, cx + 1, y) } else { pdf.text(h, cx + 1, y) }
+      cx += cols[i]
+    })
     y += 4
 
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(7.5)
     pdf.setTextColor(dark.r, dark.g, dark.b)
     meds.forEach((m, i) => {
+      const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
+      const dose  = String(t?.dose || '').trim()
+      const dur   = String(t?.duration || '').trim()
+      const freq  = String(t?.frequency || '').trim()
+      const route = String(t?.route || '').trim()
+      const instr = String(t?.instruction || '').trim()
       if (i % 2 === 0) {
         pdf.setFillColor(248, 252, 250)
         pdf.rect(mx, y - 3.5, cw, 5, 'F')
@@ -252,16 +246,24 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
       cx = mx + 2
       pdf.text(String(i + 1), cx + 1, y); cx += cols[0]
       pdf.text(String(m?.name || '').trim(), cx + 1, y); cx += cols[1]
-      pdf.text(String(m?.dose || '').trim(), cx + 1, y); cx += cols[2]
-      pdf.text(String(m?.duration || '').trim(), cx + 1, y); cx += cols[3]
-      pdf.text(String(m?.frequency || '').trim(), cx + 1, y); cx += cols[4]
-      pdf.text(String(m?.route || '').trim(), cx + 1, y); cx += cols[5]
-      pdf.text(String(m?.instruction || '').trim(), cx + 1, y)
+      if (hasUrduChars(dose)) safeUrdu(dose, cx + cols[2] - 1, y, { align: 'right', maxWidth: cols[2] - 2 })
+      else { pdf.text(dose, cx + 1, y) }
+      cx += cols[2]
+      if (hasUrduChars(dur)) safeUrdu(dur, cx + cols[3] - 1, y, { align: 'right', maxWidth: cols[3] - 2 })
+      else { pdf.text(dur, cx + 1, y) }
+      cx += cols[3]
+      if (hasUrduChars(freq)) safeUrdu(freq, cx + cols[4] - 1, y, { align: 'right', maxWidth: cols[4] - 2 })
+      else { pdf.text(freq, cx + 1, y) }
+      cx += cols[4]
+      if (hasUrduChars(route)) safeUrdu(route, cx + cols[5] - 1, y, { align: 'right', maxWidth: cols[5] - 2 })
+      else { pdf.text(route, cx + 1, y) }
+      cx += cols[5]
+      if (hasUrduChars(instr)) safeUrdu(instr, cx + cols[6] - 1, y, { align: 'right', maxWidth: cols[6] - 2 })
+      else if (instr) { pdf.text(instr, cx + 1, y) }
       y += 5
     })
   }
 
-  // ── Tests ──
   const labTests = (data.labTests || []).filter(Boolean)
   const diagTests = (data.diagnosticTests || []).filter(Boolean)
   if (labTests.length || diagTests.length) {
@@ -282,9 +284,6 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
     y += 14
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 6. SIGNATURE + FOOTER
-  // ══════════════════════════════════════════════════════════════
   const signY = H - 30
   pdf.setDrawColor(teal.r, teal.g, teal.b)
   pdf.setLineWidth(0.2)
@@ -297,7 +296,6 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
   pdf.setTextColor(dark.r, dark.g, dark.b)
   pdf.text(`Dr. ${doctor.name || ''}`, mx + 4, signY + 8)
 
-  // Footer teal bar
   pdf.setFillColor(teal.r, teal.g, teal.b)
   pdf.rect(mx, H - 14, cw, 6, 'F')
   pdf.setTextColor(white.r, white.g, white.b)
@@ -305,11 +303,9 @@ export async function previewClinicalProfessionalPdf(data: ClinicalProfessionalP
   pdf.setFontSize(7)
   pdf.text(`${settings.name || ''}  •  ${settings.phone || ''}  •  ${settings.address || ''}`, W / 2, H - 10, { align: 'center' })
 
-  // ── Overlay (header/footer/watermark) ──
   const { applyOverlayBeforeOutput } = await import('./applyOverlay')
   await applyOverlayBeforeOutput(pdf)
 
-  // ── Output ──
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {

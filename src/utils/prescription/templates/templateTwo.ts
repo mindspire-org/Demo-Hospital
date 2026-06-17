@@ -9,30 +9,29 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
   const H = pdf.internal.pageSize.getHeight()
 
   await ensurePoppins(pdf)
+  const { ensureUrduNastaleeq } = await import('../ensureUrduNastaleeq')
+  const urduOk = await ensureUrduNastaleeq(pdf)
+  const wantsUrdu = data.language === 'urdu'
+  const isUrdu = wantsUrdu && urduOk
+
   try { pdf.setFont('Poppins', 'normal') } catch {}
 
-  // ── Colors ──
-  const primary = [79, 70, 229] // indigo
+  const primary = [79, 70, 229]
   const muted = [107, 115, 144]
   const danger = [239, 68, 68]
 
-  // ── Background Geometry ──
   pdf.setFillColor(238, 241, 247)
   pdf.rect(0, 0, W, H, 'F')
 
-  // White Page
   const margin = 10
   const pageW = W - (margin * 2)
-  const pageH = H - (margin * 2)
   pdf.setFillColor(255, 255, 255)
-  pdf.roundedRect(margin, margin, pageW, pageH, 6, 6, 'F')
+  pdf.roundedRect(margin, margin, pageW, H - (margin * 2), 6, 6, 'F')
 
-  // ── Header ──
   const startY = margin + 12
   const logoSize = 22
   const logoX = margin + 12
-  
-  // Conic gradient-like logo box
+
   pdf.setFillColor(primary[0], primary[1], primary[2])
   pdf.roundedRect(logoX, startY, logoSize, logoSize, 6, 6, 'F')
   pdf.setTextColor(255, 255, 255)
@@ -40,34 +39,30 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
   pdf.setFont('helvetica', 'bold')
   pdf.text('H+', logoX + (logoSize / 2), startY + (logoSize / 2) + 2, { align: 'center' })
 
-  // Hospital Name
   pdf.setTextColor(10, 15, 44)
   try { pdf.setFont('Poppins', 'bold') } catch { pdf.setFont('helvetica', 'bold') }
   pdf.setFontSize(16)
   pdf.text(data.settings?.name || 'Green Valley Hospital', logoX + logoSize + 6, startY + 8)
-  
+
   pdf.setTextColor(muted[0], muted[1], muted[2])
   try { pdf.setFont('Poppins', 'normal') } catch { pdf.setFont('helvetica', 'normal') }
   pdf.setFontSize(9)
   pdf.text('Advanced Care & Digital Health Services', logoX + logoSize + 6, startY + 13)
-  pdf.text(`📍 ${data.settings?.address || 'Medical City'} • ☎ ${data.settings?.phone || '(555) 123-4567'}`, logoX + logoSize + 6, startY + 18)
+  pdf.text(`${data.settings?.address || 'Medical City'} | Tel: ${data.settings?.phone || '(555) 123-4567'}`, logoX + logoSize + 6, startY + 18)
 
-  // Doctor Meta (Right)
   pdf.setTextColor(muted[0], muted[1], muted[2])
   pdf.setFontSize(9)
   pdf.text(data.doctor?.name || 'Dr. Sara Ahmed', W - margin - 12, startY + 5, { align: 'right' })
   pdf.text(data.doctor?.qualification || 'MBBS, MD', W - margin - 12, startY + 10, { align: 'right' })
   pdf.text(new Date(data.createdAt || Date.now()).toLocaleDateString(), W - margin - 12, startY + 15, { align: 'right' })
 
-  // ── Info Strip ──
   const stripY = startY + logoSize + 8
   const stripW = pageW - 24
   const stripH = 32
-  
-  // Gradient Strip
+
   pdf.setFillColor(primary[0], primary[1], primary[2])
   pdf.roundedRect(margin + 12, stripY, stripW, stripH, 5, 5, 'F')
-  
+
   pdf.setTextColor(255, 255, 255)
   pdf.setFontSize(9)
   pdf.setFont('helvetica', 'bold')
@@ -77,11 +72,10 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
   pdf.text(`MRN: ${data.patient?.mrn || 'GVH-000124'}`, margin + 18, stripY + 18)
   pdf.text(`Diagnosis: ${data.diagnosis || 'Hypertension'}`, margin + 18, stripY + 23)
 
-  // Vitals in strip
   const vitals = data.vitals || {}
   const vX = margin + 12 + stripW * 0.65
   const vW = (stripW * 0.35) - 6
-  
+
   const vData = [
     { l: 'BP', v: `${vitals.bloodPressureSys || 120}/${vitals.bloodPressureDia || 78}` },
     { l: 'HR', v: `${vitals.pulse || 76}` },
@@ -97,42 +91,46 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
     pdf.setGState(new (pdf as any).GState({ opacity: 0.2 }))
     pdf.roundedRect(vx, vy - 5, vW / 2 - 2, 10, 3, 3, 'F')
     pdf.restoreGraphicsState()
-    
     pdf.setFontSize(7)
     pdf.text(v.v, vx + 2, vy)
     pdf.setFontSize(6)
     pdf.text(v.l, vx + 2, vy + 4)
   })
 
-  // ── Rx Section ──
   const rxY = stripY + stripH + 12
   const cardW = stripW
   const cardH = 150
-  
+
   pdf.setFillColor(255, 255, 255)
   pdf.setDrawColor(241, 245, 249)
   pdf.roundedRect(margin + 12, rxY, cardW, cardH, 6, 6, 'FD')
 
-  // Rx Badge top right of card
   pdf.setFillColor(danger[0], danger[1], danger[2])
   pdf.roundedRect(margin + 12 + cardW - 24, rxY - 6, 18, 12, 4, 4, 'F')
   pdf.setTextColor(255, 255, 255)
   pdf.setFontSize(12)
   pdf.text('Rx', margin + 12 + cardW - 15, rxY + 2, { align: 'center' })
 
-  // Medicine List
   const medsW = cardW * 0.65
   const sideW = cardW - medsW - 12
-  
-  const medData = (data.items || []).map(it => [
-    it.name || '',
-    it.dose || it.instruction || '',
-    it.duration || ''
-  ])
+
+  const { translateRxItem } = await import('../../prescriptionUrdu')
+  const medData = (data.items || []).map(it => {
+    const t = translateRxItem(it as any, isUrdu ? 'urdu' : 'english')
+    return [
+      it.name || '',
+      String(t?.dose || t?.instruction || ''),
+      String(t?.duration || '')
+    ]
+  })
+
+  const head = isUrdu
+    ? [['Medicine', 'خوراک', 'مدت']]
+    : [['Medicine', 'Dosage', 'Duration']]
 
   autoTable(pdf, {
     startY: rxY + 12,
-    head: [['Medicine', 'Dosage', 'Duration']],
+    head,
     body: medData.length ? medData : [['', '', '']],
     theme: 'plain',
     margin: { left: margin + 18, right: W - margin - 12 - sideW - 6 },
@@ -145,7 +143,6 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
     }
   })
 
-  // Side Panels (Instructions, Follow-up, Allergies)
   const sideX = margin + 12 + medsW + 6
   const sideY = rxY + 12
   const panels = [
@@ -169,12 +166,11 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
     pdf.text(lines, sideX + 4, py + 12)
   })
 
-  // ── Footer ──
   const footerY = H - margin - 20
   pdf.setTextColor(muted[0], muted[1], muted[2])
   pdf.setFontSize(8)
   pdf.text('This is a digitally generated prescription. Valid only with hospital stamp.', margin + 12, footerY)
-  
+
   pdf.text(data.doctor?.name || 'Dr. Sara Ahmed', W - margin - 12, footerY, { align: 'right' })
   pdf.setDrawColor(15, 23, 42)
   pdf.setLineWidth(0.3)

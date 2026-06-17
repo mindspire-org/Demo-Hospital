@@ -9,14 +9,14 @@
  * - Dashboard
  */
 
-import { api, withQuery } from '@/api'
+import { api, withQuery } from '../../api'
 
 export const dialysisApi = {
   // -------------------------------------------------------------------------
   // Auth
   // -------------------------------------------------------------------------
   login: async (username: string, password: string) => {
-    const r: any = await api('/dialysis/login', { method: 'POST', body: JSON.stringify({ username, password }) })
+    const r: any = await api('/dialysis/users/login', { method: 'POST', body: JSON.stringify({ username, password }) })
     if (r?.token) {
       localStorage.setItem('dialysis.token', r.token)
       localStorage.setItem('dialysis.session', JSON.stringify({ username, role: r.role || 'admin' }))
@@ -26,8 +26,27 @@ export const dialysisApi = {
   logout: async () => {
     try { localStorage.removeItem('dialysis.token') } catch { }
     try { localStorage.removeItem('dialysis.session') } catch { }
-    return api('/dialysis/logout', { method: 'POST' })
+    return api('/dialysis/users/logout', { method: 'POST' })
   },
+
+  // -------------------------------------------------------------------------
+  // Users
+  // -------------------------------------------------------------------------
+  listUsers: () => api('/dialysis/users'),
+  listRoles: () => api('/dialysis/users/roles'),
+  createUser: (data: any) => api('/dialysis/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUser: (id: string, data: any) => api(`/dialysis/users/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteUser: (id: string) => api(`/dialysis/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // -------------------------------------------------------------------------
+  // Sidebar Permissions
+  // -------------------------------------------------------------------------
+  getSidebarPermissions: () => api('/dialysis/sidebar-permissions'),
+  listSidebarPermissionRoles: () => api('/dialysis/sidebar-permissions/roles'),
+  createSidebarPermissionRole: (data: any) => api('/dialysis/sidebar-permissions', { method: 'POST', body: JSON.stringify(data) }),
+  updateSidebarPermissions: (role: string, data: any) => api(`/dialysis/sidebar-permissions/${encodeURIComponent(role)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSidebarPermissionRole: (role: string) => api(`/dialysis/sidebar-permissions/${encodeURIComponent(role)}`, { method: 'DELETE' }),
+  resetSidebarPermissions: (role: string) => api(`/dialysis/sidebar-permissions/${encodeURIComponent(role)}/reset`, { method: 'POST' }),
 
   // -------------------------------------------------------------------------
   // Settings
@@ -144,18 +163,6 @@ export const dialysisApi = {
   deleteAppointment: (id: string) => api(`/dialysis/appointments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   convertAppointmentToToken: (id: string, data?: { fee?: number; discount?: number; receivedAmount?: number; paidMethod?: string }) =>
     api(`/dialysis/appointments/${encodeURIComponent(id)}/convert-to-token`, { method: 'POST', body: JSON.stringify(data || {}) }),
-
-  // -------------------------------------------------------------------------
-  // Discharge
-  // -------------------------------------------------------------------------
-  dischargePatient: (dialysisPatientId: string, data?: { dischargeReason?: string; dischargeNotes?: string }) =>
-    api(`/dialysis/dialysis-patients/${encodeURIComponent(dialysisPatientId)}/discharge`, { method: 'POST', body: JSON.stringify(data || {}) }),
-  reactivatePatient: (dialysisPatientId: string) =>
-    api(`/dialysis/dialysis-patients/${encodeURIComponent(dialysisPatientId)}/reactivate`, { method: 'POST' }),
-  listDischargedPatients: (params?: { q?: string; page?: number; limit?: number }) =>
-    api(withQuery('/dialysis/dialysis-patients/discharged', params)),
-  getPatientHistory: (dialysisPatientId: string) =>
-    api(`/dialysis/dialysis-patients/${encodeURIComponent(dialysisPatientId)}/history`),
 
   // -------------------------------------------------------------------------
   // Dashboard

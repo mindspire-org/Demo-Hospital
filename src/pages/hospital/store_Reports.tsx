@@ -253,9 +253,17 @@ export default function Store_Reports() {
                   }
                   return (
                     <td key={h} className="px-3 py-2">
-                      {typeof row[h] === 'number' && (h.includes('value') || h.includes('Value') || h.includes('paid') || h.includes('outstanding')) 
-                        ? formatCurrency(row[h]) 
-                        : row[h]}
+                      {typeof row[h] === 'number' && (h.includes('value') || h.includes('Value') || h.includes('Cost') || h.includes('cost') || h.includes('paid') || h.includes('outstanding'))
+                        ? formatCurrency(row[h])
+                        : h === 'status'
+                          ? <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full border ${
+                              row[h] === 'Out of Stock' ? 'bg-rose-100 text-rose-700 border-rose-200'
+                              : row[h] === 'Low Stock' ? 'bg-amber-100 text-amber-700 border-amber-200'
+                              : row[h] === 'Expired' ? 'bg-red-100 text-red-700 border-red-200'
+                              : row[h] === 'Expiring Soon' ? 'bg-orange-100 text-orange-700 border-orange-200'
+                              : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            }`}>{row[h]}</span>
+                          : row[h]}
                     </td>
                   )
                 })}

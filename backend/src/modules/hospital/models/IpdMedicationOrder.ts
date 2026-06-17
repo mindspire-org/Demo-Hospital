@@ -14,6 +14,14 @@ const IpdMedicationOrderSchema = new Schema({
   prn: { type: Boolean, default: false },
   status: { type: String, enum: ['active','stopped'], default: 'active', index: true },
   prescribedBy: { type: String },
+  prescribingDoctorId: { type: Schema.Types.ObjectId, ref: 'Hospital_Doctor', index: true },
+  executions: [{
+    quantity: { type: Number },
+    remarks: { type: String },
+    executedAt: { type: Date, default: Date.now },
+    executedBy: { type: Schema.Types.ObjectId, ref: 'Lab_User' },
+    staffName: { type: String }
+  }]
 }, { timestamps: true })
 
 IpdMedicationOrderSchema.index({ encounterId: 1, createdAt: -1 })
@@ -33,6 +41,14 @@ export type HospitalIpdMedicationOrderDoc = {
   prn?: boolean
   status: 'active'|'stopped'
   prescribedBy?: string
+  prescribingDoctorId?: string
+  executions?: Array<{
+    quantity?: number
+    remarks?: string
+    executedAt: Date
+    executedBy?: string
+    staffName?: string
+  }>
 }
 
 export const HospitalIpdMedicationOrder = models.Hospital_IpdMedicationOrder || model('Hospital_IpdMedicationOrder', IpdMedicationOrderSchema)

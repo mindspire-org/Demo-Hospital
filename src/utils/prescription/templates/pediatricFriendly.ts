@@ -43,7 +43,16 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
 
-  // Palette - soft pastels, warm and friendly
+  const { ensureUrduNastaleeq, drawUrduText } = await import('../ensureUrduNastaleeq')
+  const urduOk = await ensureUrduNastaleeq(pdf)
+  const hasUrduChars = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrdu = (text: string, x: number, yy: number, opts?: any) => {
+    if (drawUrduText) drawUrduText(pdf, text, x, yy, opts)
+    else pdf.text(text, x, yy, opts)
+  }
+  const wantsUrdu = (data as any).language === 'urdu'
+  const isUrdu = wantsUrdu && urduOk
+
   const pink       = { r: 236, g: 72,  b: 153 }
   const softPink   = { r: 252, g: 231, b: 243 }
   const sky        = { r: 56,  g: 189, b: 248 }
@@ -66,13 +75,8 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
   const cw = W - 2 * mx
   let y = 8
 
-  // ══════════════════════════════════════════════════════════════
-  // 1. HEADER - Soft pastel rainbow strip + white card
-  // ══════════════════════════════════════════════════════════════
   const headerH = 38
   const headerY = y
-
-  // Rainbow strip at top (5 color bands)
   const rainbowColors = [pink, lavender, sky, mint, peach]
   const bandW = cw / rainbowColors.length
   rainbowColors.forEach((col, i) => {
@@ -80,13 +84,11 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
     pdf.rect(mx + i * bandW, headerY, bandW + 0.5, 4, 'F')
   })
 
-  // White card body
   pdf.setFillColor(white.r, white.g, white.b)
   pdf.setDrawColor(220, 220, 240)
   pdf.setLineWidth(0.3)
   roundedRect(pdf, mx, headerY + 4, cw, headerH - 4, 4)
 
-  // Logo
   let nameX = mx + 10
   const logoSrc = String(settings.logoDataUrl || '')
   if (logoSrc) {
@@ -97,7 +99,6 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
     } catch {}
   }
 
-  // Hospital name
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(16)
   pdf.setTextColor(dark.r, dark.g, dark.b)
@@ -108,7 +109,6 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
   pdf.text(String(settings.address || ''), nameX, headerY + 22)
   pdf.text(`Tel: ${settings.phone || ''}`, nameX, headerY + 27)
 
-  // Doctor right side
   const drX = W - mx - 8
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(13)
@@ -120,7 +120,6 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
   const drSub = [doctor.qualification, (doctor as any).specialization].filter(Boolean).join(' • ')
   if (drSub) pdf.text(drSub, drX, headerY + 20, { align: 'right' })
 
-  // Department badge
   if ((doctor as any).departmentName) {
     const dept = String((doctor as any).departmentName)
     const deptW = Math.min(55, dept.length * 2 + 8)
@@ -136,15 +135,10 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
 
   y += headerH + 6
 
-  // ══════════════════════════════════════════════════════════════
-  // 2. PATIENT CARD (soft pink)
-  // ══════════════════════════════════════════════════════════════
   pdf.setFillColor(softPink.r, softPink.g, softPink.b)
   pdf.setDrawColor(pink.r, pink.g, pink.b)
   pdf.setLineWidth(0.3)
   roundedRect(pdf, mx, y, cw, 20, 5)
-
-  // Pink left accent
   pdf.setFillColor(pink.r, pink.g, pink.b)
   roundedRect(pdf, mx, y, 4, 20, 2)
 
@@ -156,7 +150,6 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
   pdf.setFont('helvetica', 'bold'); pdf.text('MR#:', c2, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(String(patient.mrn || '-'), c2 + 10, y + 7)
   pdf.setFont('helvetica', 'bold'); pdf.text('Age/Gender:', c3, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(`${patient.age || '-'} / ${patient.gender || '-'}`, c3 + 20, y + 7)
   pdf.setFont('helvetica', 'bold'); pdf.text('Date:', c4, y + 7); pdf.setFont('helvetica', 'normal'); pdf.text(dt.toLocaleDateString(), c4 + 10, y + 7)
-
   pdf.setFont('helvetica', 'bold'); pdf.text('Phone:', c1, y + 13); pdf.setFont('helvetica', 'normal'); pdf.text(String(patient.phone || '-'), c1 + 14, y + 13)
   if ((data as any).tokenNo) {
     pdf.setFont('helvetica', 'bold'); pdf.text('Token:', c2, y + 13); pdf.setFont('helvetica', 'normal'); pdf.text(String((data as any).tokenNo), c2 + 10, y + 13)
@@ -164,9 +157,6 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
 
   y += 24
 
-  // ══════════════════════════════════════════════════════════════
-  // 3. VITALS (pastel badges)
-  // ══════════════════════════════════════════════════════════════
   const v: any = (data as any).vitals || {}
   const vitalsList: Array<{ label: string; value: string; bg: { r: number; g: number; b: number }; fg: { r: number; g: number; b: number } }> = []
   if (v.bloodPressureSys != null && v.bloodPressureDia != null) vitalsList.push({ label: 'BP', value: `${v.bloodPressureSys}/${v.bloodPressureDia}`, bg: softPink, fg: pink })
@@ -196,34 +186,25 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
     y += 12
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 4. CLINICAL SECTIONS (pastel cards)
-  // ══════════════════════════════════════════════════════════════
   const addCard = (title: string, value: string | undefined, bg: { r: number; g: number; b: number }, accent: { r: number; g: number; b: number }) => {
     if (!value || !String(value).trim()) return
     const text = String(value).trim()
     const lines = (pdf as any).splitTextToSize(text, cw - 16)
     const cardH = 8 + lines.length * 3.5 + 2
-
     pdf.setFillColor(bg.r, bg.g, bg.b)
     pdf.setDrawColor(accent.r, accent.g, accent.b)
     pdf.setLineWidth(0.2)
     roundedRect(pdf, mx, y, cw, cardH, 4)
-
-    // Left accent
     pdf.setFillColor(accent.r, accent.g, accent.b)
     roundedRect(pdf, mx, y, 3, cardH, 2)
-
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8)
     pdf.setTextColor(accent.r, accent.g, accent.b)
     pdf.text(title, mx + 8, y + 5)
-
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8)
     pdf.setTextColor(dark.r, dark.g, dark.b)
     pdf.text(lines, mx + 8, y + 10)
-
     y += cardH + 3
   }
 
@@ -234,13 +215,10 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
   addCard('Allergies', data.allergyHistory, softPeach, peach)
   addCard('Advice / Referral', data.advice, softPink, pink)
 
-  // ══════════════════════════════════════════════════════════════
-  // 5. Rx TABLE (rainbow header)
-  // ══════════════════════════════════════════════════════════════
+  const { translateRxItem } = await import('../../prescriptionUrdu')
   const meds = (data.items || []).filter(m => String(m?.name || '').trim())
   if (meds.length > 0) {
     y += 2
-    // Rainbow Rx header
     rainbowColors.forEach((col, i) => {
       pdf.setFillColor(col.r, col.g, col.b)
       pdf.rect(mx + i * bandW, y, bandW + 0.5, 7, 'F')
@@ -252,7 +230,9 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
     y += 9
 
     const cols = [6, 38, 18, 18, 22, 15, 18]
-    const headers = ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction']
+    const headers = isUrdu
+      ? ['#', 'Medicine', 'خوراک', 'مدت', 'فریکوئنسی', 'طریقہ', 'ہدایت']
+      : ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction']
 
     pdf.setFillColor(softLavender.r, softLavender.g, softLavender.b)
     pdf.rect(mx, y - 4, cw, 5.5, 'F')
@@ -260,29 +240,46 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
     pdf.setFontSize(7)
     pdf.setTextColor(lavender.r, lavender.g, lavender.b)
     let cx = mx + 2
-    headers.forEach((h, i) => { pdf.text(h, cx + 1, y); cx += cols[i] })
+    headers.forEach((h, i) => {
+      if (hasUrduChars(h)) { safeUrdu(h, cx + 1, y) } else { pdf.text(h, cx + 1, y) }
+      cx += cols[i]
+    })
     y += 5
 
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(7.5)
     pdf.setTextColor(dark.r, dark.g, dark.b)
     meds.forEach((m, i) => {
+      const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
+      const dose  = String(t?.dose || '').trim()
+      const dur   = String(t?.duration || '').trim()
+      const freq  = String(t?.frequency || '').trim()
+      const route = String(t?.route || '').trim()
+      const instr = String(t?.instruction || '').trim()
       const rowBg = i % 2 === 0 ? softLavender : softMint
       pdf.setFillColor(rowBg.r, rowBg.g, rowBg.b)
       pdf.rect(mx, y - 3.5, cw, 5, 'F')
       cx = mx + 2
       pdf.text(String(i + 1), cx + 1, y); cx += cols[0]
       pdf.text(String(m?.name || '').trim(), cx + 1, y); cx += cols[1]
-      pdf.text(String(m?.dose || '').trim(), cx + 1, y); cx += cols[2]
-      pdf.text(String(m?.duration || '').trim(), cx + 1, y); cx += cols[3]
-      pdf.text(String(m?.frequency || '').trim(), cx + 1, y); cx += cols[4]
-      pdf.text(String(m?.route || '').trim(), cx + 1, y); cx += cols[5]
-      pdf.text(String(m?.instruction || '').trim(), cx + 1, y)
+      if (hasUrduChars(dose)) safeUrdu(dose, cx + cols[2] - 1, y, { align: 'right', maxWidth: cols[2] - 2 })
+      else { pdf.text(dose, cx + 1, y) }
+      cx += cols[2]
+      if (hasUrduChars(dur)) safeUrdu(dur, cx + cols[3] - 1, y, { align: 'right', maxWidth: cols[3] - 2 })
+      else { pdf.text(dur, cx + 1, y) }
+      cx += cols[3]
+      if (hasUrduChars(freq)) safeUrdu(freq, cx + cols[4] - 1, y, { align: 'right', maxWidth: cols[4] - 2 })
+      else { pdf.text(freq, cx + 1, y) }
+      cx += cols[4]
+      if (hasUrduChars(route)) safeUrdu(route, cx + cols[5] - 1, y, { align: 'right', maxWidth: cols[5] - 2 })
+      else { pdf.text(route, cx + 1, y) }
+      cx += cols[5]
+      if (hasUrduChars(instr)) safeUrdu(instr, cx + cols[6] - 1, y, { align: 'right', maxWidth: cols[6] - 2 })
+      else if (instr) { pdf.text(instr, cx + 1, y) }
       y += 5
     })
   }
 
-  // ── Tests ──
   const labTests = (data.labTests || []).filter(Boolean)
   const diagTests = (data.diagnosticTests || []).filter(Boolean)
   if (labTests.length || diagTests.length) {
@@ -303,9 +300,6 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
     y += 14
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 6. SIGNATURE + FOOTER
-  // ══════════════════════════════════════════════════════════════
   const signY = H - 30
   pdf.setDrawColor(lavender.r, lavender.g, lavender.b)
   pdf.setLineWidth(0.2)
@@ -318,7 +312,6 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
   pdf.setTextColor(dark.r, dark.g, dark.b)
   pdf.text(`Dr. ${doctor.name || ''}`, mx + 4, signY + 8)
 
-  // Footer rainbow strip
   rainbowColors.forEach((col, i) => {
     pdf.setFillColor(col.r, col.g, col.b)
     pdf.rect(mx + i * bandW, H - 12, bandW + 0.5, 4, 'F')
@@ -328,11 +321,9 @@ export async function previewPediatricFriendlyPdf(data: PediatricFriendlyPdfData
   pdf.setFontSize(6.5)
   pdf.text(`${settings.name || ''}  •  ${settings.phone || ''}  •  ${settings.address || ''}`, W / 2, H - 9.5, { align: 'center' })
 
-  // ── Overlay (header/footer/watermark) ──
   const { applyOverlayBeforeOutput } = await import('./applyOverlay')
   await applyOverlayBeforeOutput(pdf)
 
-  // ── Output ──
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {

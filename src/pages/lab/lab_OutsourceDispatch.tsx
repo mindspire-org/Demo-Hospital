@@ -10,12 +10,14 @@ type Disp = {
   tokenNo?: string
   patientName?: string
   testName: string
-  status: 'dispatched' | 'in_progress' | 'received' | 'cancelled'
+  status: 'dispatched' | 'in_progress' | 'received' | 'report_delivered' | 'cancelled'
   dispatchedAt: string
   receivedAt?: string
   externalReportUrl?: string
   externalResultText?: string
   notes?: string
+  courierName?: string
+  courierTrackingNo?: string
 }
 
 export default function Lab_OutsourceDispatch() {
@@ -105,6 +107,7 @@ export default function Lab_OutsourceDispatch() {
               <option value="dispatched">Dispatched</option>
               <option value="in_progress">In progress</option>
               <option value="received">Received</option>
+              <option value="report_delivered">Report Delivered</option>
               <option value="cancelled">Cancelled</option>
             </select>
           </label>
@@ -125,11 +128,12 @@ export default function Lab_OutsourceDispatch() {
               <th className="px-4 py-3">Patient</th>
               <th className="px-4 py-3">Test</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Courier</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {!rows.length && <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No dispatches.</td></tr>}
+            {!rows.length && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No dispatches.</td></tr>}
             {rows.map(d => (
               <tr key={d._id} className="hover:bg-slate-50/60">
                 <td className="px-4 py-3 whitespace-nowrap text-slate-700">{new Date(d.dispatchedAt).toLocaleString()}</td>
@@ -138,17 +142,34 @@ export default function Lab_OutsourceDispatch() {
                 <td className="px-4 py-3 text-slate-700">{d.patientName}</td>
                 <td className="px-4 py-3 text-slate-700">{d.testName}</td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${d.status === 'received' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200' : d.status === 'cancelled' ? 'bg-rose-100 text-rose-700 ring-rose-200' : d.status === 'in_progress' ? 'bg-sky-100 text-sky-700 ring-sky-200' : 'bg-amber-100 text-amber-700 ring-amber-200'}`}>{d.status}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
+                    d.status === 'report_delivered' ? 'bg-violet-100 text-violet-700 ring-violet-200' :
+                    d.status === 'received' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200' :
+                    d.status === 'cancelled' ? 'bg-rose-100 text-rose-700 ring-rose-200' :
+                    d.status === 'in_progress' ? 'bg-sky-100 text-sky-700 ring-sky-200' :
+                    'bg-amber-100 text-amber-700 ring-amber-200'
+                  }`}>{d.status.replace('_', ' ')}</span>
+                </td>
+                <td className="px-4 py-3">
+                  {(d.courierName || d.courierTrackingNo) ? (
+                    <div className="text-xs">
+                      {d.courierName && <div className="font-medium text-slate-700">{d.courierName}</div>}
+                      {d.courierTrackingNo && <div className="font-mono text-slate-500">{d.courierTrackingNo}</div>}
+                    </div>
+                  ) : <span className="text-xs text-slate-400">—</span>}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2 text-xs">
-                    {d.status !== 'received' && (
-                      <button onClick={() => update(d._id, { status: 'received' })} className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700 hover:bg-emerald-100">Mark received</button>
-                    )}
                     {d.status === 'dispatched' && (
                       <button onClick={() => update(d._id, { status: 'in_progress' })} className="rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 font-semibold text-sky-700 hover:bg-sky-100">Start</button>
                     )}
-                    {d.status !== 'cancelled' && d.status !== 'received' && (
+                    {(d.status === 'dispatched' || d.status === 'in_progress') && (
+                      <button onClick={() => update(d._id, { status: 'received', receivedAt: new Date().toISOString() })} className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700 hover:bg-emerald-100">Mark received</button>
+                    )}
+                    {d.status === 'received' && (
+                      <button onClick={() => update(d._id, { status: 'report_delivered' })} className="rounded-md border border-violet-300 bg-violet-50 px-3 py-1.5 font-semibold text-violet-700 hover:bg-violet-100">Deliver Report</button>
+                    )}
+                    {d.status !== 'cancelled' && d.status !== 'report_delivered' && (
                       <button onClick={() => update(d._id, { status: 'cancelled' })} className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 font-semibold text-rose-700 hover:bg-rose-100">Cancel</button>
                     )}
                   </div>

@@ -8,12 +8,14 @@ const TokenSchema = new Schema({
   patientName: { type: String },
   createdByUserId: { type: Schema.Types.ObjectId, ref: 'Hospital_User', index: true },
   createdByUsername: { type: String, index: true },
-  departmentId: { type: Schema.Types.ObjectId, ref: 'Hospital_Department', required: true },
+  departmentId: { type: Schema.Types.ObjectId, ref: 'Hospital_Department' },
   doctorId: { type: Schema.Types.ObjectId, ref: 'Hospital_Doctor' },
+  serviceIds: [{ type: Schema.Types.ObjectId, ref: 'Hospital_ErService' }],
+  serviceNames: { type: String },
   encounterId: { type: Schema.Types.ObjectId, ref: 'Hospital_Encounter' },
   corporateId: { type: Schema.Types.ObjectId, ref: 'Corporate_Company' },
   paidMethod: { type: String, enum: ['Cash','Bank','AR'], default: 'Cash', index: true },
-  visitCategory: { type: String, enum: ['general','private'], index: true },
+  visitCategory: { type: String, enum: ['general','private','subsidized'], index: true },
   fee: { type: Number },
   discount: { type: Number, default: 0 },
   status: { type: String, enum: ['queued','in-progress','completed','returned','cancelled'], default: 'queued', index: true },
@@ -29,6 +31,22 @@ const TokenSchema = new Schema({
   fbrMode: { type: String },
   fbrError: { type: String },
   portal: { type: String, enum: ['hospital', 'reception', 'lab', 'diagnostic', 'pharmacy', 'aesthetic'], index: true },
+  vitals: {
+    pulse: { type: Number },
+    temperatureC: { type: Number },
+    bloodPressureSys: { type: Number },
+    bloodPressureDia: { type: Number },
+    respiratoryRate: { type: Number },
+    bloodSugar: { type: Number },
+    weightKg: { type: Number },
+    heightCm: { type: Number },
+    bmi: { type: Number },
+    bsa: { type: Number },
+    spo2: { type: Number },
+    ar: { type: String },
+    va: { type: String },
+    iop: { type: String },
+  },
 }, { timestamps: true })
 
 export type HospitalTokenDoc = {
@@ -40,12 +58,14 @@ export type HospitalTokenDoc = {
   patientName?: string
   createdByUserId?: string
   createdByUsername?: string
-  departmentId: string
+  departmentId?: string
   doctorId?: string
+  serviceIds?: string[]
+  serviceNames?: string
   encounterId?: string
   corporateId?: string
   paidMethod?: 'Cash'|'Bank'|'AR'
-  visitCategory?: 'general'|'private'
+  visitCategory?: 'general'|'private'|'subsidized'
   fee?: number
   discount?: number
   status: 'queued'|'in-progress'|'completed'|'returned'|'cancelled'
@@ -53,6 +73,22 @@ export type HospitalTokenDoc = {
   slotNo?: number
   slotStart?: string
   slotEnd?: string
+  vitals?: {
+    pulse?: number
+    temperatureC?: number
+    bloodPressureSys?: number
+    bloodPressureDia?: number
+    respiratoryRate?: number
+    bloodSugar?: number
+    weightKg?: number
+    heightCm?: number
+    bmi?: number
+    bsa?: number
+    spo2?: number
+    ar?: string
+    va?: string
+    iop?: string
+  }
 }
 
 export const HospitalToken = models.Hospital_Token || model('Hospital_Token', TokenSchema)

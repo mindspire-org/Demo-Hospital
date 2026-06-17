@@ -211,7 +211,6 @@ export async function printEchocardiographyReport(input: {
     for (const c of extra) arr.push({ name: c?.name, degrees: c?.degrees, title: c?.title })
     const filtered = arr.filter(c => (c?.name || c?.degrees || c?.title))
     const out = filtered.slice(0,3)
-    if (out.length === 1){ while (out.length < 3) out.push(out[0]) }
     return out
   })()
 

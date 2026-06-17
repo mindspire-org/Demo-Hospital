@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
+import { LogOut } from 'lucide-react'
 import { hospitalApi } from '../../utils/api'
-import { fmtDateTime12 } from '../../utils/timeFormat'
+import Toast, { type ToastState } from '../../components/ui/Toast'
+import { previewGatePassPdf } from '../../utils/hospital_documents'
+import { fmtDateTime12, fmtDate } from '../../utils/timeFormat'
 
 function currency(n: number){ return `Rs ${Number(n||0).toFixed(2)}` }
-function escapeHtml(x: any){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;') }
+function escapeHtml(x: any){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;') }
+function fmtTime12(iso: string){ try{ const d=new Date(iso); if(isNaN(d.getTime())) return '-'; const PAK=5*60*60*1000; const t=new Date(d.getTime()+PAK); let h=t.getUTCHours(); const m=String(t.getUTCMinutes()).padStart(2,'0'); const s=String(t.getUTCSeconds()).padStart(2,'0'); const am=h<12; const h12=(h%12)||12; const hh=String(h12).padStart(2,'0'); return `${hh}:${m}:${s} ${am?'AM':'PM'}` }catch{ return '-' } }
 
 export default function Reception_IPDTransactions(){
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<any[]>([])
   const [q, setQ] = useState('')
+  const [toast, setToast] = useState<ToastState>(null)
 
   useEffect(()=>{ loadRecent() }, [])
 
@@ -79,85 +84,197 @@ export default function Reception_IPDTransactions(){
     }catch{}
   }
 
+  async function printGatePass(rec: any) {
+    try {
+      const [encRes, settings] = await Promise.all([
+        hospitalApi.getIPDAdmissionById(rec.encounterId) as any,
+        hospitalApi.getSettings() as any,
+      ])
+      const enc = encRes?.encounter
+      const patient = enc?.patientId || {}
+      
+      let bedStr = ''
+      if (enc?.bedLocation) {
+        const bl = enc.bedLocation
+        bedStr = `${bl.floor} / ${bl.location} / Bed: ${bl.bed}`
+      } else {
+        bedStr = String(enc?.bed || '-')
+      }
+
+      await previewGatePassPdf({
+        settings: {
+          name: settings?.name,
+          address: settings?.address,
+          phone: settings?.phone,
+          logoDataUrl: settings?.logoDataUrl,
+        },
+        patient: {
+          name: patient.fullName || patient.name || rec.patientName,
+          mrn: patient.mrn || rec.mrn,
+          age: patient.age || '-',
+          gender: patient.gender || '-',
+          department: 'IPD',
+          bed: bedStr,
+          admitDate: enc?.startAt || enc?.createdAt,
+          dischargeDate: enc?.endAt || enc?.dischargedAt,
+          dischargeTime: enc?.endAt || enc?.dischargedAt ? new Date(enc.endAt || enc.dischargedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''
+        }
+      })
+    } catch (e) {
+      setToast({ type: 'error', message: 'Failed to generate gate pass' })
+    }
+  }
+
   async function printReceiptHtml(enc: any, charges: any[], payments: any[]){
     const s: any = await hospitalApi.getSettings().catch(()=>({}))
     const name = s?.name || 'Hospital'
     const address = s?.address || '-'
     const phone = s?.phone || ''
     const logo = s?.logoDataUrl || ''
-    const patient = enc?.patientId || {}
-    const dt = new Date()
+    const nowIso = new Date().toISOString()
+
     const total = charges.reduce((sum:number,c:any)=> sum + Number(c.amount||0), 0)
-    const linesHtml = charges.map((c:any)=>`<tr><td style="padding:4px 6px;border-bottom:1px solid #e5e7eb">${escapeHtml(c.description||'')}</td><td style="padding:4px 6px;text-align:right;border-bottom:1px solid #e5e7eb">${currency(Number(c.amount||0))}</td></tr>`).join('')
-    const paysHtml = payments.map((p:any)=>`<tr><td style="padding:3px 6px">${fmtDateTime12(p.receivedAt||dt)}</td><td style="padding:3px 6px">${escapeHtml(p.method||'-')}</td><td style="padding:3px 6px">${escapeHtml(p.refNo||'')}</td><td style="padding:3px 6px;text-align:right">${currency(Number(p.amount||0))}</td></tr>`).join('')
-    // Separate refunds from payments
-    const refunds = payments.filter((p:any)=> String(p.type||'').toLowerCase()==='refund')
-    const regularPayments = payments.filter((p:any)=> String(p.type||'').toLowerCase()!=='refund')
-    const totalRefunds = refunds.reduce((s:number,p:any)=> s + Number(p.amount||0), 0)
-    // Total Paid (gross) - includes all payments (advances + cash)
-    const grossPaid = regularPayments.reduce((s:number,p:any)=> s + Number(p.amount||0), 0)
-    // Net Paid after subtracting returns
-    const netPaid = Math.max(0, grossPaid - totalRefunds)
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>IPD Bill Receipt</title>
+
+    // Total paid = (advance + cash payments) - advance returns - refunds
+    const grossPaid = payments.reduce((s:number,p:any)=>{
+      const amt = Number(p.amount||0)
+      const isReturn = String(p.type||'').toLowerCase()==='refund' || String(p.method||'').toLowerCase()==='advance return'
+      return s + (isReturn ? -amt : amt)
+    }, 0)
+
+    const patient = enc?.patientId || enc?.patient || {};
+    const startAt = enc?.startAt || enc?.createdAt || nowIso;
+    const endAt = enc?.endAt || enc?.dischargedAt || '';
+    const isDischarged = !!endAt;
+
+    const mrn = String(patient?.mrn || '-');
+    const patientName = String(patient?.fullName || patient?.name || '-');
+    const patientPhone = String(patient?.phone || patient?.phoneNo || patient?.phoneNormalized || patient?.mobile || '-');
+    const patientAddress = String(patient?.address || patient?.city || '-');
+    const fatherName = String(patient?.fatherName || patient?.guardianName || '-');
+    const age = String(patient?.age || '-');
+    const gender = String(patient?.gender || '-');
+
+    const linesHtml = charges.length
+      ? charges.map((c:any, idx:number) => {
+          const qty = Number(c.qty || 1)
+          const paid = Number(c.paidAmount || 0)
+          const amt = Number(c.amount || 0)
+          const remaining = Math.max(0, amt - paid)
+          const status = remaining <= 0 ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'UNPAID')
+          return `<tr>
+            <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center">${idx + 1}</td>
+            <td style="padding:6px 8px;border:1px solid #cbd5e1">${escapeHtml(c.description||'')}</td>
+            <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center">${qty}</td>
+            <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:right">${currency(amt)}</td>
+            <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center">${status}</td>
+          </tr>`
+        }).join('')
+      : `<tr><td colspan="5" style="padding:16px 8px;text-align:center;color:#94a3b8">No charges</td></tr>`
+
+    const paysHtml = payments.length
+      ? payments.map((p:any) => `<tr>
+        <td style="padding:6px 8px;border:1px solid #cbd5e1">${fmtDateTime12(p.receivedAt||nowIso)}</td>
+        <td style="padding:6px 8px;border:1px solid #cbd5e1">${escapeHtml(p.method||'-')}</td>
+        <td style="padding:6px 8px;border:1px solid #cbd5e1">${escapeHtml(p.refNo||'')}</td>
+        <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:right">${currency(Number(p.amount||0))}</td>
+      </tr>`).join('')
+      : `<tr><td colspan="4" style="padding:16px 8px;text-align:center;color:#94a3b8">No payments</td></tr>`
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>IPD Final Invoice</title>
       <style>
-        @page { size: A4 portrait; margin: 8mm }
-        body{ font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; color:#0f172a; font-size:12px; line-height:1.25 }
+        @page { size: A4 portrait; margin: 10mm }
+        body{ font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; color:#0f172a; font-size:13px; line-height:1.35 }
         .wrap{ width:100%; max-width: 190mm; margin: 0 auto }
-        .hdr{ display:flex; align-items:center; gap:10px }
-        .logo img{ height:46px; width:auto; object-fit:contain }
-        .hinfo{ text-align:center }
-        .title{ font-size:18px; font-weight:900; line-height:1.1 }
-        .muted{ color:#64748b; font-size:11px }
-        .hr{ border-bottom:1px solid #0f172a; margin:6px 0 }
-        .kv{ display:grid; grid-template-columns: 120px 1fr 120px 1fr; gap:3px 10px; font-size:12px }
-        .box{ border:1px solid #e5e7eb; border-radius:8px; padding:6px; margin:8px 0 }
-        table{ width:100%; border-collapse:collapse; font-size:12px }
-        th{ background:#f8fafc; text-align:left; padding:5px 6px; border-bottom:1px solid #e5e7eb }
+        .hdr{ display:flex; align-items:center; gap:12px; margin-bottom:8px }
+        .logo img{ height:56px; width:auto; object-fit:contain }
+        .hinfo{ text-align:center; flex:1 }
+        .htitle{ font-size:22px; font-weight:800; color:#2563eb; letter-spacing:0.5px }
+        .muted{ color:#475569; font-size:12px }
+        .hr{ border-bottom:1px solid #0ea5e9; margin:10px 0 }
+        .section-title{ font-size:16px; font-weight:700; margin:14px 0 8px }
+        .box{ border:1px solid #0f172a; border-radius:6px; padding:10px 14px; margin:10px 0 }
+        .kv-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:6px 24px; font-size:13px }
+        .kv-item b{ margin-right:4px }
+        table{ width:100%; border-collapse:collapse; font-size:13px }
+        th{ background:#f1f5f9; text-align:left; padding:8px; border:1px solid #0f172a; font-weight:700 }
         td{ vertical-align:top }
         .right{ text-align:right }
+        .summary-row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #e2e8f0; font-size:13px }
+        .summary-row:last-child{ border-bottom:none }
+        .summary-row .label{ font-weight:700 }
+        .green{ color:#16a34a; font-weight:700 }
+        .red{ color:#dc2626; font-weight:700 }
+        .footer{ text-align:center; color:#64748b; margin-top:14px; font-size:11px }
       </style></head><body>
       <div class="wrap">
         <div class="hdr">
           <div class="logo">${logo? `<img src="${escapeHtml(logo)}" alt="logo"/>` : ''}</div>
-          <div style={{flex:1}}>
-            <div class="title">${escapeHtml(name)}</div>
+          <div class="hinfo">
+            <div class="htitle">${escapeHtml(name)}</div>
             <div class="muted">${escapeHtml(address)}</div>
-            <div class="muted">Ph: ${escapeHtml(phone)}</div>
+            <div class="muted">Tel: ${escapeHtml(phone)}</div>
           </div>
         </div>
         <div class="hr"></div>
+
+        <div class="section-title">IPD Final Invoice</div>
+
         <div class="box">
-          <div class="kv">
-            <div>Patient</div><div>${escapeHtml(patient?.fullName||'-')}</div>
-            <div>MRN</div><div>${escapeHtml(patient?.mrn||'-')}</div>
-            <div>Admission No</div><div>${escapeHtml(enc?.admissionNo||'-')}</div>
-            <div>Date/Time</div><div>${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}</div>
+          <div class="kv-grid">
+            <div class="kv-item"><b>MR #</b> ${escapeHtml(mrn)}</div>
+            <div class="kv-item"><b>Pt. Name</b> ${escapeHtml(patientName)}</div>
+            <div class="kv-item"><b>Father Name</b> ${escapeHtml(fatherName)}</div>
+            <div class="kv-item"><b>Age / Gender</b> ${escapeHtml(age)} / ${escapeHtml(gender)}</div>
+            <div class="kv-item"><b>Phone</b> ${escapeHtml(patientPhone)}</div>
+            <div class="kv-item"><b>Address</b> ${escapeHtml(patientAddress)}</div>
+            <div class="kv-item"><b>Admission No</b> ${escapeHtml(enc?.admissionNo||'-')}</div>
+            <div class="kv-item"><b>Date Of Admission</b> ${fmtDate(startAt)}</div>
+            <div class="kv-item"><b>Time Of Admission</b> ${fmtTime12(startAt)}</div>
+            ${isDischarged ? `<div class="kv-item"><b>Date Of Discharge</b> ${fmtDate(endAt)}</div><div class="kv-item"><b>Time Of Discharge</b> ${fmtTime12(endAt)}</div>` : ''}
           </div>
         </div>
-        <div class="box">
-          <div style={{fontWeight:600,marginBottom:4px}}>Charges</div>
+
+        <div class="box" style="padding:0; overflow:hidden">
+          <div style="padding:10px 14px; font-weight:700; border-bottom:1px solid #0f172a">Charges</div>
           <table>
-            <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
+            <thead>
+              <tr>
+                <th style="width:40px;text-align:center">#</th>
+                <th>Description</th>
+                <th style="width:60px;text-align:center">Qty</th>
+                <th class="right" style="width:100px">Amount</th>
+                <th style="width:80px;text-align:center">Status</th>
+              </tr>
+            </thead>
             <tbody>${linesHtml}</tbody>
-            <tfoot><tr><th style="padding:6px;text-align:right">Total</th><th class="right" style="padding:6px">${currency(total)}</th></tr></tfoot>
+            ${charges.length ? `<tfoot><tr><td colspan="3" style="padding:8px;border:1px solid #0f172a;text-align:right;font-weight:700">Total</td><td style="padding:8px;border:1px solid #0f172a;text-align:right;font-weight:700">${currency(total)}</td><td style="padding:8px;border:1px solid #0f172a"></td></tr></tfoot>` : ''}
           </table>
         </div>
-        <div class="box">
-          <div style={{fontWeight:600,marginBottom:4px}}>Payments</div>
+
+        <div class="box" style="padding:0; overflow:hidden">
+          <div style="padding:10px 14px; font-weight:700; border-bottom:1px solid #0f172a">Payments</div>
           <table>
-            <thead><tr><th>Date/Time</th><th>Method</th><th>Ref</th><th class="right">Amount</th></tr></thead>
-            <tbody>${paysHtml || `<tr><td colspan="4" style="padding:6px">No payments yet</td></tr>`}</tbody>
+            <thead>
+              <tr>
+                <th>Date/Time</th>
+                <th>Method</th>
+                <th>Ref</th>
+                <th class="right" style="width:100px">Amount</th>
+              </tr>
+            </thead>
+            <tbody>${paysHtml}</tbody>
+            ${payments.length ? `<tfoot><tr><td colspan="3" style="padding:8px;border:1px solid #0f172a;text-align:right;font-weight:700">Total Paid</td><td style="padding:8px;border:1px solid #0f172a;text-align:right;font-weight:700">${currency(grossPaid)}</td></tr></tfoot>` : ''}
           </table>
         </div>
+
         <div class="box">
-          <table style="width:100%">
-            <tr><td style="padding:3px 0"><strong>Total Bill</strong></td><td style="padding:3px 0;text-align:right">${currency(total)}</td></tr>
-            <tr><td style="padding:3px 0"><strong>Total Paid</strong></td><td style="padding:3px 0;text-align:right">${currency(grossPaid)}</td></tr>
-            ${totalRefunds > 0 ? `<tr><td style="padding:3px 0">Less: Returns/Refunds</td><td style="padding:3px 0;text-align:right;color:#dc2626">-${currency(totalRefunds)}</td></tr>` : ''}
-            <tr><td style="padding:6px 0 3px 0;border-top:1px solid #e5e7eb"><strong>Net ${total > netPaid ? 'Due' : 'Credit'}</strong></td><td style="padding:6px 0 3px 0;border-top:1px solid #e5e7eb;text-align:right;color:${total > netPaid ? '#dc2626' : '#16a34a'}"><strong>${total > netPaid ? '-' : '+'}${currency(Math.abs(total - netPaid))}</strong></td></tr>
-          </table>
+          <div class="summary-row"><span class="label">Total Bill</span><span>${currency(total)}</span></div>
+          <div class="summary-row"><span class="label">Total Paid</span><span class="green">${currency(grossPaid)}</span></div>
+          <div class="summary-row"><span class="label">Balance</span><span class="green">${currency(Math.abs(total - grossPaid))}</span></div>
         </div>
-        <div style={{textAlign:'center',color:'#475569',marginTop:6px,fontSize:10px}}>System Generated Receipt</div>
+
+        <div class="footer">System Generated Receipt</div>
       </div>
     </body></html>`
     try{
@@ -229,6 +346,7 @@ export default function Reception_IPDTransactions(){
                     <td className="px-2 py-1">
                       <div className="flex items-center gap-2">
                         <button className="btn-outline-navy" onClick={()=>printReceipt(r)}>Print Receipt</button>
+                        <button className="btn-outline-navy flex items-center gap-1" onClick={()=>printGatePass(r)}><LogOut className="h-3 w-3" />Gate Pass</button>
                       </div>
                     </td>
                   </tr>
@@ -273,6 +391,7 @@ export default function Reception_IPDTransactions(){
           </div>
         )}
       </div>
+      <Toast toast={toast} onClose={()=>setToast(null)} />
     </div>
   )
 }

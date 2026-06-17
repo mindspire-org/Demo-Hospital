@@ -1,147 +1,133 @@
-/**
- * Finance ERP sidebar — matches the ERP mockups.
- *
- * Structure:
- *   Dashboard
- *   General Ledger       (collapsible)
- *   Receivables          (collapsible)
- *   Payables             (collapsible)
- *   Expenses
- *   Payroll & HR         (collapsible)
- *   Module Integrations  (collapsible)
- *   Reconciliation
- *   Audit Logs
- *   Sidebar Permissions
- *   User Management
- *   Settings
- *
- * Each top-level item is rendered as a NavLink. Collapsible groups have a
- * chevron; expansion is purely visual (no persisted state).
- */
-
 import { NavLink, useNavigate } from 'react-router-dom'
 import { financeApi } from '../../utils/api'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import PortalSwitcher from '../PortalSwitcher'
 import {
   LogOut,
-  LayoutDashboard,
-  BookOpen,
-  FileText,
-  Scale,
-  TrendingUp,
-  ScrollText,
-  Wallet,
-  Receipt,
-  HandCoins,
-  ShoppingBag,
-  Banknote,
-  Clock,
-  Users,
-  UserCircle,
-  Settings,
-  Activity,
-  Stethoscope,
+  BarChart3,
   FlaskConical,
-  Pill,
-  ScanLine,
-  Sparkles,
-  Workflow,
+  LayoutDashboard,
+  Users,
+  Activity,
+  FileText,
+  BookOpen,
+  Settings,
+  CreditCard,
+  Calculator,
+  Receipt,
+  TrendingUp,
+  PieChart,
+  DollarSign,
   Repeat,
-  ShieldCheck,
-  Library,
-  ClipboardList,
-  ChevronDown,
+  Shield,
+  Landmark,
+  Printer,
+  CalendarClock,
+  Clock,
 } from 'lucide-react'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: LucideIcon }
 
-type Section =
-  | { type: 'item'; item: NavItem }
-  | { type: 'group'; label: string; icon: LucideIcon; items: NavItem[] }
+type Section = {
+  label: string
+  items: NavItem[]
+}
 
-// ---------------------------------------------------------------------------
-// sidebar definition (drives the whole menu)
-// ---------------------------------------------------------------------------
+const accountingSection: Section = {
+  label: 'ACCOUNTING',
+  items: [
+    { to: '/finance/chart-of-accounts', label: 'Chart of Accounts', icon: BookOpen },
+    { to: '/finance/vouchers', label: 'Vouchers', icon: Receipt },
+    { to: '/finance/recurring-vouchers', label: 'Recurring Vouchers', icon: Repeat },
+    { to: '/finance/accounts-ledger', label: 'Accounts Ledger', icon: Calculator },
+    { to: '/finance/transactions', label: 'Transactions', icon: CreditCard },
+    { to: '/finance/voucher-print', label: 'Voucher Print', icon: Printer },
+  ],
+}
 
-const SECTIONS: Section[] = [
-  { type: 'item', item: { to: '/finance', label: 'Dashboard', icon: LayoutDashboard, end: true } },
+const shiftsSection: Section = {
+  label: 'SHIFTS',
+  items: [
+    { to: '/finance/shift-reports', label: 'Shift Reports', icon: Clock },
+    { to: '/finance/shift-settings', label: 'Shift Settings', icon: Settings },
+  ],
+}
 
-  { type: 'group', label: 'General Ledger', icon: BookOpen, items: [
-    { to: '/finance/chart-of-accounts', label: 'Chart of Accounts', icon: Library },
-    { to: '/finance/journal-vouchers',  label: 'Journal Vouchers',  icon: ScrollText },
-    { to: '/finance/ledger-explorer',   label: 'Ledger Explorer',   icon: FileText },
-    { to: '/finance/trial-balance',     label: 'Trial Balance',     icon: Scale },
-    { to: '/finance/profit-loss',       label: 'Profit & Loss',     icon: TrendingUp },
-    { to: '/finance/balance-sheet',     label: 'Balance Sheet',     icon: BookOpen },
-    { to: '/finance/petty-cash',        label: 'Petty Cash',        icon: Wallet },
-  ] },
+const budgetControlSection: Section = {
+  label: 'BUDGET & CONTROL',
+  items: [
+    { to: '/finance/budgets', label: 'Budgets', icon: PieChart },
+    { to: '/finance/approval-queue', label: 'Approval Queue', icon: Shield },
+    { to: '/finance/fiscal-periods', label: 'Fiscal Periods', icon: CalendarClock },
+    { to: '/finance/bank-reconciliation', label: 'Bank Reconciliation', icon: Landmark },  
+  ],
+}
 
-  { type: 'group', label: 'Receivables', icon: HandCoins, items: [
-    { to: '/finance/receivables/patient',   label: 'Patient AR',    icon: Users },
-    // { to: '/finance/receivables/corporate', label: 'Corporate AR',  icon: Building2 },
-    { to: '/finance/receivables/aging',     label: 'AR Aging',      icon: Clock },
-  ] },
+ 
 
-  { type: 'group', label: 'Payables', icon: Receipt, items: [
-    { to: '/finance/vendors',          label: 'Vendors',         icon: Users },
-    { to: '/finance/bills',            label: 'Bills / Purchases', icon: ShoppingBag },
-    { to: '/finance/vendor-payments',  label: 'Vendor Payments', icon: Banknote },
-    { to: '/finance/payables/aging',   label: 'Aging',           icon: Clock },
-  ] },
+const financialReportsSection: Section = {
+  label: 'FINANCIAL REPORTS',
+  items: [
+    { to: '/finance/trial-balance', label: 'Trial Balance', icon: TrendingUp },
+    { to: '/finance/profit-loss', label: 'Profit & Loss', icon: PieChart },
+    { to: '/finance/balance-sheet', label: 'Balance Sheet', icon: DollarSign },
+    { to: '/finance/cash-flow', label: 'Cash Flow', icon: Activity },
+  ],
+}
 
-  { type: 'item', item: { to: '/finance/expenses', label: 'Expenses', icon: Receipt } },
+const reportsSection: Section = {
+  label: 'MODULE REPORTS',
+  items: [
+    { to: '/finance/pharmacy-reports', label: 'Pharmacy Reports', icon: BarChart3 },
+    { to: '/finance/lab-reports', label: 'Lab Reports', icon: FlaskConical },
+    { to: '/finance/diagnostics-dashboard', label: 'Diagnostics Dashboard', icon: LayoutDashboard },
+    { to: '/finance/staff-dashboard', label: 'Staff Dashboard', icon: Users },
+    { to: '/finance/hospital-dashboard', label: 'Hospital Dashboard', icon: Activity },
+  ],
+}
 
-  { type: 'group', label: 'Payroll & HR', icon: Users, items: [
-    { to: '/finance/payroll/staff',               label: 'Staff Payroll',        icon: UserCircle },
-    { to: '/finance/payroll/doctors',             label: 'Doctor Payroll',       icon: Stethoscope },
-    { to: '/finance/payroll/attendance',          label: 'Attendance Finance',   icon: Clock },
-    { to: '/finance/payroll/earnings-deductions', label: 'Earnings / Deductions', icon: ClipboardList },
-  ] },
+const adminSection: Section = {
+  label: 'ADMIN',
+  items: [
+    { to: '/finance/audit-logs', label: 'Audit Logs', icon: FileText },
+    { to: '/finance/sidebar-permissions', label: 'Sidebar Permissions', icon: Settings },
+    { to: '/finance/user-management', label: 'User Management', icon: Users },
+  ],
+}
 
-  { type: 'group', label: 'Module Integrations', icon: Workflow, items: [
-    { to: '/finance/integrations/opd',        label: 'OPD',         icon: Activity },
-    { to: '/finance/integrations/ipd',        label: 'IPD',         icon: Stethoscope },
-    { to: '/finance/integrations/lab',        label: 'Lab',         icon: FlaskConical },
-    { to: '/finance/integrations/pharmacy',   label: 'Pharmacy',    icon: Pill },
-    { to: '/finance/integrations/diagnostic', label: 'Diagnostics', icon: ScanLine },
-    { to: '/finance/integrations/aesthetic',  label: 'Aesthetic',   icon: Sparkles },
-  ] },
+const dashboardSection: Section = {
+  label: 'HOME',
+  items: [
+    { to: '/finance/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  ],
+}
 
-  { type: 'item', item: { to: '/finance/reconciliation',      label: 'Reconciliation',      icon: Repeat } },
-  { type: 'item', item: { to: '/finance/audit-logs',          label: 'Audit Logs',          icon: FileText } },
-  { type: 'item', item: { to: '/finance/sidebar-permissions', label: 'Sidebar Permissions', icon: ShieldCheck } },
-  { type: 'item', item: { to: '/finance/user-management',     label: 'User Management',     icon: Users } },
-  { type: 'item', item: { to: '/finance/settings',            label: 'Settings',            icon: Settings } },
+const allSections: Section[] = [
+  dashboardSection,
+  accountingSection,
+  shiftsSection,
+  budgetControlSection,
+  financialReportsSection,
+  reportsSection,
+  adminSection,
 ]
 
-// Flat list of every NavItem (used by Sidebar Permissions admin page).
-export const financeSidebarNav: NavItem[] = SECTIONS.flatMap(s =>
-  s.type === 'item' ? [s.item] : s.items
-)
-
-// ---------------------------------------------------------------------------
-// component
-// ---------------------------------------------------------------------------
+// Flat array of all nav items for permissions management
+export const financeSidebarNav: NavItem[] = allSections.flatMap(s => s.items)
 
 export default function Finance_Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate()
   const [role, setRole] = useState<string>('admin')
   const [permMap, setPermMap] = useState<Map<string, any>>(new Map())
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    'General Ledger': true,
-    'Receivables': false,
-    'Payables': false,
-    'Payroll & HR': false,
-    'Module Integrations': false,
-  })
   const width = collapsed ? 'md:w-16' : 'md:w-72'
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem('finance.session') || localStorage.getItem('user')
-      if (raw){ const u = JSON.parse(raw); if (u?.role) setRole(String(u.role).toLowerCase()) }
+      if (raw) {
+        const u = JSON.parse(raw)
+        if (u?.role) setRole(String(u.role).toLowerCase())
+      }
     } catch {}
   }, [])
 
@@ -152,98 +138,92 @@ export default function Finance_Sidebar({ collapsed = false }: { collapsed?: boo
         const res: any = await financeApi.listSidebarPermissions(role)
         const doc = Array.isArray(res) ? res[0] : res
         const map = new Map<string, any>()
-        for (const p of (doc?.permissions || [])) map.set(p.path, p)
+        const perms = (doc?.permissions || []) as Array<{ path: string; visible?: boolean; order?: number }>
+        for (const p of perms) map.set(p.path, p)
         if (mounted) setPermMap(map)
       } catch { if (mounted) setPermMap(new Map()) }
     })()
     return () => { mounted = false }
   }, [role])
 
-  const canShow = (path: string) => {
-    if (path === '/finance/sidebar-permissions' && role.toLowerCase() !== 'admin') return false
-    const perm = permMap.get(path)
-    return perm ? perm.visible !== false : true
+  const canShow = (_path: string) => {
+    // All modules visible — permissions disabled
+    return true
   }
 
   const byOrder = (a: NavItem, b: NavItem) => {
     const oa = permMap.get(a.to)?.order ?? Number.MAX_SAFE_INTEGER
     const ob = permMap.get(b.to)?.order ?? Number.MAX_SAFE_INTEGER
-    return oa - ob
+    if (oa !== ob) return oa - ob
+    return 0
   }
 
-  const sections = useMemo(() => SECTIONS.map(s => {
-    if (s.type === 'item') return s
-    return { ...s, items: s.items.filter(i => canShow(i.to)).sort(byOrder) }
-  }).filter(s => s.type === 'item' ? canShow(s.item.to) : s.items.length > 0),
-    [permMap, role]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // --------------------------------------------------------------------- rendering
-
-  const renderNavItem = (item: NavItem, nested = false) => {
+  const renderNavItem = (item: NavItem) => {
     const Icon = item.icon
     return (
       <NavLink
         key={item.to}
         to={item.to}
-        end={item.end}
         title={collapsed ? item.label : undefined}
         className={({ isActive }) => {
           const base = collapsed
-            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center'
-            : `rounded-md ${nested ? 'pl-9 pr-3' : 'px-3'} py-2 text-sm font-medium flex items-center gap-2`
+            ? 'group relative flex items-center justify-center rounded-lg p-2 text-[13px] font-medium transition-all duration-150'
+            : 'group relative flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] font-medium transition-all duration-150'
           const active = isActive
-            ? 'text-white'
-            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+            ? 'bg-slate-900 text-white shadow-sm shadow-slate-900/20 dark:bg-slate-800 dark:text-white dark:shadow-none'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200'
           return `${base} ${active}`
         }}
-        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)' } as any) : undefined)}
+        end={item.end}
       >
         {({ isActive }) => (
           <>
-            <Icon className={collapsed ? 'h-5 w-5' : 'h-4 w-4'} style={{ color: isActive ? '#fff' : undefined }} />
+            <Icon className={collapsed ? 'h-[18px] w-[18px] shrink-0' : 'h-4 w-4 shrink-0'} />
             {!collapsed && <span className="truncate">{item.label}</span>}
+            {collapsed && isActive && (
+              <span className="absolute -left-0.5 top-1/2 -translate-y-1/2 h-4 w-[3px] rounded-r-full bg-white" />
+            )}
           </>
         )}
       </NavLink>
     )
   }
 
-  const renderSection = (s: Section) => {
-    if (s.type === 'item') return renderNavItem(s.item)
-    const Icon = s.icon
-    const open = !!openGroups[s.label]
-    if (collapsed){
-      // In collapsed mode show each child as icon-only directly
+  const renderSection = (section: Section) => {
+    const visibleItems = section.items.filter(i => canShow(i.to)).sort(byOrder)
+    if (visibleItems.length === 0) return null
+
+    if (collapsed) {
       return (
-        <div key={s.label} className="space-y-1">
-          {s.items.map(i => renderNavItem(i))}
+        <div key={section.label} className="space-y-1">
+          {visibleItems.map(renderNavItem)}
         </div>
       )
     }
+
     return (
-      <div key={s.label} className="space-y-1">
-        <button
-          type="button"
-          onClick={() => setOpenGroups(prev => ({ ...prev, [s.label]: !open }))}
-          className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
-          aria-expanded={open}
-        >
-          <Icon className="h-4 w-4" />
-          <span className="flex-1 text-left truncate">{s.label}</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-        </button>
-        {open && <div className="space-y-1">{s.items.map(i => renderNavItem(i, true))}</div>}
+      <div key={section.label} className="rounded-lg bg-slate-50/60 dark:bg-slate-800/30">
+        <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">
+          <span className="flex-1">{section.label}</span>
+        </div>
+        <div className="space-y-0.5 px-1.5 pb-1.5">
+          {visibleItems.map(renderNavItem)}
+        </div>
       </div>
     )
   }
 
   return (
-    <aside className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col md:border-r bg-white/80 backdrop-blur-md shadow-sm dark:bg-slate-900/60 dark:border-slate-700`}>
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2' : 'p-3'} space-y-1`}>
-        {sections.map(renderSection)}
+    <aside
+      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col border-r border-slate-200/80 bg-white dark:bg-[#0b1220] dark:border-slate-800/80`}
+    >
+      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}`}>
+        {/* All sections */}
+        {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
-        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
+
+      {/* Footer */}
+      <div className={`border-t border-slate-200/60 dark:border-slate-800/60 ${collapsed ? 'p-2 space-y-1.5' : 'p-3 space-y-1.5'}`}>
         <button
           onClick={async () => {
             try { await financeApi.logout() } catch {}
@@ -251,14 +231,14 @@ export default function Finance_Sidebar({ collapsed = false }: { collapsed?: boo
             navigate('/finance/login')
           }}
           title={collapsed ? 'Logout' : undefined}
-          className={collapsed ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium' : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium'}
-          style={{ color: 'var(--navy)', border: '1px solid var(--navy)', backgroundColor: '#fff' }}
+          className={`w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-500 transition-all duration-150 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-rose-900/20 dark:hover:text-rose-400 ${collapsed ? 'p-2.5' : ''}`}
           aria-label="Logout"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4 shrink-0" />
           {!collapsed && <span>Logout</span>}
         </button>
       </div>
     </aside>
   )
 }
+

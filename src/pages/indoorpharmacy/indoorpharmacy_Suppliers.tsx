@@ -75,8 +75,8 @@ export default function IndoorPharmacy_Suppliers() {
 
   useEffect(() => {
     function onReturn(){ setReloadTick(t=>t+1) }
-    window.addEventListener('pharmacy:return', onReturn as any)
-    return ()=>{ window.removeEventListener('pharmacy:return', onReturn as any) }
+    window.addEventListener('indoor-pharmacy:return', onReturn as any)
+    return ()=>{ window.removeEventListener('indoor-pharmacy:return', onReturn as any) }
   }, [])
 
   

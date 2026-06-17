@@ -1,83 +1,91 @@
-import { useEffect, useState, useMemo } from 'react'
-import { labApi } from '@/features/lab'
+import { useState, useEffect } from 'react'
 
-export type LabSession = {
-  username: string
-  role: string
+export interface LabSession {
+  userId: string | null
+  username: string | null
+  role: string | null
   isAdmin: boolean
   isMainLab: boolean
-  collectionCenterId: string
-  permissions: string[]
-  loading: boolean
+  isCollector: boolean
+  assignedCollectionCenters: string[] // List of center IDs this user can access
 }
 
-function readLocalSession(): { username: string; role: string } {
+function decodeJwt(token: string): any {
   try {
-    const raw = localStorage.getItem('lab.session')
-    if (raw) {
-      const u = JSON.parse(raw)
-      return { username: String(u.username || u.name || ''), role: String(u.role || 'Lab') }
-    }
-  } catch {}
-  return { username: '', role: 'Lab' }
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const base64Url = parts[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      window
+        .atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    return JSON.parse(jsonPayload)
+  } catch (e) {
+    console.error('Failed to decode JWT manually:', e)
+    return null
+  }
 }
 
-/**
- * Shared hook for Lab RBAC.
- *
- * 1. Reads `lab.session` from localStorage for immediate UI rendering.
- * 2. Calls backend `GET /lab/sidebar-permissions?role=...` to get authoritative permissions.
- * 3. Derives isAdmin / isMainLab / collectionCenterId for role-based UI logic.
- */
 export function useLabSession(): LabSession {
-  const [permissions, setPermissions] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const local = useMemo(readLocalSession, [])
-  const role = local.role.toLowerCase()
-  const isAdmin = role === 'admin'
-  const isMainLab = role === 'admin' || !local.role.toLowerCase().includes('collection')
-
-  // Derive collectionCenterId from session if present
-  const collectionCenterId = useMemo(() => {
-    try {
-      const raw = localStorage.getItem('lab.session')
-      if (raw) {
-        const u = JSON.parse(raw)
-        return String(u.collectionCenterId || u.centerId || '')
-      }
-    } catch {}
-    return ''
-  }, [])
+  const [session, setSession] = useState<LabSession>({
+    userId: null,
+    username: null,
+    role: null,
+    isAdmin: false,
+    isMainLab: true,
+    isCollector: false,
+    assignedCollectionCenters: [],
+  })
 
   useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      try {
-        const res: any = await labApi.listSidebarPermissions(local.role)
-        if (!mounted) return
-        const perms: string[] = Array.isArray(res?.permissions)
-          ? res.permissions.map((p: any) => String(p.path || p.label || ''))
-          : Array.isArray(res)
-            ? res.map((p: any) => String(p.path || p.label || ''))
-            : []
-        setPermissions(perms)
-      } catch {
-        // Backend unreachable — keep local-only session
-      } finally {
-        if (mounted) setLoading(false)
+    // 1. Try reading from lab.session JSON
+    let sessionUser: any = null
+    try {
+      const raw = localStorage.getItem('lab.session') || localStorage.getItem('user')
+      if (raw) {
+        sessionUser = JSON.parse(raw)
       }
-    })()
-    return () => { mounted = false }
-  }, [local.role])
+    } catch (err) {
+      console.error('Failed to parse lab.session from localStorage:', err)
+    }
 
-  return {
-    username: local.username,
-    role: local.role,
-    isAdmin,
-    isMainLab,
-    collectionCenterId,
-    permissions,
-    loading,
-  }
+    // 2. Try decoding JWT token for additional/fallback info
+    const token = localStorage.getItem('lab.token') || localStorage.getItem('token')
+    let decoded: any = null
+    if (token) {
+      decoded = decodeJwt(token)
+    }
+
+    const username = sessionUser?.username || sessionUser?.name || decoded?.username || decoded?.name || null
+    const role = sessionUser?.role || decoded?.role || null
+    const userId = sessionUser?.id || sessionUser?._id || decoded?.id || null
+
+    const roleLower = String(role || '').toLowerCase()
+    const isAdmin = roleLower === 'admin' || roleLower === 'administrator'
+    const isCollector = roleLower.includes('collector')
+    const isMainLab = !roleLower.includes('outsource') && !roleLower.includes('cc') && !roleLower.includes('collector')
+
+    // Load assigned collection centers
+    const assignedCenters = sessionUser?.assignedCollectionCenters 
+      || sessionUser?.collectionCenterIds 
+      || decoded?.assignedCollectionCenters 
+      || decoded?.collectionCenterIds 
+      || []
+    
+    setSession({
+      userId,
+      username,
+      role,
+      isAdmin,
+      isMainLab,
+      isCollector,
+      assignedCollectionCenters: Array.isArray(assignedCenters) ? assignedCenters : [],
+    })
+  }, [])
+
+  return session
 }

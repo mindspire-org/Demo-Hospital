@@ -249,8 +249,8 @@ export default function Finance_ExpenseHistory() {
     <div className="w-full px-6 py-8 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-2xl font-bold text-slate-800">Expense History</div>
-          <div className="text-sm text-slate-500">Department-wise expense records</div>
+          <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">Expense History</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Department-wise expense records</div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={()=>setTick(t=>t+1)} className="btn-outline-navy">Refresh</button>
@@ -261,82 +261,82 @@ export default function Finance_ExpenseHistory() {
       </div>
 
       {/* Department & Category Management */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="mb-3 text-sm font-medium text-slate-700">Manage Departments & Categories</div>
+      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+        <div className="mb-3 text-sm font-medium text-slate-700 dark:text-slate-300">Manage Departments & Categories</div>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs text-slate-500">Add New Department</label>
+            <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Add New Department</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newDeptName}
                 onChange={e => setNewDeptName(e.target.value)}
                 placeholder="e.g., Administration, Maintenance..."
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
               />
               <button
                 onClick={addDepartment}
                 disabled={!newDeptName.trim() || addingDept}
-                className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+                className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-600 dark:hover:bg-slate-500"
               >
                 {addingDept ? 'Adding...' : '+ Add Dept'}
               </button>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {expenseDepartments.map(d => (
-                <span key={d._id} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{d.name}</span>
+                <span key={d._id} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-400">{d.name}</span>
               ))}
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs text-slate-500">Add New Category</label>
+            <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Add New Category</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newCatName}
                 onChange={e => setNewCatName(e.target.value)}
                 placeholder="e.g., Electric Bill, Generator Fuel..."
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
               />
               <button
                 onClick={addCategory}
                 disabled={!newCatName.trim() || addingCat}
-                className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+                className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-600 dark:hover:bg-slate-500"
               >
                 {addingCat ? 'Adding...' : '+ Add Category'}
               </button>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {expenseCategories.map(c => (
-                <span key={c._id} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{c.name}</span>
+                <span key={c._id} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-400">{c.name}</span>
               ))}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
         <div className="grid items-end gap-4 md:grid-cols-9">
           <div>
-            <label className="mb-1 block text-sm text-slate-700">From</label>
-            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">From</label>
+            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200" />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-700">To</label>
-            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">To</label>
+            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200" />
           </div>
           <div className="md:col-span-2">
             <div className="flex gap-3">
               <div className="min-w-0 flex-1">
-                <label className="mb-1 block text-sm text-slate-700">Department</label>
-                <select value={dept} onChange={e=>setDept(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Department</label>
+                <select value={dept} onChange={e=>setDept(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200">
                   <option>All</option>
                   {departmentNames.map((d: string) => (<option key={d}>{d}</option>))}
                 </select>
               </div>
               <div className="min-w-0 flex-1">
-                <label className="mb-1 block text-sm text-slate-700">Category</label>
-                <select value={cat} onChange={e=>setCat(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Category</label>
+                <select value={cat} onChange={e=>setCat(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200">
                   <option>All</option>
                   {categoryNames.map((c: string) => (<option key={c} value={c}>{c}</option>))}
                 </select>
@@ -344,8 +344,8 @@ export default function Finance_ExpenseHistory() {
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-700">Method</label>
-            <select value={method} onChange={e=>setMethod(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Method</label>
+            <select value={method} onChange={e=>setMethod(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200">
               <option>All</option>
               <option>cash</option>
               <option>bank</option>
@@ -353,8 +353,8 @@ export default function Finance_ExpenseHistory() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-700">User</label>
-            <select value={user} onChange={e=>setUser(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[160px]">
+            <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">User</label>
+            <select value={user} onChange={e=>setUser(e.target.value as any)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[160px] dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200">
               <option>All</option>
               {userNames.map(u => (
                 <option key={u} value={u}>
@@ -364,12 +364,12 @@ export default function Finance_ExpenseHistory() {
             </select>
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1 block text-sm text-slate-700">Search</label>
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="description, ref, dept" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Search</label>
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="description, ref, dept" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200" />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-700">Rows</label>
-            <select value={rowsPerPage} onChange={e=>setRowsPerPage(parseInt(e.target.value))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <label className="mb-1 block text-sm text-slate-700 dark:text-slate-300">Rows</label>
+            <select value={rowsPerPage} onChange={e=>setRowsPerPage(parseInt(e.target.value))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200">
               <option value={50}>50</option>
               <option value={100}>100</option>
               <option value={200}>200</option>
@@ -378,11 +378,11 @@ export default function Finance_ExpenseHistory() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Results</div>
+      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+        <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800 dark:border-slate-700 dark:text-slate-200">Results</div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700">
               <tr>
                 <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date/Time</th>
                 <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Department</th>
@@ -395,9 +395,9 @@ export default function Finance_ExpenseHistory() {
                 <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 text-slate-700">
+            <tbody className="divide-y divide-slate-200 text-slate-700 dark:divide-slate-700 dark:text-slate-300">
               {filtered.slice(0, rowsPerPage).map(r => (
-                <tr key={r.id} className="hover:bg-slate-50/50">
+                <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition">
                   <td className="px-4 py-2">{new Date(r.datetime).toLocaleString()}</td>
                   <td className="px-4 py-2">{r.department || '-'}</td>
                   <td className="px-4 py-2">{r.createdBy || '-'}</td>
@@ -408,23 +408,23 @@ export default function Finance_ExpenseHistory() {
                   <td className="px-4 py-2">Rs {r.amount.toFixed(2)}</td>
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => handleEdit(r)} className="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
-                      <button onClick={() => setDeleteConfirm(r.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+                      <button onClick={() => handleEdit(r)} className="text-blue-600 hover:text-blue-800 text-sm font-medium dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
+                      <button onClick={() => setDeleteConfirm(r.id)} className="text-red-600 hover:text-red-800 text-sm font-medium dark:text-red-400 dark:hover:text-red-300">Delete</button>
                     </div>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500">No expenses</td>
+                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">No expenses</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
+        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400">
           <div>Showing {Math.min(rowsPerPage, filtered.length)} of {filtered.length}</div>
-          <div className="font-medium">Total: Rs {total.toFixed(2)}</div>
+          <div className="font-medium dark:text-slate-300">Total: Rs {total.toFixed(2)}</div>
         </div>
       </div>
       <Hospital_AddExpenseDialog open={addOpen} onClose={()=>setAddOpen(false)} onSaved={()=>setTick(t=>t+1)} />
@@ -442,14 +442,14 @@ export default function Finance_ExpenseHistory() {
       {/* Delete Confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-            <div className="border-b border-slate-200 px-5 py-3">
-              <div className="text-lg font-semibold text-slate-800">Confirm Delete</div>
+          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-slate-800 dark:ring-slate-700">
+            <div className="border-b border-slate-200 px-5 py-3 dark:border-slate-700">
+              <div className="text-lg font-semibold text-slate-800 dark:text-slate-200">Confirm Delete</div>
             </div>
             <div className="px-5 py-4">
-              <p className="text-slate-700">Are you sure you want to delete this expense? This action cannot be undone.</p>
+              <p className="text-slate-700 dark:text-slate-300">Are you sure you want to delete this expense? This action cannot be undone.</p>
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-700">
               <button onClick={() => setDeleteConfirm(null)} className="btn-outline-navy">Cancel</button>
               <button onClick={() => handleDelete(deleteConfirm)} className="btn bg-red-600 hover:bg-red-700 text-white">Delete</button>
             </div>

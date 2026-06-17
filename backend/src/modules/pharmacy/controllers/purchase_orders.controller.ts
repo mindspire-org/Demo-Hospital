@@ -47,8 +47,8 @@ export async function getOne(req: Request, res: Response) {
 export async function create(req: Request, res: Response) {
   const data = purchaseOrderCreateSchema.parse(req.body)
   
-  // Generate PO Number: PO-YYYYMMDD-XXXX
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  // Generate PO Number: PO-YYYYMMDD-XXXX (using local date)
+  const now = new Date(); const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
   const count = await PurchaseOrder.countDocuments({
     createdAt: { 
       $gte: new Date(new Date().setHours(0,0,0,0)),

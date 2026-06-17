@@ -23,7 +23,7 @@ export default function Hospital_ManageWardsModal({ open, onClose, wards, floors
     <Hospital_Modal open={open} onClose={onClose}>
       <div className="px-1">
         <div className="text-lg font-semibold text-slate-800">Manage Wards</div>
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 space-y-3 max-h-96 overflow-y-auto pr-2">
           {rows.map(w => {
             const e = edits[w.id]
             return (

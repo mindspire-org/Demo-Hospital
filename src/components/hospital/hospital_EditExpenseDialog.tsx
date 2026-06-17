@@ -48,7 +48,7 @@ export default function Hospital_EditExpenseDialog({ expense, open, onClose, onS
     let cancelled = false
     ;(async () => {
       try {
-        const res: any = await hospitalApi.listDepartments()
+        const res: any = await hospitalApi.listDepartments({ limit: 1000 })
         const list: Array<{ id: string; name: string }> = (res?.departments || res || []).map((d: any) => ({ id: String(d._id || d.id), name: d.name }))
         if (!cancelled) {
           setDepartments(list)

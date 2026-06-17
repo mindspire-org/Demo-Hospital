@@ -5,7 +5,7 @@ import { InventoryItem } from '../models/indoorInventoryItem'
 import { AuditLog } from '../models/indoorAuditLog'
 import mongoose from 'mongoose'
 import { postFbrInvoiceViaSDC } from '../../hospital/services/fbr'
-import { postUserRevenueJournal } from '../../finance/controllers/finance_ledger'
+import { postPharmacySaleJournal } from '../../finance/controllers/finance_ledger'
 
 function todayKey(){
   const d = new Date()
@@ -117,20 +117,20 @@ export async function create(req: Request, res: Response){
     })
   } catch {}
 
-  // Auto-post revenue journal to finance
+  // Auto-post revenue journal to finance (with COGS)
   try {
     const total = Number(doc.total || 0)
     if (total > 0) {
+      const cogsTotal = linesWithCost.reduce((s: number, l: any) => s + Number(l.costPerUnit || 0) * Number(l.qty || 0), 0)
       const actor = String((data as any)?.createdBy || (req as any).user?.name || (req as any).user?.email || 'system')
-      const userAccount = `${actor}/pharmacy`
-      await postUserRevenueJournal({
-        userAccountName: userAccount,
-        revenueAccount: 'PHARMACY_REVENUE',
-        amount: total,
-        refType: 'pharmacy_sale',
-        refId: String(doc._id),
-        description: `Pharmacy Sale ${doc.billNo}`,
-        dateIso: new Date().toISOString().slice(0,10)
+      await postPharmacySaleJournal({
+        billNo: doc.billNo,
+        dateIso: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })(),
+        revenueAmount: total,
+        cogsAmount: cogsTotal,
+        paidMethod: 'Cash',
+        customer: data.customer || 'Walk-in',
+        createdByUsername: actor,
       })
     }
   } catch (e) {
@@ -142,11 +142,13 @@ export async function create(req: Request, res: Response){
 
 export async function list(req: Request, res: Response){
   const parsed = salesQuerySchema.safeParse(req.query)
-  const { bill, customer, customerId, phone, payment, medicine, user, from, to, page, limit } = parsed.success ? parsed.data as any : {}
+  const { bill, customer, customerId, patientId, mrn, phone, payment, medicine, user, from, to, page, limit } = parsed.success ? parsed.data as any : {}
   const filter: any = {}
   if (bill) filter.billNo = new RegExp(bill, 'i')
   if (customer) filter.customer = new RegExp(customer, 'i')
   if (customerId) filter.customerId = customerId
+  if (patientId) filter.customerId = patientId
+  if (mrn) filter.customerId = mrn
   if (phone) filter.customerPhone = new RegExp(phone, 'i')
   if (payment && payment !== 'Any') filter.payment = payment
   if (medicine) filter['lines.name'] = new RegExp(medicine, 'i')

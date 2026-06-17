@@ -19,7 +19,7 @@ export {
   cachedApi,
   clearApiCache,
   invalidateCache,
-} from '@/api'
+} from '../api'
 
 export {
   buildQuery,
@@ -28,26 +28,29 @@ export {
   buildUrl,
   jsonBody,
   request,
-} from '@/api'
+} from '../api'
 
 // Re-export domain APIs from feature modules
-export { adminApi } from '@/features/admin'
-export { diagnosticApi } from '@/features/diagnostic'
-export { receptionApi } from '@/features/reception'
-export { corporateApi } from '@/features/corporate'
-export { pharmacyApi } from '@/features/pharmacy'
-export { indoorPharmacyApi } from '@/features/indoorpharmacy'
-export { aestheticApi } from '@/features/aesthetic'
-export { labApi } from '@/features/lab'
-export { hospitalApi } from '@/features/hospital'
+export { adminApi } from '../features/admin'
+export { diagnosticApi } from '../features/diagnostic'
+export { receptionApi } from '../features/reception'
+export { corporateApi } from '../features/corporate'
+export { pharmacyApi } from '../features/pharmacy'
+export { indoorPharmacyApi } from '../features/indoorpharmacy'
+export { aestheticApi } from '../features/aesthetic'
+export { labApi } from '../features/lab'
+export { hospitalApi } from '../features/hospital'
 // Hospital sub-modules (direct access)
-export { opdApi } from '@/features/hospital/opd'
-export { ipdApi } from '@/features/hospital/ipd'
-export { erApi } from '@/features/hospital/er'
-export { storeApi } from '@/features/hospital/store'
-export { ambulanceApi } from '@/features/hospital/ambulance'
-export { equipmentApi } from '@/features/hospital/equipment'
-export { sharedApi } from '@/features/hospital/shared'
-export { financeApi } from '@/features/finance'
-export { aestheticFinanceApi } from '@/features/aestheticFinance'
-export { dialysisApi } from '@/features/dialysis'
+export { opdApi } from '../features/hospital/opd'
+export { ipdApi } from '../features/hospital/ipd'
+export { erApi } from '../features/hospital/er'
+export { storeApi } from '../features/hospital/store'
+export { ambulanceApi } from '../features/hospital/ambulance'
+export { equipmentApi } from '../features/hospital/equipment'
+export { sharedApi } from '../features/hospital/shared'
+export { financeApi } from '../features/finance'
+export { aestheticFinanceApi } from '../features/aestheticFinance'
+export { dialysisApi } from '../features/dialysis'
+export { otApi } from '../features/hospital/ot'
+export { icuApi } from '../features/hospital/icu'
+export { superAdminApi } from '../features/superAdmin'

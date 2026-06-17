@@ -46,8 +46,8 @@ export default function IndoorPharmacy_Companies(){
   // Refresh this page when assignments change elsewhere
   useEffect(() => {
     const onRefresh = () => setReloadTick(t => t + 1)
-    window.addEventListener('pharmacy:companies:refresh', onRefresh as any)
-    return () => window.removeEventListener('pharmacy:companies:refresh', onRefresh as any)
+    window.addEventListener('indoor-pharmacy:companies:refresh', onRefresh as any)
+    return () => window.removeEventListener('indoor-pharmacy:companies:refresh', onRefresh as any)
   }, [])
 
   const addCompany = async (c: Company) => {

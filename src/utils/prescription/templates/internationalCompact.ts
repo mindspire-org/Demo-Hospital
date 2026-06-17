@@ -1,19 +1,20 @@
 import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import type { PrescriptionPdfData } from '../../prescriptionPdf'
 import { ensurePoppins } from '../ensurePoppins'
-import { ensureUrduNastaleeq } from '../ensureUrduNastaleeq'
+import { ensureUrduNastaleeq, drawUrduText } from '../ensureUrduNastaleeq'
 
 export async function buildInternationalCompact(data: PrescriptionPdfData){
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true })
   const pageWidth = pdf.internal.pageSize.getWidth()
 
   await ensurePoppins(pdf)
-  await ensureUrduNastaleeq(pdf)
-  
+  const urduOk = await ensureUrduNastaleeq(pdf)
+
   const setPoppins = (style: 'normal'|'bold') => { try { pdf.setFont('Poppins', style) } catch { pdf.setFont('helvetica', style) } }
-  const hasUrdu = (s: string) => /[\u0600-\u06FF]/.test(s)
-  const setUrdu = () => { try { pdf.setFont('AlQalamTajNastaleeq', 'normal') } catch { setPoppins('normal') } }
+  const hasUrdu = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrduText = (text: string | string[], x: number, y: number, opts?: any) => {
+    drawUrduText(pdf, text as any, x, y, opts)
+  }
 
   // Compact header for international use
   pdf.setFillColor(245, 247, 250)
@@ -83,19 +84,21 @@ export async function buildInternationalCompact(data: PrescriptionPdfData){
 
     // Medicine name (with Urdu support)
     const nameIsUrdu = hasUrdu(name)
-    if (nameIsUrdu) setUrdu(); else setPoppins('bold')
     pdf.setFontSize(nameIsUrdu ? 9 : 8)
-    pdf.text(`${idx + 1}. ${name || '-'}`, 12, currentY)
+    if (nameIsUrdu) { safeUrduText(`${idx + 1}. ${name || '-'}`, pageWidth - 12, currentY, { align: 'right' }) }
+    else { setPoppins('bold'); pdf.text(`${idx + 1}. ${name || '-'}`, 12, currentY) }
 
     // Instructions (right aligned if Urdu)
     if (instruction) {
       const instrIsUrdu = hasUrdu(instruction)
-      if (instrIsUrdu) setUrdu(); else setPoppins('normal')
       pdf.setFontSize(instrIsUrdu ? 8 : 7)
+      // splitTextToSize needs a reliable font for metrics
+      setPoppins('normal')
       const instrLines = pdf.splitTextToSize(instruction, pageWidth - 80)
       const x = instrIsUrdu ? (pageWidth - 12) : 12
       const align: any = instrIsUrdu ? 'right' : 'left'
-      pdf.text(instrLines.slice(0, 2), x, currentY, { align })
+      if (instrIsUrdu) { safeUrduText(instrLines.slice(0, 2), x, currentY, { align }) }
+      else { pdf.text(instrLines.slice(0, 2), x, currentY, { align }) }
     }
 
     // Dose and duration (small text below)

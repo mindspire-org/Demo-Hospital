@@ -162,6 +162,11 @@ r.delete('/purchase-drafts/:id', Drafts.remove)
 r.get('/inventory', InventoryItems.list)
 // Filtered inventory views for tabs (low|out|expiring)
 r.get('/inventory/filter', InventoryItems.listFiltered)
+
+// Single item operations (using query param 'key' is more robust for slashes in names)
+r.put('/inventory/item', InventoryItems.update)
+r.delete('/inventory/item', InventoryItems.remove)
+
 r.put('/inventory/:key', InventoryItems.update)
 // Inventory summary aggregated from purchases
 r.get('/inventory/summary', InventoryItems.summary)

@@ -17,7 +17,7 @@ import { DiagnosticTest } from '../models/Test'
 import { resolveTestPrice } from '../../corporate/utils/price'
 
 import { CorporateTransaction } from '../../corporate/models/Transaction'
-import { postUserRevenueJournal } from '../../finance/controllers/finance_ledger'
+import { postDiagnosticOrderJournal } from '../../finance/controllers/finance_ledger'
 
 import { CorporateCompany } from '../../corporate/models/Company'
 
@@ -406,15 +406,15 @@ export async function create(req: Request, res: Response){
     const net = Number((data as any).net || 0)
     if (!isCorporate && net > 0) {
       const actor = getActor(req)
-      const userAccount = `${actor}/diagnostic`
-      await postUserRevenueJournal({
-        userAccountName: userAccount,
-        revenueAccount: 'DIAGNOSTIC_REVENUE',
+      await postDiagnosticOrderJournal({
+        orderId: String(doc._id),
+        dateIso: new Date().toISOString().slice(0,10),
         amount: net,
-        refType: 'diagnostic_order',
-        refId: String(doc._id),
-        description: `Diagnostic Order ${tokenNo}`,
-        dateIso: new Date().toISOString().slice(0,10)
+        paidMethod: 'Cash',
+        tokenNo,
+        createdByUsername: actor.actorUsername,
+        patientName: (data as any)?.patient?.fullName,
+        mrn: (data as any)?.patient?.mrn,
       })
     }
   } catch (e) {

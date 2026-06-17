@@ -9,6 +9,7 @@ const InventoryItemSchema = new Schema({
   onHand: { type: Number, default: 0 },
   minStock: { type: Number },
   earliestExpiry: { type: String }, // yyyy-mm-dd
+  earliestExpiryAlert: { type: String }, // yyyy-mm-dd
   lastInvoice: { type: String },
   lastSupplier: { type: String },
   lastSalePerUnit: { type: Number, default: 0 },
@@ -18,6 +19,8 @@ const InventoryItemSchema = new Schema({
   lastCompanyId: { type: String },
   lastInvoiceDate: { type: String },
   lastExpiry: { type: String },
+  expiryAlertDate: { type: String }, // User requested field
+  shelfNumber: { type: String }, // User requested field
   lastPacksReceived: { type: Number, default: 0 },
   lastTotalItemsReceived: { type: Number, default: 0 },
   lastBuyPerPack: { type: Number, default: 0 },
@@ -43,6 +46,7 @@ export type InventoryItemDoc = {
   onHand: number
   minStock?: number
   earliestExpiry?: string
+  earliestExpiryAlert?: string
   lastInvoice?: string
   lastSupplier?: string
   lastSalePerUnit?: number
@@ -51,6 +55,8 @@ export type InventoryItemDoc = {
   lastCompanyId?: string
   lastInvoiceDate?: string
   lastExpiry?: string
+  expiryAlertDate?: string
+  shelfNumber?: string
   lastPacksReceived?: number
   lastTotalItemsReceived?: number
   lastBuyPerPack?: number

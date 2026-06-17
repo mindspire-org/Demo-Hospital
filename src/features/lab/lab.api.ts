@@ -14,7 +14,7 @@
  * - Sidebar Roles & Permissions
  */
 
-import { api, withQuery } from '@/api'
+import { api, withQuery, baseURL } from '../../api'
 
 export const labApi = {
   // -------------------------------------------------------------------------
@@ -211,6 +211,27 @@ export const labApi = {
     api(withQuery('/lab/patients/search', params)),
   updatePatient: (id: string, data: { fullName?: string; fatherName?: string; phone?: string; cnic?: string; gender?: string; age?: string; address?: string; mrn?: string }) =>
     api(`/lab/patients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  listPatients: (params?: { search?: string; page?: number; limit?: number }) =>
+    api(withQuery('/lab/patients', params)),
+  deletePatient: (id: string) => api(`/lab/patients/${id}`, { method: 'DELETE' }),
+  exportPatientsCsv: async () => {
+    const token = (() => { try { return localStorage.getItem('lab.token') || localStorage.getItem('hospital.token') || '' } catch { return '' } })()
+    const res = await fetch(`${baseURL}/lab/patients/export`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    })
+    if (!res.ok) throw new Error('Export failed')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'patients.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+  importPatientsCsv: (csvText: string) => api('/lab/patients/import', {
+    method: 'POST',
+    body: JSON.stringify({ csvText }),
+  }),
 
   // -------------------------------------------------------------------------
   // Tests (Catalog)
@@ -220,8 +241,7 @@ export const labApi = {
   createTest: (data: any) => api('/lab/tests', { method: 'POST', body: JSON.stringify(data) }),
   updateTest: (id: string, data: any) => api(`/lab/tests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTest: (id: string) => api(`/lab/tests/${id}`, { method: 'DELETE' }),
-  seedTests: (category?: string) => api('/lab/tests/seed', { method: 'POST', body: JSON.stringify({ category }) }),
-  getSeedStatus: () => api('/lab/tests/seed-status'),
+
 
   // -------------------------------------------------------------------------
   // Orders
@@ -231,7 +251,7 @@ export const labApi = {
   createOrder: (data: any) => api('/lab/orders', { method: 'POST', body: JSON.stringify(data) }),
   receiveTokenPayment: (tokenNo: string, data: { amount: number; note?: string; method?: string }) =>
     api(`/lab/orders/token/${encodeURIComponent(tokenNo)}/receive-payment`, { method: 'POST', body: JSON.stringify(data) }),
-  updateOrderTrack: (id: string, data: { testId?: string; orderTestId?: string; sampleTime?: string; reportingTime?: string; status?: 'pending' | 'received' | 'sample_collected' | 'in_progress' | 'result_entered' | 'approved' | 'completed' | 'returned' | 'cancelled'; referringConsultant?: string; barcode?: string; isReturned?: boolean; returnReason?: string; refundAmount?: number; refundMethod?: string }) =>
+  updateOrderTrack: (id: string, data: { testId?: string; orderTestId?: string; sampleTime?: string; reportingTime?: string; status?: 'pending' | 'received' | 'sample_collected' | 'in_progress' | 'result_entered' | 'approved' | 'completed' | 'returned' | 'cancelled'; referringConsultant?: string; barcode?: string; isReturned?: boolean; returnReason?: string; refundAmount?: number; refundMethod?: string; sampleType?: string; sampleCondition?: string; sampleTubeType?: string; sampleVolume?: string; sampleNotes?: string; sampleTests?: string[]; sampleId?: string; multipleSamples?: any[] }) =>
     api(`/lab/orders/${id}/track`, { method: 'PUT', body: JSON.stringify(data) }),
   assignBarcode: (id: string, barcode: string) =>
     api(`/lab/orders/${id}/track`, { method: 'PUT', body: JSON.stringify({ barcode }) }),
@@ -277,22 +297,24 @@ export const labApi = {
   // -------------------------------------------------------------------------
   // Tokens
   // -------------------------------------------------------------------------
-  listTokens: (params?: { q?: string; status?: 'token_generated' | 'converted_to_sample' | 'sample_received' | 'result_entered' | 'approved' | 'cancelled'; from?: string; to?: string; collectionCenterId?: string; page?: number; limit?: number }) =>
+  listTokens: (params?: { q?: string; status?: 'token_generated' | 'converted_to_sample' | 'sample_received' | 'result_entered' | 'approved' | 'cancelled'; sampleType?: 'normal' | 'urgent' | 'stat'; from?: string; to?: string; collectionCenterId?: string; page?: number; limit?: number }) =>
     api(withQuery('/lab/tokens', params)),
+  listPackages: (params?: { q?: string; active?: 'true' | 'false'; page?: number; limit?: number }) =>
+    api(withQuery('/lab/test-packages', params)),
   getToken: (id: string) => api(`/lab/tokens/${id}`),
   getTokenTimeline: (id: string) => api(`/lab/tokens/${id}/timeline`),
-  createToken: (data: { patientId: string; patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string }; tests?: string[]; referringConsultant?: string; corporateId?: string; portal?: 'lab' | 'reception'; subtotal?: number; discount?: number; net?: number; receivedAmount?: number }) =>
+  createToken: (data: { patientId: string; patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string }; tests?: string[]; packageIds?: string[]; sampleType?: 'normal' | 'urgent' | 'stat'; referringConsultant?: string; corporateId?: string; portal?: 'lab' | 'reception'; subtotal?: number; discount?: number; net?: number; receivedAmount?: number; paymentMethod?: string }) =>
     api('/lab/tokens', { method: 'POST', body: JSON.stringify(data) }),
-  updateToken: (id: string, data: { patient?: { mrn?: string; fullName?: string; phone?: string; age?: string; gender?: string; address?: string; guardianRelation?: string; guardianName?: string; cnic?: string }; tests?: string[]; referringConsultant?: string } | any) =>
+  updateToken: (id: string, data: { patient?: { mrn?: string; fullName?: string; phone?: string; age?: string; gender?: string; address?: string; guardianRelation?: string; guardianName?: string; cnic?: string }; tests?: string[]; packageIds?: string[]; sampleType?: 'normal' | 'urgent' | 'stat'; referringConsultant?: string } | any) =>
     api(`/lab/tokens/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  convertTokenToSample: (id: string, data: { tests: string[]; subtotal?: number; discount?: number; net?: number; receivedAmount?: number; paymentMethod?: string; paymentNote?: string; referringConsultant?: string; corporateId?: string }) =>
+  convertTokenToSample: (id: string, data: { tests?: string[]; packageIds?: string[]; subtotal?: number; discount?: number; net?: number; receivedAmount?: number; paymentMethod?: string; paymentNote?: string; referringConsultant?: string; corporateId?: string }) =>
     api(`/lab/tokens/${id}/convert`, { method: 'POST', body: JSON.stringify(data) }),
   updateTokenStatus: (id: string, data: { status: 'token_generated' | 'converted_to_sample' | 'sample_received' | 'result_entered' | 'approved' | 'cancelled'; orderId?: string; resultId?: string }) =>
     api(`/lab/tokens/${id}/status`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteToken: (id: string) => api(`/lab/tokens/${id}`, { method: 'DELETE' }),
-  markReportPrinted: (id: string) => api(`/lab/tokens/${id}/report-printed`, { method: 'PUT' }),
   receivePayment: (tokenNo: string, data: { amount: number; method?: string; note?: string }) =>
     api(`/lab/tokens/${encodeURIComponent(tokenNo)}/receive-payment`, { method: 'POST', body: JSON.stringify(data) }),
+  markReportPrinted: (id: string) => api(`/lab/tokens/${id}/report-printed`, { method: 'PUT' }),
 
   // -------------------------------------------------------------------------
   // Dashboard & Reports
@@ -335,9 +357,9 @@ export const labApi = {
   listCollectionCenters: (params?: { q?: string; status?: string; page?: number; limit?: number }) =>
     api(withQuery('/lab/collection-centers', params)),
   listActiveCollectionCenters: () => api('/lab/collection-centers/active'),
-  createCollectionCenter: (data: { name: string; code: string; address?: string; contactPerson?: string; phone?: string; email?: string; status?: 'Active' | 'Inactive'; commissionPercent?: number; allowedTestIds?: string[]; parentCenterId?: string; isHead?: boolean; region?: string }) =>
+  createCollectionCenter: (data: { name: string; code: string; address?: string; contactPerson?: string; phone?: string; email?: string; status?: 'Active' | 'Inactive'; commissionPercent?: number }) =>
     api('/lab/collection-centers', { method: 'POST', body: JSON.stringify(data) }),
-  updateCollectionCenter: (id: string, data: Partial<{ name: string; code: string; address?: string; contactPerson?: string; phone?: string; email?: string; status?: 'Active' | 'Inactive'; commissionPercent?: number; allowedTestIds?: string[]; parentCenterId?: string; isHead?: boolean; region?: string }>) =>
+  updateCollectionCenter: (id: string, data: Partial<{ name: string; code: string; address?: string; contactPerson?: string; phone?: string; email?: string; status?: 'Active' | 'Inactive'; commissionPercent?: number }>) =>
     api(`/lab/collection-centers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCollectionCenter: (id: string) => api(`/lab/collection-centers/${id}`, { method: 'DELETE' }),
   getCollectionCenterTokens: (id: string, params?: { from?: string; to?: string; status?: string; page?: number; limit?: number }) =>

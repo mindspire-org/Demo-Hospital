@@ -45,7 +45,15 @@ export default function Lab_Login() {
         }
         localStorage.setItem('lab.session', JSON.stringify({ username: user.username || uname, role: user.role || 'Lab' }))
       } catch {}
-      navigate('/lab')
+      let redirectTo = '/lab'
+      try {
+        const saved = sessionStorage.getItem('lab.redirect')
+        if (saved && saved.startsWith('/lab') && !saved.includes('/login')) {
+          redirectTo = saved
+          sessionStorage.removeItem('lab.redirect')
+        }
+      } catch {}
+      navigate(redirectTo)
     } catch (err: any) {
       const msg = String(err?.message || 'Invalid credentials')
       const clean = /<\/?(html|head|body)/i.test(msg) ? 'Login service not available. Please try again or contact admin.' : msg
@@ -77,7 +85,7 @@ export default function Lab_Login() {
                 </div>
               </div>
               <h1 className="text-3xl font-black bg-linear-to-r from-sky-200 via-blue-200 to-indigo-200 bg-clip-text text-transparent mb-2">HealthSpire</h1>
-              <p className="text-sm text-white/60 font-medium">Lab Management System</p>
+              <p className="text-sm text-white/60 font-medium">Hospital Management System</p>
             </div>
 
             <div className="p-8 pt-4">

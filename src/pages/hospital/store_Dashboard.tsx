@@ -9,9 +9,7 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  Truck,
   ClipboardList,
-  Building2,
   BarChart3,
   CheckCircle2,
   XCircle,
@@ -19,6 +17,7 @@ import {
   Archive,
   ShoppingCart,
   Send,
+  Truck,
   CreditCard,
   ChevronRight,
 } from 'lucide-react'
@@ -57,15 +56,6 @@ type RecentPurchase = {
   itemCount: number
 }
 
-type RecentIssue = {
-  id: string
-  date: string
-  departmentName: string
-  issuedTo?: string
-  itemCount: number
-  totalAmount: number
-}
-
 type StockAlertItem = {
   id: string
   name: string
@@ -74,15 +64,6 @@ type StockAlertItem = {
   minStock: number
   status: 'outOfStock' | 'lowStock' | 'expiringSoon' | 'expired'
   earliestExpiry?: string
-}
-
-type SupplierSummary = {
-  id: string
-  name: string
-  totalPurchases: number
-  paid: number
-  outstanding: number
-  lastOrder?: string
 }
 
 export default function Store_Dashboard() {
@@ -108,9 +89,7 @@ export default function Store_Dashboard() {
     expired: 0,
   })
   const [recentPurchases, setRecentPurchases] = useState<RecentPurchase[]>([])
-  const [recentIssues, setRecentIssues] = useState<RecentIssue[]>([])
   const [stockAlerts, setStockAlerts] = useState<StockAlertItem[]>([])
-  const [topSuppliers, setTopSuppliers] = useState<SupplierSummary[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -140,21 +119,7 @@ export default function Store_Dashboard() {
           setRecentPurchases(purchases)
         }
 
-        // Load recent issues (last 5)
-        const issueRes = await hospitalApi.listStoreIssues({ limit: 5 }) as any
-        if (!cancelled) {
-          const issues = (issueRes.issues || issueRes.data || []).map((i: any) => ({
-            id: String(i._id || i.id),
-            date: i.date,
-            departmentName: i.departmentName || 'Unknown',
-            issuedTo: i.issuedTo,
-            itemCount: i.items?.length || 0,
-            totalAmount: i.totalAmount || 0,
-          }))
-          setRecentIssues(issues)
-        }
-
-        // Load inventory for stock alerts
+        // Load low stock / out of stock items
         const inventoryRes = await hospitalApi.listStoreInventory({ limit: 1000 }) as any
         if (!cancelled) {
           const items = (inventoryRes.items || inventoryRes.data || []) as any[]
@@ -216,23 +181,6 @@ export default function Store_Dashboard() {
           setStockAlerts(alertsList.slice(0, 10))
         }
 
-        // Load suppliers
-        const supplierRes = await hospitalApi.listStoreSuppliers({ limit: 100 }) as any
-        if (!cancelled) {
-          const suppliers = (supplierRes.suppliers || supplierRes.data || [])
-            .map((s: any) => ({
-              id: String(s._id || s.id),
-              name: s.name,
-              totalPurchases: s.totalPurchases || 0,
-              paid: s.paid || 0,
-              outstanding: (s.totalPurchases || 0) - (s.paid || 0),
-              lastOrder: s.lastOrder,
-            }))
-            .filter((s: SupplierSummary) => s.outstanding > 0)
-            .sort((a: SupplierSummary, b: SupplierSummary) => b.outstanding - a.outstanding)
-            .slice(0, 5)
-          setTopSuppliers(suppliers)
-        }
       } catch {
         // API not ready - show empty state
       } finally {
@@ -542,86 +490,6 @@ export default function Store_Dashboard() {
                     <div className="text-right">
                       <p className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(purchase.totalAmount)}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-500">{formatDate(purchase.date)}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Suppliers with Outstanding */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-5 py-4">
-            <div className="flex items-center gap-2">
-              <Truck className="h-5 w-5 text-violet-500" />
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Suppliers with Outstanding</h3>
-            </div>
-            <Link to="/hospital/store/suppliers" className="text-sm text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
-              View All
-            </Link>
-          </div>
-          <div className="p-5">
-            {topSuppliers.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-slate-400 dark:text-slate-500">
-                <CheckCircle2 className="h-12 w-12 text-emerald-400 dark:text-emerald-500" />
-                <p className="mt-2 text-sm">No outstanding payments</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {topSuppliers.map(supplier => (
-                  <Link
-                    key={supplier.id}
-                    to={`/hospital/store/suppliers`}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 p-3 transition hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-800 dark:text-slate-200">{supplier.name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-500">Total: {formatCurrency(supplier.totalPurchases)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-rose-600 dark:text-rose-400">{formatCurrency(supplier.outstanding)}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-500">Outstanding</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Recent Issues */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-5 py-4">
-            <div className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-emerald-500" />
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Recent Issues to Departments</h3>
-            </div>
-            <Link to="/hospital/store/issue-history" className="text-sm text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
-              View All
-            </Link>
-          </div>
-          <div className="p-5">
-            {recentIssues.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-slate-400 dark:text-slate-500">
-                <Building2 className="h-12 w-12" />
-                <p className="mt-2 text-sm">No recent issues</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentIssues.map(issue => (
-                  <Link
-                    key={issue.id}
-                    to="/hospital/store/issue-history"
-                    className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 p-3 transition hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-800 dark:text-slate-200">{issue.departmentName}</p>
-                      {issue.issuedTo && <p className="text-xs text-slate-500 dark:text-slate-500">Issued to: {issue.issuedTo}</p>}
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-slate-800 dark:text-slate-200">{formatCurrency(issue.totalAmount)}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-500">{formatDate(issue.date)} • {issue.itemCount} items</p>
                     </div>
                   </Link>
                 ))}

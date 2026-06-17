@@ -1,8 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import PortalSwitcher from '../PortalSwitcher'
 import { hospitalApi } from '../../utils/api'
-import { useEffect, useState } from 'react'
-import { LayoutDashboard, Users, Stethoscope, ScrollText, Bell, Search, FileText, Settings as SettingsIcon, Copy, Share2, BedDouble } from 'lucide-react'
+import { LayoutDashboard, Users, Stethoscope, ScrollText, Bell, Search, FileText, Settings as SettingsIcon, Copy, Share2, BedDouble, Siren } from 'lucide-react'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: any }
 
@@ -10,6 +8,7 @@ const nav: NavItem[] = [
   { to: '/doctor', label: 'Dashboard', end: true, icon: LayoutDashboard },
   { to: '/doctor/patients', label: 'Patients', icon: Users },
   { to: '/doctor/ipd-patients', label: 'IPD Patient List', icon: BedDouble },
+  { to: '/doctor/emergency', label: 'Emergency Queue', icon: Siren },
   { to: '/doctor/patient-search', label: 'Patient Search', icon: Search },
   { to: '/doctor/prescription', label: 'Prescription', icon: Stethoscope },
   { to: '/doctor/prescription-templates', label: 'Templates', icon: Copy },
@@ -22,18 +21,6 @@ const nav: NavItem[] = [
 
 export default function Doctor_Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate()
-  const [role, setRole] = useState<string>('doctor')
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('doctor.session')
-      if (raw) {
-        const u = JSON.parse(raw)
-        if (u?.role) setRole(String(u.role).toLowerCase())
-      }
-    } catch {}
-  }, [])
-
   const logout = async () => {
     try {
       const raw = localStorage.getItem('doctor.session')
@@ -56,21 +43,21 @@ export default function Doctor_Sidebar({ collapsed = false }: { collapsed?: bool
               key={item.to}
               to={item.to}
               title={collapsed ? item.label : undefined}
-              style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)' } as any) : undefined)}
+              style={({ isActive }) => (isActive ? ({ background: '#dbeafe', color: '#1d4ed8' } as any) : undefined)}
               className={({ isActive }) => {
                 const base = collapsed
                   ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center'
                   : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2'
                 const active = isActive
-                  ? 'text-white'
-                  : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'font-semibold'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 return `${base} ${active}`
               }}
               end={item.end}
             >
               {({ isActive }) => (
                 <>
-                  <Icon className={collapsed ? (isActive ? 'h-5 w-5 text-white' : 'h-5 w-5 text-slate-700') : (isActive ? 'h-4 w-4 text-white' : 'h-4 w-4 text-slate-700')} />
+                  <Icon className={collapsed ? (isActive ? 'h-5 w-5 text-blue-700' : 'h-5 w-5 text-slate-500') : (isActive ? 'h-4 w-4 text-blue-700' : 'h-4 w-4 text-slate-500')} />
                   {!collapsed && <span className="truncate">{item.label}</span>}
                 </>
               )}
@@ -78,8 +65,7 @@ export default function Doctor_Sidebar({ collapsed = false }: { collapsed?: bool
           )
         })}
       </nav>
-      <div className={collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}>
-        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
+      <div className={collapsed ? 'p-2' : 'p-3'}>
         <button
           onClick={logout}
           title={collapsed ? 'Logout' : undefined}

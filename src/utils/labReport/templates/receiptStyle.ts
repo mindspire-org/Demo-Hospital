@@ -1,6 +1,6 @@
 import { labApi } from '../../api'
 
-export type LabReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'abnormal_low'|'abnormal_high'|'critical'|'critical_low'|'critical_high'; comment?: string; profile?: string; details?: string }
+export type LabReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'critical'; comment?: string; profile?: string; details?: string; isSection?: boolean }
 
 export type LabReportInput = {
   tokenNo: string
@@ -300,9 +300,7 @@ async function buildReceiptStyleDoc(input: LabReportInput, mode: 'preview'|'down
     return groups
   }
 
-  // Only include rows that have a result value — skip parameters with no value
-  const filteredRows = (input.rows || []).filter(r => (r.value || '').trim().length > 0)
-  const profileGroups = groupByProfile(filteredRows)
+  const profileGroups = groupByProfile(input.rows || [])
   const profiles = Object.keys(profileGroups)
 
   // Check which columns have data across all rows
@@ -368,6 +366,22 @@ async function buildReceiptStyleDoc(input: LabReportInput, mode: 'preview'|'down
 
     // Data rows
     deptRows.forEach(r => {
+      if (r.isSection) {
+        allBody.push([
+          {
+            content: (r.test || '').toUpperCase(),
+            rowType: 'group',
+            colSpan: colCount,
+            styles: {
+              fillColor: [245, 245, 245],
+              textColor: [0, 0, 0],
+              fontStyle: 'bold',
+              halign: 'left',
+            },
+          },
+        ])
+        return
+      }
       allBody.push(
         columns.map(col => ({
           content: (r as any)[col.key] || '',

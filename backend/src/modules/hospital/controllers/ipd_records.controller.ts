@@ -5,10 +5,11 @@ import { HospitalIpdDoctorVisit } from '../models/IpdDoctorVisit'
 import { HospitalIpdBillingItem } from '../models/IpdBillingItem'
 import { HospitalIpdPayment } from '../models/IpdPayment'
 import { HospitalToken } from '../models/Token'
+import { HospitalDoctor } from '../models/Doctor'
 import { HospitalIpdClinicalNote } from '../models/IpdClinicalNote'
 import { HospitalIpdMedicationOrder } from '../models/IpdMedicationOrder'
-import { HospitalIpdMedicationAdmin } from '../models/IpdMedicationAdmin'
 import { HospitalIpdLabLink } from '../models/IpdLabLink'
+import { HospitalReferral } from '../models/Referral'
 import { FinanceJournal } from '../../finance/models/FinanceJournal'
 import { LabPatient } from '../../lab/models/Patient'
 import { CorporateTransaction } from '../../corporate/models/Transaction'
@@ -23,8 +24,6 @@ import {
   updateIpdDoctorVisitSchema,
   createIpdMedicationOrderSchema,
   updateIpdMedicationOrderSchema,
-  createIpdMedicationAdminSchema,
-  updateIpdMedicationAdminSchema,
   createIpdLabLinkSchema,
   updateIpdLabLinkSchema,
   createIpdBillingItemSchema,
@@ -72,7 +71,7 @@ async function applyIpdAllocations(encounterId: any, allocations: Array<{ billin
   }
 }
 
-async function computeIpdTotals(encounterId: string){
+export async function computeIpdTotals(encounterId: string){
   const [charges, payments] = await Promise.all([
     HospitalIpdBillingItem.find({ encounterId }).select('amount paidAmount').lean(),
     HospitalIpdPayment.find({ encounterId }).select('amount allocations method type').lean()
@@ -275,7 +274,6 @@ export async function createNote(req: Request, res: Response){
       patientId: enc.patientId,
       recordedAt: new Date(),
       note: data.text,
-      noteType: data.noteType,
       recordedBy: data.createdBy,
     })
     res.status(201).json({ note: row })
@@ -289,7 +287,6 @@ export async function listNotes(req: Request, res: Response){
     const page = Math.max(1, parseInt(String(q.page || '1')) || 1)
     const limit = Math.max(1, Math.min(200, parseInt(String(q.limit || '50')) || 50))
     const crit: any = { encounterId: enc._id, note: { $exists: true, $ne: '' } }
-    if (q.noteType) crit.noteType = String(q.noteType)
     const total = await HospitalIpdVital.countDocuments(crit)
     const rows = await HospitalIpdVital.find(crit).sort({ recordedAt: -1, createdAt: -1 }).skip((page-1)*limit).limit(limit)
     res.json({ notes: rows, total, page, limit })
@@ -301,7 +298,6 @@ export async function updateNote(req: Request, res: Response){
     const data = updateIpdNoteSchema.parse(req.body)
     const set: any = {}
     if (data.text !== undefined) set.note = data.text
-    if (data.noteType !== undefined) set.noteType = data.noteType
     if (data.createdBy !== undefined) set.recordedBy = data.createdBy
     const row = await HospitalIpdVital.findByIdAndUpdate(String(id), { $set: set }, { new: true })
     if (!row) return res.status(404).json({ error: 'Note not found (vital)' })
@@ -443,6 +439,8 @@ export async function createMedicationOrder(req: Request, res: Response){
     const enc = await getIPDEncounter(String(encounterId))
     const data = createIpdMedicationOrderSchema.parse(req.body)
     const row = await HospitalIpdMedicationOrder.create({ ...data, encounterId: enc._id, patientId: enc.patientId })
+
+    
     res.status(201).json({ order: row })
   }catch(e){ return handleError(res, e) }
 }
@@ -476,46 +474,38 @@ export async function removeMedicationOrder(req: Request, res: Response){
   }catch(e){ return handleError(res, e) }
 }
 
-// Medication Administration (MAR)
-export async function createMedicationAdmin(req: Request, res: Response){
-  try{
-    const { orderId } = req.params as any
-    const order = await HospitalIpdMedicationOrder.findById(String(orderId))
-    if (!order) return res.status(404).json({ error: 'Medication order not found' })
-    const enc = await getIPDEncounter(String((order as any).encounterId))
-    const data = createIpdMedicationAdminSchema.parse(req.body)
-    const row = await HospitalIpdMedicationAdmin.create({ ...data, orderId: order._id, encounterId: enc._id, patientId: enc.patientId })
-    res.status(201).json({ admin: row })
-  }catch(e){ return handleError(res, e) }
-}
-export async function listMedicationAdmins(req: Request, res: Response){
-  try{
-    const { orderId } = req.params as any
-    const order = await HospitalIpdMedicationOrder.findById(String(orderId))
-    if (!order) return res.status(404).json({ error: 'Medication order not found' })
-    const q = req.query as any
-    const page = Math.max(1, parseInt(String(q.page || '1')) || 1)
-    const limit = Math.max(1, Math.min(200, parseInt(String(q.limit || '50')) || 50))
-    const total = await HospitalIpdMedicationAdmin.countDocuments({ orderId: order._id })
-    const rows = await HospitalIpdMedicationAdmin.find({ orderId: order._id }).sort({ givenAt: -1 }).skip((page-1)*limit).limit(limit)
-    res.json({ admins: rows, total, page, limit })
-  }catch(e){ return handleError(res, e) }
-}
-export async function updateMedicationAdmin(req: Request, res: Response){
+export async function executeMedicationOrder(req: Request, res: Response){
   try{
     const { id } = req.params as any
-    const data = updateIpdMedicationAdminSchema.parse(req.body)
-    const row = await HospitalIpdMedicationAdmin.findByIdAndUpdate(String(id), { $set: data }, { new: true })
-    if (!row) return res.status(404).json({ error: 'Medication administration not found' })
-    res.json({ admin: row })
+    const { quantity, remarks, executedAt } = req.body as any
+    const staffName = (req as any).user?.username || (req as any).user?.fullName || 'Staff'
+    const executedBy = (req as any).user?._id
+    
+    const row = await HospitalIpdMedicationOrder.findByIdAndUpdate(String(id), {
+      $push: {
+        executions: {
+          quantity: Number(quantity) || 1,
+          remarks: String(remarks || ''),
+          executedAt: executedAt ? new Date(executedAt) : new Date(),
+          executedBy,
+          staffName
+        }
+      }
+    }, { new: true })
+    
+    if (!row) return res.status(404).json({ error: 'Medication order not found' })
+    res.json({ order: row })
   }catch(e){ return handleError(res, e) }
 }
-export async function removeMedicationAdmin(req: Request, res: Response){
+
+export async function stopMedicationOrder(req: Request, res: Response){
   try{
     const { id } = req.params as any
-    const row = await HospitalIpdMedicationAdmin.findByIdAndDelete(String(id))
-    if (!row) return res.status(404).json({ error: 'Medication administration not found' })
-    res.json({ ok: true })
+    const row = await HospitalIpdMedicationOrder.findByIdAndUpdate(String(id), {
+      $set: { status: 'stopped' }
+    }, { new: true })
+    if (!row) return res.status(404).json({ error: 'Medication order not found' })
+    res.json({ order: row })
   }catch(e){ return handleError(res, e) }
 }
 
@@ -873,7 +863,7 @@ export async function createPayment(req: Request, res: Response){
     try{
       const when = (row as any)?.receivedAt ? new Date((row as any).receivedAt) : new Date()
       const dateIso = when.toISOString().slice(0,10)
-      const paidMethod = String((row as any)?.method || data.method || '').toLowerCase()
+      const paidMethod = String((row as any)?.paymentMode || (row as any)?.method || data.method || '').toLowerCase()
       const isCash = paidMethod === 'cash'
       const isRefund = String((row as any)?.type || data.type || 'payment').toLowerCase() === 'refund'
       let sessionId: string | undefined = undefined
@@ -886,6 +876,10 @@ export async function createPayment(req: Request, res: Response){
           }
         } catch {}
       }
+      // Advanced, Bank, Card, Online all go to BANK account. Only 'cash' goes to CASH.
+      const debitAccount = isCash ? 'CASH' : 'BANK'
+      const paymentAmount = Number((row as any).amount||data.amount||0)
+      
       const tags: any = {
         encounterId: String(enc._id),
         patientId: String(enc.patientId),
@@ -908,9 +902,7 @@ export async function createPayment(req: Request, res: Response){
       } catch {}
       if (enc.departmentId) tags.departmentId = String(enc.departmentId)
       if (enc.doctorId) tags.doctorId = String(enc.doctorId)
-      const debitAccount = isCash ? 'CASH' : 'BANK'
-      const paymentAmount = Number((row as any).amount||data.amount||0)
-      
+
       // For refunds: credit cash/bank (money going out), debit IPD_REVENUE (reversing revenue)
       // For regular payments: debit cash/bank, credit IPD_REVENUE
       const lines = isRefund ? [
@@ -920,7 +912,23 @@ export async function createPayment(req: Request, res: Response){
         { account: debitAccount, debit: paymentAmount, tags },
         { account: 'IPD_REVENUE', credit: paymentAmount, tags },
       ] as any
-      await FinanceJournal.create({ dateIso, refType: isRefund ? 'ipd_refund' : 'ipd_payment', refId: String((row as any)._id), memo: (row as any)?.refNo || (isRefund ? 'IPD Refund' : 'IPD Payment'), lines })
+
+      // Auto-calculate doctor share for IPD payments
+      if (!isRefund && paymentAmount > 0 && enc.doctorId) {
+        try {
+          const doc = await HospitalDoctor.findById(String(enc.doctorId)).lean()
+          const ipdShr = Number((doc as any)?.ipdShare)
+          const fallbackShr = Number((doc as any)?.shares ?? 100)
+          const doctorShares = (!isNaN(ipdShr) && ipdShr > 0) ? ipdShr : fallbackShr
+          if (doctorShares > 0) {
+            const doctorAmount = Math.round((paymentAmount * (doctorShares / 100) + Number.EPSILON) * 100) / 100
+            lines.push({ account: 'DOCTOR_SHARE_EXPENSE', debit: doctorAmount, tags: { ...tags } })
+            lines.push({ account: 'DOCTOR_PAYABLE', credit: doctorAmount, tags: { ...tags } })
+          }
+        } catch {}
+      }
+
+      await FinanceJournal.create({ dateIso, module: 'ipd', refType: isRefund ? 'ipd_refund' : 'ipd_payment', refId: String((row as any)._id), memo: (row as any)?.refNo || (isRefund ? 'IPD Refund' : 'IPD Payment'), lines })
     } catch {}
     const totals5 = await computeIpdTotals(String(enc._id))
     res.status(201).json({ payment: row, totals: totals5 })
@@ -958,5 +966,94 @@ export async function removePayment(req: Request, res: Response){
     try { await recalcIpdPaidAmounts(row.encounterId) } catch {}
     const totals = await computeIpdTotals(String(row.encounterId))
     res.json({ ok: true, totals })
+  }catch(e){ return handleError(res, e) }
+}
+
+// Pharmacy Orders
+import { IpdPharmacyOrder } from '../models/IpdPharmacyOrder'
+
+export async function createPharmacyOrder(req: Request, res: Response){
+  try{
+    const { encounterId } = req.params as any
+    const enc = await getIPDEncounter(String(encounterId))
+    const data = req.body
+    
+    // Create the structured IPD Pharmacy Order
+    const order = await IpdPharmacyOrder.create({
+      ...data,
+      encounterId: enc._id,
+      patientId: enc.patientId,
+      status: 'pending'
+    })
+
+    // Create the workflow Hospital Referral
+    const notes = 'Manual IPD Referral\nMedicines:\n' + (data.items || []).map((it: any) => `${it.qty}x ${it.name}`).join('\n')
+    const ref = await HospitalReferral.create({
+      type: 'pharmacy',
+      source: 'IPD',
+      status: 'pending',
+      patientId: enc.patientId,
+      encounterId: enc._id,
+      doctorId: data.doctorId,
+      notes,
+      linkedOrderId: order._id
+    })
+
+    // Link back to the order
+    order.linkedReferralId = ref._id
+    await order.save()
+
+    res.status(201).json({ order })
+  }catch(e){ return handleError(res, e) }
+}
+
+export async function listPharmacyOrders(req: Request, res: Response){
+  try{
+    const { encounterId } = req.params as any
+    const enc = await getIPDEncounter(String(encounterId))
+    const q = req.query as any
+    const page = Math.max(1, parseInt(String(q.page || '1')) || 1)
+    const limit = Math.max(1, Math.min(200, parseInt(String(q.limit || '50')) || 50))
+    const total = await IpdPharmacyOrder.countDocuments({ encounterId: enc._id })
+    const rows = await IpdPharmacyOrder.find({ encounterId: enc._id })
+      .populate('linkedReferralId')
+      .sort({ createdAt: -1 })
+      .skip((page-1)*limit)
+      .limit(limit)
+    res.json({ orders: rows, total, page, limit })
+  }catch(e){ return handleError(res, e) }
+}
+
+export async function updatePharmacyOrder(req: Request, res: Response){
+  try{
+    const { id } = req.params as any
+    const data = req.body
+    const order = await IpdPharmacyOrder.findByIdAndUpdate(String(id), { $set: data }, { new: true })
+    if (!order) return res.status(404).json({ error: 'Order not found' })
+    
+    // Also update the linked referral
+    if (order.linkedReferralId && data.items) {
+      const notes = 'Manual IPD Referral\nMedicines:\n' + data.items.map((it: any) => `${it.qty}x ${it.name}`).join('\n')
+      await HospitalReferral.findByIdAndUpdate(order.linkedReferralId, { $set: { notes } })
+    }
+
+    res.json({ order })
+  }catch(e){ return handleError(res, e) }
+}
+
+export async function removePharmacyOrder(req: Request, res: Response){
+  try{
+    const { id } = req.params as any
+    const order = await IpdPharmacyOrder.findById(String(id))
+    if (!order) return res.status(404).json({ error: 'Order not found' })
+    
+    // Delete linked referral
+    if (order.linkedReferralId) {
+      await HospitalReferral.findByIdAndDelete(order.linkedReferralId)
+    }
+    
+    await IpdPharmacyOrder.findByIdAndDelete(String(id))
+    
+    res.json({ ok: true })
   }catch(e){ return handleError(res, e) }
 }

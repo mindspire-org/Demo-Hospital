@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import Pharmacy_AddCompanyDialog, { type Company } from '../../components/pharmacy/pharmacy_AddCompanyDialog'
 import { pharmacyApi } from '../../utils/api'
-import MiniDashboard from '../../components/common/MiniDashboard'
-import { Building2, Plus, Search, ToggleLeft } from 'lucide-react'
 
 export default function Pharmacy_Companies(){
   const [query, setQuery] = useState('')
@@ -72,34 +70,19 @@ export default function Pharmacy_Companies(){
 
   const openEdit = (c: any) => { setSelected(c); setEditOpen(true) }
 
-  const activeCount = companies.filter(c => c.status === 'Active').length
-  const inactiveCount = companies.filter(c => c.status === 'Inactive').length
-  const assignedCount = companies.filter(c => c.distributorId).length
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-600"><Building2 className="h-5 w-5" /></div>
-          <h1 className="text-xl font-bold text-slate-800">Companies</h1>
-        </div>
+        <div className="text-xl font-bold text-slate-800">Companies</div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={()=>setAddOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"><Plus className="h-4 w-4" /> Add Company</button>
+          <button type="button" onClick={()=>setAddOpen(true)} className="btn">+ Add Company</button>
         </div>
       </div>
 
-      <MiniDashboard cards={[
-        { label: 'Total Companies', value: total, icon: Building2, color: 'bg-indigo-500' },
-        { label: 'Active', value: activeCount, icon: ToggleLeft, color: 'bg-emerald-500' },
-        { label: 'Inactive', value: inactiveCount, icon: ToggleLeft, color: 'bg-slate-500' },
-        { label: 'Assigned', value: assignedCount, icon: Search, color: 'bg-sky-500' },
-      ]} />
-
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">Search</div>
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
         <div className="flex items-center gap-3">
-          <input value={query} onChange={e=>{ setQuery(e.target.value); setPage(1) }} placeholder="Search companies.." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" />
-          <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-slate-700">
+          <input value={query} onChange={e=>{ setQuery(e.target.value); setPage(1) }} placeholder="Search companies.." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+          <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700">
             <option value={10}>10</option>
             <option value={20}>20</option>
             <option value={50}>50</option>

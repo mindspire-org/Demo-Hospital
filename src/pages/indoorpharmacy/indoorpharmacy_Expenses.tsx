@@ -37,10 +37,10 @@ export default function IndoorPharmacy_Expenses() {
   // Current pharmacy username to stamp expenses
   const currentUser = useMemo(() => {
     try {
-      const raw = localStorage.getItem('pharmacy.user')
+      const raw = localStorage.getItem('indoorpharmacy.user')
       if (raw) { const u = JSON.parse(raw); if (u && typeof u.username === 'string') return u.username }
     } catch {}
-    try { return localStorage.getItem('pharma_user') || 'admin' } catch { return 'admin' }
+    try { return localStorage.getItem('indoorpharma_user') || 'admin' } catch { return 'admin' }
   }, [])
 
   useEffect(() => {
@@ -65,8 +65,8 @@ export default function IndoorPharmacy_Expenses() {
 
   useEffect(()=>{
     const onRefresh = () => { setPage(1); refresh() }
-    try { window.addEventListener('pharmacy:expenses:refresh', onRefresh as any) } catch {}
-    return () => { try { window.removeEventListener('pharmacy:expenses:refresh', onRefresh as any) } catch {} }
+    try { window.addEventListener('indoor-pharmacy:expenses:refresh', onRefresh as any) } catch {}
+    return () => { try { window.removeEventListener('indoor-pharmacy:expenses:refresh', onRefresh as any) } catch {} }
   }, [])
 
   

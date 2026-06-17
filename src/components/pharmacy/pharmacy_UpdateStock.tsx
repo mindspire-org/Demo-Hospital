@@ -9,6 +9,8 @@ export default function Pharmacy_UpdateStock({ open, onClose }: Props) {
   const [packs, setPacks] = useState<number>(0)
   const [unitsPerPack, setUnitsPerPack] = useState<number>(1)
   const [expiry, setExpiry] = useState('')
+  const [expiryAlertDate, setExpiryAlertDate] = useState('')
+  const [shelfNumber, setShelfNumber] = useState('')
   const [buyPerPack, setBuyPerPack] = useState<number>(0)
   const [salePerPack, setSalePerPack] = useState<number>(0)
   const [date, setDate] = useState('')
@@ -72,6 +74,8 @@ export default function Pharmacy_UpdateStock({ open, onClose }: Props) {
       if (it.lastLineTaxType) setLineTaxType(it.lastLineTaxType)
       if (it.lastLineTaxValue != null) setLineTaxValue(Number(it.lastLineTaxValue))
       if (it.lastExpiry) setExpiry(String(it.lastExpiry))
+      if (it.expiryAlertDate || it.earliestExpiryAlert) setExpiryAlertDate(String(it.expiryAlertDate || it.earliestExpiryAlert))
+      if (it.shelfNumber) setShelfNumber(String(it.shelfNumber))
       if (it.lastSupplier){
         setSupplierName(String(it.lastSupplier))
         const s = suppliers.find((x:any)=> String(x.name||'') === String(it.lastSupplier||''))
@@ -156,6 +160,14 @@ export default function Pharmacy_UpdateStock({ open, onClose }: Props) {
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Expiry Date</label>
               <input type="date" value={expiry} onChange={e=>setExpiry(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Expiry Alert Date</label>
+              <input type="date" value={expiryAlertDate} onChange={e=>setExpiryAlertDate(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Shelf Number</label>
+              <input value={shelfNumber} onChange={e=>setShelfNumber(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Shelf #" />
             </div>
 
             <div>
@@ -298,6 +310,8 @@ export default function Pharmacy_UpdateStock({ open, onClose }: Props) {
                   buyPerPack: buyPerPack || 0,
                   salePerPack: salePerPack || 0,
                   expiry: expiry || undefined,
+                  expiryAlertDate: expiryAlertDate || undefined,
+                  shelfNumber: shelfNumber || undefined,
                   lineTaxType: lineTaxType || undefined,
                   lineTaxValue: lineTaxValue || undefined,
                 }]

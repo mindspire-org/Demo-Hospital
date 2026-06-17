@@ -180,7 +180,6 @@ export async function printColonoscopyReport(input: {
     for (const c of extra) arr.push({ name: c?.name, degrees: c?.degrees, title: c?.title })
     const filtered = arr.filter(c => (c?.name || c?.degrees || c?.title))
     const out = filtered.slice(0,3)
-    if (out.length === 1){ while (out.length < 3) out.push(out[0]) }
     return out
   })())
   const consultHtml = consultants.length ? `<div class=\"consult-grid\">${consultants.map(c=>`<div class=\\\"consult\\\"><div class=\\\"name\\\">${esc(c.name||'')}</div><div class=\\\"deg\\\">${esc(c.degrees||'')}</div><div class=\\\"title\\\">${esc(c.title||'')}</div></div>`).join('')}</div>` : ''

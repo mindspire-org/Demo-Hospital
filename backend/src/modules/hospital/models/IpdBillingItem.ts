@@ -12,6 +12,21 @@ const IpdBillingItemSchema = new Schema({
   date: { type: Date, default: Date.now, index: true },
   refId: { type: String },
   billedBy: { type: String },
+
+  // ── Pharmacy-specific ──
+  pharmacyDispenseId: { type: Schema.Types.ObjectId, ref: 'IndoorPharmacy_Dispense' },
+  medicineId: { type: Schema.Types.ObjectId, ref: 'IndoorPharmacy_InventoryItem' },
+  medicineName: { type: String },
+  batchNumber: { type: String },
+  expiryDate: { type: Date },
+
+  // Package patients
+  isPackageIncluded: { type: Boolean, default: false },
+  packageDeductionAmount: { type: Number, default: 0 },
+
+  // Insurance/Corporate
+  insuranceClaimAmount: { type: Number, default: 0 },
+  patientPayable: { type: Number },
 }, { timestamps: true })
 
 IpdBillingItemSchema.index({ encounterId: 1, date: -1 })
@@ -29,6 +44,16 @@ export type HospitalIpdBillingItemDoc = {
   date: Date
   refId?: string
   billedBy?: string
+  // Pharmacy-specific
+  pharmacyDispenseId?: string
+  medicineId?: string
+  medicineName?: string
+  batchNumber?: string
+  expiryDate?: Date
+  isPackageIncluded?: boolean
+  packageDeductionAmount?: number
+  insuranceClaimAmount?: number
+  patientPayable?: number
 }
 
 export const HospitalIpdBillingItem = models.Hospital_IpdBillingItem || model('Hospital_IpdBillingItem', IpdBillingItemSchema)

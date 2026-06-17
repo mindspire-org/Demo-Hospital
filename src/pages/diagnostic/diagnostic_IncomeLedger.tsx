@@ -34,11 +34,14 @@ export default function Diagnostic_IncomeLedger() {
   const limit = 25
 
   // Filters - default to last 7 days to ensure new tokens show up
-  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
+  const today = useMemo(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }, [])
   const sevenDaysAgo = useMemo(() => {
     const d = new Date()
     d.setDate(d.getDate() - 7)
-    return d.toISOString().split('T')[0]
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }, [])
   const [from, setFrom] = useState(sevenDaysAgo)
   const [to, setTo] = useState(today)

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OT & ICU Module Guide</title>
+<style>
+@page { size: A4; margin: 20mm; }
+body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.7; color: #1f2937; padding: 30px; max-width: 900px; margin: 0 auto; }
+h1 { color: #1e3a8a; font-size: 28px; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-top: 0; }
+h2 { color: #1e40af; font-size: 20px; margin-top: 30px; border-left: 5px solid #3b82f6; padding-left: 14px; page-break-after: avoid; }
+h3 { color: #374151; font-size: 16px; margin-top: 24px; }
+pre { background: #f3f4f6; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 12px; line-height: 1.5; border-left: 4px solid #3b82f6; page-break-inside: avoid; }
+code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: 'Consolas', monospace; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+th, td { border: 1px solid #d1d5db; padding: 10px 12px; text-align: left; }
+th { background: #e5e7eb; font-weight: 600; color: #374151; }
+tr:nth-child(even) { background: #f9fafb; }
+ul, ol { margin: 12px 0; padding-left: 24px; }
+li { margin: 6px 0; }
+hr { border: 0; border-top: 2px solid #e5e7eb; margin: 30px 0; }
+strong { color: #1e40af; }
+blockquote { border-left: 4px solid #3b82f6; margin: 0; padding: 10px 16px; background: #eff6ff; border-radius: 0 8px 8px 0; }
+.header-bar { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px; }
+.header-bar h1 { color: white; border: none; padding: 0; margin: 0; font-size: 24px; }
+.header-bar p { margin: 8px 0 0 0; opacity: 0.9; font-size: 14px; }
+.step-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 8px; margin: 12px 0; }
+.warning-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; }
+.tip-box { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; }
+</style>
+</head>
+<body>
+<h1>Jinnah Medical - OT & ICU Module Enhancement Guide</h1>
+<h2>Executive Summary</h2>
+<p>This document outlines the recent enhancements made to the <strong>Operating Theater (OT)</strong> and <strong>Intensive Care Unit (ICU)</strong> modules, including new features, workflow improvements, and user guidance for effective management.</p>
+<hr>
+<h2>1. OPERATING THEATER (OT) MODULE</h2>
+<h3>1.1 New Features Implemented</h3>
+<h4>WHO Surgical Safety Checklist - Timeout Enforcement</h4>
+<p><strong>What is it?</strong><br>A mandatory safety protocol based on WHO guidelines that ensures patient safety before surgery begins.</p>
+<p><strong>Key Components:</strong></p>
+<ul>
+<li><strong>Timeout Banner</strong>: Visual alert on scheduled surgeries requiring timeout completion</li>
+<li><strong>Timeout Modal</strong>: Interactive checklist with mandatory confirmations:</li>
+<li>Patient identity verification</li>
+<li>Procedure confirmation</li>
+<li>Site/side marking verification</li>
+<li>Antibiotic prophylaxis timing check (60-minute window)</li>
+<li><strong>Antibiotic Alert</strong>: Warning if antibiotics given outside the safe window</li>
+<p></ul></p>
+<p><strong>Files Modified:</strong></p>
+<ul>
+<li><code>src/pages/hospital/ot/ot_Schedule.tsx</code> - Added timeout enforcement UI</li>
+<li><code>src/features/hospital/ot/ot.api.ts</code> - API endpoints for timeout updates</li>
+<p></ul></p>
+<h4>Surgical Site Infection (SSI) Tracking System</h4>
+<p><strong>What is it?</strong><br>Complete tracking system for post-operative infections per CDC NHSN guidelines.</p>
+<p><strong>Infection Types Tracked:</strong></p>
+<ul>
+<li>Superficial Incisional SSI</li>
+<li>Deep Incisional SSI</li>
+<li>Organ/Space SSI</li>
+<p></ul></p>
+<p><strong>Features:</strong></p>
+<ul>
+<li>Case registration with risk stratification</li>
+<li>Procedure details capture</li>
+<li>Infection event logging with date tracking</li>
+<li>Outcome recording (resolved/expired/ongoing)</li>
+<li>Statistics dashboard with visual indicators</li>
+<p></ul></p>
+<p><strong>Files Created:</strong></p>
+<ul>
+<li><code>src/pages/hospital/ot/ot_SSITracking.tsx</code> - SSI management UI</li>
+<li><code>backend/src/modules/hospital/models/OTSSITracking.ts</code> - Database schema</li>
+<li><code>backend/src/modules/hospital/controllers/ot.controller.ts</code> - CRUD operations</li>
+<li><code>backend/src/modules/hospital/routes/index.ts</code> - API routes</li>
+<p></ul></p>
+<p><strong>Files Modified:</strong></p>
+<ul>
+<li><code>src/pages/hospital/hospital_OTDashboard.tsx</code> - Added SSI tracking quick link</li>
+<p></ul></p>
+<h3>1.2 OT Module Workflow</h3>
+<p>``<code><br>┌─────────────────────────────────────────────────────────────────┐<br>│                    OT MODULE WORKFLOW                             │<br>└─────────────────────────────────────────────────────────────────┘</p>
+<p>[Step 1] SCHEDULE SURGERY<br>    ↓<br>    • Navigate to OT > Schedule<br>    • Create booking with patient, procedure, team details<br>    • System assigns OT room and time slot<br>    ↓<br>[Step 2] PRE-OPERATIVE PREPARATION<br>    ↓<br>    • Sterilization logs checked (OT > Sterilization)<br>    • Equipment verified (OT > Equipment)<br>    • Team assigned (OT > Team)<br>    ↓<br>[Step 3] WHO TIMEOUT (MANDATORY)<br>    ↓<br>    • Click "TIMEOUT REQUIRED" banner on in-progress surgery<br>    • Complete all checklist confirmations:<br>      ✓ Patient identity confirmed<br>      ✓ Procedure confirmed with consent<br>      ✓ Site/side marked and confirmed<br>      ✓ Antibiotics given within 60 min (if applicable)<br>    • Click "Complete Timeout" to proceed<br>    ↓<br>[Step 4] SURGERY EXECUTION<br>    ↓<br>    • Perform procedure<br>    • Document in IPD Surgery Record<br>    ↓<br>[Step 5] POST-OPERATIVE MONITORING<br>    ↓<br>    • Patient transferred to ICU/Recovery/Ward<br>    • SSI tracking initiated if high-risk<br>    ↓<br>[Step 6] SSI TRACKING (For 30 Days Post-Op)<br>    ↓<br>    • Monitor for infection signs<br>    • Log any SSI events in OT > SSI Tracking<br>    • Record outcomes and resolution<br></code>`<code></p>
+<h3>1.3 User Tutorial - OT Management</h3>
+<h4>How to Schedule a Surgery</h4>
+<ol>
+<li><strong>Navigate</strong> to Hospital → OT → Schedule</li>
+<li><strong>Click</strong> "New Booking" button</li>
+<li><strong>Enter</strong> patient details (MRN or search by name)</li>
+<li><strong>Select</strong>:</li>
+<p></ol></p>
+<ul>
+<li>OT Room</li>
+<li>Surgery Date & Time</li>
+<li>Procedure Type</li>
+<li>Surgeon & Team</li>
+<li>Anesthesia Type</li>
+<p></ul></p>
+<ol>
+<li><strong>Click</strong> "Save Booking"</li>
+<p></ol></p>
+<h4>How to Complete WHO Timeout</h4>
+<ol>
+<li><strong>Look for</strong> "TIMEOUT REQUIRED" banner on in-progress surgeries</li>
+<li><strong>Click</strong> "Complete Timeout" button</li>
+<li><strong>Verify</strong> each checklist item:</li>
+<p></ol></p>
+<ul>
+<li>Check "Patient identity confirmed"</li>
+<li>Check "Procedure confirmed"</li>
+<li>Check "Site/side marked"</li>
+<li>Check "Antibiotics given" (if applicable)</li>
+<p></ul></p>
+<ol>
+<li><strong>Note</strong>: If antibiotics were given >60 minutes ago, a warning will appear</li>
+<li><strong>Click</strong> "Complete Timeout" to finalize</li>
+<p></ol></p>
+<h4>How to Track SSI (Surgical Site Infections)</h4>
+<ol>
+<li><strong>Navigate</strong> to Hospital → OT → SSI Tracking (or click from OT Dashboard)</li>
+<li><strong>View</strong> active cases in "Active Monitoring" tab</li>
+<li><strong>To Add New Case</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Click "Add Case"</li>
+<li>Select patient from surgery history</li>
+<li>Enter procedure details and risk factors</li>
+<li>Set monitoring start date</li>
+<p></ul></p>
+<ol>
+<li><strong>To Record Infection Event</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Find patient in case list</li>
+<li>Click "Record Event"</li>
+<li>Select infection type (Superficial/Deep/Organ)</li>
+<li>Enter detection date and symptoms</li>
+<p></ul></p>
+<ol>
+<li><strong>To Update Outcome</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Click on case</li>
+<li>Update status: Resolved / Expired / Ongoing</li>
+<li>Enter resolution date if applicable</li>
+<p></ul></p>
+<h4>How to Manage OT Dashboard</h4>
+<ol>
+<li><strong>View Room Status</strong>: See which OT rooms are occupied/available</li>
+<li><strong>Quick Actions</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Click "Schedule" to create bookings</li>
+<li>Click "SSI Tracking" for infection monitoring</li>
+<li>Click "Sterilization" for equipment logs</li>
+<li>Click "Team" for staff assignments</li>
+<p></ul></p>
+<ol>
+<li><strong>Monitor</strong>: Check timeout status indicators on active surgeries</li>
+<p></ol></p>
+<hr>
+<h2>2. INTENSIVE CARE UNIT (ICU) MODULE</h2>
+<h3>2.1 Bug Fixes & Improvements</h3>
+<p><strong>Issues Resolved:</strong></p>
+<ul>
+<li>Fixed API call for ward listing (</code>listIPDWards<code> → </code>listWards<code>)</li>
+<li>Fixed type error in discharge status handling</li>
+<li>Removed invalid parameter from ventilator patient listing</li>
+<p></ul></p>
+<p><strong>Files Modified:</strong></p>
+<ul>
+<li></code>src/pages/hospital/icu/icu_Transfer.tsx<code> - Fixed ward loading and discharge types</li>
+<li></code>src/pages/hospital/icu/icu_Ventilator.tsx<code> - Fixed admission filtering</li>
+<p></ul></p>
+<h3>2.2 ICU Module Workflow</h3>
+<p></code>`<code><br>┌─────────────────────────────────────────────────────────────────┐<br>│                    ICU MODULE WORKFLOW                            │<br>└─────────────────────────────────────────────────────────────────┘</p>
+<p>[Step 1] PATIENT ADMISSION<br>    ↓<br>    • Patient transferred from OT/ER/OPD<br>    • Bed assignment in ICU<br>    • Initial vitals and assessment recorded<br>    ↓<br>[Step 2] MONITORING & CARE<br>    ↓<br>    • Continuous vitals monitoring<br>    • Ventilator management (if required)<br>    • Medication administration<br>    • Daily progress notes<br>    ↓<br>[Step 3] TRANSFER/DISCHARGE DECISION<br>    ↓<br>    • Patient stabilized → Transfer to ward<br>    • Requires ventilation → Continue ICU care<br>    • Condition worsened → Re-evaluate treatment<br>    • Expired → Record death certificate<br>    ↓<br>[Step 4] TRANSFER EXECUTION<br>    ↓<br>    • Navigate to ICU > Transfer<br>    • Select patient<br>    • Choose destination:</p>
+<ul>
+<li>General Ward</li>
+<li>Home (Discharge)</li>
+<li>Other Hospital</li>
+<li>Death (Deceased)</li>
+<p></ul><br>    • Enter summary and date/time<br>    • Confirm transfer<br>    ↓<br>[Step 5] VENTILATOR MANAGEMENT<br>    ↓<br>    • For ventilated patients:</p>
+<ul>
+<li>Monitor ventilator settings</li>
+<li>Record weaning attempts</li>
+<li>Track duration and outcomes</li>
+<p></ul><br></code>``</p>
+<h3>2.3 User Tutorial - ICU Management</h3>
+<h4>How to Admit a Patient to ICU</h4>
+<ol>
+<li><strong>Navigate</strong> to Hospital → ICU → Admissions</li>
+<li><strong>Click</strong> "New Admission"</li>
+<li><strong>Search</strong> patient by MRN or name</li>
+<li><strong>Select</strong> available ICU bed</li>
+<li><strong>Enter</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Admission date/time</li>
+<li>Admitting doctor</li>
+<li>Reason for admission</li>
+<li>Initial vitals</li>
+<li>Ventilator required? (Yes/No)</li>
+<p></ul></p>
+<ol>
+<li><strong>Click</strong> "Admit Patient"</li>
+<p></ol></p>
+<h4>How to Transfer/Discharge from ICU</h4>
+<ol>
+<li><strong>Navigate</strong> to Hospital → ICU → Transfer</li>
+<li><strong>Select</strong> patient from admission list</li>
+<li><strong>Choose</strong> destination:</li>
+<p></ol></p>
+<ul>
+<li><strong>Ward</strong>: Transfer to general ward (select specific ward)</li>
+<li><strong>Home</strong>: Patient discharged</li>
+<li><strong>Other Hospital</strong>: Transfer to external facility</li>
+<li><strong>Deceased</strong>: Record patient death</li>
+<p></ul></p>
+<ol>
+<li><strong>Enter</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Transfer/discharge date & time</li>
+<li>Summary of ICU stay</li>
+<li>Destination details</li>
+<p></ul></p>
+<ol>
+<li><strong>Click</strong> "Confirm Transfer"</li>
+<p></ol></p>
+<h4>How to Manage Ventilator Patients</h4>
+<ol>
+<li><strong>Navigate</strong> to Hospital → ICU → Ventilator</li>
+<li><strong>View</strong> list of patients currently on ventilator</li>
+<li><strong>Select</strong> patient to view details:</li>
+<p></ol></p>
+<ul>
+<li>Ventilator settings</li>
+<li>Duration on ventilator</li>
+<li>Weaning attempts</li>
+<p></ul></p>
+<ol>
+<li><strong>Update Settings</strong> (if authorized):</li>
+<p></ol></p>
+<ul>
+<li>Mode (SIMV, CMV, etc.)</li>
+<li>FiO2, PEEP, Rate</li>
+<li>Tidal volume</li>
+<p></ul></p>
+<ol>
+<li><strong>Record Weaning Attempt</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Date/time of attempt</li>
+<li>Settings used</li>
+<li>Patient tolerance</li>
+<li>Outcome (Successful/Failed)</li>
+<p></ul></p>
+<h4>How to View ICU Dashboard</h4>
+<ol>
+<li><strong>Access</strong> Hospital → ICU → Dashboard</li>
+<li><strong>Monitor</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Total occupied beds</li>
+<li>Available beds</li>
+<li>Ventilator utilization</li>
+<li>Patient acuity levels</li>
+<p></ul></p>
+<ol>
+<li><strong>Quick Actions</strong>:</li>
+<p></ol></p>
+<ul>
+<li>Click bed number for patient details</li>
+<li>Color indicators show severity (Green/Yellow/Red)</li>
+<p></ul></p>
+<hr>
+<h2>3. QUICK REFERENCE - COMMON TASKS</h2>
+<h3>Emergency Surgery Override</h3>
+<p><strong>When to use</strong>: Life-threatening emergency requiring immediate surgery without full timeout</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li>Create emergency booking in OT Schedule</li>
+<li>Mark as "Emergency" priority</li>
+<li>Timeout modal will show "Emergency Override" option</li>
+<li>Document reason for override</li>
+<li>Complete minimal safety checks possible</li>
+<li>Proceed with surgery</li>
+<p></ol></p>
+<h3>SSI Risk Stratification</h3>
+<p><strong>High-Risk Indicators</strong>:</p>
+<ul>
+<li>Dirty/Infected wound class</li>
+<li>ASA score > 3</li>
+<li>Emergency procedure</li>
+<li>Diabetes/Immunocompromised patient</li>
+<li>Long operation duration (>2 hours)</li>
+<p></ul></p>
+<p><strong>Action</strong>: These cases are auto-flagged for enhanced SSI monitoring</p>
+<h3>ICU Bed Management</h3>
+<p><strong>Bed Status Colors</strong>:</p>
+<ul>
+<li>🟢 Green: Available</li>
+<li>🟡 Yellow: Occupied - Stable</li>
+<li>🔴 Red: Occupied - Critical</li>
+<li>⚫ Gray: Under maintenance</li>
+<p></ul></p>
+<p><strong>Transfer Protocol</strong>:</p>
+<ol>
+<li>Always check bed availability at destination</li>
+<li>Ensure handover notes are complete</li>
+<li>Transfer with nurse escort for critical patients</li>
+<li>Update system immediately after transfer</li>
+<p></ol></p>
+<hr>
+<h2>4. BEST PRACTICES</h2>
+<h3>OT Module</h3>
+<p>✅ <strong>DO</strong>:</p>
+<ul>
+<li>Complete timeout before first incision</li>
+<li>Document antibiotic timing accurately</li>
+<li>Track all high-risk patients for SSI</li>
+<li>Update SSI status within 24 hours of detection</li>
+<p></ul></p>
+<p>❌ <strong>DON'T</strong>:</p>
+<ul>
+<li>Skip timeout for non-emergency cases</li>
+<li>Delay SSI documentation beyond 48 hours</li>
+<li>Forget to mark site/side before timeout</li>
+<p></ul></p>
+<h3>ICU Module</h3>
+<p>✅ <strong>DO</strong>:</p>
+<ul>
+<li>Record vitals every hour for critical patients</li>
+<li>Update ventilator settings immediately after changes</li>
+<li>Document weaning attempts with detailed notes</li>
+<li>Transfer patients only after stabilization</li>
+<p></ul></p>
+<p>❌ <strong>DON'T</strong>:</p>
+<ul>
+<li>Leave ventilator alarms unattended</li>
+<li>Delay discharge documentation</li>
+<li>Forget to record reason for ICU admission</li>
+<p></ul></p>
+<hr>
+<h2>5. SUPPORT & TROUBLESHOOTING</h2>
+<h3>Common Issues</h3>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>Timeout won't complete</td><td>Check all 3 confirmation boxes are checked</td></tr>
+  <tr><td>Can't find patient for SSI tracking</td><td>Ensure patient has completed surgery record</td></tr>
+  <tr><td>ICU bed not showing available</td><td>Check for pending transfers not completed</td></tr>
+  <tr><td>Ventilator patient not in list</td><td>Verify "ventilator required" was checked at admission</td></tr>
+<p></table></p>
+<h3>Contact Information</h3>
+<p>For technical issues or feature requests:</p>
+<ul>
+<li><strong>IT Support</strong>: ext. 5000</li>
+<li><strong>System Admin</strong>: ext. 5001</li>
+<p></ul></p>
+<hr>
+<p><strong>Document Version</strong>: 1.0  <br><strong>Last Updated</strong>: June 2026  <br><strong>Prepared by</strong>: Development Team</p>
+</body>
+</html>

@@ -86,9 +86,9 @@ export default function Ambulance_Dashboard() {
   ]
 
   const statusColors: Record<string, string> = {
-    'Available': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    'On Duty': 'bg-sky-100 text-sky-700 border-sky-200',
-    'Maintenance': 'bg-amber-100 text-amber-700 border-amber-200',
+    'Available': 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800',
+    'On Duty': 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-800',
+    'Maintenance': 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
   }
 
   const typeLabels: Record<string, string> = {
@@ -100,11 +100,11 @@ export default function Ambulance_Dashboard() {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold text-slate-800">Ambulance Management</h2>
-      <p className="mt-1 text-slate-500">Track ambulance movements, trips, fuel, and expenses</p>
+      <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Ambulance Management</h2>
+      <p className="mt-1 text-slate-500 dark:text-slate-400">Track ambulance movements, trips, fuel, and expenses</p>
 
       {loading ? (
-        <div className="mt-8 text-center text-slate-500">Loading...</div>
+        <div className="mt-8 text-center text-slate-500 dark:text-slate-400">Loading...</div>
       ) : (
         <>
           {/* Quick Actions */}
@@ -122,76 +122,76 @@ export default function Ambulance_Dashboard() {
 
           {/* Stats Grid - Row 1 */}
           <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">Total Ambulances</div>
-              <div className="mt-1 text-2xl font-bold text-slate-800">{stats.totalAmbulances}</div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <div className="text-sm text-slate-500 dark:text-slate-400">Total Ambulances</div>
+              <div className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">{stats.totalAmbulances}</div>
             </div>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-sm text-emerald-600">Available</div>
-              <div className="mt-1 text-2xl font-bold text-emerald-700">{stats.available}</div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/30">
+              <div className="text-sm text-emerald-600 dark:text-emerald-400">Available</div>
+              <div className="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-400">{stats.available}</div>
             </div>
-            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-              <div className="text-sm text-sky-600">On Duty</div>
-              <div className="mt-1 text-2xl font-bold text-sky-700">{stats.onDuty}</div>
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-900/30">
+              <div className="text-sm text-sky-600 dark:text-sky-400">On Duty</div>
+              <div className="mt-1 text-2xl font-bold text-sky-700 dark:text-sky-400">{stats.onDuty}</div>
             </div>
           </div>
 
           {/* Stats Grid - Row 2 */}
           <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-sm text-amber-600">Maintenance</div>
-              <div className="mt-1 text-2xl font-bold text-amber-700">{stats.maintenance}</div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/30">
+              <div className="text-sm text-amber-600 dark:text-amber-400">Maintenance</div>
+              <div className="mt-1 text-2xl font-bold text-amber-700 dark:text-amber-400">{stats.maintenance}</div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">Today's Trips</div>
-              <div className="mt-1 text-2xl font-bold text-violet-600">{stats.todayTrips}</div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <div className="text-sm text-slate-500 dark:text-slate-400">Today's Trips</div>
+              <div className="mt-1 text-2xl font-bold text-violet-600 dark:text-violet-400">{stats.todayTrips}</div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">Total Expenses</div>
-              <div className="mt-1 text-2xl font-bold text-rose-600">{formatCurrency(stats.monthExpenses)}</div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <div className="text-sm text-slate-500 dark:text-slate-400">Total Expenses</div>
+              <div className="mt-1 text-2xl font-bold text-rose-600 dark:text-rose-400">{formatCurrency(stats.monthExpenses)}</div>
             </div>
           </div>
 
           {/* Monthly Summary */}
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">Monthly Trips</div>
-              <div className="mt-1 text-xl font-bold text-slate-800">{formatNumber(stats.monthTrips)}</div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <div className="text-sm text-slate-500 dark:text-slate-400">Monthly Trips</div>
+              <div className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">{formatNumber(stats.monthTrips)}</div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">Distance (km)</div>
-              <div className="mt-1 text-xl font-bold text-slate-800">{formatNumber(stats.monthDistance)}</div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <div className="text-sm text-slate-500 dark:text-slate-400">Distance (km)</div>
+              <div className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">{formatNumber(stats.monthDistance)}</div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">Fuel Cost</div>
-              <div className="mt-1 text-xl font-bold text-amber-600">{formatCurrency(stats.monthFuel)}</div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <div className="text-sm text-slate-500 dark:text-slate-400">Fuel Cost</div>
+              <div className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">{formatCurrency(stats.monthFuel)}</div>
             </div>
           </div>
 
           {/* Active Trips */}
           {stats.activeTrips.length > 0 && (
             <div className="mt-8">
-              <h3 className="text-lg font-semibold text-slate-800">Active Trips</h3>
-              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Active Trips</h3>
+              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                      <th className="px-4 py-2 font-medium text-slate-600">Ambulance</th>
-                      <th className="px-4 py-2 font-medium text-slate-600">Patient</th>
-                      <th className="px-4 py-2 font-medium text-slate-600">Destination</th>
-                      <th className="px-4 py-2 font-medium text-slate-600">Departed</th>
-                      <th className="px-4 py-2 font-medium text-slate-600"></th>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-700 dark:bg-slate-800/50">
+                      <th className="px-4 py-2 font-medium text-slate-600 dark:text-slate-400">Ambulance</th>
+                      <th className="px-4 py-2 font-medium text-slate-600 dark:text-slate-400">Patient</th>
+                      <th className="px-4 py-2 font-medium text-slate-600 dark:text-slate-400">Destination</th>
+                      <th className="px-4 py-2 font-medium text-slate-600 dark:text-slate-400">Departed</th>
+                      <th className="px-4 py-2 font-medium text-slate-600 dark:text-slate-400"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {stats.activeTrips.map(trip => (
-                      <tr key={trip.id} className="border-b border-slate-100">
-                        <td className="px-4 py-2 font-medium text-slate-800">{trip.vehicleNumber}</td>
-                        <td className="px-4 py-2 text-slate-600">{trip.patientName || '-'}</td>
-                        <td className="px-4 py-2 text-slate-600">{trip.destination}</td>
-                        <td className="px-4 py-2 text-slate-500">{new Date(trip.departureTime).toLocaleString()}</td>
+                      <tr key={trip.id} className="border-b border-slate-100 dark:border-slate-700 dark:hover:bg-slate-700/50 transition">
+                        <td className="px-4 py-2 font-medium text-slate-800 dark:text-slate-200">{trip.vehicleNumber}</td>
+                        <td className="px-4 py-2 text-slate-600 dark:text-slate-400">{trip.patientName || '-'}</td>
+                        <td className="px-4 py-2 text-slate-600 dark:text-slate-400">{trip.destination}</td>
+                        <td className="px-4 py-2 text-slate-500 dark:text-slate-500">{new Date(trip.departureTime).toLocaleString()}</td>
                         <td className="px-4 py-2">
-                          <Link to={`/hospital/ambulance/trips?id=${trip.id}`} className="text-sky-600 hover:underline">Complete</Link>
+                          <Link to={`/hospital/ambulance/trips?id=${trip.id}`} className="text-sky-600 hover:underline dark:text-sky-400">Complete</Link>
                         </td>
                       </tr>
                     ))}
@@ -204,28 +204,28 @@ export default function Ambulance_Dashboard() {
           {/* Ambulance Fleet Status */}
           <div className="mt-8">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-800">Fleet Status</h3>
-              <Link to="/hospital/ambulance/master" className="text-sm text-sky-600 hover:underline">Manage Ambulances →</Link>
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Fleet Status</h3>
+              <Link to="/hospital/ambulance/master" className="text-sm text-sky-600 hover:underline dark:text-sky-400">Manage Ambulances →</Link>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {ambulances.map(amb => (
                 <div key={amb.id} className={`rounded-lg border p-4 ${statusColors[amb.status]}`}>
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="text-lg font-bold">{amb.vehicleNumber}</div>
-                      <div className="text-sm opacity-75">{typeLabels[amb.type]}</div>
+                      <div className="text-lg font-bold dark:text-slate-100">{amb.vehicleNumber}</div>
+                      <div className="text-sm opacity-75 dark:text-slate-400">{typeLabels[amb.type]}</div>
                     </div>
-                    <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-white/50">{amb.status}</span>
+                    <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-white/50 dark:bg-slate-800/50">{amb.status}</span>
                   </div>
                   <div className="mt-3 text-sm">
-                    <div className="opacity-75">Driver: {amb.driverName}</div>
-                    <div className="opacity-75">{amb.driverContact}</div>
+                    <div className="opacity-75 dark:text-slate-400">Driver: {amb.driverName}</div>
+                    <div className="opacity-75 dark:text-slate-400">{amb.driverContact}</div>
                   </div>
                 </div>
               ))}
               {ambulances.length === 0 && (
-                <div className="col-span-full rounded-lg border border-slate-200 bg-slate-50 p-6 text-center text-slate-500">
-                  No ambulances registered. <Link to="/hospital/ambulance/master" className="text-sky-600 hover:underline">Add one now</Link>
+                <div className="col-span-full rounded-lg border border-slate-200 bg-slate-50 p-6 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                  No ambulances registered. <Link to="/hospital/ambulance/master" className="text-sky-600 hover:underline dark:text-sky-400">Add one now</Link>
                 </div>
               )}
             </div>
@@ -233,24 +233,24 @@ export default function Ambulance_Dashboard() {
 
           {/* Reports Links */}
           <div className="mt-8">
-            <h3 className="text-lg font-semibold text-slate-800">Reports & Analytics</h3>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Reports & Analytics</h3>
             <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-              <Link to="/hospital/ambulance/reports?type=usage" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Link to="/hospital/ambulance/reports?type=usage" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                 Usage Report
               </Link>
-              <Link to="/hospital/ambulance/reports?type=trips" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Link to="/hospital/ambulance/reports?type=trips" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                 Trip History
               </Link>
-              <Link to="/hospital/ambulance/reports?type=fuel" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Link to="/hospital/ambulance/reports?type=fuel" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                 Fuel Report
               </Link>
-              <Link to="/hospital/ambulance/reports?type=expenses" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Link to="/hospital/ambulance/reports?type=expenses" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                 Expense Report
               </Link>
-              <Link to="/hospital/ambulance/reports?type=cost-per-km" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Link to="/hospital/ambulance/reports?type=cost-per-km" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                 Cost/Km Analysis
               </Link>
-              <Link to="/hospital/ambulance/reports?type=patient-transport" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Link to="/hospital/ambulance/reports?type=patient-transport" className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                 Patient Transport
               </Link>
             </div>

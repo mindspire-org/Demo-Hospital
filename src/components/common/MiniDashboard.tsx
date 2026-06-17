@@ -1,39 +1,44 @@
-import type { LucideIcon } from 'lucide-react'
+import React from 'react'
 
-type Card = {
+export interface MiniDashboardCard {
   label: string
   value: string | number
-  icon: LucideIcon
-  color: string // tailwind bg class e.g. 'bg-indigo-500'
-  trend?: string // optional subtitle like '+12%'
+  icon: React.ComponentType<{ className?: string }>
+  color?: string // Tailwind bg class like bg-sky-500
 }
 
-type Props = {
-  cards: Card[]
+interface MiniDashboardProps {
+  cards: MiniDashboardCard[]
 }
 
-export default function MiniDashboard({ cards }: Props) {
+export default function MiniDashboard({ cards }: MiniDashboardProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
-      {cards.map((c, i) => {
-        const Icon = c.icon
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {cards.map((card, idx) => {
+        const Icon = card.icon
+        // Map common Tailwind background color classes to their gradient/border equivalents for a premium look
+        const colorClass = card.color || 'bg-blue-500'
+        
         return (
           <div
-            key={i}
-            className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:border-slate-300"
+            key={idx}
+            className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
           >
             <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <div className="truncate text-[11px] font-bold uppercase tracking-wider text-slate-500">{c.label}</div>
-                <div className="mt-1 text-xl font-bold text-slate-900">{c.value}</div>
-                {c.trend && <div className="mt-0.5 text-[11px] font-medium text-emerald-600">{c.trend}</div>}
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {card.label}
+                </span>
+                <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  {card.value}
+                </div>
               </div>
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500 bg-opacity-15`}>
-                <Icon className={`h-5 w-5 text-sky-600`} />
+              <div className={`grid h-12 w-12 place-items-center rounded-xl text-white ${colorClass} shadow-md`}>
+                <Icon className="h-6 w-6" />
               </div>
             </div>
-            {/* Subtle accent line */}
-            <div className={`absolute bottom-0 left-0 h-1 w-full bg-sky-500 opacity-60`} />
+            {/* Subtle background decoration */}
+            <div className="absolute -bottom-6 -right-6 h-16 w-16 rounded-full bg-slate-50 opacity-50 dark:bg-slate-800/30" />
           </div>
         )
       })}

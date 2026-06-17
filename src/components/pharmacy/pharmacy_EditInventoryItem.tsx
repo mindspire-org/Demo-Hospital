@@ -29,6 +29,8 @@ export default function Pharmacy_EditInventoryItem({ open, onClose, medicine }: 
   const [onHand, setOnHand] = useState<number>(0)
   const [salePerUnit, setSalePerUnit] = useState<number>(0)
   const [expiry, setExpiry] = useState<string>('')
+  const [expiryAlertDate, setExpiryAlertDate] = useState<string>('')
+  const [shelfNumber, setShelfNumber] = useState<string>('')
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [supplierId, setSupplierId] = useState('')
   const [supplierName, setSupplierName] = useState('')
@@ -62,6 +64,8 @@ export default function Pharmacy_EditInventoryItem({ open, onClose, medicine }: 
       if (it.lastSalePerUnit != null) setSalePerUnit(Number(it.lastSalePerUnit))
       if (it.defaultDiscountPct != null) setDefaultDiscountPct(Number(it.defaultDiscountPct))
       if (it.lastExpiry) setExpiry(onlyDate(String(it.lastExpiry)))
+      if (it.expiryAlertDate || it.earliestExpiryAlert) setExpiryAlertDate(onlyDate(String(it.expiryAlertDate || it.earliestExpiryAlert)))
+      if (it.shelfNumber) setShelfNumber(String(it.shelfNumber))
       if (it.lastInvoice) setInvoice(String(it.lastInvoice))
       if (it.lastInvoiceDate) setDate(onlyDate(String(it.lastInvoiceDate)))
       if (it.lastSupplier) {
@@ -174,6 +178,14 @@ export default function Pharmacy_EditInventoryItem({ open, onClose, medicine }: 
                 <input type="date" value={expiry} onChange={e=>setExpiry(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
               </div>
               <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Expiry Alert Date</label>
+                <input type="date" value={expiryAlertDate} onChange={e=>setExpiryAlertDate(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Shelf Number</label>
+                <input value={shelfNumber} onChange={e=>setShelfNumber(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Shelf #" />
+              </div>
+              <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Supplier</label>
                 <SearchableSelect
                   value={supplierId}
@@ -216,6 +228,8 @@ export default function Pharmacy_EditInventoryItem({ open, onClose, medicine }: 
                   salePerUnit: salePerUnit || 0,
                   defaultDiscountPct: defaultDiscountPct || 0,
                   expiry: onlyDate(expiry) || undefined,
+                  expiryAlertDate: onlyDate(expiryAlertDate) || undefined,
+                  shelfNumber: (shelfNumber || '').trim() || undefined,
                   invoice: (invoice||'').trim() || undefined,
                   date: onlyDate(date) || undefined,
                   supplierId: supplierId || undefined,

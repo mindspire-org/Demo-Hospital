@@ -721,7 +721,7 @@ export default function Lab_Dashboard(){
       {/* Footer */}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
         <div className="inline-flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Last updated: {today ? new Date(today.at).toLocaleString() : '—'}</div>
-        <div>HealthSpire · Lab Management System</div>
+        <div>HealthSpire · Hospital Management System</div>
       </div>
     </div>
   )

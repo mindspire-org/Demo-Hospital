@@ -7,7 +7,7 @@
  * - Reports
  */
 
-import { api, withQuery } from '@/api'
+import { api, withQuery } from '../../../api'
 
 export const ambulanceApi = {
   // -------------------------------------------------------------------------

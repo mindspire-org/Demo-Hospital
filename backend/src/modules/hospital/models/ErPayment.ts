@@ -11,6 +11,7 @@ const ErPaymentSchema = new Schema({
   amount: { type: Number, required: true },
   type: { type: String, enum: ['payment', 'refund', 'adjustment'], default: 'payment' },
   method: { type: String },
+  paymentMode: { type: String },
   refNo: { type: String },
   receivedBy: { type: String },
   createdByUserId: { type: Schema.Types.ObjectId, ref: 'Hospital_User', index: true },
@@ -24,6 +25,7 @@ const ErPaymentSchema = new Schema({
   fbrMode: { type: String },
   fbrError: { type: String },
   portal: { type: String, enum: ['hospital', 'reception', 'lab', 'diagnostic', 'pharmacy', 'aesthetic'], index: true },
+  source: { type: String },
 }, { timestamps: true })
 
 ErPaymentSchema.index({ encounterId: 1, receivedAt: -1 })
@@ -35,6 +37,7 @@ export type HospitalErPaymentDoc = {
   amount: number
   type?: 'payment' | 'refund' | 'adjustment'
   method?: string
+  paymentMode?: string
   refNo?: string
   receivedBy?: string
   createdByUserId?: string

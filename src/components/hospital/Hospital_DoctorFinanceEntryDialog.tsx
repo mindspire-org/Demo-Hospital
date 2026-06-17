@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import SearchableSelect from '../common/SearchableSelect'
+import { hospitalApi } from '../../utils/api'
 
 export type EntryType = 'OPD' | 'IPD' | 'Procedure' | 'Payout' | 'Adjustment'
 
@@ -27,6 +29,11 @@ type Doctor = {
   shares?: number
 }
 
+type Department = {
+  id: string
+  name: string
+}
+
 type Props = {
   doctors: Doctor[]
   onClose: () => void
@@ -38,23 +45,37 @@ export default function Hospital_DoctorFinanceEntryDialog({ doctors, onClose, on
     date: string
     doctorId: string
     phone: string
-    department: string
+    departmentId: string
     patient: string
     mrNumber: string
     description: string
     amount: string
   }
 
+  const [departments, setDepartments] = useState<Department[]>([])
   const [form, setForm] = useState<Form>({
     date: new Date().toISOString().slice(0,10),
     doctorId: doctors[0]?.id || '',
     phone: '',
-    department: '',
+    departmentId: '',
     patient: '',
     mrNumber: '',
     description: '',
     amount: '',
   })
+
+  // Load departments on mount
+  useEffect(() => {
+    hospitalApi.listDepartments({ limit: 1000 }).then((res: any) => {
+      const items: any[] = res?.departments || res || []
+      setDepartments(items.map((d: any) => ({ id: String(d._id || d.id), name: String(d.name || '') })))
+    }).catch(() => {})
+  }, [])
+
+  const departmentOptions = useMemo(() => {
+    const opts = departments.map(d => ({ value: d.id, label: d.name }))
+    return [{ value: '', label: '- Select Department -' }, ...opts]
+  }, [departments])
 
   useEffect(() => {
     const d = doctors.find(x => x.id === form.doctorId)
@@ -87,7 +108,7 @@ export default function Hospital_DoctorFinanceEntryDialog({ doctors, onClose, on
       patient: form.patient.trim() || undefined,
       mrNumber: form.mrNumber.trim() || undefined,
       phone: form.phone.trim() || undefined,
-      departmentName: form.department.trim() || undefined,
+      departmentName: departments.find(d => d.id === form.departmentId)?.name || undefined,
       description: form.description.trim() || undefined,
       gross: undefined,
       discount: undefined,
@@ -121,7 +142,12 @@ export default function Hospital_DoctorFinanceEntryDialog({ doctors, onClose, on
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-700">Department</label>
-            <input value={form.department} onChange={e=>setForm(f=>({ ...f, department: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g., Medicine" />
+            <SearchableSelect
+              value={form.departmentId}
+              onChange={v => setForm(f => ({ ...f, departmentId: v }))}
+              options={departmentOptions}
+              placeholder="Search department..."
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-700">Patient</label>

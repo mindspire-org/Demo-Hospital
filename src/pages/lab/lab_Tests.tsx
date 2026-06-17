@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Edit2, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Plus, Database, RefreshCw, LayoutGrid, List as ListIcon, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Search, Edit2, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Plus, LayoutGrid, List as ListIcon, ToggleLeft, ToggleRight, Copy } from 'lucide-react'
 import Lab_AddTestModal from '../../components/lab/lab_AddTestModal'
 import type { LabTestFormValues } from '../../components/lab/lab_AddTestModal'
 import { labApi } from '../../utils/api'
-import { useLabSession } from '../../hooks/useLabSession'
 
 type LabTest = {
   id: string
@@ -22,6 +21,10 @@ type LabTest = {
   category?: string
   template?: string
   sections?: Array<{ key: string; title: string; order?: number }>
+  defaultInterpretation?: string
+  defaultSensitivityDrugs?: string[]
+  reportNotes?: string
+  hideEmptyRowsInReport?: boolean
   turnaroundTime?: number
   createdAt: string
 }
@@ -35,23 +38,22 @@ export default function Lab_Tests() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
-  const session = useLabSession()
+
 
   const [viewMode, setViewMode] = useState<'grid'|'list'>('grid')
 
   const [openModal, setOpenModal] = useState(false)
   const [editing, setEditing] = useState<LabTest | null>(null)
+  const [duplicating, setDuplicating] = useState<LabTest | null>(null)
 
   const [q, setQ] = useState('')
   const [catFilter, setCatFilter] = useState('')
-  const [pageSize, setPageSize] = useState(12)
+  const [pageSize, setPageSize] = useState(50)
   const [page, setPage] = useState(1)
   const [tick, setTick] = useState(0)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ text: string; kind: 'success'|'error' } | null>(null)
-  const [seeding, setSeeding] = useState(false)
-  const [seedStatus, setSeedStatus] = useState<{ total: number } | null>(null)
 
   useEffect(()=>{
     let mounted = true
@@ -76,6 +78,10 @@ export default function Lab_Tests() {
           category: x.category || 'Other',
           template: x.template || 'general',
           sections: Array.isArray(x.sections)? x.sections : [],
+          defaultInterpretation: x.defaultInterpretation,
+          defaultSensitivityDrugs: Array.isArray(x.defaultSensitivityDrugs) ? x.defaultSensitivityDrugs : [],
+          reportNotes: x.reportNotes,
+          hideEmptyRowsInReport: x.hideEmptyRowsInReport !== false,
           turnaroundTime: x.turnaroundTime || 0,
           createdAt: x.createdAt || new Date().toISOString(),
         }))
@@ -114,6 +120,17 @@ export default function Lab_Tests() {
       category: values.category,
       template: values.template,
       sections: values.sections,
+      defaultInterpretation: values.defaultInterpretation,
+      defaultSensitivityDrugs: values.defaultSensitivityDrugs,
+      reportNotes: values.reportNotes,
+      hideEmptyRowsInReport: values.hideEmptyRowsInReport,
+      turnaroundTime: values.turnaroundTime,
+      turnaroundTimeNormal: values.turnaroundTimeNormal,
+      turnaroundTimeUrgent: values.turnaroundTimeUrgent,
+      turnaroundTimeStat: values.turnaroundTimeStat,
+      cutOffTime: values.cutOffTime,
+      cutOffDays: values.cutOffDays,
+      cutOffHoliday: values.cutOffHoliday,
     }
     if (editing) {
       await labApi.updateTest(editing.id, payload)
@@ -122,6 +139,7 @@ export default function Lab_Tests() {
       await labApi.createTest(payload)
     }
     setOpenModal(false)
+    setDuplicating(null)
     setTick(t=>t+1)
   }
 
@@ -146,43 +164,6 @@ export default function Lab_Tests() {
     finally { setDeleteOpen(false); setDeleteId(null); try { setTimeout(()=> setNotice(null), 2500) } catch {} }
   }
 
-  const handleSeedTests = async () => {
-    if (!session.isAdmin) return
-    if (seeding) return
-
-    const first = window.confirm('Seed Tests will add/update the test catalog. Do you want to continue?')
-    if (!first) return
-    const second = window.confirm('This action can modify existing tests. Are you absolutely sure?')
-    if (!second) return
-
-    setSeeding(true)
-    try {
-      const res = await labApi.seedTests()
-      if (res.success) {
-        const { summary } = res as any
-        setNotice({ text: `Seeded ${summary?.totalCreated || 0} tests (${summary?.totalUpdated || 0} updated)`, kind: 'success' })
-        setTick(t => t + 1)
-        setSeedStatus({ total: summary?.totalTests || 0 })
-      }
-    } catch (e) {
-      console.error(e)
-      setNotice({ text: 'Failed to seed tests', kind: 'error' })
-    } finally {
-      setSeeding(false)
-      try { setTimeout(() => setNotice(null), 3500) } catch {}
-    }
-  }
-
-  const loadSeedStatus = async () => {
-    try {
-      const res = await labApi.getSeedStatus()
-      setSeedStatus({ total: res.total || 0 })
-    } catch {}
-  }
-
-  useEffect(() => {
-    loadSeedStatus()
-  }, [])
 
   const loadAllForExport = async (): Promise<LabTest[]> => {
     const limit = 200
@@ -319,9 +300,11 @@ export default function Lab_Tests() {
             <option>Hematology</option><option>Chemistry</option><option>SpecialChemistry</option><option>Serology</option><option>Microbiology</option><option>Molecular</option><option>Cytology</option><option>Histopathology</option><option>Radiology</option><option>Endocrinology</option><option>Immunology</option><option>Other</option>
           </select>
           <select value={pageSize} onChange={e=>{ setPageSize(Number(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
-            <option value={12}>12</option>
-            <option value={24}>24</option>
-            <option value={48}>48</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={150}>150</option>
+            <option value={200}>200</option>
+            <option value={1000}>All</option>
           </select>
           <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white p-1">
             <button type="button" onClick={() => setViewMode('grid')} className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium ${viewMode==='grid' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}>
@@ -332,21 +315,7 @@ export default function Lab_Tests() {
             </button>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            {seedStatus && (
-              <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                {seedStatus.total} tests in catalog
-              </span>
-            )}
-            {session.isAdmin && (
-              <button
-                onClick={handleSeedTests}
-                disabled={seeding}
-                className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
-              >
-                {seeding ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-                {seeding ? 'Seeding...' : 'Seed Tests'}
-              </button>
-            )}
+
             <button onClick={exportCSV} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50">Download CSV</button>
             <button onClick={exportPDF} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50">Download PDF</button>
             <button onClick={()=>{ setEditing(null); setOpenModal(true) }} className="inline-flex items-center gap-2 rounded-md bg-violet-700 px-3 py-2 text-sm font-medium text-white hover:bg-violet-800">
@@ -414,6 +383,7 @@ export default function Lab_Tests() {
 
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={()=>{ setEditing(t); setOpenModal(true) }} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"><Edit2 className="h-4 w-4" /> Edit</button>
+              <button onClick={()=>{ setDuplicating(t); setEditing(null); setOpenModal(true) }} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"><Copy className="h-4 w-4" /> Duplicate</button>
               <button onClick={()=> toggleActive(t)} className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium ${t.isActive === false ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
                 {t.isActive === false ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                 {t.isActive === false ? 'Activate' : 'Deactivate'}
@@ -449,6 +419,7 @@ export default function Lab_Tests() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <button onClick={()=>{ setEditing(t); setOpenModal(true) }} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"><Edit2 className="h-4 w-4" /> Edit</button>
+                      <button onClick={()=>{ setDuplicating(t); setEditing(null); setOpenModal(true) }} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"><Copy className="h-4 w-4" /> Duplicate</button>
                       <button onClick={()=> toggleActive(t)} className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium ${t.isActive === false ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
                         {t.isActive === false ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                         {t.isActive === false ? 'Activate' : 'Deactivate'}
@@ -476,24 +447,38 @@ export default function Lab_Tests() {
 
       <Lab_AddTestModal
         open={openModal}
-        onClose={() => { setOpenModal(false); setEditing(null) }}
+        onClose={() => { setOpenModal(false); setEditing(null); setDuplicating(null) }}
         onSave={onSave}
-        initial={editing ? {
-          name: editing.name,
-          price: String(editing.price ?? 0),
-          parameter: editing.parameter,
-          unit: editing.unit,
-          normalRangeMale: editing.normalRangeMale,
-          normalRangeFemale: editing.normalRangeFemale,
-          normalRangePediatric: editing.normalRangePediatric,
-          criticalMin: editing.criticalMin != null ? String(editing.criticalMin) : '',
-          criticalMax: editing.criticalMax != null ? String(editing.criticalMax) : '',
-          parameters: (editing.parameters || []).map(p => ({ ...p, criticalMin: p.criticalMin != null ? String(p.criticalMin) : '', criticalMax: p.criticalMax != null ? String(p.criticalMax) : '', sectionKey: p.sectionKey || '', order: p.order || 0 })),
-          consumables: editing.consumables || [],
-          category: editing.category,
-          template: editing.template,
-          sections: editing.sections || [],
-        } : undefined}
+        initial={(editing || duplicating) ? (() => {
+          const src = (editing || duplicating) as LabTest
+          return {
+            name: duplicating ? `${src.name} (Copy)` : src.name,
+            price: String(src.price ?? 0),
+            parameter: src.parameter,
+            unit: src.unit,
+            normalRangeMale: src.normalRangeMale,
+            normalRangeFemale: src.normalRangeFemale,
+            normalRangePediatric: src.normalRangePediatric,
+            criticalMin: src.criticalMin != null ? String(src.criticalMin) : '',
+            criticalMax: src.criticalMax != null ? String(src.criticalMax) : '',
+            parameters: (src.parameters || []).map(p => ({ ...p, criticalMin: p.criticalMin != null ? String(p.criticalMin) : '', criticalMax: p.criticalMax != null ? String(p.criticalMax) : '', sectionKey: p.sectionKey || '', order: p.order || 0 })),
+            consumables: src.consumables || [],
+            category: src.category,
+            template: src.template,
+            sections: src.sections || [],
+            defaultInterpretation: src.defaultInterpretation,
+            defaultSensitivityDrugs: src.defaultSensitivityDrugs || [],
+            reportNotes: src.reportNotes,
+            hideEmptyRowsInReport: src.hideEmptyRowsInReport !== false,
+            turnaroundTime: src.turnaroundTime,
+            turnaroundTimeNormal: (src as any).turnaroundTimeNormal,
+            turnaroundTimeUrgent: (src as any).turnaroundTimeUrgent,
+            turnaroundTimeStat: (src as any).turnaroundTimeStat,
+            cutOffTime: (src as any).cutOffTime,
+            cutOffDays: (src as any).cutOffDays,
+            cutOffHoliday: (src as any).cutOffHoliday,
+          }
+        })() : undefined}
       />
 
       {deleteOpen && (

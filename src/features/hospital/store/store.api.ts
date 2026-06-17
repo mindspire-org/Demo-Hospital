@@ -8,7 +8,7 @@
  * - Reports
  */
 
-import { api, withQuery, baseURL, getToken } from '@/api'
+import { api, withQuery, baseURL, getToken } from '../../../api'
 
 export const storeApi = {
   // -------------------------------------------------------------------------

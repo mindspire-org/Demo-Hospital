@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { dialysisApi } from '../../utils/api'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 
 export type DialysisTokenSlipData = {
   tokenNo: string
@@ -94,7 +95,6 @@ export default function Dialysis_TokenSlip({
   }, [open, autoPrint, settings.name, settings.address, settings.phone, settings.logoDataUrl, settings.slipFooter])
 
   if (!open) return null
-  const dt = data.createdAt ? new Date(data.createdAt) : new Date()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60 p-4 print:bg-white print:static">
@@ -120,7 +120,7 @@ export default function Dialysis_TokenSlip({
         <div className="mt-2 flex flex-wrap justify-between gap-1 text-xs text-slate-700 dark:text-slate-300 print:text-black">
           <div>User: {user || getCurrentUser()}</div>
           <div>
-            {dt.toLocaleDateString()} {dt.toLocaleTimeString()}
+            {fmtDateTime12(data.createdAt || new Date().toISOString())}
           </div>
         </div>
 

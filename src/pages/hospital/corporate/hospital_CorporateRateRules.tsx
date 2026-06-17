@@ -111,7 +111,7 @@ export default function Hospital_CorporateRateRules(){
           const [c, d, deps] = await Promise.all([
             corporateApi.listCompanies() as any,
             hospitalApi.listDoctors() as any,
-            hospitalApi.listDepartments() as any,
+            hospitalApi.listDepartments({ limit: 1000 }) as any,
           ])
           if (!mounted) return
           const companyArr = (c?.companies||[]).map((x:any)=>({ id: String(x._id||x.id), name: x.name }))

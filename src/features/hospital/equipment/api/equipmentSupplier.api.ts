@@ -1,4 +1,4 @@
-import { api, withQuery } from '@/api'
+import { api, withQuery } from '../../../../api'
 
 export const equipmentSupplierApi = {
   list: (params?: { q?: string; type?: string; status?: string; page?: number; limit?: number }) =>

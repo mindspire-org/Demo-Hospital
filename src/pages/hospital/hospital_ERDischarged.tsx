@@ -1,54 +1,132 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
 import { hospitalApi } from '../../utils/api'
-import { UserMinus, Search, ChevronLeft, ChevronRight, Clock, Activity, FileText, Receipt } from 'lucide-react'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { previewGatePassPdf } from '../../utils/hospital_documents'
 
-type DischargedRow = {
+type BedLocation = {
+  floor: string
+  type: 'room' | 'ward'
+  location: string
+  bed: string
+}
+
+type ErDischarge = {
   id: string
+  encounterId: string
   tokenNo: string
   mrn: string
   patientName: string
-  patientId?: string
-  bed?: string
-  admittedAt?: string
+  phone?: string
   age?: string
   gender?: string
-  phone?: string
   doctor?: string
-  triage?: 'red' | 'yellow' | 'green'
+  triage?: string
   arrivalMode?: string
-  chiefComplaint?: string
+  startAt: string
+  endAt: string
   disposition?: string
-  dischargedAt?: string
-  encounterId?: string
+  bedLabel?: string
+  bedLocation?: BedLocation
 }
 
-export default function Hospital_ERDischarged() {
-  const navigate = useNavigate()
-  const [rows, setRows] = useState<DischargedRow[]>([])
-  const [loading, setLoading] = useState(false)
+function formatBedLocation(bedLoc?: BedLocation) {
+  if (!bedLoc) return '-'
+  return `${bedLoc.floor} / ${bedLoc.location} / Bed: ${bedLoc.bed}`
+}
+
+function toCsv(rows: ErDischarge[]) {
+  const headers = ['Token No', 'MRN', 'Patient Name', 'Phone', 'Age', 'Gender', 'Doctor', 'Triage', 'Arrival', 'Bed', 'Start', 'Discharged', 'Disposition']
+  const body = rows.map(r => [
+    r.tokenNo, r.mrn, r.patientName, r.phone || '', r.age || '', r.gender || '',
+    r.doctor || '', r.triage || '', r.arrivalMode || '', formatBedLocation(r.bedLocation), r.startAt, r.endAt, r.disposition || ''
+  ])
+  return [headers, ...body].map(arr => arr.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+}
+
+export default function Hospital_ErDischarged() {
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [q, setQ] = useState('')
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(20)
+  const [tick, setTick] = useState(0)
+  const [serverRows, setServerRows] = useState<ErDischarge[]>([])
+  const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
 
-  const apiBase = useMemo(()=>{
+  const apiBase = useMemo(() => {
     const isFile = typeof window !== 'undefined' && window.location?.protocol === 'file:'
     const isElectronUA = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent || '')
     const envBase = (import.meta as any).env?.VITE_API_URL
     return envBase || ((isFile || isElectronUA) ? 'http://127.0.0.1:4000/api' : 'http://localhost:4000/api')
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const res = await hospitalApi.listEREncounters({ status: 'discharged', limit: 500 }) as any
+        const rows: any[] = res?.encounters || []
+        if (cancelled) return
+        const mapped: ErDischarge[] = rows.map((enc: any) => ({
+          id: String(enc._id),
+          encounterId: String(enc._id),
+          tokenNo: String(enc.tokenId?.tokenNo || enc.tokenNo || enc.displayTokenNo || '-'),
+          mrn: String(enc.patientId?.mrn || enc.mrn || '-'),
+          patientName: String(enc.patientId?.fullName || enc.patientName || '-'),
+          phone: String(enc.patientId?.phoneNormalized || enc.phone || '-'),
+          age: String(enc.patientId?.age || ''),
+          gender: String(enc.patientId?.gender || ''),
+          doctor: String(enc.doctorId?.fullName || enc.doctorId?.name || enc.doctorName || '-'),
+          triage: String(enc.triage || ''),
+          arrivalMode: String(enc.arrivalMode || ''),
+          startAt: String(enc.startAt || enc.createdAt || ''),
+          endAt: String(enc.endAt || ''),
+          disposition: String(enc.disposition || 'discharged'),
+          bedLabel: enc.bedLabel || enc.bed?.label || enc.bedId?.label || '-',
+          bedLocation: enc.bedLocation || enc.bedId || enc.bed || undefined,
+        }))
+        setServerRows(mapped)
+      } catch (e: any) {
+        if (!cancelled) setToast({ type: 'error', message: e?.message || 'Failed to load discharged ER patients' })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [tick])
+
+  const all = useMemo(() =>
+    serverRows.sort((a, b) => new Date(b.endAt).getTime() - new Date(a.endAt).getTime()),
+    [serverRows]
+  )
+
+  const filtered = useMemo(() => {
+    const fromDate = from ? new Date(from) : null
+    const toDate = to ? new Date(to) : null
+    return all.filter(r => {
+      if (fromDate && new Date(r.endAt) < fromDate) return false
+      if (toDate && new Date(r.endAt) > new Date(new Date(to).getTime() + 24 * 60 * 60 * 1000 - 1)) return false
+      if (q) {
+        const hay = `${r.patientName} ${r.mrn} ${r.tokenNo} ${r.doctor || ''} ${r.phone || ''} ${formatBedLocation(r.bedLocation)}`.toLowerCase()
+        if (!hay.includes(q.toLowerCase())) return false
+      }
+      return true
+    })
+  }, [all, from, to, q])
+
   const openPrintPreview = async (fullUrl: string) => {
     const api: any = (window as any).electronAPI
     if (api && typeof api.printPreviewHtml === 'function') {
       try {
-        const token = ((): string => { try { return localStorage.getItem('hospital.token') || localStorage.getItem('token') || '' } catch { return '' } })()
+        const token = localStorage.getItem('hospital.token') || localStorage.getItem('token') || ''
         const res = await fetch(fullUrl, { headers: token ? { Authorization: `Bearer ${token}` } as any : undefined })
-        if (!res.ok){
-          const txt = await res.text().catch(()=> 'Failed to load document')
-          setToast({ type: 'error', message: String(txt || 'Failed to load document').slice(0, 500) })
+        if (!res.ok) {
+          const txt = await res.text().catch(() => 'Failed to load document')
+          setToast({ type: 'error', message: txt.slice(0, 200) || 'Failed to load document' })
           return
         }
         const html = await res.text()
@@ -59,215 +137,156 @@ export default function Hospital_ERDischarged() {
     try { window.open(fullUrl, '_blank') } catch {}
   }
 
-  const printSummary = (id: string) => openPrintPreview(`${apiBase}/hospital/ipd/admissions/${encodeURIComponent(id)}/discharge-summary/print`)
-  const printInvoice = (id: string) => openPrintPreview(`${apiBase}/hospital/ipd/admissions/${encodeURIComponent(id)}/final-invoice/print`)
+  const printMedicalRecord = (encounterId: string) => {
+    openPrintPreview(`${apiBase}/hospital/er/encounters/${encodeURIComponent(encounterId)}/medical-record/print`)
+  }
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      try {
-        const deps: any = await hospitalApi.listDepartments() as any
-        const list: any[] = deps?.departments || deps || []
-        const er = list.find((d: any) => String(d?.name || '').trim().toLowerCase() === 'emergency')
-        const departmentId = er?._id || er?.id
-        if (!departmentId) {
-          if (!cancelled) setRows([])
-          setLoading(false)
-          return
+  const printInvoice = (encounterId: string) => {
+    openPrintPreview(`${apiBase}/hospital/er/encounters/${encodeURIComponent(encounterId)}/final-invoice/print`)
+  }
+
+  const printGatePass = async (r: ErDischarge) => {
+    try {
+      const s = await hospitalApi.getSettings()
+      await previewGatePassPdf({
+        settings: {
+          name: s?.name,
+          address: s?.address,
+          phone: s?.phone,
+          logoDataUrl: s?.logoDataUrl,
+        },
+        patient: {
+          name: r.patientName,
+          mrn: r.mrn,
+          age: r.age,
+          gender: r.gender,
+          department: 'Emergency',
+          bed: formatBedLocation(r.bedLocation),
+          admitDate: r.startAt,
+          dischargeDate: r.endAt,
+          dischargeTime: new Date(r.endAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
         }
-        const res: any = await hospitalApi.listEREncounters({ status: 'discharged', limit: 20, page })
-        const items: any[] = res?.items || res?.encounters || []
-        const mapped: DischargedRow[] = items.map((e: any) => {
-          const p = e.patientId || {}
-          const doc = e.doctorId || {}
-          const docName = doc.name || doc.fullName || doc.username || ''
-          const bed = e.bedId || {}
-          const bedLabel = bed.label || e.bedLabel || ''
-          const when = e.endAt || e.dischargedAt || e.updatedAt
-          return {
-            id: String(e._id || e.id),
-            tokenNo: String(e.tokenNo || ''),
-            mrn: String(p.mrn || ''),
-            patientName: String(p.fullName || ''),
-            patientId: String(p._id || ''),
-            bed: String(bedLabel || ''),
-            admittedAt: e.startAt || e.createdAt,
-            age: String(p.age || ''),
-            gender: String(p.gender || ''),
-            phone: String(p.phoneNormalized || p.phone || ''),
-            doctor: docName ? String(docName) : undefined,
-            triage: e.triage || undefined,
-            arrivalMode: e.arrivalMode || undefined,
-            chiefComplaint: e.chiefComplaint || undefined,
-            disposition: e.disposition || 'discharged',
-            dischargedAt: when ? new Date(when).toLocaleString() : undefined,
-            encounterId: String(e._id || e.id),
-          }
-        })
-        if (!cancelled) {
-          setRows(mapped)
-          const total = res?.total || res?.pagination?.total || items.length
-          setTotalPages(Math.max(1, Math.ceil(total / 20)))
-        }
-      } catch {
-        if (!cancelled) setRows([])
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+      })
+    } catch (e) {
+      setToast({ type: 'error', message: 'Failed to generate gate pass' })
     }
-    load()
-    return () => { cancelled = true }
-  }, [page])
+  }
 
-  const filtered = useMemo(() => {
-    const qq = q.trim().toLowerCase()
-    if (!qq) return rows
-    return rows.filter(r => {
-      const hay = [r.tokenNo, r.mrn, r.patientName, r.phone, r.triage, r.arrivalMode, r.chiefComplaint, r.disposition].filter(Boolean).join(' ').toLowerCase()
-      return hay.includes(qq)
-    })
-  }, [q, rows])
+  const exportCsv = () => {
+    const csv = toCsv(filtered)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `er_discharged_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const formatDate = (s: string) => {
+    if (!s) return '-'
+    return new Date(s).toLocaleString()
+  }
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-linear-to-r from-slate-700 via-slate-800 to-slate-900 p-6 shadow-xl">
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)]" />
-        <div className="relative flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm">
-              <UserMinus className="h-7 w-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-white tracking-tight">ER Discharged Patients</h1>
-              <p className="mt-0.5 text-sm font-medium text-white/60">Patients discharged from the Emergency Department</p>
-            </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-xl font-bold text-slate-800">ER Discharged Patients</div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setTick(t => t + 1)} className="btn-outline-navy">Refresh</button>
+          <button onClick={exportCsv} className="btn-outline-navy">Export CSV</button>
+          <Link to="/hospital/emergency" className="btn-outline-navy">ER Queue</Link>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="grid items-end gap-3 md:grid-cols-5">
+          <div>
+            <label className="mb-1 block text-sm text-slate-700">From</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </div>
-          <button
-            onClick={() => navigate('/hospital/emergency')}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold text-white backdrop-blur-sm hover:bg-white/20 transition-colors"
-          >
-            <Activity className="h-4 w-4" /> Back to Emergency
-          </button>
+          <div>
+            <label className="mb-1 block text-sm text-slate-700">To</label>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-sm text-slate-700">Search</label>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="token#, name, MRN, phone, doctor" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-slate-700">Rows</label>
+            <select value={rowsPerPage} onChange={e => setRowsPerPage(parseInt(e.target.value))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={q}
-            onChange={e => { setQ(e.target.value); setPage(1) }}
-            placeholder="Search by token#, MR#, patient, phone, triage, complaint..."
-            className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-          />
-        </div>
-      </div>
-
-      {/* Empty State */}
-      {filtered.length === 0 && !loading && (
-        <div className="rounded-2xl border border-slate-200/60 bg-white p-12 text-center text-slate-400">
-          <UserMinus className="mx-auto mb-3 h-10 w-10 opacity-20" />
-          <p className="text-sm font-medium">No discharged ER patients found</p>
-        </div>
-      )}
-
-      {/* Table */}
-      {filtered.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="bg-linear-to-r from-slate-50 to-slate-100/50 border-b border-slate-200">
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">SR.NO</th>
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">MRN</th>
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Patient</th>
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Doctor</th>
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Bed</th>
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Admitted</th>
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Discharged</th>
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Status</th>
-                  <th className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading && (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center gap-2">
-                      <Activity className="h-6 w-6 animate-pulse text-indigo-400" />
-                      <span>Loading...</span>
-                    </div>
-                  </td></tr>
-                )}
-                {filtered.map((r, idx) => (
-                  <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-4 py-3">{idx + 1}</td>
-                    <td className="px-4 py-3">{r.mrn || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div>
-                        <button
-                          onClick={() => r.encounterId && navigate(`/hospital/patient/${r.encounterId}`)}
-                          className="font-semibold text-slate-900 hover:text-indigo-700 hover:underline transition-colors text-left"
-                          title="View patient profile"
-                        >{r.patientName || '-'}</button>
-                      </div>
+      <div className="rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
+              <tr>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Token #</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">MRN</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Phone</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Doctor</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Triage</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Arrival</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Bed</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Check In</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Discharged</th>
+                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 text-slate-700">
+              {loading ? (
+                <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-500">Loading...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={11} className="px-4 py-12 text-center text-slate-500">No discharged ER patients found</td></tr>
+              ) : (
+                filtered.slice(0, rowsPerPage).map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50/50">
+                    <td className="px-4 py-2 font-medium">{r.tokenNo}</td>
+                    <td className="px-4 py-2">{r.mrn || '-'}</td>
+                    <td className="px-4 py-2 capitalize">
+                      <div>{r.patientName}</div>
+                      <div className="text-xs text-slate-500">{r.age} / {r.gender}</div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{r.doctor || '-'}</td>
-                    <td className="px-4 py-3">{r.bed || '-'}</td>
-                    <td className="px-4 py-3">{r.admittedAt ? new Date(r.admittedAt).toLocaleString() : '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5 text-slate-600">
-                        <Clock className="h-3.5 w-3.5 text-slate-400" />
-                        {r.dischargedAt || '—'}
-                      </div>
+                    <td className="px-4 py-2">{r.phone || '-'}</td>
+                    <td className="px-4 py-2">{r.doctor || '-'}</td>
+                    <td className="px-4 py-2">
+                      {r.triage && (
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          r.triage === 'red' ? 'bg-rose-100 text-rose-700' :
+                          r.triage === 'yellow' ? 'bg-amber-100 text-amber-700' :
+                          'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {r.triage.toUpperCase()}
+                        </span>
+                      ) || '-'}
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-emerald-600 px-2 py-1 text-xs text-white">Discharged</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button 
-                          disabled={!r.encounterId} 
-                          onClick={()=> r.encounterId && printSummary(r.encounterId)} 
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 hover:shadow active:scale-95 disabled:opacity-50"
-                        >
-                          <FileText className="h-3.5 w-3.5" /> Summary
-                        </button>
-                        
-                        <button 
-                          disabled={!r.encounterId} 
-                          onClick={()=> r.encounterId && printInvoice(r.encounterId)} 
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 hover:shadow active:scale-95 disabled:opacity-50"
-                        >
-                          <Receipt className="h-3.5 w-3.5" /> Invoice
-                        </button>
+                    <td className="px-4 py-2">{r.arrivalMode || '-'}</td>
+                    <td className="px-4 py-2">{formatBedLocation(r.bedLocation)}</td>
+                    <td className="px-4 py-2 text-xs">{formatDate(r.startAt)}</td>
+                    <td className="px-4 py-2 text-xs">{formatDate(r.endAt)}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <button onClick={() => printMedicalRecord(r.encounterId)} className="btn-outline-navy text-xs">Medical Record</button>
+                        <button onClick={() => printInvoice(r.encounterId)} className="btn-outline-navy text-xs">Invoice</button>
+                        <button onClick={() => printGatePass(r)} className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"><LogOut className="h-3.5 w-3.5" />Gate Pass</button>
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-600">
-          <span>Page {page} of {totalPages}</span>
-          <div className="flex items-center gap-2">
-            <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
+      </div>
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   )

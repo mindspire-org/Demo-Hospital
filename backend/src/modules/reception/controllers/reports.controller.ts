@@ -22,10 +22,14 @@ function shiftWindowForDate(shift: any, baseDateIso: string){
   const startMin = toMin(String(shift?.start || '00:00'))
   const endMin = toMin(String(shift?.end || '00:00'))
 
-  const start = new Date(`${baseDateIso}T00:00:00.000`)
+  // baseDateIso is Pakistan local date; convert midnight Pakistan -> UTC
+  const baseMidnight = new Date(`${baseDateIso}T00:00:00.000`)
+  const pakMidnight = new Date(baseMidnight.getTime() - (5 * 60 * 60 * 1000))
+
+  const start = new Date(pakMidnight.getTime())
   start.setMinutes(start.getMinutes() + startMin)
 
-  let end = new Date(`${baseDateIso}T00:00:00.000`)
+  let end = new Date(pakMidnight.getTime())
   end.setMinutes(end.getMinutes() + endMin)
 
   // Overnight shift
@@ -47,10 +51,17 @@ export async function myActivity(req: Request, res: Response){
   const userId = String((req as any).user?._id || (req as any).user?.id || '').trim()
   if (!username && !userId) return jsonError(res, 401, 'Unauthorized')
 
-  const todayIso = new Date().toISOString().slice(0,10)
+    // Get Pakistan local date (UTC+5)
+  const now = new Date()
+  const pakDate = new Date(now.getTime() + (5 * 60 * 60 * 1000))
+  const todayIso = pakDate.toISOString().slice(0,10)
 
-  let rangeStart = new Date(`${todayIso}T00:00:00.000`)
-  let rangeEnd = new Date(`${todayIso}T23:59:59.999`)
+  // Convert Pakistan local day to UTC for MongoDB query
+  // Pakistan midnight (00:00) = UTC 19:00 (previous day)
+  const pakStart = new Date(todayIso + 'T00:00:00')
+  const pakEnd = new Date(todayIso + 'T23:59:59.999')
+  let rangeStart = new Date(pakStart.getTime() - (5 * 60 * 60 * 1000))
+  let rangeEnd = new Date(pakEnd.getTime() - (5 * 60 * 60 * 1000))
   let shiftMeta: any = undefined
 
   if (mode === 'shift'){
@@ -85,7 +96,8 @@ export async function myActivity(req: Request, res: Response){
       ...(performedByExact ? { createdByUsername: new RegExp(`^${performedByExact}$`, 'i') } : {}),
       createdAt: { $gte: rangeStart, $lte: rangeEnd },
     })
-      .select('dateIso tokenNo fee discount status corporateId createdAt patientName mrn createdByUsername portal')
+      .select('dateIso tokenNo fee discount status corporateId createdAt patientName mrn createdByUsername portal serviceIds serviceNames')
+      .populate('serviceIds', 'name')
       .sort({ createdAt: -1 })
       .lean(),
 
@@ -110,7 +122,7 @@ export async function myActivity(req: Request, res: Response){
       ...(performedByExact ? { createdByUsername: new RegExp(`^${performedByExact}$`, 'i') } : {}),
       createdAt: { $gte: rangeStart, $lte: rangeEnd },
     })
-      .select('createdAt tokenNo patient subtotal discount net receivedAmount receivableAmount status createdByUsername portal')
+      .select('createdAt tokenNo patient subtotal discount net receivedAmount receivableAmount status createdByUsername portal tests')
       .sort({ createdAt: -1 })
       .lean(),
 
@@ -119,7 +131,7 @@ export async function myActivity(req: Request, res: Response){
       portal,
       ...(performedByExact ? { createdByUsername: new RegExp(`^${performedByExact}$`, 'i') } : {}),
     } as any)
-      .select('createdAt tokenNo patient subtotal discount net receivedAmount receivableAmount status createdByUsername portal')
+      .select('createdAt tokenNo patient subtotal discount net receivedAmount receivableAmount status createdByUsername portal tests')
       .sort({ createdAt: -1 })
       .lean(),
 
@@ -130,7 +142,7 @@ export async function myActivity(req: Request, res: Response){
       ...(performedByExact ? { generatedBy: new RegExp(`^${performedByExact}$`, 'i') } : {}),
       createdAt: { $gte: rangeStart, $lte: rangeEnd },
     })
-      .select('createdAt tokenNo patient subtotal discount net receivedAmount receivableAmount status generatedBy portal')
+      .select('createdAt tokenNo patient subtotal discount net receivedAmount receivableAmount status generatedBy portal tests')
       .sort({ createdAt: -1 })
       .lean(),
   ])

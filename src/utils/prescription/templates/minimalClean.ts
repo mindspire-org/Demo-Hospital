@@ -28,6 +28,16 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
 
+  const { ensureUrduNastaleeq, drawUrduText } = await import('../ensureUrduNastaleeq')
+  const urduOk = await ensureUrduNastaleeq(pdf)
+  const hasUrduChars = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrdu = (text: string, x: number, yy: number, opts?: any) => {
+    if (drawUrduText) drawUrduText(pdf, text, x, yy, opts)
+    else pdf.text(text, x, yy, opts)
+  }
+  const wantsUrdu = (data as any).language === 'urdu'
+  const isUrdu = wantsUrdu && urduOk
+
   const black = { r: 30, g: 30, b: 30 }
   const gray  = { r: 120, g: 120, b: 120 }
   const ltGray = { r: 220, g: 220, b: 220 }
@@ -38,7 +48,6 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   const mx = 14
   let y = 14
 
-  // ── Header: Hospital name left, Doctor right ──
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(14)
   pdf.setTextColor(black.r, black.g, black.b)
@@ -50,7 +59,6 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   pdf.text(String(settings.address || ''), mx, y + 7)
   pdf.text(`Tel: ${settings.phone || ''}`, mx, y + 11)
 
-  // Doctor right-aligned
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor(black.r, black.g, black.b)
@@ -62,13 +70,11 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   if (drSub) pdf.text(drSub, W - mx, y + 7, { align: 'right' })
 
   y += 16
-  // Thin line
   pdf.setDrawColor(ltGray.r, ltGray.g, ltGray.b)
   pdf.setLineWidth(0.3)
   pdf.line(mx, y, W - mx, y)
   y += 6
 
-  // ── Patient row ──
   pdf.setFontSize(8)
   const patLine = [
     patient.name || '-',
@@ -82,7 +88,6 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   pdf.text(patLine, mx, y)
   y += 6
 
-  // ── Vitals (inline, minimal) ──
   const v: any = (data as any).vitals || {}
   const vitalsArr: string[] = []
   if (v.bloodPressureSys != null && v.bloodPressureDia != null) vitalsArr.push(`BP ${v.bloodPressureSys}/${v.bloodPressureDia}`)
@@ -98,12 +103,10 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   }
 
   y += 2
-  // Divider
   pdf.setDrawColor(ltGray.r, ltGray.g, ltGray.b)
   pdf.line(mx, y, W - mx, y)
   y += 6
 
-  // ── Clinical sections (two-column compact) ──
   const leftX = mx
   const rightX = mx + (W - 2 * mx) / 2 + 4
   let leftY = y
@@ -135,7 +138,6 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
 
   y = Math.max(leftY, rightY) + 4
 
-  // ── Rx ──
   pdf.setDrawColor(ltGray.r, ltGray.g, ltGray.b)
   pdf.line(mx, y, W - mx, y)
   y += 5
@@ -146,28 +148,33 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   pdf.text('Rx', mx, y)
   y += 6
 
+  const { translateRxItem } = await import('../../prescriptionUrdu')
   const meds = (data.items || []).filter(m => String(m?.name || '').trim())
   if (meds.length > 0) {
-    // Simple list format
     pdf.setFontSize(8)
     meds.forEach((m, i) => {
+      const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
       const parts = [
         String(m?.name || '').trim(),
-        m?.dose ? `— ${m.dose}` : '',
-        m?.frequency ? `• ${m.frequency}` : '',
-        m?.duration ? `× ${m.duration}` : '',
-        m?.route ? `(${m.route})` : '',
-        m?.instruction ? `[${m.instruction}]` : '',
+        t?.dose ? `— ${t.dose}` : '',
+        t?.frequency ? `• ${t.frequency}` : '',
+        t?.duration ? `× ${t.duration}` : '',
+        t?.route ? `(${t.route})` : '',
+        t?.instruction ? `[${t.instruction}]` : '',
       ].filter(Boolean).join(' ')
       pdf.setFont('helvetica', 'normal')
       pdf.setTextColor(black.r, black.g, black.b)
       const lines = (pdf as any).splitTextToSize(`${i + 1}. ${parts}`, W - 2 * mx - 4)
-      pdf.text(lines, mx + 2, y)
+      // If parts contain Urdu, render with safeUrdu
+      if (hasUrduChars(parts)) {
+        safeUrdu(`${i + 1}. ${parts}`, mx + 2, y, { maxWidth: W - 2 * mx - 4 })
+      } else {
+        pdf.text(lines, mx + 2, y)
+      }
       y += lines.length * 3.5 + 1.5
     })
   }
 
-  // ── Lab/Diag tests (compact) ──
   const labTests = (data.labTests || []).filter(Boolean)
   const diagTests = (data.diagnosticTests || []).filter(Boolean)
   if (labTests.length || diagTests.length) {
@@ -183,7 +190,6 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
     y += 5
   }
 
-  // ── Signature ──
   const signY = H - 30
   pdf.setDrawColor(ltGray.r, ltGray.g, ltGray.b)
   pdf.setLineWidth(0.2)
@@ -195,18 +201,15 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   pdf.setFont('helvetica', 'bold')
   pdf.text(`Dr. ${doctor.name || ''}`, mx, signY + 8)
 
-  // ── Footer line ──
   pdf.setDrawColor(ltGray.r, ltGray.g, ltGray.b)
   pdf.line(mx, H - 14, W - mx, H - 14)
   pdf.setFontSize(6)
   pdf.setTextColor(gray.r, gray.g, gray.b)
   pdf.text(`${settings.name || ''} • ${settings.phone || ''} • ${settings.address || ''}`, W / 2, H - 10, { align: 'center' })
 
-  // ── Overlay (header/footer/watermark) ──
   const { applyOverlayBeforeOutput } = await import('./applyOverlay')
   await applyOverlayBeforeOutput(pdf)
 
-  // ── Output ──
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {

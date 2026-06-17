@@ -10,6 +10,10 @@ const SettingsSchema = new Schema({
 
   address: { type: String, default: '' },
 
+  email: { type: String, default: '' },
+
+  website: { type: String, default: '' },
+
   logoDataUrl: { type: String, default: '' },
 
   code: { type: String, default: '' },
@@ -17,6 +21,10 @@ const SettingsSchema = new Schema({
   slipFooter: { type: String, default: '' },
 
   mrnFormat: { type: String, default: '' },
+
+  manualRxFields: { type: Schema.Types.Mixed, default: {} },
+
+  eyeRxEnabled: { type: Boolean, default: true },
 
 }, { timestamps: true })
 
@@ -32,6 +40,10 @@ export type HospitalSettingsDoc = {
 
   address: string
 
+  email?: string
+
+  website?: string
+
   logoDataUrl?: string
 
   code?: string
@@ -39,6 +51,10 @@ export type HospitalSettingsDoc = {
   slipFooter?: string
 
   mrnFormat?: string
+
+  manualRxFields?: Record<string, boolean>
+
+  eyeRxEnabled?: boolean
 
 }
 

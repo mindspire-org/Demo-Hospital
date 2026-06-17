@@ -18,6 +18,9 @@ import { storeApi } from './store'
 import { ambulanceApi } from './ambulance'
 import { equipmentApi } from './equipment'
 import { sharedApi } from './shared'
+import { otApi } from './ot'
+import { icuApi } from './icu'
+import { indoorPharmacyIntegrationApi } from './indoorpharmacy'
 
 export const hospitalApi = {
   // OPD Module
@@ -40,6 +43,15 @@ export const hospitalApi = {
 
   // Shared Module
   ...sharedApi,
+
+  // OT Module
+  ...otApi,
+
+  // ICU Module
+  ...icuApi,
+
+  // Indoor Pharmacy Integration Module
+  ...indoorPharmacyIntegrationApi,
 }
 
 export default hospitalApi

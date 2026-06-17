@@ -1,0 +1,412 @@
+================================================================================
+                     JINNAH MEDICAL HIMS - FEATURE LIST
+================================================================================
+
+This document lists all updated features available in the Hospital Information
+Management System (HIMS) across all portals and modules.
+
+================================================================================
+1. HOSPITAL / OPD MODULE
+================================================================================
+
+-- Patient Management --
+- Patient Registration (new patients with MRN generation)
+- Patient Search & Lookup
+- Patient Profile Management
+- Patient Visit History
+
+-- OPD Token System --
+- Token Generation (walk-in / appointment)
+- Token Queue Management
+- Token Status Tracking (waiting, in-service, completed)
+- Department-wise Token Routing
+- Doctor-wise Token Assignment
+- Token Cancellation / Reversal
+- Token History & Reporting
+
+-- Doctor Management --
+- Doctor Registration & Profiles
+- Doctor Schedules & Availability
+- Doctor Department Assignment
+- Doctor Payouts & Revenue Sharing
+- Manual Doctor Earnings Entry
+
+-- Clinical --
+- Prescription Writing
+- Medical History Tracking
+- Vitals Recording
+- SOAP Notes
+
+-- Billing --
+- OPD Fee Collection
+- Payment Method Tracking (Cash / Bank / AR)
+- Financial Journal Integration (auto-posted to Finance)
+- OPD Revenue Reports
+
+-- Admin --
+- Department Management
+- Services & Pricing Setup
+- OPD Dashboard & Analytics
+- Audit Logs
+
+================================================================================
+2. AESTHETIC MODULE
+================================================================================
+
+-- Patient Management --
+- Aesthetic Patient Registration
+- Patient Profile & History
+- Consent Management (Templates & Signed Consents)
+
+-- Appointments --
+- Appointment Scheduling
+- Appointment Calendar
+- Doctor-wise Appointment Slots
+
+-- Token System --
+- Aesthetic OPD Token Generation
+- Token Queue & Status Tracking
+- Today Tokens View
+- Token History
+
+-- Procedures --
+- Procedure Catalog & Pricing
+- Procedure Session Recording
+- Session-wise Accrual & Billing
+- Before/After Photo Management
+
+-- Doctor Management --
+- Aesthetic Doctor Profiles
+- Doctor Schedules
+- Doctor Finance & Payouts
+- Revenue Share Configuration
+
+-- Billing & Finance --
+- Procedure Payment Collection
+- Payment Method Tracking
+- Auto Journal Posting to Finance Module
+- Doctor Share Expense Recording
+
+-- Inventory --
+- Aesthetic Inventory Management
+- Purchase History
+- Supplier Management
+- Supplier Returns
+- Stock Tracking
+
+-- Reports --
+- Aesthetic Reports Dashboard
+- Income Ledger
+- Return History
+
+-- Admin --
+- Staff Management
+- Staff Attendance
+- Staff Monthly Reports
+- Settings & Configuration
+- Sidebar Permissions
+- Audit Logs
+- Notifications
+
+================================================================================
+3. LAB MODULE
+================================================================================
+
+-- Test Management --
+- Lab Test Catalog
+- Test Categories & Pricing
+- Test Parameters & Reference Ranges
+
+-- Order Management --
+- Lab Order Creation
+- Order Status Tracking
+- Sample Collection Tracking
+- Sample Barcode Generation
+- Order History
+
+-- Results --
+- Result Entry
+- Result Validation
+- Report Generation
+- Report Printing
+- Critical Value Alerts
+
+-- Billing --
+- Lab Order Billing
+- Payment Collection
+- Auto Journal Posting to Finance
+- Lab Revenue Reports
+
+-- Admin --
+- Lab Dashboard
+- Settings
+- Audit Logs
+- Sidebar Permissions
+
+================================================================================
+4. DIAGNOSTIC MODULE
+================================================================================
+
+-- Test Management --
+- Diagnostic Test Catalog
+- Imaging & Radiology Tests
+- Test Pricing
+
+-- Order Management --
+- Diagnostic Order Creation
+- Order Tracking
+- Sample Collection
+
+-- Reports --
+- Report Generation
+- Report Entry
+- Report Distribution
+
+-- Referrals --
+- Referral Management
+- Referral Tracking
+
+-- Billing --
+- Diagnostic Billing
+- Payment Collection
+- Auto Journal Posting to Finance
+
+-- Admin --
+- Diagnostic Dashboard
+- Income Ledger
+- Settings
+- Audit Logs
+- Sidebar Permissions
+
+================================================================================
+5. PHARMACY MODULE
+================================================================================
+
+-- Inventory --
+- Medicine Catalog
+- Stock Management
+- Purchase Orders
+- Supplier Management
+- Batch Tracking & Expiry Alerts
+- Stock Adjustments
+
+-- Sales --
+- Medicine Sales (POS)
+- Prescription-based Sales
+- Bill Generation
+- Sales Returns
+
+-- Billing --
+- Pharmacy Sale Billing
+- Payment Collection
+- Auto Journal Posting to Finance
+
+-- Reports --
+- Sales Reports
+- Stock Reports
+- Expiry Reports
+- Revenue Reports
+
+-- Admin --
+- Pharmacy Dashboard
+- Settings
+- Audit Logs
+
+================================================================================
+6. INDOOR PHARMACY MODULE
+================================================================================
+
+- Indoor Patient Medicine Dispensing
+- Ward-wise Medicine Distribution
+- IPD Pharmacy Billing
+- Stock Management for Indoor Pharmacy
+- Return Management
+
+================================================================================
+7. DIALYSIS MODULE
+================================================================================
+
+-- Patient Management --
+- Dialysis Patient Registration
+- Patient Session History
+
+-- Sessions --
+- Dialysis Session Scheduling
+- Session Recording
+- Vitals Monitoring during Session
+- Machine Assignment
+
+-- Billing --
+- Session Billing
+- Payment Collection
+- Auto Journal Posting to Finance
+
+-- Admin --
+- Dialysis Dashboard
+- Settings
+
+================================================================================
+8. FINANCE MODULE
+================================================================================
+
+-- Dashboard --
+- Finance Overview Dashboard
+- Today's Collections Summary
+- Department-wise Revenue Breakdown
+- Active Shift Display with Real-time Collections
+
+-- Shift Management (NEWLY UPDATED) --
+- Shift Open (Manual / Auto modes)
+- Shift Close with Variance Calculation
+- Shift-wise Collection Tracking
+  - OPD Collections
+  - Lab Collections
+  - Pharmacy Collections
+  - Diagnostic Collections
+  - Dialysis Collections
+  - Aesthetic Collections
+- Shift-wise Expense Tracking
+  - Doctor Payouts
+  - Petty Cash
+  - Purchases
+  - Refunds
+- Opening Float Management
+- Expected Cash Calculation
+- Variance Reporting
+- Multi-shift Support (Multiple shifts per day)
+- Shift Settings (Auto/Manual, Time Slots)
+- Shift Reports with Filters
+
+-- Chart of Accounts --
+- General Ledger
+- Journal Vouchers
+- Account Balances
+- Trial Balance
+- Income Statement
+- Balance Sheet
+
+-- Billing & Collections --
+- OPD Revenue Tracking
+- Lab Revenue Tracking
+- Pharmacy Revenue Tracking
+- Diagnostic Revenue Tracking
+- Dialysis Revenue Tracking
+- Aesthetic Revenue Tracking
+- IPD Revenue Tracking
+
+-- Expenses --
+- Expense Vouchers
+- Petty Cash Management
+- Doctor Payouts
+- Refund Processing
+
+-- Doctor Finance --
+- Doctor Revenue Reports
+- Doctor Payout Calculation
+- Doctor Share Percentage Setup
+- Manual Earning Adjustments
+
+-- Reports --
+- Daily Collection Reports
+- Shift-wise Reports
+- Department-wise Revenue
+- Expense Reports
+- Financial Statements
+- Export to CSV
+
+-- Budget --
+- Budget Planning
+- Budget vs Actual Analysis
+- Variance Reports
+
+-- Admin --
+- Finance Settings
+- Chart of Accounts Setup
+- Audit Logs
+- Sidebar Permissions
+
+================================================================================
+9. RECEPTION MODULE
+================================================================================
+
+- Patient Registration at Reception
+- Appointment Scheduling
+- Visitor Management
+- Front Desk Dashboard
+- Token Queue Display
+
+================================================================================
+10. CORPORATE MODULE
+================================================================================
+
+- Corporate Client Management
+- Corporate Billing
+- Corporate Packages
+- Corporate Patient Tracking
+- Corporate Reports
+
+================================================================================
+11. BIOMETRIC MODULE
+================================================================================
+
+- Staff Attendance via Biometric
+- Biometric Device Integration
+- Attendance Reports
+- Leave Management
+- Payroll Integration
+
+================================================================================
+12. ADMIN MODULE
+================================================================================
+
+-- User Management --
+- User Registration
+- Role-based Access Control (RBAC)
+- User Permissions
+- Active/Inactive Users
+
+-- System Settings --
+- Hospital Profile Setup
+- Department Configuration
+- Service Pricing Setup
+- Notification Settings
+- Email/SMS Configuration
+
+-- Audit & Security --
+- Audit Logs (all modules)
+- Login History
+- Data Backup
+
+-- Reports --
+- System Usage Reports
+- User Activity Reports
+
+================================================================================
+13. CROSS-MODULE INTEGRATION FEATURES
+================================================================================
+
+-- Unified Patient Record --
+- Single MRN across all modules
+- Patient history accessible from any portal
+- Consolidated billing view
+
+-- Financial Integration --
+- Auto journal posting from all revenue modules
+- Real-time shift collection updates
+- Centralized revenue reporting
+- Doctor payout auto-calculation
+
+-- Reporting --
+- Consolidated Dashboard
+- Cross-module revenue reports
+- Shift-wise financial summary
+- Date-range filtering across all reports
+
+-- Authentication --
+- Single Sign-On (SSO) across portals
+- Role-based portal access
+- Session management
+
+================================================================================
+                         END OF FEATURE LIST
+================================================================================

@@ -94,8 +94,8 @@ export default function IndoorPharmacy_Dashboard() {
       setRecentSales(rs => [{ billNo: s.billNo, total: s.total || 0, datetime: s.datetime || new Date().toISOString(), customer: s.customer }, ...rs].slice(0,5))
       setLastUpdated(new Date().toLocaleString())
     }
-    window.addEventListener('pharmacy:sale', onSale as any)
-    return ()=>{ window.removeEventListener('pharmacy:sale', onSale as any) }
+    window.addEventListener('indoor-pharmacy:sale', onSale as any)
+    return ()=>{ window.removeEventListener('indoor-pharmacy:sale', onSale as any) }
   }, [])
 
   return (

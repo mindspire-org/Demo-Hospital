@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../ui/Toast'
+import SuggestField from '../SuggestField'
 
 export type DeathCertificateFormProps = {
   encounterId?: string
@@ -11,6 +12,8 @@ type DeathForm = {
   dcNo?: string
   mrNumber?: string
   relative?: string
+  guardian?: string
+  guardianName?: string
   ageSex?: string
   address?: string
   dateOfDeath?: string
@@ -34,20 +37,41 @@ type DeathForm = {
 }
 
 export default function Hospital_DeathCertificateForm({ encounterId, patient }: DeathCertificateFormProps){
-  const [form, setForm] = useState<DeathForm>({})
+  const [form, setForm] = useState<DeathForm>(() => ({
+    dateOfDeath: new Date().toISOString().slice(0, 10),
+    timeOfDeath: new Date().toTimeString().slice(0, 5),
+    receiverDate: new Date().toISOString().slice(0, 10),
+    receiverTime: new Date().toTimeString().slice(0, 5),
+    staffSignDate: new Date().toISOString().slice(0, 10),
+    staffSignTime: new Date().toTimeString().slice(0, 5),
+    doctorSignDate: new Date().toISOString().slice(0, 10),
+    doctorSignTime: new Date().toTimeString().slice(0, 5),
+  }))
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
+  const [doctors, setDoctors] = useState<Array<{ _id: string; fullName?: string; name?: string }>>([])
 
   // Prefill derived fields from patient context once
   useEffect(()=>{
     setForm(f=>({
       ...f,
       mrNumber: f.mrNumber ?? (patient?.mrn || ''),
+      relative: f.relative ?? (patient?.fatherName || ''),
+      guardian: f.guardian ?? (patient?.guardian || ''),
+      guardianName: f.guardianName ?? (patient?.guardianName || patient?.fatherName || ''),
       ageSex: f.ageSex ?? deriveAgeSex(patient?.age, patient?.gender),
       address: f.address ?? (patient?.address || ''),
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patient?.mrn, patient?.age, patient?.gender, patient?.address])
+  }, [patient?.mrn, patient?.age, patient?.gender, patient?.address, patient?.fatherName, patient?.guardian, patient?.guardianName])
+
+  // Load doctors list
+  useEffect(()=>{ (async()=>{
+    try { const res: any = await hospitalApi.listDoctors(); const items = (res?.doctors || res || []) as Array<{ _id: string; fullName?: string; name?: string }>; setDoctors(items) } catch { setDoctors([]) }
+  })() }, [])
+
+  // Doctor names for searchable dropdown
+  const doctorNames = useMemo(() => doctors.map(d => d.fullName || d.name || '').filter(Boolean), [doctors])
 
   useEffect(()=>{ (async()=>{
     if (!encounterId) return
@@ -61,6 +85,8 @@ export default function Hospital_DeathCertificateForm({ encounterId, patient }: 
           dcNo: c.dcNo || f.dcNo,
           mrNumber: c.mrNumber || f.mrNumber,
           relative: c.relative || '',
+          guardian: c.guardian || '',
+          guardianName: c.guardianName || '',
           ageSex: c.ageSex || f.ageSex,
           address: c.address || f.address,
           dateOfDeath: c.dateOfDeath ? fmtDateISO(c.dateOfDeath) : '',
@@ -82,6 +108,14 @@ export default function Hospital_DeathCertificateForm({ encounterId, patient }: 
           doctorSignTime: c.doctorSignTime || '',
           notes: c.notes || '',
         }))
+      } else {
+        // New certificate - fetch next DC number
+        try {
+          const dcRes: any = await hospitalApi.getNextDcNo()
+          if (dcRes?.dcNo) {
+            setForm(f => ({ ...f, dcNo: dcRes.dcNo }))
+          }
+        } catch {}
       }
     } finally { setLoading(false) }
   })() }, [encounterId])
@@ -111,7 +145,11 @@ export default function Hospital_DeathCertificateForm({ encounterId, patient }: 
       doctorSignDate: form.doctorSignDate ? new Date(form.doctorSignDate).toISOString() : undefined,
     }
     try {
-      await hospitalApi.upsertIpdDeathCertificate(encounterId, payload)
+      const res: any = await hospitalApi.upsertIpdDeathCertificate(encounterId, payload)
+      // Update form with auto-generated dcNo from backend
+      if (res?.certificate?.dcNo) {
+        setForm(f => ({ ...f, dcNo: res.certificate.dcNo }))
+      }
       setToast({ type: 'success', message: 'Saved' })
     } catch (e: any) {
       setToast({ type: 'error', message: e?.message || 'Save failed' })
@@ -121,28 +159,17 @@ export default function Hospital_DeathCertificateForm({ encounterId, patient }: 
 
   const printOnly = async () => {
     if (!encounterId) return
-    const apiBase = (import.meta as any).env?.VITE_API_URL || ''
-    const url = `${apiBase}/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/death-certificate/print`
-    await previewHtml(url.startsWith('http') ? url : `/api${url}`)
+    const url = `/api/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/death-certificate/print`
+    await previewHtml(url)
   }
-
-  useEffect(() => {
-    const onAction = (ev: Event) => {
-      const detail = (ev as CustomEvent).detail as any
-      if (!detail || detail.key !== 'DeathCertificate') return
-      if (detail.action === 'save') { void save() }
-      if (detail.action === 'print') { void printOnly() }
-    }
-    window.addEventListener('dw:form-action', onAction as any)
-    return () => window.removeEventListener('dw:form-action', onAction as any)
-  }, [encounterId, form])
 
   return (
     <div className="space-y-3">
       <Toast toast={toast} onClose={()=>setToast(null)} />
       <div className="text-xl font-bold text-slate-800">Death Certificate</div>
       <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-        <div className="grid md:grid-cols-4 gap-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Patient Information</div>
+        <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-1">Patient Name</label>
             <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.name||''} />
@@ -159,7 +186,11 @@ export default function Hospital_DeathCertificateForm({ encounterId, patient }: 
             <label className="block text-sm font-bold text-slate-800 mb-1">Phone</label>
             <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.phone||''} />
           </div>
-          <div className="md:col-span-2">
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Guardian Name</label>
+            <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.guardianName||patient?.fatherName||''} />
+          </div>
+          <div>
             <label className="block text-sm font-bold text-slate-800 mb-1">Address</label>
             <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={patient?.address||''} />
           </div>
@@ -178,114 +209,121 @@ export default function Hospital_DeathCertificateForm({ encounterId, patient }: 
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">DC No</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.dcNo||''} onChange={e=>setForm(v=>({ ...v, dcNo: e.target.value }))} />
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">S/o, D/o, W/o</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.relative||''} onChange={e=>setForm(v=>({ ...v, relative: e.target.value }))} />
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Date of Death</label>
-          <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.dateOfDeath||''} onChange={e=>setForm(v=>({ ...v, dateOfDeath: e.target.value }))} />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Time of Death</label>
-          <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.timeOfDeath||''} onChange={e=>setForm(v=>({ ...v, timeOfDeath: e.target.value }))} />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-slate-800 mb-1">Presenting Complaints</label>
-        <textarea className="w-full border rounded-md px-2 py-1 text-sm h-24" value={form.presentingComplaints||''} onChange={e=>setForm(v=>({ ...v, presentingComplaints: e.target.value }))} />
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-slate-800 mb-1">Diagnosis</label>
-        <textarea className="w-full border rounded-md px-2 py-1 text-sm h-24" value={form.diagnosis||''} onChange={e=>setForm(v=>({ ...v, diagnosis: e.target.value }))} />
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-slate-800 mb-1">Primary Cause of Death</label>
-        <textarea className="w-full border rounded-md px-2 py-1 text-sm h-24" value={form.primaryCause||''} onChange={e=>setForm(v=>({ ...v, primaryCause: e.target.value }))} />
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-slate-800 mb-1">Secondary Cause of Death</label>
-        <textarea className="w-full border rounded-md px-2 py-1 text-sm h-24" value={form.secondaryCause||''} onChange={e=>setForm(v=>({ ...v, secondaryCause: e.target.value }))} />
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Dead Body Received By Name</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverName||''} onChange={e=>setForm(v=>({ ...v, receiverName: e.target.value }))} />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Relation</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverRelation||''} onChange={e=>setForm(v=>({ ...v, receiverRelation: e.target.value }))} />
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">ID Card No</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverIdCard||''} onChange={e=>setForm(v=>({ ...v, receiverIdCard: e.target.value }))} />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Date</label>
-          <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverDate||''} onChange={e=>setForm(v=>({ ...v, receiverDate: e.target.value }))} />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Time</label>
-          <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverTime||''} onChange={e=>setForm(v=>({ ...v, receiverTime: e.target.value }))} />
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Staff Name</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.staffName||''} onChange={e=>setForm(v=>({ ...v, staffName: e.target.value }))} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Death Details</div>
+        <div className="grid md:grid-cols-3 gap-3">
           <div>
-            <label className="block text-sm font-bold text-slate-800 mb-1">Sign Date</label>
-            <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.staffSignDate||''} onChange={e=>setForm(v=>({ ...v, staffSignDate: e.target.value }))} />
+            <label className="block text-sm font-bold text-slate-800 mb-1">DC No</label>
+            <input disabled className="w-full border rounded-md px-2 py-1 text-sm bg-slate-100" value={form.dcNo||''} />
           </div>
           <div>
-            <label className="block text-sm font-bold text-slate-800 mb-1">Sign Time</label>
-            <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.staffSignTime||''} onChange={e=>setForm(v=>({ ...v, staffSignTime: e.target.value }))} />
+            <label className="block text-sm font-bold text-slate-800 mb-1">Date of Death</label>
+            <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.dateOfDeath||''} onChange={e=>setForm(v=>({ ...v, dateOfDeath: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Time of Death</label>
+            <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.timeOfDeath||''} onChange={e=>setForm(v=>({ ...v, timeOfDeath: e.target.value }))} />
           </div>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-bold text-slate-800 mb-1">Doctor Name</label>
-          <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.doctorName||''} onChange={e=>setForm(v=>({ ...v, doctorName: e.target.value }))} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Medical Information</div>
+        <div className="space-y-3">
           <div>
-            <label className="block text-sm font-bold text-slate-800 mb-1">Sign Date</label>
-            <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.doctorSignDate||''} onChange={e=>setForm(v=>({ ...v, doctorSignDate: e.target.value }))} />
+            <label className="block text-sm font-bold text-slate-800 mb-1">Presenting Complaints</label>
+            <textarea className="w-full border rounded-md px-2 py-1 text-sm h-20" value={form.presentingComplaints||''} onChange={e=>setForm(v=>({ ...v, presentingComplaints: e.target.value }))} />
           </div>
           <div>
-            <label className="block text-sm font-bold text-slate-800 mb-1">Sign Time</label>
-            <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.doctorSignTime||''} onChange={e=>setForm(v=>({ ...v, doctorSignTime: e.target.value }))} />
+            <label className="block text-sm font-bold text-slate-800 mb-1">Diagnosis</label>
+            <textarea className="w-full border rounded-md px-2 py-1 text-sm h-20" value={form.diagnosis||''} onChange={e=>setForm(v=>({ ...v, diagnosis: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Primary Cause of Death</label>
+            <textarea className="w-full border rounded-md px-2 py-1 text-sm h-20" value={form.primaryCause||''} onChange={e=>setForm(v=>({ ...v, primaryCause: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Secondary Cause of Death</label>
+            <textarea className="w-full border rounded-md px-2 py-1 text-sm h-20" value={form.secondaryCause||''} onChange={e=>setForm(v=>({ ...v, secondaryCause: e.target.value }))} />
           </div>
         </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-bold text-slate-800 mb-1">Notes</label>
-        <textarea className="w-full border rounded-md px-2 py-1 text-sm h-24" value={form.notes||''} onChange={e=>setForm(v=>({ ...v, notes: e.target.value }))} />
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Body Handover Details</div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Dead Body Received By Name</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverName||''} onChange={e=>setForm(v=>({ ...v, receiverName: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Relation</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverRelation||''} onChange={e=>setForm(v=>({ ...v, receiverRelation: e.target.value }))} />
+          </div>
+        </div>
+        <div className="grid md:grid-cols-3 gap-3 mt-3">
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">ID Card No</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverIdCard||''} onChange={e=>setForm(v=>({ ...v, receiverIdCard: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Date</label>
+            <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverDate||''} onChange={e=>setForm(v=>({ ...v, receiverDate: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Time</label>
+            <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.receiverTime||''} onChange={e=>setForm(v=>({ ...v, receiverTime: e.target.value }))} />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Signatures</div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Staff Name</label>
+            <input className="w-full border rounded-md px-2 py-1 text-sm" value={form.staffName||''} onChange={e=>setForm(v=>({ ...v, staffName: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Sign Date</label>
+              <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.staffSignDate||''} onChange={e=>setForm(v=>({ ...v, staffSignDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Sign Time</label>
+              <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.staffSignTime||''} onChange={e=>setForm(v=>({ ...v, staffSignTime: e.target.value }))} />
+            </div>
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3 mt-3">
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Doctor Name</label>
+            <SuggestField
+              value={form.doctorName||''}
+              onChange={v=>setForm(x=>({ ...x, doctorName: v }))}
+              suggestions={doctorNames}
+              className="w-full border rounded-md px-2 py-1 text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Sign Date</label>
+              <input type="date" className="w-full border rounded-md px-2 py-1 text-sm" value={form.doctorSignDate||''} onChange={e=>setForm(v=>({ ...v, doctorSignDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Sign Time</label>
+              <input type="time" className="w-full border rounded-md px-2 py-1 text-sm" value={form.doctorSignTime||''} onChange={e=>setForm(v=>({ ...v, doctorSignTime: e.target.value }))} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700 mb-2">Additional Notes</div>
+        <div>
+          <label className="block text-sm font-bold text-slate-800 mb-1">Notes</label>
+          <textarea className="w-full border rounded-md px-2 py-1 text-sm h-20" value={form.notes||''} onChange={e=>setForm(v=>({ ...v, notes: e.target.value }))} />
+        </div>
       </div>
 
       <div className="pt-1 flex flex-wrap gap-2">

@@ -3,6 +3,16 @@ import { HospitalReferral } from '../models/Referral'
 import { HospitalEncounter } from '../models/Encounter'
 import { createReferralSchema, updateReferralStatusSchema } from '../validators/referral'
 
+export async function getById(req: Request, res: Response){
+  const { id } = req.params as any
+  const row = await HospitalReferral.findById(String(id))
+    .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
+    .populate({ path: 'doctorId', select: 'name' })
+    .lean()
+  if (!row) return res.status(404).json({ error: 'Referral not found' })
+  res.json({ referral: row })
+}
+
 export async function create(req: Request, res: Response){
   const data = createReferralSchema.parse(req.body)
   const enc = await HospitalEncounter.findById(data.encounterId)
@@ -26,6 +36,7 @@ export async function list(req: Request, res: Response){
   if (q.type) crit.type = String(q.type)
   if (q.status) crit.status = String(q.status)
   if (q.doctorId) crit.doctorId = String(q.doctorId)
+  if (q.encounterId) crit.encounterId = String(q.encounterId)
   const from = q.from ? new Date(String(q.from)) : null
   const to = q.to ? new Date(String(q.to)) : null
   if (to) to.setHours(23,59,59,999)
@@ -38,14 +49,36 @@ export async function list(req: Request, res: Response){
   const limit = q.limit ? Math.max(1, Math.min(200, parseInt(String(q.limit)))) : 50
 
   const total = await HospitalReferral.countDocuments(crit)
-  const rows = await HospitalReferral.find(crit)
+  let rows = await HospitalReferral.find(crit)
     .sort({ createdAt: -1 })
-    .skip((page-1)*limit)
-    .limit(limit)
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .populate({ path: 'doctorId', select: 'name' })
     .lean()
-  res.json({ referrals: rows, total, page, limit })
+
+  const search = String(q.q || '').trim().toLowerCase()
+  if (search) {
+    rows = rows.filter((r: any) => {
+      const p = r.encounterId?.patientId || {}
+      const s = `${(p.mrn || '')} ${(p.fullName || '')}`.toLowerCase()
+      return s.includes(search)
+    })
+  }
+
+  const paged = rows.slice((page - 1) * limit, page * limit)
+  res.json({ referrals: paged, total: search ? rows.length : total, page, limit })
+}
+
+export async function update(req: Request, res: Response){
+  const { id } = req.params as any
+  const data = req.body as any
+  const updateData: any = {}
+  if (data.notes !== undefined) updateData.notes = data.notes
+  if (data.tests !== undefined) updateData.tests = data.tests
+  if (Object.keys(updateData).length === 0) return res.status(400).json({ error: 'Nothing to update' })
+
+  const row = await HospitalReferral.findByIdAndUpdate(String(id), { $set: updateData }, { new: true })
+  if (!row) return res.status(404).json({ error: 'Referral not found' })
+  res.json({ referral: row })
 }
 
 export async function updateStatus(req: Request, res: Response){

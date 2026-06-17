@@ -158,10 +158,10 @@ export default function Hospital_FbrDashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
             FBR Dashboard
           </h2>
-          <div className="mt-1 text-sm text-slate-500">
+          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Overview of FBR reporting across modules and environments.
           </div>
         </div>
@@ -172,11 +172,11 @@ export default function Hospital_FbrDashboard() {
               setPendingEnabled(newVal);
               setConfirmOpen(true);
             }}
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium cursor-pointer transition-colors ${enabled ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium cursor-pointer transition-colors ${enabled ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50" : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}
           >
             {enabled ? "● Enabled" : "○ Disabled"}
           </button>
-          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700">
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             ENV: {String(env).toUpperCase()}
           </span>
         </div>
@@ -226,66 +226,69 @@ export default function Hospital_FbrDashboard() {
       </Hospital_Modal>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Invoices Today</div>
-          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-400">Invoices Today</div>
+          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {invoicesToday}
           </div>
-          <div className="mt-1 text-xs text-slate-500">
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             vs yesterday {yesterdayPct >= 0 ? "+" : ""}
             {yesterdayPct}%
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Invoices This Month</div>
-          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-400">Invoices This Month</div>
+          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {invoicesMonth}
           </div>
-          <div className="mt-1 text-xs text-slate-500">MTD total</div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">MTD total</div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Total Amount Reported</div>
-          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-400">Total Amount Reported</div>
+          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {totalAmount.toLocaleString()}
           </div>
-          <div className="mt-1 text-xs text-slate-500">PKR</div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">PKR</div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Success / Failed</div>
-          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-400">Success / Failed</div>
+          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {successCount} / {failedCount}
           </div>
-          <div className="mt-1 text-xs text-slate-500">Last 24h</div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Last 24h</div>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2 dark:border-slate-700 dark:bg-slate-800">
           <div className="flex items-center justify-between">
-            <div className="font-medium text-slate-800">Invoices per day</div>
-            <div className="text-xs text-slate-500">Last 30 days</div>
+            <div className="font-medium text-slate-800 dark:text-slate-200">Invoices per day</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Last 30 days</div>
           </div>
           <div className="mt-4 h-56">
             {dailyData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 11, fill: "#64748b" }}
-                    stroke="#cbd5e1"
+                    tick={{ fontSize: 11, fill: "currentColor" }}
+                    stroke="currentColor"
+                    className="text-slate-500 dark:text-slate-400"
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "#64748b" }}
-                    stroke="#cbd5e1"
+                    tick={{ fontSize: 11, fill: "currentColor" }}
+                    stroke="currentColor"
+                    className="text-slate-500 dark:text-slate-400"
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#fff",
-                      border: "1px solid #e2e8f0",
+                      backgroundColor: "var(--tooltip-bg, #fff)",
+                      border: "1px solid var(--tooltip-border, #e2e8f0)",
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
+                    wrapperClassName="dark:[--tooltip-bg:#1e293b] dark:[--tooltip-border:#334155] dark:text-slate-200"
                   />
                   <Legend wrapperStyle={{ fontSize: "12px" }} />
                   <Bar dataKey="count" fill="#7c3aed" name="Total Invoices" />
@@ -294,21 +297,21 @@ export default function Hospital_FbrDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex h-full items-center justify-center rounded-lg bg-linear-to-br from-slate-50 to-slate-100 text-sm text-slate-500">
+              <div className="flex h-full items-center justify-center rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-500 dark:from-slate-800 dark:to-slate-900 dark:text-slate-400">
                 Loading chart data...
               </div>
             )}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="font-medium text-slate-800">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="font-medium text-slate-800 dark:text-slate-200">
             Module-wise (This Month)
           </div>
           <div className="mt-4 space-y-3">
             {(["OPD", "PHARMACY", "LAB", "IPD"] as const).map((m) => (
               <div key={m} className="flex items-center justify-between">
-                <div className="text-sm text-slate-700">{m}</div>
-                <div className="text-sm font-semibold text-slate-900">
+                <div className="text-sm text-slate-700 dark:text-slate-300">{m}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {moduleStats[m]}
                 </div>
               </div>

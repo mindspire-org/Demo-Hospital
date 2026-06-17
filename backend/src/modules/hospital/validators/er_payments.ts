@@ -9,6 +9,7 @@ export const createErPaymentSchema = z.object({
   amount: z.coerce.number().min(0.01),
   type: z.enum(['payment', 'refund', 'adjustment']).optional().default('payment'),
   method: z.string().optional(),
+  paymentMode: z.string().optional(),
   refNo: z.string().optional(),
   receivedBy: z.string().optional(),
   receivedAt: z.coerce.date().optional(),

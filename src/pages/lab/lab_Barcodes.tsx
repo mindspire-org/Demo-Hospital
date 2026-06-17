@@ -21,6 +21,7 @@ type Order = {
   tokenNo?: string
   sampleTime?: string
   barcode?: string
+  sampleType?: 'normal' | 'urgent' | 'stat'
 }
 
 function formatDateTime(iso: string) {
@@ -243,6 +244,7 @@ export default function Lab_Barcodes() {
                 <th className="px-3 py-2">DateTime</th>
                 <th className="px-3 py-2">Patient</th>
                 <th className="px-3 py-2">Token No</th>
+                <th className="px-3 py-2">Type</th>
                 <th className="px-3 py-2">Test(s)</th>
                 <th className="px-3 py-2">MR No</th>
                 <th className="px-3 py-2">Phone</th>
@@ -264,6 +266,15 @@ export default function Lab_Barcodes() {
                     <td className="px-3 py-2">{formatDateTime(o.createdAt)}</td>
                     <td className="px-3 py-2">{o.patient?.fullName || '-'}</td>
                     <td className="px-3 py-2">{token || '-'}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                        o.sampleType === 'urgent' ? 'bg-rose-100 text-rose-700' : 
+                        o.sampleType === 'stat' ? 'bg-orange-100 text-orange-700' : 
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {o.sampleType || 'normal'}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 max-w-xs">
                       <div className="flex flex-wrap items-center gap-1">
                         {visibleTests.map((t, i) => (
@@ -318,7 +329,7 @@ export default function Lab_Barcodes() {
               })}
               {orders.length === 0 && (
                 <tr>
-                  <td className="px-3 py-8 text-center text-sm text-slate-500" colSpan={9}>No samples found</td>
+                  <td className="px-3 py-8 text-center text-sm text-slate-500" colSpan={10}>No samples found</td>
                 </tr>
               )}
             </tbody>

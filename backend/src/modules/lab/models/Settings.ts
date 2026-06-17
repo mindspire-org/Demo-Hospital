@@ -47,6 +47,7 @@ const SettingsSchema = new Schema({
   code: { type: String, default: '' },
   dateFormat: { type: String, default: 'DD/MM/YYYY' },
   currency: { type: String, default: 'Pakistani rupee (Rs.)' },
+  labNumberFormat: { type: String, default: '{SERIAL}' },
   restrictEmployeesToChangeCollectionDate: { type: Boolean, default: false },
   paymentReceiveOnTestInstanceLevel: { type: Boolean, default: false },
   validateStock: { type: Boolean, default: false },
@@ -84,7 +85,7 @@ export type LabSettingsDoc = {
   reportFooter: string
   logoDataUrl?: string
   department?: string
-  reportTemplate?: 'classic'|'tealGradient'|'modern'|'adl'|'skmch'|'receiptStyle'|'clinicalPro'|'minimalist'|'royalBlue'
+  reportTemplate?: 'classic'|'tealGradient'|'modern'|'adl'|'skmch'|'receiptStyle'|'clinicalPro'|'minimalist'|'royalBlue'|'letterhead'
   slipTemplate?: 'thermal'|'a4Bill'
   consultantName?: string
   consultantDegrees?: string
@@ -107,6 +108,7 @@ export type LabSettingsDoc = {
   code?: string
   dateFormat?: string
   currency?: string
+  labNumberFormat?: string
   restrictEmployeesToChangeCollectionDate?: boolean
   paymentReceiveOnTestInstanceLevel?: boolean
   validateStock?: boolean

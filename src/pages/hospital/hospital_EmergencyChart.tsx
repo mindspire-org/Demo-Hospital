@@ -8,6 +8,8 @@ import ErDailyMonitoring from '../../components/hospital/Hospital_ErDailyMonitor
 import ErMedication from '../../components/hospital/Hospital_ErMedication'
 import ErConsultantNotes from '../../components/hospital/Hospital_ErConsultantNotes'
 import ErInitialAssessment from '../../components/hospital/Hospital_ErInitialAssessment'
+import Hospital_ErPharmacyReferrals from '../../components/hospital/Hospital_ErPharmacyReferrals'
+import Hospital_ErStrokeAssessment from '../../components/hospital/Hospital_ErStrokeAssessment'
 
 function Tab({ label, active, onClick }: { label: string; active?: boolean; onClick: () => void }) {
   return (
@@ -84,7 +86,7 @@ export default function Hospital_EmergencyChart(){
   const [openCharge, setOpenCharge] = useState(false)
   const [editCharge, setEditCharge] = useState<null | { id: string; description: string; qty: number; unitPrice: number }>(null)
 
-  const [tab, setTab] = useState<'initial'|'monitoring'|'consult'|'meds'>('initial')
+  const [tab, setTab] = useState<'initial'|'monitoring'|'consult'|'meds'|'pharmacy'|'stroke'>('initial')
   const [openAdvance, setOpenAdvance] = useState(false)
 
   const [, setLoadingEnc] = useState(false)
@@ -118,21 +120,45 @@ export default function Hospital_EmergencyChart(){
       if (!tokenId) return
       setLoadingEnc(true)
       try{
-        const res: any = await hospitalApi.getToken(tokenId)
-        const t: any = res?.token
-        const encId = String(t?.encounterId?._id || t?.encounterId || '')
-        const pmrn = String(t?.patientId?.mrn || t?.mrn || '')
-        const patient = t?.patientId || {}
-        if (!cancelled){
-          setEncounterId(encId)
-          setMrn(pmrn)
-          setPatientData({
-            name: String(patient.name || t?.patientName || ''),
-            phone: String(patient.phone || ''),
-            address: String(patient.address || ''),
-            guardianName: String(patient.guardianName || ''),
-            tokenNo: String(t?.tokenNo || t?.displayTokenNo || ''),
-          })
+        // New queue passes encounterId in URL; try encounter lookup first
+        let encRes: any = null
+        try {
+          encRes = await hospitalApi.getEREncounterById(tokenId)
+        } catch {}
+
+        if (encRes?.encounter) {
+          const enc: any = encRes.encounter
+          const patient = enc?.patientId || {}
+          const token = enc?.tokenId || {}
+          if (!cancelled) {
+            setEncounterId(String(enc._id || ''))
+            setMrn(String(patient.mrn || ''))
+            setPatientData({
+              name: String(patient.fullName || patient.name || enc.patientName || ''),
+              phone: String(patient.phone || patient.phoneNo || patient.phoneNormalized || ''),
+              address: String(patient.address || ''),
+              guardianName: String(patient.fatherName || patient.guardianName || ''),
+              tokenNo: String(token.tokenNo || token.displayTokenNo || enc.tokenNo || ''),
+            })
+          }
+        } else {
+          // Fallback: legacy links that pass tokenId
+          const res: any = await hospitalApi.getToken(tokenId)
+          const t: any = res?.token
+          const encId = String(t?.encounterId?._id || t?.encounterId || '')
+          const pmrn = String(t?.patientId?.mrn || t?.mrn || '')
+          const patient = t?.patientId || {}
+          if (!cancelled){
+            setEncounterId(encId)
+            setMrn(pmrn)
+            setPatientData({
+              name: String(patient.name || t?.patientName || ''),
+              phone: String(patient.phone || ''),
+              address: String(patient.address || ''),
+              guardianName: String(patient.guardianName || ''),
+              tokenNo: String(t?.tokenNo || t?.displayTokenNo || ''),
+            })
+          }
         }
       }catch{
         if (!cancelled){ setEncounterId(''); setMrn('') }
@@ -207,6 +233,7 @@ export default function Hospital_EmergencyChart(){
       await hospitalApi.erCreatePayment(encounterId, {
         amount: amt,
         method: 'Advance',
+        paymentMode: d.method,
         refNo: d.refNo || '',
         notes: d.notes || '',
         receivedBy: 'hospital',
@@ -277,6 +304,8 @@ export default function Hospital_EmergencyChart(){
           <Tab label="Daily Monitoring" active={tab==='monitoring'} onClick={()=>setTab('monitoring')} />
           <Tab label="Consultant Notes" active={tab==='consult'} onClick={()=>setTab('consult')} />
           <Tab label="Medication" active={tab==='meds'} onClick={()=>setTab('meds')} />
+          <Tab label="Pharmacy Referral" active={tab==='pharmacy'} onClick={()=>setTab('pharmacy')} />
+          <Tab label="Acute Stroke" active={tab==='stroke'} onClick={()=>setTab('stroke')} />
         </div>
       </div>
 
@@ -284,6 +313,8 @@ export default function Hospital_EmergencyChart(){
       {tab==='monitoring' && (<ErDailyMonitoring encounterId={encounterId} />)}
       {tab==='consult' && (<ErConsultantNotes encounterId={encounterId} />)}
       {tab==='meds' && (<ErMedication encounterId={encounterId} />)}
+      {tab==='pharmacy' && (<Hospital_ErPharmacyReferrals encounterId={encounterId} />)}
+      {tab==='stroke' && (<Hospital_ErStrokeAssessment encounterId={encounterId} />)}
 
       {editCharge && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

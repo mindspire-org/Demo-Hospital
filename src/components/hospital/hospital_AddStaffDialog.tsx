@@ -14,6 +14,12 @@ export type PharmacyStaff = {
   status: 'Active' | 'Inactive'
   salary: number
   shiftId?: string
+  biometricEnrollId?: string
+  leaveQuotas?: {
+    annual: number
+    casual: number
+    sick: number
+  }
 }
 
 type Props = {
@@ -26,6 +32,7 @@ type Props = {
 }
 
 export default function Hospital_AddStaffDialog({ open, onClose, onSave, initial = null, title, submitLabel }: Props) {
+  if (!open) return null
   const [shifts, setShifts] = useState<Shift[]>([])
   const [selectedShiftId, setSelectedShiftId] = useState<string>(initial?.shiftId || '')
 
@@ -46,8 +53,6 @@ export default function Hospital_AddStaffDialog({ open, onClose, onSave, initial
     setSelectedShiftId(initial?.shiftId || '')
   }, [initial])
 
-  if (!open) return null
-
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -61,6 +66,12 @@ export default function Hospital_AddStaffDialog({ open, onClose, onSave, initial
       status: (String(fd.get('status') || 'Active') as any),
       salary: parseFloat(String(fd.get('salary') || '0')) || 0,
       shiftId: String(fd.get('shiftId') || '') || undefined,
+      biometricEnrollId: String(fd.get('biometricEnrollId') || '') || undefined,
+      leaveQuotas: {
+        annual: Number(fd.get('leaveQuotaAnnual') || 0),
+        casual: Number(fd.get('leaveQuotaCasual') || 0),
+        sick: Number(fd.get('leaveQuotaSick') || 0),
+      }
     }
     onSave(staff)
     onClose()
@@ -112,6 +123,29 @@ export default function Hospital_AddStaffDialog({ open, onClose, onSave, initial
             <div>
               <label className="mb-1 block text-sm text-slate-700">Salary</label>
               <input name="salary" type="number" step="0.01" defaultValue={initial?.salary} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-700">Biometric Enroll ID</label>
+              <input name="biometricEnrollId" defaultValue={initial?.biometricEnrollId} placeholder="e.g. 1" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              <p className="mt-1 text-[11px] text-slate-400">The ID shown on the K70 device for this staff member</p>
+            </div>
+            
+            <div className="sm:col-span-2 mt-2">
+              <h4 className="text-sm font-bold text-slate-800 border-b pb-1 mb-3">Leave Quotas (Days per Year)</h4>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="mb-1 block text-xs text-slate-600">Annual</label>
+                  <input name="leaveQuotaAnnual" type="number" defaultValue={initial?.leaveQuotas?.annual || 0} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-600">Casual</label>
+                  <input name="leaveQuotaCasual" type="number" defaultValue={initial?.leaveQuotas?.casual || 0} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-600">Sick</label>
+                  <input name="leaveQuotaSick" type="number" defaultValue={initial?.leaveQuotas?.sick || 0} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                </div>
+              </div>
             </div>
           </div>
         </div>

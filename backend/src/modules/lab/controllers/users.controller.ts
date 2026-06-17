@@ -6,7 +6,6 @@ import { userCreateSchema, userUpdateSchema } from '../validators/user'
 import { LabAuditLog } from '../models/AuditLog'
 import { LabShift } from '../models/Shift'
 import { env } from '../../../config/env'
-import { createUserAccount } from '../../finance/services/accountAutoCreate'
 
 function toMin(hhmm: string){
   const [h,m] = (hhmm||'').split(':').map(x=>parseInt(x,10)||0)
@@ -61,8 +60,6 @@ export async function create(req: Request, res: Response){
       detail: `${u.username} — ${u.role}`,
     })
   } catch {}
-  // Auto-create Chart of Accounts entry for this user
-  try { await createUserAccount(String(u._id), u.username, 'lab') } catch {}
   res.status(201).json(u)
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 import SearchableSelect from '../common/SearchableSelect'
 
 type Props = { open: boolean; onClose: () => void }
@@ -36,11 +36,11 @@ export default function Pharmacy_UpdateStock({ open, onClose }: Props) {
     setDate(today)
     setInvoice('')
     setTotalUnits(0)
-    pharmacyApi.listAllSuppliers().then((res:any)=>{
+    indoorPharmacyApi.listAllSuppliers().then((res:any)=>{
       if (!mounted) return
       setSuppliers(res?.items ?? res ?? [])
     }).catch(()=>{})
-    pharmacyApi.listInventory({ limit: 1000 }).then((res:any)=>{
+    indoorPharmacyApi.listInventory({ limit: 1000 }).then((res:any)=>{
       if (!mounted) return
       const items: any[] = res?.items ?? []
       const names = Array.from(new Set(items.map((it:any)=> String((it.name||'').trim())).filter(Boolean))) as string[]
@@ -55,7 +55,7 @@ export default function Pharmacy_UpdateStock({ open, onClose }: Props) {
     const key = (name||'').trim()
     if (!key) return
     let mounted = true
-    pharmacyApi.listInventory({ search: key, limit: 50 }).then((res:any)=>{
+    indoorPharmacyApi.listInventory({ search: key, limit: 50 }).then((res:any)=>{
       if (!mounted) return
       const items: any[] = res?.items || []
       const it = items.find((x:any)=> String(x.name||'').trim().toLowerCase() === key.toLowerCase()) || items[0]
@@ -90,7 +90,7 @@ export default function Pharmacy_UpdateStock({ open, onClose }: Props) {
     ;(async()=>{
       try {
         if (!supplierId){ setCompanies([]); setCompanyId(''); setCompanyName(''); return }
-        const res: any = await pharmacyApi.listAllCompanies({ distributorId: supplierId })
+        const res: any = await indoorPharmacyApi.listAllCompanies({ distributorId: supplierId })
         if (!mounted) return
         const list = res?.items ?? res ?? []
         setCompanies(list)
@@ -301,7 +301,7 @@ export default function Pharmacy_UpdateStock({ open, onClose }: Props) {
                   lineTaxType: lineTaxType || undefined,
                   lineTaxValue: lineTaxValue || undefined,
                 }]
-                await pharmacyApi.createPurchaseDraft({
+                await indoorPharmacyApi.createPurchaseDraft({
                   date,
                   invoice: invoice.trim(),
                   supplierId: supplierId || undefined,

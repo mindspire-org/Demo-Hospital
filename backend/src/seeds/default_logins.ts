@@ -6,6 +6,7 @@ import { HospitalUser } from '../modules/hospital/models/User'
 import { FinanceUser } from '../modules/finance/models/finance_User'
 import { LabUser } from '../modules/lab/models/User'
 import { PharmacyUser } from '../modules/pharmacy/models/User'
+import { PharmacyUser as IndoorPharmacyUser } from '../modules/indoorpharmacy/models/indoorUser'
 import { ReceptionUser } from '../modules/reception/models/User'
 
 async function ensureOne(model: any, username: string, doc: any) {
@@ -22,6 +23,7 @@ export async function ensureDefaultPortalLogins() {
   const passwordHash = await bcrypt.hash('123', 10)
 
   await ensureOne(PharmacyUser, username, { username, role: 'admin', passwordHash })
+  await ensureOne(IndoorPharmacyUser, username, { username, role: 'admin', passwordHash })
   await ensureOne(AestheticUser, username, { username, role: 'admin', passwordHash })
   await ensureOne(HospitalUser, username, { username, role: 'admin', active: true, passwordHash })
   await ensureOne(ReceptionUser, username, { username, role: 'admin', passwordHash })

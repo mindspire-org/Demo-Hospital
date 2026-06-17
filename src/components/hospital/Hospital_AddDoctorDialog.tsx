@@ -9,6 +9,10 @@ export type HospitalDoctorInput = {
   phone: string
   publicFee: string
   privateFee: string
+  subsidizedFee: string
+  doctorShare: string
+  opdShare: string
+  ipdShare: string
   username: string
   password: string
   primaryDepartmentId: string
@@ -26,12 +30,12 @@ export default function Hospital_AddDoctorDialog({
   departments: Array<{ id: string; name: string }>
 }) {
   const [form, setForm] = useState<HospitalDoctorInput>({
-    name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', phone: '', publicFee: '0', privateFee: '0', username: '', password: '', primaryDepartmentId: ''
+    name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', doctorShare: '100', opdShare: '', ipdShare: '', username: '', password: '', primaryDepartmentId: ''
   })
 
   useEffect(() => {
     if (open) {
-      setForm({ name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', phone: '', publicFee: '0', privateFee: '0', username: '', password: '', primaryDepartmentId: '' })
+      setForm({ name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', doctorShare: '100', opdShare: '', ipdShare: '', username: '', password: '', primaryDepartmentId: '' })
     }
   }, [open])
 
@@ -95,8 +99,24 @@ export default function Hospital_AddDoctorDialog({
             <input value={form.privateFee} onChange={e=>update('privateFee', e.target.value)} placeholder="0" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
           </div>
           <div>
+            <label className="mb-1 block text-sm text-slate-700">Subsidized Fee (Rs.)</label>
+            <input value={form.subsidizedFee} onChange={e=>update('subsidizedFee', e.target.value)} placeholder="0" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+          </div>
+          <div>
             <label className="mb-1 block text-sm text-slate-700">Username</label>
             <input value={form.username} onChange={e=>update('username', e.target.value)} placeholder="Enter username" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-slate-700">Doctor Share (%)</label>
+            <input type="number" min="0" max="100" value={form.doctorShare} onChange={e=>update('doctorShare', e.target.value)} placeholder="100" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-slate-700">OPD Share (%)</label>
+            <input type="number" min="0" max="100" value={form.opdShare} onChange={e=>update('opdShare', e.target.value)} placeholder="Optional, e.g. 70" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-slate-700">IPD Share (%)</label>
+            <input type="number" min="0" max="100" value={form.ipdShare} onChange={e=>update('ipdShare', e.target.value)} placeholder="Optional, e.g. 60" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">

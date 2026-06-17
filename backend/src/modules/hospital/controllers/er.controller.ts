@@ -1,8 +1,19 @@
 import { Request, Response } from 'express'
 
 import { HospitalEncounter } from '../models/Encounter'
+import { HospitalToken } from '../models/Token'
+import { LabPatient } from '../../lab/models/Patient'
+import { HospitalDoctor } from '../models/Doctor'
+import { HospitalBed } from '../models/Bed'
+import { HospitalFloor } from '../models/Floor'
+import { HospitalRoom } from '../models/Room'
+import { HospitalWard } from '../models/Ward'
 
 import { HospitalErCharge } from '../models/ErCharge'
+import { HospitalErVital } from '../models/ErVital'
+import { HospitalErMedicationOrder } from '../models/ErMedicationOrder'
+import { HospitalErClinicalNote } from '../models/ErClinicalNote'
+import { HospitalErInitialAssessment } from '../models/ErInitialAssessment'
 
 import { createErChargeSchema, updateErChargeSchema } from '../validators/er'
 
@@ -13,12 +24,16 @@ import { recalcErPaidAmounts, computeTotals } from './er_billing.controller'
 async function getEREncounter(encounterId: string){
 
   const enc = await HospitalEncounter.findById(encounterId)
+    .populate('patientId', 'mrn fullName name phone phoneNo phoneNormalized mobile age gender fatherName guardianName address city')
+    .populate('doctorId', 'fullName name')
+    .populate('tokenId', 'tokenNo displayTokenNo')
+    .lean()
 
   if (!enc) throw { status: 404, error: 'Encounter not found' }
 
   if (String((enc as any).type) !== 'ER') throw { status: 400, error: 'Encounter is not ER' }
 
-  return enc
+  return enc as any
 
 }
 
@@ -154,17 +169,94 @@ export async function listER(req: Request, res: Response){
     const filter: any = { type: 'ER' }
     if (q.status) filter.status = String(q.status)
     if (q.departmentId) filter.departmentId = String(q.departmentId)
+    if (q.patientId) filter.patientId = String(q.patientId)
 
     const rows = await HospitalEncounter.find(filter)
+      .populate('patientId', 'mrn fullName phoneNormalized age gender')
+      .populate('doctorId', 'fullName name')
+      .populate('tokenId', 'tokenNo')
+      .populate({
+        path: 'bedId',
+        model: 'Hospital_Bed',
+        select: 'label floorId locationType locationId'
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .populate('patientId', 'mrn fullName fatherName phoneNormalized gender age')
-      .populate('doctorId', 'name')
-      .populate('bedId', 'label')
       .lean()
 
-    res.json({ encounters: rows })
+    // Transform to add bedLocation info
+    const floorIds = new Set<string>()
+    const roomIds = new Set<string>()
+    const wardIds = new Set<string>()
+    
+    for (const enc of rows) {
+      const bed = (enc as any).bedId
+      if (bed && typeof bed === 'object') {
+        if (bed.floorId) floorIds.add(String(bed.floorId))
+        if (bed.locationType === 'room' && bed.locationId) roomIds.add(String(bed.locationId))
+        if (bed.locationType === 'ward' && bed.locationId) wardIds.add(String(bed.locationId))
+      }
+    }
+    
+    const [floors, rooms, wards] = await Promise.all([
+      HospitalFloor.find({ _id: { $in: Array.from(floorIds) } }).select('_id name').lean(),
+      HospitalRoom.find({ _id: { $in: Array.from(roomIds) } }).select('_id name').lean(),
+      HospitalWard.find({ _id: { $in: Array.from(wardIds) } }).select('_id name').lean(),
+    ])
+    
+    const floorMap = new Map(floors.map(f => [String(f._id), f.name]))
+    const roomMap = new Map(rooms.map(r => [String(r._id), r.name]))
+    const wardMap = new Map(wards.map(w => [String(w._id), w.name]))
+    
+    const transformedRows = rows.map(enc => {
+      const row = enc as any
+      const bed = row.bedId
+      
+      if (bed && typeof bed === 'object') {
+        const floorName = floorMap.get(String(bed.floorId)) || ''
+        const locationName = bed.locationType === 'room' 
+          ? (roomMap.get(String(bed.locationId)) || '')
+          : (wardMap.get(String(bed.locationId)) || '')
+        
+        row.bedLocation = {
+          floor: floorName,
+          type: bed.locationType,
+          location: locationName,
+          bed: bed.label
+        }
+        row.bedLabel = bed.label
+      }
+      
+      return row
+    })
+
+    res.json({ encounters: transformedRows })
+  }catch(e){ return handleError(res, e) }
+}
+
+export async function getEREncounterById(req: Request, res: Response){
+  try{
+    const { id } = req.params as any
+    const enc = await getEREncounter(String(id))
+
+    // Fetch all related records in parallel
+    const [vitals, medOrders, clinicalNotes, initialAssessments, charges] = await Promise.all([
+      HospitalErVital.find({ encounterId: enc._id }).sort({ recordedAt: -1 }).limit(100).lean(),
+      HospitalErMedicationOrder.find({ encounterId: enc._id }).sort({ createdAt: -1 }).limit(100).lean(),
+      HospitalErClinicalNote.find({ encounterId: enc._id }).sort({ recordedAt: -1 }).limit(100).lean(),
+      HospitalErInitialAssessment.find({ encounterId: enc._id }).sort({ assessmentTime: -1 }).limit(10).lean(),
+      HospitalErCharge.find({ encounterId: enc._id }).sort({ date: -1 }).limit(100).lean(),
+    ])
+
+    res.json({
+      encounter: enc,
+      vitals,
+      medOrders,
+      clinicalNotes,
+      initialAssessments,
+      charges,
+    })
   }catch(e){ return handleError(res, e) }
 }
 

@@ -1,4 +1,5 @@
 import { dialysisApi } from './api'
+import { fmtDateTime12 } from './timeFormat'
 
 function esc(s: any) {
   return String(s ?? '')
@@ -149,7 +150,7 @@ export async function printDialysisSessionReport(input: {
         </div>
       </div>
 
-      <div class="footer">System Generated Report - ${esc(new Date().toLocaleDateString())} ${esc(new Date().toLocaleTimeString())}</div>
+      <div class="footer">System Generated Report - ${esc(fmtDateTime12(new Date().toISOString()))}</div>
     </div>
   </div>`
 

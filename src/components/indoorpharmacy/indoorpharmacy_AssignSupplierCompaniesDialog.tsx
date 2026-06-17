@@ -66,7 +66,7 @@ export default function Pharmacy_AssignSupplierCompaniesDialog({ open, onClose, 
       for (const id of nextAssigned){ if (!currentAssigned.has(id)) toAssign.push(id) }
       for (const id of currentAssigned){ if (!nextAssigned.has(id)) toUnassign.push(id) }
       await indoorPharmacyApi.assignSupplierCompanies(supplier.id, { companyIds: toAssign, unassignIds: toUnassign })
-      try { window.dispatchEvent(new Event('pharmacy:companies:refresh')) } catch {}
+      try { window.dispatchEvent(new Event('indoor-pharmacy:companies:refresh')) } catch {}
       onClose()
     } catch { setSaving(false) }
   }

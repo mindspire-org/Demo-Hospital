@@ -1,342 +1,490 @@
-import { Route, Routes } from 'react-router-dom'
-import ErrorBoundary from './components/ui/ErrorBoundary'
+import { lazy, Suspense, useState, useEffect } from 'react'
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import GlobalToast from './components/ui/GlobalToast'
+
+// Eagerly load critical pages (Home and Login pages) - no loading flash
 import Home from './pages/Home'
-import Hospital_Login from './pages/hospital/hospital_Login'
-import Hospital_Layout from './pages/hospital/hospital_Layout'
-import Hospital_IPDDashboard from './pages/hospital/hospital_ipddashboard'
-import Hospital_SidebarPermissions from './pages/hospital/hospital_SidebarPermissions'
-import Hospital_BedManagement from './pages/hospital/hospital_BedManagement'
-import Hospital_TokenGenerator from './pages/hospital/hospital_TokenGenerator'
-import Hospital_TodayTokens from './pages/hospital/hospital_TodayTokens'
-import Hospital_TokenHistory from './pages/hospital/hospital_TokenHistory'
-import Hospital_MyActivityReport from './pages/hospital/hospital_MyActivityReport'
-import Hospital_EmergencyQueue from './pages/hospital/hospital_EmergencyQueue'
-import Hospital_EmergencyChart from './pages/hospital/hospital_EmergencyChart'
-import Hospital_ERBillingAdd from './pages/hospital/hospital_ERBillingAdd'
-import Hospital_EmergencyServices from './pages/hospital/hospital_EmergencyServices'
-import Hospital_EmergencyServiceAdd from './pages/hospital/hospital_EmergencyServiceAdd'
-import Hospital_Departments from './pages/hospital/hospital_Departments'
-import Hospital_SearchPatients from './pages/hospital/hospital_SearchPatients'
-import Hospital_UserManagement from './pages/hospital/hospital_UserManagement'
-import Hospital_AuditLogs from './pages/hospital/hospital_AuditLogs'
-import Hospital_Settings from './pages/hospital/hospital_Settings'
-import Hospital_Backup from './pages/hospital/hospital_Backup'
-import Hospital_Doctors from './pages/hospital/hospital_Doctors' 
-import Hospital_PatientList from './pages/hospital/hospital_PatientList.tsx'
-import Hospital_PatientProfile from './pages/hospital/hospital_PatientProfile.tsx'
-import Hospital_DischargeWizard from './pages/hospital/hospital_DischargeWizard.tsx'
-import Hospital_Discharged from './pages/hospital/hospital_Discharged.tsx'
-import Hospital_ERDischarged from './pages/hospital/hospital_ERDischarged.tsx'
-import Hospital_StaffAttendance from './pages/hospital/hospital_StaffAttendance.tsx'
-import Hospital_StaffManagement from './pages/hospital/hospital_StaffManagement.tsx'
-import Hospital_StaffSettings from './pages/hospital/hospital_StaffSettings.tsx'
-import Hospital_StaffMonthly from './pages/hospital/hospital_StaffMonthly.tsx'
-import Hospital_StaffDashboard from './pages/hospital/hospital_StaffDashboard.tsx'
-import Hospital_Dashboard from './pages/hospital/hospital_Dashboard.tsx'
-import Hospital_DoctorFinance from './pages/hospital/hospital_DoctorFinance.tsx'
-import Hospital_IpdPrintReport from './pages/hospital/hospital_IpdPrintReport.tsx'
-import Hospital_IPDReferrals from './pages/hospital/hospital_IPDReferrals.tsx'
-import Hospital_ERReferrals from './pages/hospital/hospital_ERReferrals.tsx'
-import Hospital_IPDServices from './pages/hospital/hospital_IPDServices.tsx'
-import Hospital_IPDServiceAdd from './pages/hospital/hospital_IPDServiceAdd.tsx'
-import Hospital_DoctorSchedules from './pages/hospital/hospital_DoctorSchedules'
-import Hospital_Appointments from './pages/hospital/hospital_Appointments'
-import { EquipmentDashboard, EquipmentList, EquipmentSuppliers, EquipmentPurchases, SupplierLedger, EquipmentDetail } from './features/hospital'
-import Hospital_ConsentFormList from './pages/hospital/forms/Hospital_ConsentFormList.tsx'
-import Hospital_ReceivedDeathList from './pages/hospital/forms/Hospital_ReceivedDeathList.tsx'
-import Hospital_DeathCertificateList from './pages/hospital/forms/Hospital_DeathCertificateList.tsx'
-import Hospital_BirthCertificateList from './pages/hospital/forms/Hospital_BirthCertificateList.tsx'
-import Hospital_ShortStayList from './pages/hospital/forms/Hospital_ShortStayList.tsx'
-import Hospital_DischargeSummaryList from './pages/hospital/forms/Hospital_DischargeSummaryList.tsx'
-import Hospital_ReceivedDeathDetail from './pages/hospital/forms/Hospital_ReceivedDeathDetail.tsx'
-import Hospital_DeathCertificateDetail from './pages/hospital/forms/Hospital_DeathCertificateDetail.tsx'
-import Hospital_BirthCertificateDetail from './pages/hospital/forms/Hospital_BirthCertificateDetail.tsx'
-import Hospital_ShortStayDetail from './pages/hospital/forms/Hospital_ShortStayDetail.tsx'
-import Hospital_DischargeSummaryDetail from './pages/hospital/forms/Hospital_DischargeSummaryDetail.tsx'
-import Hospital_InvoiceList from './pages/hospital/forms/Hospital_InvoiceList.tsx'
-import IpdInvoiceSlip from './components/hospital/hospital_IpdInvoiceslip'
-import Hospital_IpdBillingAdd from './pages/hospital/hospital_IpdBillingAdd'
-import Hospital_CorporateDashboard from './pages/hospital/corporate/hospital_CorporateDashboard'
-import Hospital_CorporateCompanies from './pages/hospital/corporate/hospital_CorporateCompanies'
-import Hospital_CorporateRateRules from './pages/hospital/corporate/hospital_CorporateRateRules'
-import Hospital_CorporateTransactions from './pages/hospital/corporate/hospital_CorporateTransactions'
-import Hospital_CorporateClaims from './pages/hospital/corporate/hospital_CorporateClaims'
-import Hospital_CorporatePayments from './pages/hospital/corporate/hospital_CorporatePayments'
-import Hospital_CorporateReports from './pages/hospital/corporate/hospital_CorporateReports'
-import Store_Dashboard from './pages/hospital/store_Dashboard'
-import Store_Suppliers from './pages/hospital/store_Suppliers'
-import Store_PurchaseList from './pages/hospital/store_PurchaseHistory'
-import Store_AddPurchase from './pages/hospital/store_AddPurchase'
-import Store_Inventory from './pages/hospital/store_Inventory'
-import Store_IssueHistory from './pages/hospital/store_IssueHistory'
-import Store_PurchaseOrders from './pages/hospital/store_PurchaseOrders'
-import Store_Reports from './pages/hospital/store_Reports'
-import Ambulance_Dashboard from './pages/hospital/ambulance_Dashboard'
-import Ambulance_Master from './pages/hospital/ambulance_Master'
-import Ambulance_Trips from './pages/hospital/ambulance_Trips'
-import Ambulance_Fuel from './pages/hospital/ambulance_Fuel'
-import Ambulance_Expenses from './pages/hospital/ambulance_Expenses'
-import Ambulance_Reports from './pages/hospital/ambulance_Reports'
-import Hospital_FbrDashboard from './pages/hospital/fbr/Hospital_FbrDashboard'
-import Hospital_FbrSettings from './pages/hospital/fbr/Hospital_FbrSettings'
-import Hospital_FbrLogs from './pages/hospital/fbr/Hospital_FbrLogs'
-import Hospital_FbrReports from './pages/hospital/fbr/Hospital_FbrReports'
-import Hospital_FbrCredentials from './pages/hospital/fbr/Hospital_FbrCredentials'
-import Doctor_Layout from './pages/doctor/doctor_Layout'
-import Doctor_Dashboard from './pages/doctor/doctor_Dashboard'
-import Doctor_Patients from './pages/doctor/doctor_Patients'
-import Doctor_Prescription from './pages/doctor/doctor_Prescription'
-import Doctor_PrescriptionHistory from './pages/doctor/doctor_PrescriptionHistory'
-import Doctor_PrescriptionTemplates from './pages/doctor/doctor_PrescriptionTemplates'
-import Doctor_Notifications from './pages/doctor/doctor_Notifications'
-import Doctor_Reports from './pages/doctor/doctor_Reports_new'
-import Doctor_Referrals from './pages/doctor/doctor_Referrals'
-import Doctor_Settings from './pages/doctor/doctor_Settings'
-import Lab_Login from './pages/lab/lab_Login'
-import Lab_Layout from './pages/lab/lab_Layout'
-import Lab_Dashboard from './pages/lab/lab_Dashboard'
-import Lab_Tests from './pages/lab/lab_Tests'
-import Lab_Orders from './pages/lab/lab_SampleIntake'
-import Lab_Tracking from './pages/lab/lab_Tracking'
-import Lab_Appointments from './pages/lab/lab_Appointments'
-import Lab_Results from './pages/lab/lab_Results'
-import Lab_Barcodes from './pages/lab/lab_Barcodes'
-import Lab_ReportApproval from './pages/lab/lab_ReportApproval'
-import Lab_ReportGenerator from './pages/lab/lab_ReportGenerator'
-import Lab_Settings from './pages/lab/lab_Settings'
-import Lab_CriticalValues from './pages/lab/lab_CriticalValues'
-import Lab_TotalTests from './pages/lab/lab_TotalTests'
-import Lab_TestPackages from './pages/lab/lab_TestPackages'
-import Lab_OutsourceLabs from './pages/lab/lab_OutsourceLabs'
-import Lab_OutsourceRateList from './pages/lab/lab_OutsourceRateList'
-import Lab_OutsourceDispatch from './pages/lab/lab_OutsourceDispatch'
-import Lab_CenterRateList from './pages/lab/lab_CenterRateList'
-import Lab_PatientCards from './pages/lab/lab_PatientCards'
-import Lab_WardImports from './pages/lab/lab_WardImports'
-import Lab_DailyWorksheet from './pages/lab/lab_DailyWorksheet'
-import Lab_MainRegister from './pages/lab/lab_MainRegister'
-import Lab_TAT from './pages/lab/lab_TAT'
-import Lab_IncomeLedger from './pages/lab/lab_IncomeLedger'
-import Lab_Inventory from './pages/lab/lab_Inventory'
-import Lab_AddInvoicePage from './components/lab/lab_AddInvoicePage'
-import Lab_Suppliers from './pages/lab/lab_Suppliers.tsx'
-import Lab_Companies from './pages/lab/lab_Companies'
-import Lab_SupplierReturns from './pages/lab/lab_SupplierReturns.tsx'
-import Lab_PurchaseHistory from './pages/lab/lab_PurchaseHistory.tsx'
-import Lab_PurchaseOrders from './pages/lab/lab_PurchaseOrders.tsx'
-import Lab_ReturnHistory from './pages/lab/lab_ReturnHistory.tsx'
-import Lab_UserManagement from './pages/lab/lab_UserManagement'
-import Lab_SidebarPermissions from './pages/lab/lab_SidebarPermissions'
-import Lab_Expenses from './pages/lab/lab_Expenses'
-import Lab_AuditLogs from './pages/lab/lab_AuditLogs'
-import Lab_Reports from './pages/lab/lab_Reports' 
-import Lab_StaffAttendance from './pages/lab/lab_StaffAttendance'
-import Lab_StaffManagement from './pages/lab/lab_StaffManagement'
-import Lab_StaffSettings from './pages/lab/lab_StaffSettings'
-import Lab_StaffMonthly from './pages/lab/lab_StaffMonthly'
-import Lab_Referrals from './pages/lab/lab_Referrals'
-import Lab_PayInOut from './pages/lab/lab_PayInOut'
-import Lab_ManagerCashCount from './pages/lab/lab_ManagerCashCount'
-import Lab_BB_Donors from './pages/lab/bloodbank/Lab_BB_Donors'
-import Lab_BB_Inventory from './pages/lab/bloodbank/Lab_BB_Inventory'
-import Lab_BB_Receivers from './pages/lab/bloodbank/Lab_BB_Receivers'
-import Lab_TodaysTokens from './pages/lab/lab_TodaysTokens'
-import Lab_CollectionCenters from './pages/lab/lab_CollectionCenters'
-import Lab_CollectionCenterRevenue from './pages/lab/lab_CollectionCenterRevenue'
-import Lab_CollectionCenterPayments from './pages/lab/lab_CollectionCenterPayments'
-// Removed BB Labels and Settings pages (deleted)
-import Finance_Transactions from './pages/hospital/hospital_Transactions.tsx'
-import Finance_ExpenseHistory from './pages/hospital/hospital_ExpenseHistory.tsx'
-import Finance_Login from './pages/finance/finance_Login.tsx'
-import Finance_Layout from './pages/finance/finance_Layout.tsx'
-import Finance_UserManagement from './pages/finance/finance_UserManagement'
-import Finance_SidebarPermissions from './pages/finance/finance_SidebarPermissions'
-import Finance_AuditLogs from './pages/finance/finance_AuditLogs'
-import Finance_AccountLedger from './pages/finance/finance_AccountLedger'
-import Finance_CashHandover from './pages/finance/finance_CashHandover'
-import Finance_PendingHandovers from './pages/finance/finance_PendingHandovers'
-import Finance_UserAccounts from './pages/finance/finance_UserAccounts'
-// ERP pages (new)
-import Finance_Dashboard from './pages/finance/finance_Dashboard'
-import Finance_ChartOfAccounts2 from './pages/finance/finance_ChartOfAccounts2'
-import Finance_Expenses from './pages/finance/finance_Expenses'
-import Finance_JournalVouchers from './pages/finance/finance_JournalVouchers'
-import Finance_LedgerExplorer from './pages/finance/finance_LedgerExplorer'
-import Finance_TrialBalance from './pages/finance/finance_TrialBalance'
-import Finance_ProfitLoss from './pages/finance/finance_ProfitLoss'
-import Finance_BalanceSheet from './pages/finance/finance_BalanceSheet'
-import Finance_PettyCash from './pages/finance/finance_PettyCash'
-import { Finance_PatientAR, Finance_ARAging } from './pages/finance/finance_Receivables'
-import { Finance_Vendors, Finance_Bills, Finance_VendorPayments, Finance_APAging } from './pages/finance/finance_Payables'
-import { Finance_StaffPayroll, Finance_DoctorPayroll, Finance_AttendanceFinance, Finance_EarningsDeductions } from './pages/finance/finance_Payroll'
-import Finance_ModuleIntegration from './pages/finance/finance_ModuleIntegration'
-import Finance_Reconciliation from './pages/finance/finance_Reconciliation'
-import Finance_Settings from './pages/finance/finance_Settings'
-import Hospital_DoctorPayouts from './pages/hospital/hospital_DoctorPayouts'
-import Hospital_CashSessions from './pages/hospital/hospital_CashSessions'
-import Pharmacy_Login from './pages/pharmacy/pharmacy_Login'
-import Pharmacy_Layout from './pages/pharmacy/pharmacy_Layout'
-import Pharmacy_Dashboard from './pages/pharmacy/pharmacy_Dashboard'
-import Pharmacy_POS from './pages/pharmacy/pharmacy_POS'
-import Pharmacy_Prescriptions from './pages/pharmacy/pharmacy_Prescriptions'
-import Pharmacy_PrescriptionIntake from './pages/pharmacy/pharmacy_PrescriptionIntake'
-import Pharmacy_Referrals from './pages/pharmacy/pharmacy_Referrals'
-import Pharmacy_Inventory from './pages/pharmacy/pharmacy_Inventory'
-import Pharmacy_AddInvoicePage from './components/pharmacy/pharmacy_AddInvoicePage'
-import Pharmacy_Customers from './pages/pharmacy/pharmacy_Customers'
-import Pharmacy_Suppliers from './pages/pharmacy/pharmacy_Suppliers'
-import Pharmacy_Companies from './pages/pharmacy/pharmacy_Companies'
-import Pharmacy_Settings from './pages/pharmacy/pharmacy_Settings'
-import Pharmacy_PayInOut from './pages/pharmacy/pharmacy_PayInOut'
-import Pharmacy_ManagerCashCount from './pages/pharmacy/pharmacy_ManagerCashCount'
-import Pharmacy_SalesHistory from './pages/pharmacy/pharmacy_SalesHistory'
-import Pharmacy_PurchaseHistory from './pages/pharmacy/pharmacy_PurchaseHistory'
-import Pharmacy_ReturnHistory from './pages/pharmacy/pharmacy_ReturnHistory'
-import Pharmacy_Reports from './pages/pharmacy/pharmacy_Reports'
-import Pharmacy_UserManagement from './pages/pharmacy/pharmacy_UserManagement'
-import Pharmacy_Notifications from './pages/pharmacy/pharmacy_Notifications'
-import Pharmacy_AuditLogs from './pages/pharmacy/pharmacy_AuditLogs'
-import Pharmacy_Expenses from './pages/pharmacy/pharmacy_Expenses'
-import Pharmacy_CustomerReturns from './pages/pharmacy/pharmacy_CustomerReturns'
-import Pharmacy_SupplierReturns from './pages/pharmacy/pharmacy_SupplierReturns'
-import Pharmacy_Guidelines from './pages/pharmacy/pharmacy_Guidelines'
-import Pharmacy_PurchaseOrders from './pages/pharmacy/pharmacy_PurchaseOrders'
-import Pharmacy_StaffAttendance from './pages/pharmacy/pharmacy_StaffAttendance'
-import Pharmacy_StaffManagement from './pages/pharmacy/pharmacy_StaffManagement'
-import Pharmacy_StaffSettings from './pages/pharmacy/pharmacy_StaffSettings'
-import Pharmacy_StaffMonthly from './pages/pharmacy/pharmacy_StaffMonthly'
-import Pharmacy_SidebarPermissions from './pages/pharmacy/pharmacy_SidebarPermissions'
-// Indoor Pharmacy Imports
-import IndoorPharmacy_Login from './pages/indoorpharmacy/indoorpharmacy_Login'
-import IndoorPharmacy_Layout from './pages/indoorpharmacy/indoorpharmacy_Layout'
-import IndoorPharmacy_Dashboard from './pages/indoorpharmacy/indoorpharmacy_Dashboard'
-import IndoorPharmacy_POS from './pages/indoorpharmacy/indoorpharmacy_POS'
-import IndoorPharmacy_Prescriptions from './pages/indoorpharmacy/indoorpharmacy_Prescriptions'
-import IndoorPharmacy_PrescriptionIntake from './pages/indoorpharmacy/indoorpharmacy_PrescriptionIntake'
-import IndoorPharmacy_Referrals from './pages/indoorpharmacy/indoorpharmacy_Referrals'
-import IndoorPharmacy_Inventory from './pages/indoorpharmacy/indoorpharmacy_Inventory'
-import IndoorPharmacy_AddInvoicePage from './components/indoorpharmacy/indoorpharmacy_AddInvoicePage'
-import IndoorPharmacy_Customers from './pages/indoorpharmacy/indoorpharmacy_Customers'
-import IndoorPharmacy_Suppliers from './pages/indoorpharmacy/indoorpharmacy_Suppliers'
-import IndoorPharmacy_Companies from './pages/indoorpharmacy/indoorpharmacy_Companies'
-import IndoorPharmacy_Settings from './pages/indoorpharmacy/indoorpharmacy_Settings'
-import IndoorPharmacy_PayInOut from './pages/indoorpharmacy/indoorpharmacy_PayInOut'
-import IndoorPharmacy_ManagerCashCount from './pages/indoorpharmacy/indoorpharmacy_ManagerCashCount'
-import IndoorPharmacy_SalesHistory from './pages/indoorpharmacy/indoorpharmacy_SalesHistory'
-import IndoorPharmacy_PurchaseHistory from './pages/indoorpharmacy/indoorpharmacy_PurchaseHistory'
-import IndoorPharmacy_ReturnHistory from './pages/indoorpharmacy/indoorpharmacy_ReturnHistory'
-import IndoorPharmacy_Reports from './pages/indoorpharmacy/indoorpharmacy_Reports'
-import IndoorPharmacy_UserManagement from './pages/indoorpharmacy/indoorpharmacy_UserManagement'
-import IndoorPharmacy_Notifications from './pages/indoorpharmacy/indoorpharmacy_Notifications'
-import IndoorPharmacy_AuditLogs from './pages/indoorpharmacy/indoorpharmacy_AuditLogs'
-import IndoorPharmacy_Expenses from './pages/indoorpharmacy/indoorpharmacy_Expenses'
-import IndoorPharmacy_CustomerReturns from './pages/indoorpharmacy/indoorpharmacy_CustomerReturns'
-import IndoorPharmacy_SupplierReturns from './pages/indoorpharmacy/indoorpharmacy_SupplierReturns'
-import IndoorPharmacy_Guidelines from './pages/indoorpharmacy/indoorpharmacy_Guidelines'
-import IndoorPharmacy_PurchaseOrders from './pages/indoorpharmacy/indoorpharmacy_PurchaseOrders'
-import IndoorPharmacy_SidebarPermissions from './pages/indoorpharmacy/indoorpharmacy_SidebarPermissions'
-import IndoorPharmacy_Shifts from './pages/indoorpharmacy/indoorpharmacy_Shifts'
-import Diagnostic_Login from './pages/diagnostic/diagnostic_Login'
-import Diagnostic_Layout from './pages/diagnostic/diagnostic_Layout'
-import Diagnostic_Dashboard from './pages/diagnostic/diagnostic_Dashboard'
-import Diagnostic_TokenGenerator from './pages/diagnostic/diagnostic_TokenGenerator'
-import Diagnostic_Tests from './pages/diagnostic/diagnostic_Tests'
-import Diagnostic_SampleTracking from './pages/diagnostic/Diagnostic_SampleTracking_Impl'
-import Diagnostic_ResultEntry from './pages/diagnostic/diagnostic_ResultEntry'
-import Diagnostic_ReportGenerator from './pages/diagnostic/diagnostic_ReportGenerator'
-import Diagnostic_AuditLogs from './pages/diagnostic/diagnostic_AuditLogs'
-import Diagnostic_Settings from './pages/diagnostic/diagnostic_Settings'
-import Diagnostic_UserManagement from './pages/diagnostic/diagnostic_UserManagement'
-import Diagnostic_SidebarPermissions from './pages/diagnostic/diagnostic_SidebarPermissions'
-import Diagnostic_Referrals from './pages/diagnostic/diagnostic_Referrals'
-import Diagnostic_IncomeLedger from './pages/diagnostic/diagnostic_IncomeLedger'
-import Reception_Login from './pages/reception/reception_Login.tsx'
-import Reception_Layout from './pages/reception/reception_Layout.tsx'
-import Reception_Dashboard from './pages/reception/reception_Dashboard'
-import Hospital_IPDBillingCollect from './pages/hospital/hospital_IPDBillingCollect'
-import Hospital_IPDTransactions from './pages/hospital/hospital_IPDTransactions'
-import Hospital_ERTransactions from './pages/hospital/hospital_ERTransactions'
-import Hospital_ERBillingCollect from './pages/hospital/hospital_ERBillingCollect'
-import Reception_UserManagement from './pages/reception/reception_UserManagement'
-import Reception_StaffSettings from './pages/reception/reception_StaffSettings'
-import Reception_SidebarPermissions from './pages/reception/reception_SidebarPermissions'
-import Reception_MyActivityReport from './pages/reception/reception_MyActivityReport'
-import Dialysis_Login from './pages/dialysis/dialysis_Login'
-import Dialysis_Layout from './pages/dialysis/dialysis_Layout'
-import Dialysis_Dashboard from './pages/dialysis/dialysis_Dashboard'
-import Dialysis_TokenGenerator from './pages/dialysis/dialysis_TokenGenerator'
-import Dialysis_TokenHistory from './pages/dialysis/dialysis_TokenHistory'
-import Dialysis_Patients from './pages/dialysis/dialysis_Patients'
-import Dialysis_Sessions from './pages/dialysis/dialysis_Sessions'
-import Dialysis_Appointments from './pages/dialysis/dialysis_Appointments'
-import Dialysis_UserManagement from './pages/dialysis/dialysis_UserManagement'
-import Dialysis_SidebarPermissions from './pages/dialysis/dialysis_SidebarPermissions'
-import Dialysis_AuditLogs from './pages/dialysis/dialysis_AuditLogs'
-import Dialysis_Settings from './pages/dialysis/dialysis_Settings'
-import Dialysis_MasterData from './pages/dialysis/dialysis_MasterData'
-import Dialysis_PatientHistory from './pages/dialysis/dialysis_PatientHistory'
-import Dialysis_DischargedPatients from './pages/dialysis/dialysis_DischargedPatients'
-import Aesthetic_Login from './pages/aesthetic/aesthetic_Login'
-import Aesthetic_Layout from './pages/aesthetic/aesthetic_Layout'
-import Aesthetic_Dashboard from './pages/aesthetic/aesthetic_Dashboard'
-import Aesthetic_TokenGeneratorPage from './pages/aesthetic/aesthetic_TokenGenerator'
-import Aesthetic_TodayTokens from './pages/aesthetic/aesthetic_TodayTokens'
-import Aesthetic_TokenHistoryPage from './pages/aesthetic/aesthetic_TokenHistory'
-import Aesthetic_ReportsPage from './pages/aesthetic/aesthetic_Reports'
-import Aesthetic_InventoryPage from './pages/aesthetic/aesthetic_Inventory'
-import Aesthetic_AddInvoicePage from './components/aesthetic/aesthetic_AddInvoicePage'
-import Aesthetic_ReturnHistory from './pages/aesthetic/aesthetic_ReturnHistory'
-import Aesthetic_SuppliersPage from './pages/aesthetic/aesthetic_Suppliers'
-import Aesthetic_Patients from './pages/aesthetic/aesthetic_Patients'
-import Aesthetic_PatientProfile from './pages/aesthetic/aesthetic_PatientProfile'
-import Aesthetic_ExpensesPage from './pages/aesthetic/aesthetic_Expenses'
-import Aesthetic_DoctorManagementPage from './pages/aesthetic/aesthetic_DoctorManagement'
-import Aesthetic_AuditLogsPage from './pages/aesthetic/aesthetic_AuditLogs'
-import Aesthetic_UserManagementPage from './pages/aesthetic/aesthetic_UserManagement'
-import Aesthetic_Notifications from './pages/aesthetic/aesthetic_Notifications'
-import Aesthetic_StaffAttendance from './pages/aesthetic/aesthetic_StaffAttendance'
-import Aesthetic_StaffManagement from './pages/aesthetic/aesthetic_StaffManagement'
-import Aesthetic_StaffSettings from './pages/aesthetic/aesthetic_StaffSettings'
-import Aesthetic_StaffMonthly from './pages/aesthetic/aesthetic_StaffMonthly'
-import Aesthetic_StaffDashboard from './pages/aesthetic/aesthetic_StaffDashboard'
-import Aesthetic_SupplierReturns from './pages/aesthetic/aesthetic_SupplierReturns'
-import Aesthetic_PurchaseHistory from './pages/aesthetic/aesthetic_PurchaseHistory'
-import Aesthetic_Settings from './pages/aesthetic/aesthetic_Settings'
-import Aesthetic_ConsentTemplates from './pages/aesthetic/aesthetic_ConsentTemplates'
-import Aesthetic_ProcedureCatalog from './pages/aesthetic/aesthetic_ProcedureCatalog'
-import Aesthetic_DoctorFinance from './pages/aesthetic/aesthetic_DoctorFinance'
-import Aesthetic_DoctorPayouts from './pages/aesthetic/aesthetic_DoctorPayouts'
-import Aesthetic_DoctorSchedules from './pages/aesthetic/aesthetic_DoctorSchedules'
-import Aesthetic_Appointments from './pages/aesthetic/aesthetic_Appointments'
-import Aesthetic_SidebarPermissions from './pages/aesthetic/aesthetic_SidebarPermissions'
 import NotFound from './pages/NotFound'
-import { useEffect } from 'react'
+import Hospital_Login from './pages/hospital/hospital_Login'
+import Aesthetic_Login from './pages/aesthetic/aesthetic_Login'
+import Lab_Login from './pages/lab/lab_Login'
+import Pharmacy_Login from './pages/pharmacy/pharmacy_Login'
+import Finance_Login from './pages/finance/finance_Login'
+import Diagnostic_Login from './pages/diagnostic/diagnostic_Login'
+import Reception_Login from './pages/reception/reception_Login'
+import Dialysis_Login from './pages/dialysis/dialysis_Login'
+import IndoorPharmacy_Login from './pages/indoorpharmacy/indoorpharmacy_Login'
+
+// Lazy load all other pages for faster startup
+const SuperAdminLogin = lazy(() => import('./pages/superAdmin/SuperAdminLogin'))
+const SuperAdminDashboard = lazy(() => import('./pages/superAdmin/SuperAdminDashboard'))
+const ModuleManager = lazy(() => import('./pages/superAdmin/ModuleManager'))
+const ClientProfilePage = lazy(() => import('./pages/superAdmin/ClientProfilePage'))
+const UsageStatsPage = lazy(() => import('./pages/superAdmin/UsageStatsPage'))
+const SuperAdminUsersPage = lazy(() => import('./pages/superAdmin/SuperAdminUsersPage'))
+const SuperAdminGuard = lazy(() => import('./guards/SuperAdminGuard'))
+const Hospital_Layout = lazy(() => import('./pages/hospital/hospital_Layout'))
+const Hospital_IPDDashboard = lazy(() => import('./pages/hospital/hospital_ipddashboard'))
+const Hospital_SidebarPermissions = lazy(() => import('./pages/hospital/hospital_SidebarPermissions'))
+const Hospital_BedManagement = lazy(() => import('./pages/hospital/hospital_BedManagement'))
+const Hospital_TokenGenerator = lazy(() => import('./pages/hospital/hospital_TokenGenerator'))
+const Hospital_TodayTokens = lazy(() => import('./pages/hospital/hospital_TodayTokens'))
+const Hospital_TokenHistory = lazy(() => import('./pages/hospital/hospital_TokenHistory'))
+const Hospital_MyActivityReport = lazy(() => import('./pages/hospital/hospital_MyActivityReport'))
+const Hospital_EmergencyQueue = lazy(() => import('./pages/hospital/hospital_EmergencyQueue'))
+const Hospital_EmergencyChart = lazy(() => import('./pages/hospital/hospital_EmergencyChart'))
+const Hospital_ErDischarged = lazy(() => import('./pages/hospital/hospital_ErDischarged'))
+const Hospital_ERBillingAdd = lazy(() => import('./pages/hospital/hospital_ERBillingAdd'))
+const Hospital_EmergencyServices = lazy(() => import('./pages/hospital/hospital_EmergencyServices'))
+const Hospital_EmergencyServiceAdd = lazy(() => import('./pages/hospital/hospital_EmergencyServiceAdd'))
+const Hospital_Departments = lazy(() => import('./pages/hospital/hospital_Departments'))
+const Hospital_SearchPatients = lazy(() => import('./pages/hospital/hospital_SearchPatients'))
+const Hospital_UserManagement = lazy(() => import('./pages/hospital/hospital_UserManagement'))
+const Hospital_AuditLogs = lazy(() => import('./pages/hospital/hospital_AuditLogs'))
+const Hospital_Settings = lazy(() => import('./pages/hospital/hospital_Settings'))
+const Hospital_Backup = lazy(() => import('./pages/hospital/hospital_Backup'))
+const Hospital_Doctors = lazy(() => import('./pages/hospital/hospital_Doctors'))
+const Hospital_PatientList = lazy(() => import('./pages/hospital/hospital_PatientList.tsx'))
+const Hospital_Patients = lazy(() => import('./pages/hospital/hospital_Patients'))
+const Hospital_PatientProfile = lazy(() => import('./pages/hospital/hospital_PatientProfile.tsx'))
+const Hospital_DischargeForms = lazy(() => import('./pages/hospital/hospital_DischargeWizard.tsx'))
+const Hospital_Discharged = lazy(() => import('./pages/hospital/hospital_Discharged.tsx'))
+const Hospital_StaffAttendance = lazy(() => import('./pages/hospital/hospital_StaffAttendance.tsx'))
+const Hospital_StaffLeaves = lazy(() => import('./pages/hospital/hospital_StaffLeaves.tsx'))
+const Hospital_StaffManagement = lazy(() => import('./pages/hospital/hospital_StaffManagement.tsx'))
+const Hospital_StaffSettings = lazy(() => import('./pages/hospital/hospital_StaffSettings.tsx'))
+const Hospital_BiometricSettings = lazy(() => import('./pages/hospital/hospital_BiometricSettings.tsx'))
+const Hospital_StaffMonthly = lazy(() => import('./pages/hospital/hospital_StaffMonthly.tsx'))
+const Hospital_StaffDashboard = lazy(() => import('./pages/hospital/hospital_StaffDashboard.tsx'))
+const Hospital_Dashboard = lazy(() => import('./pages/hospital/hospital_Dashboard.tsx'))
+const Hospital_DoctorFinance = lazy(() => import('./pages/hospital/hospital_DoctorFinance.tsx'))
+const Hospital_IPDReferrals = lazy(() => import('./pages/hospital/hospital_IPDReferrals.tsx'))
+const Hospital_ERReferrals = lazy(() => import('./pages/hospital/hospital_ERReferrals.tsx'))
+const Hospital_IPDServices = lazy(() => import('./pages/hospital/hospital_IPDServices.tsx'))
+const Hospital_IPDServiceAdd = lazy(() => import('./pages/hospital/hospital_IPDServiceAdd.tsx'))
+const Hospital_DoctorSchedules = lazy(() => import('./pages/hospital/hospital_DoctorSchedules'))
+const Hospital_Appointments = lazy(() => import('./pages/hospital/hospital_Appointments'))
+const EquipmentDashboard = lazy(() => import('./features/hospital').then(m => ({ default: m.EquipmentDashboard })))
+const EquipmentList = lazy(() => import('./features/hospital').then(m => ({ default: m.EquipmentList })))
+const EquipmentSuppliers = lazy(() => import('./features/hospital').then(m => ({ default: m.EquipmentSuppliers })))
+const EquipmentPurchases = lazy(() => import('./features/hospital').then(m => ({ default: m.EquipmentPurchases })))
+const SupplierLedger = lazy(() => import('./features/hospital').then(m => ({ default: m.SupplierLedger })))
+const EquipmentDetail = lazy(() => import('./features/hospital').then(m => ({ default: m.EquipmentDetail })))
+const Hospital_ReceivedDeathList = lazy(() => import('./pages/hospital/forms/Hospital_ReceivedDeathList.tsx'))
+const Hospital_DeathCertificateList = lazy(() => import('./pages/hospital/forms/Hospital_DeathCertificateList.tsx'))
+const Hospital_BirthCertificateList = lazy(() => import('./pages/hospital/forms/Hospital_BirthCertificateList.tsx'))
+const Hospital_ShortStayList = lazy(() => import('./pages/hospital/forms/Hospital_ShortStayList.tsx'))
+const Hospital_DischargeSummaryList = lazy(() => import('./pages/hospital/forms/Hospital_DischargeSummaryList.tsx'))
+const Hospital_ReceivedDeathDetail = lazy(() => import('./pages/hospital/forms/Hospital_ReceivedDeathDetail.tsx'))
+const Hospital_DeathCertificateDetail = lazy(() => import('./pages/hospital/forms/Hospital_DeathCertificateDetail.tsx'))
+const Hospital_BirthCertificateDetail = lazy(() => import('./pages/hospital/forms/Hospital_BirthCertificateDetail.tsx'))
+const Hospital_ShortStayDetail = lazy(() => import('./pages/hospital/forms/Hospital_ShortStayDetail.tsx'))
+const Hospital_DischargeSummaryDetail = lazy(() => import('./pages/hospital/forms/Hospital_DischargeSummaryDetail.tsx'))
+const Hospital_InvoiceList = lazy(() => import('./pages/hospital/forms/Hospital_InvoiceList.tsx'))
+const IpdInvoiceSlip = lazy(() => import('./components/hospital/hospital_IpdInvoiceslip'))
+const Hospital_IpdBillingAdd = lazy(() => import('./pages/hospital/hospital_IpdBillingAdd'))
+const Hospital_CorporateDashboard = lazy(() => import('./pages/hospital/corporate/hospital_CorporateDashboard'))
+const Hospital_CorporateCompanies = lazy(() => import('./pages/hospital/corporate/hospital_CorporateCompanies'))
+const Hospital_CorporateRateRules = lazy(() => import('./pages/hospital/corporate/hospital_CorporateRateRules'))
+const Hospital_CorporateTransactions = lazy(() => import('./pages/hospital/corporate/hospital_CorporateTransactions'))
+const Hospital_CorporateClaims = lazy(() => import('./pages/hospital/corporate/hospital_CorporateClaims'))
+const Hospital_CorporatePayments = lazy(() => import('./pages/hospital/corporate/hospital_CorporatePayments'))
+const Hospital_CorporateReports = lazy(() => import('./pages/hospital/corporate/hospital_CorporateReports'))
+const Store_Dashboard = lazy(() => import('./pages/hospital/store_Dashboard'))
+const Store_Suppliers = lazy(() => import('./pages/hospital/store_Suppliers'))
+const Store_PurchaseList = lazy(() => import('./pages/hospital/store_PurchaseHistory'))
+const Store_AddPurchase = lazy(() => import('./pages/hospital/store_AddPurchase'))
+const Store_Inventory = lazy(() => import('./pages/hospital/store_Inventory'))
+const Store_IssueHistory = lazy(() => import('./pages/hospital/store_IssueHistory'))
+const Store_PurchaseOrders = lazy(() => import('./pages/hospital/store_PurchaseOrders'))
+const Store_Reports = lazy(() => import('./pages/hospital/store_Reports'))
+const Ambulance_Dashboard = lazy(() => import('./pages/hospital/ambulance_Dashboard'))
+const Ambulance_Master = lazy(() => import('./pages/hospital/ambulance_Master'))
+const Ambulance_Trips = lazy(() => import('./pages/hospital/ambulance_Trips'))
+const Ambulance_Fuel = lazy(() => import('./pages/hospital/ambulance_Fuel'))
+const Ambulance_Expenses = lazy(() => import('./pages/hospital/ambulance_Expenses'))
+const Ambulance_Reports = lazy(() => import('./pages/hospital/ambulance_Reports'))
+const Hospital_FbrDashboard = lazy(() => import('./pages/hospital/fbr/Hospital_FbrDashboard'))
+const Hospital_FbrSettings = lazy(() => import('./pages/hospital/fbr/Hospital_FbrSettings'))
+const Hospital_FbrLogs = lazy(() => import('./pages/hospital/fbr/Hospital_FbrLogs'))
+const Hospital_FbrReports = lazy(() => import('./pages/hospital/fbr/Hospital_FbrReports'))
+const Hospital_FbrCredentials = lazy(() => import('./pages/hospital/fbr/Hospital_FbrCredentials'))
+const Doctor_Layout = lazy(() => import('./pages/doctor/doctor_Layout'))
+const Doctor_Dashboard = lazy(() => import('./pages/doctor/doctor_Dashboard'))
+const Doctor_Patients = lazy(() => import('./pages/doctor/doctor_Patients'))
+const Doctor_Prescription = lazy(() => import('./pages/doctor/doctor_Prescription'))
+const Doctor_PrescriptionHistory = lazy(() => import('./pages/doctor/doctor_PrescriptionHistory'))
+const Doctor_PrescriptionTemplates = lazy(() => import('./pages/doctor/doctor_PrescriptionTemplates'))
+const Doctor_Notifications = lazy(() => import('./pages/doctor/doctor_Notifications'))
+const Doctor_Reports = lazy(() => import('./pages/doctor/doctor_Reports_new'))
+const Doctor_Referrals = lazy(() => import('./pages/doctor/doctor_Referrals'))
+const Doctor_Settings = lazy(() => import('./pages/doctor/doctor_Settings'))
+const Lab_Layout = lazy(() => import('./pages/lab/lab_Layout'))
+const Lab_Dashboard = lazy(() => import('./pages/lab/lab_Dashboard'))
+const Lab_Tests = lazy(() => import('./pages/lab/lab_Tests'))
+const Lab_Orders = lazy(() => import('./pages/lab/lab_SampleIntake'))
+const Lab_Tracking = lazy(() => import('./pages/lab/lab_Tracking'))
+const Lab_Appointments = lazy(() => import('./pages/lab/lab_Appointments'))
+const Lab_Results = lazy(() => import('./pages/lab/lab_Results'))
+const Lab_Barcodes = lazy(() => import('./pages/lab/lab_Barcodes'))
+const Lab_ReportApproval = lazy(() => import('./pages/lab/lab_ReportApproval'))
+const Lab_ReportGenerator = lazy(() => import('./pages/lab/lab_ReportGenerator'))
+const Lab_Settings = lazy(() => import('./pages/lab/lab_Settings'))
+const Lab_IncomeLedger = lazy(() => import('./pages/lab/lab_IncomeLedger'))
+const Lab_Inventory = lazy(() => import('./pages/lab/lab_Inventory'))
+const Lab_AddInvoicePage = lazy(() => import('./components/lab/lab_AddInvoicePage'))
+const Lab_Suppliers = lazy(() => import('./pages/lab/lab_Suppliers.tsx'))
+const Lab_Companies = lazy(() => import('./pages/lab/lab_Companies'))
+const Lab_SupplierReturns = lazy(() => import('./pages/lab/lab_SupplierReturns.tsx'))
+const Lab_PurchaseHistory = lazy(() => import('./pages/lab/lab_PurchaseHistory.tsx'))
+const Lab_PurchaseOrders = lazy(() => import('./pages/lab/lab_PurchaseOrders.tsx'))
+const Lab_ReturnHistory = lazy(() => import('./pages/lab/lab_ReturnHistory.tsx'))
+const Lab_UserManagement = lazy(() => import('./pages/lab/lab_UserManagement'))
+const Lab_SidebarPermissions = lazy(() => import('./pages/lab/lab_SidebarPermissions'))
+const Lab_Expenses = lazy(() => import('./pages/lab/lab_Expenses'))
+const Lab_AuditLogs = lazy(() => import('./pages/lab/lab_AuditLogs'))
+const Lab_Reports = lazy(() => import('./pages/lab/lab_Reports'))
+const Lab_StaffAttendance = lazy(() => import('./pages/lab/lab_StaffAttendance'))
+const Lab_StaffManagement = lazy(() => import('./pages/lab/lab_StaffManagement'))
+const Lab_StaffSettings = lazy(() => import('./pages/lab/lab_StaffSettings'))
+const Lab_StaffMonthly = lazy(() => import('./pages/lab/lab_StaffMonthly'))
+const Lab_Referrals = lazy(() => import('./pages/lab/lab_Referrals'))
+const Lab_PayInOut = lazy(() => import('./pages/lab/lab_PayInOut'))
+const Lab_ManagerCashCount = lazy(() => import('./pages/lab/lab_ManagerCashCount'))
+const Lab_BB_Donors = lazy(() => import('./pages/lab/bloodbank/Lab_BB_Donors'))
+const Lab_BB_Inventory = lazy(() => import('./pages/lab/bloodbank/Lab_BB_Inventory'))
+const Lab_BB_Receivers = lazy(() => import('./pages/lab/bloodbank/Lab_BB_Receivers'))
+const Lab_TodaysTokens = lazy(() => import('./pages/lab/lab_TodaysTokens'))
+const Lab_CollectionCenters = lazy(() => import('./pages/lab/lab_CollectionCenters'))
+const Lab_CollectionCenterRevenue = lazy(() => import('./pages/lab/lab_CollectionCenterRevenue'))
+const Lab_CollectionCenterPayments = lazy(() => import('./pages/lab/lab_CollectionCenterPayments'))
+const Lab_CenterRateList = lazy(() => import('./pages/lab/lab_CenterRateList'))
+const Lab_CriticalValues = lazy(() => import('./pages/lab/lab_CriticalValues'))
+const Lab_DailyWorksheet = lazy(() => import('./pages/lab/lab_DailyWorksheet'))
+const Lab_MainRegister = lazy(() => import('./pages/lab/lab_MainRegister'))
+const Lab_OutsourceDispatch = lazy(() => import('./pages/lab/lab_OutsourceDispatch'))
+const Lab_OutsourceLabs = lazy(() => import('./pages/lab/lab_OutsourceLabs'))
+const Lab_OutsourceRateList = lazy(() => import('./pages/lab/lab_OutsourceRateList'))
+const Lab_PatientCards = lazy(() => import('./pages/lab/lab_PatientCards'))
+const Lab_TAT = lazy(() => import('./pages/lab/lab_TAT'))
+const Lab_TestPackages = lazy(() => import('./pages/lab/lab_TestPackages'))
+const Lab_TotalTests = lazy(() => import('./pages/lab/lab_TotalTests'))
+const Lab_WardImports = lazy(() => import('./pages/lab/lab_WardImports'))
+const Finance_Transactions = lazy(() => import('./pages/hospital/hospital_Transactions.tsx'))
+const Finance_ExpenseHistory = lazy(() => import('./pages/hospital/hospital_ExpenseHistory.tsx'))
+const Finance_Layout = lazy(() => import('./pages/finance/finance_Layout.tsx'))
+const Finance_Dashboard = lazy(() => import('./pages/finance/finance_Dashboard'))
+const Finance_UserManagement = lazy(() => import('./pages/finance/finance_UserManagement'))
+const Finance_SidebarPermissions = lazy(() => import('./pages/finance/finance_SidebarPermissions'))
+const Finance_AuditLogs = lazy(() => import('./pages/finance/finance_AuditLogs'))
+const Finance_ChartOfAccounts = lazy(() => import('./pages/finance/finance_ChartOfAccounts'))
+const Finance_AccountLedger = lazy(() => import('./pages/finance/finance_AccountLedger'))
+const Finance_AllAccountsLedger = lazy(() => import('./pages/finance/finance_AllAccountsLedger'))
+const Finance_VoucherList = lazy(() => import('./pages/finance/finance_VoucherList'))
+const Finance_VoucherForm = lazy(() => import('./pages/finance/finance_VoucherForm'))
+const Finance_TrialBalance = lazy(() => import('./pages/finance/finance_TrialBalance'))
+const Finance_ProfitLoss = lazy(() => import('./pages/finance/finance_ProfitLoss'))
+const Finance_BalanceSheet = lazy(() => import('./pages/finance/finance_BalanceSheet'))
+const Finance_CashFlow = lazy(() => import('./pages/finance/finance_CashFlow'))
+const Finance_RecurringVouchers = lazy(() => import('./pages/finance/finance_RecurringVouchers'))
+const Finance_FiscalPeriods = lazy(() => import('./pages/finance/finance_FiscalPeriods'))
+const Finance_Budgets = lazy(() => import('./pages/finance/finance_Budgets'))
+const Finance_BankReconciliation = lazy(() => import('./pages/finance/finance_BankReconciliation'))
+const Finance_ApprovalQueue = lazy(() => import('./pages/finance/finance_ApprovalQueue'))
+const Finance_VoucherPrint = lazy(() => import('./pages/finance/finance_VoucherPrint'))
+const Finance_ShiftReports = lazy(() => import('./pages/finance/finance_ShiftReports'))
+const Finance_ShiftSettings = lazy(() => import('./pages/finance/finance_ShiftSettings'))
+const Hospital_DoctorPayouts = lazy(() => import('./pages/hospital/hospital_DoctorPayouts'))
+const Hospital_CashSessions = lazy(() => import('./pages/hospital/hospital_CashSessions'))
+const Pharmacy_Layout = lazy(() => import('./pages/pharmacy/pharmacy_Layout'))
+const Pharmacy_Dashboard = lazy(() => import('./pages/pharmacy/pharmacy_Dashboard'))
+const Pharmacy_POS = lazy(() => import('./pages/pharmacy/pharmacy_POS'))
+const Pharmacy_Prescriptions = lazy(() => import('./pages/pharmacy/pharmacy_Prescriptions'))
+const Pharmacy_PrescriptionIntake = lazy(() => import('./pages/pharmacy/pharmacy_PrescriptionIntake'))
+const Pharmacy_Referrals = lazy(() => import('./pages/pharmacy/pharmacy_Referrals'))
+const Pharmacy_Inventory = lazy(() => import('./pages/pharmacy/pharmacy_Inventory'))
+const Pharmacy_AddInvoicePage = lazy(() => import('./components/pharmacy/pharmacy_AddInvoicePage'))
+const Pharmacy_Customers = lazy(() => import('./pages/pharmacy/pharmacy_Customers'))
+const Pharmacy_Suppliers = lazy(() => import('./pages/pharmacy/pharmacy_Suppliers'))
+const Pharmacy_Companies = lazy(() => import('./pages/pharmacy/pharmacy_Companies'))
+const Pharmacy_Settings = lazy(() => import('./pages/pharmacy/pharmacy_Settings'))
+const Pharmacy_PayInOut = lazy(() => import('./pages/pharmacy/pharmacy_PayInOut'))
+const Pharmacy_ManagerCashCount = lazy(() => import('./pages/pharmacy/pharmacy_ManagerCashCount'))
+const Pharmacy_SalesHistory = lazy(() => import('./pages/pharmacy/pharmacy_SalesHistory'))
+const Pharmacy_PurchaseHistory = lazy(() => import('./pages/pharmacy/pharmacy_PurchaseHistory'))
+const Pharmacy_ReturnHistory = lazy(() => import('./pages/pharmacy/pharmacy_ReturnHistory'))
+const Pharmacy_Reports = lazy(() => import('./pages/pharmacy/pharmacy_Reports'))
+const Pharmacy_UserManagement = lazy(() => import('./pages/pharmacy/pharmacy_UserManagement'))
+const Pharmacy_Notifications = lazy(() => import('./pages/pharmacy/pharmacy_Notifications'))
+const Pharmacy_AuditLogs = lazy(() => import('./pages/pharmacy/pharmacy_AuditLogs'))
+const Pharmacy_Expenses = lazy(() => import('./pages/pharmacy/pharmacy_Expenses'))
+const Pharmacy_CustomerReturns = lazy(() => import('./pages/pharmacy/pharmacy_CustomerReturns'))
+const Pharmacy_SupplierReturns = lazy(() => import('./pages/pharmacy/pharmacy_SupplierReturns'))
+const Pharmacy_Guidelines = lazy(() => import('./pages/pharmacy/pharmacy_Guidelines'))
+const Pharmacy_PurchaseOrders = lazy(() => import('./pages/pharmacy/pharmacy_PurchaseOrders'))
+const Pharmacy_StaffAttendance = lazy(() => import('./pages/pharmacy/pharmacy_StaffAttendance'))
+const Pharmacy_StaffManagement = lazy(() => import('./pages/pharmacy/pharmacy_StaffManagement'))
+const Pharmacy_StaffSettings = lazy(() => import('./pages/pharmacy/pharmacy_StaffSettings'))
+const Pharmacy_StaffMonthly = lazy(() => import('./pages/pharmacy/pharmacy_StaffMonthly'))
+const Pharmacy_SidebarPermissions = lazy(() => import('./pages/pharmacy/pharmacy_SidebarPermissions'))
+const IndoorPharmacy_Layout = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Layout'))
+const IndoorPharmacy_Dashboard = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Dashboard'))
+const IndoorPharmacy_POS = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_POS'))
+const IndoorPharmacy_Prescriptions = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Prescriptions'))
+const IndoorPharmacy_PrescriptionIntake = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_PrescriptionIntake'))
+const IndoorPharmacy_Referrals = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Referrals'))
+const IndoorPharmacy_Inventory = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Inventory'))
+const IndoorPharmacy_AddInvoicePage = lazy(() => import('./components/indoorpharmacy/indoorpharmacy_AddInvoicePage'))
+const IndoorPharmacy_Customers = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Customers'))
+const IndoorPharmacy_Suppliers = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Suppliers'))
+const IndoorPharmacy_Companies = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Companies'))
+const IndoorPharmacy_Settings = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Settings'))
+const IndoorPharmacy_PayInOut = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_PayInOut'))
+const IndoorPharmacy_ManagerCashCount = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_ManagerCashCount'))
+const IndoorPharmacy_SalesHistory = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_SalesHistory'))
+const IndoorPharmacy_PurchaseHistory = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_PurchaseHistory'))
+const IndoorPharmacy_ReturnHistory = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_ReturnHistory'))
+const IndoorPharmacy_Reports = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Reports'))
+const IndoorPharmacy_UserManagement = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_UserManagement'))
+const IndoorPharmacy_Notifications = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Notifications'))
+const IndoorPharmacy_AuditLogs = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_AuditLogs'))
+const IndoorPharmacy_Expenses = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Expenses'))
+const IndoorPharmacy_CustomerReturns = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_CustomerReturns'))
+const IndoorPharmacy_SupplierReturns = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_SupplierReturns'))
+const IndoorPharmacy_Guidelines = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Guidelines'))
+const IndoorPharmacy_PurchaseOrders = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_PurchaseOrders'))
+const IndoorPharmacy_SidebarPermissions = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_SidebarPermissions'))
+const IndoorPharmacy_Shifts = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_Shifts'))
+const IndoorPharmacy_IntegrationDashboard = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_IntegrationDashboard'))
+const IndoorPharmacy_OrderQueue = lazy(() => import('./pages/indoorpharmacy/indoorpharmacy_OrderQueue'))
+const Diagnostic_Layout = lazy(() => import('./pages/diagnostic/diagnostic_Layout'))
+const Diagnostic_Dashboard = lazy(() => import('./pages/diagnostic/diagnostic_Dashboard'))
+const Diagnostic_TokenGenerator = lazy(() => import('./pages/diagnostic/diagnostic_TokenGenerator'))
+const Diagnostic_TokenHistory = lazy(() => import('./pages/diagnostic/diagnostic_TokenHistory'))
+const Diagnostic_Tests = lazy(() => import('./pages/diagnostic/diagnostic_Tests'))
+const Diagnostic_SampleTracking = lazy(() => import('./pages/diagnostic/Diagnostic_SampleTracking_Impl'))
+const Diagnostic_ResultEntry = lazy(() => import('./pages/diagnostic/diagnostic_ResultEntry'))
+const Diagnostic_ReportGenerator = lazy(() => import('./pages/diagnostic/diagnostic_ReportGenerator'))
+const Diagnostic_AuditLogs = lazy(() => import('./pages/diagnostic/diagnostic_AuditLogs'))
+const Diagnostic_Settings = lazy(() => import('./pages/diagnostic/diagnostic_Settings'))
+const Diagnostic_UserManagement = lazy(() => import('./pages/diagnostic/diagnostic_UserManagement'))
+const Diagnostic_SidebarPermissions = lazy(() => import('./pages/diagnostic/diagnostic_SidebarPermissions'))
+const Diagnostic_Referrals = lazy(() => import('./pages/diagnostic/diagnostic_Referrals'))
+const Diagnostic_IncomeLedger = lazy(() => import('./pages/diagnostic/diagnostic_IncomeLedger'))
+const Reception_Layout = lazy(() => import('./pages/reception/reception_Layout.tsx'))
+const Reception_Dashboard = lazy(() => import('./pages/reception/reception_Dashboard'))
+const Hospital_IPDBillingCollect = lazy(() => import('./pages/hospital/hospital_IPDBillingCollect'))
+const Hospital_IPDTransactions = lazy(() => import('./pages/hospital/hospital_IPDTransactions'))
+const Hospital_ERTransactions = lazy(() => import('./pages/hospital/hospital_ERTransactions'))
+const Hospital_ERBillingCollect = lazy(() => import('./pages/hospital/hospital_ERBillingCollect'))
+const Reception_UserManagement = lazy(() => import('./pages/reception/reception_UserManagement'))
+const Reception_StaffSettings = lazy(() => import('./pages/reception/reception_StaffSettings'))
+const Reception_SidebarPermissions = lazy(() => import('./pages/reception/reception_SidebarPermissions'))
+const Reception_MyActivityReport = lazy(() => import('./pages/reception/reception_MyActivityReport'))
+const Reception_PayInOut = lazy(() => import('./pages/reception/reception_PayInOut'))
+const Dialysis_Layout = lazy(() => import('./pages/dialysis/dialysis_Layout'))
+const Dialysis_Dashboard = lazy(() => import('./pages/dialysis/dialysis_Dashboard'))
+const Dialysis_TokenGenerator = lazy(() => import('./pages/dialysis/dialysis_TokenGenerator'))
+const Dialysis_TokenHistory = lazy(() => import('./pages/dialysis/dialysis_TokenHistory'))
+const Dialysis_Patients = lazy(() => import('./pages/dialysis/dialysis_Patients'))
+const Dialysis_Sessions = lazy(() => import('./pages/dialysis/dialysis_Sessions'))
+const Dialysis_Appointments = lazy(() => import('./pages/dialysis/dialysis_Appointments'))
+const Dialysis_UserManagement = lazy(() => import('./pages/dialysis/dialysis_UserManagement'))
+const Dialysis_SidebarPermissions = lazy(() => import('./pages/dialysis/dialysis_SidebarPermissions'))
+const Dialysis_AuditLogs = lazy(() => import('./pages/dialysis/dialysis_AuditLogs'))
+const Dialysis_Settings = lazy(() => import('./pages/dialysis/dialysis_Settings'))
+const Dialysis_MasterData = lazy(() => import('./pages/dialysis/dialysis_MasterData'))
+const Aesthetic_Layout = lazy(() => import('./pages/aesthetic/aesthetic_Layout'))
+const Aesthetic_Dashboard = lazy(() => import('./pages/aesthetic/aesthetic_Dashboard'))
+const Aesthetic_TokenGeneratorPage = lazy(() => import('./pages/aesthetic/aesthetic_TokenGenerator'))
+const Aesthetic_TodayTokens = lazy(() => import('./pages/aesthetic/aesthetic_TodayTokens'))
+const Aesthetic_TokenHistoryPage = lazy(() => import('./pages/aesthetic/aesthetic_TokenHistory'))
+const Aesthetic_ReportsPage = lazy(() => import('./pages/aesthetic/aesthetic_Reports'))
+const Aesthetic_InventoryPage = lazy(() => import('./pages/aesthetic/aesthetic_Inventory'))
+const Aesthetic_AddInvoicePage = lazy(() => import('./components/aesthetic/aesthetic_AddInvoicePage'))
+const Aesthetic_ReturnHistory = lazy(() => import('./pages/aesthetic/aesthetic_ReturnHistory'))
+const Aesthetic_SuppliersPage = lazy(() => import('./pages/aesthetic/aesthetic_Suppliers'))
+const Aesthetic_Patients = lazy(() => import('./pages/aesthetic/aesthetic_Patients'))
+const Aesthetic_PatientProfile = lazy(() => import('./pages/aesthetic/aesthetic_PatientProfile'))
+const Aesthetic_ExpensesPage = lazy(() => import('./pages/aesthetic/aesthetic_Expenses'))
+const Aesthetic_DoctorManagementPage = lazy(() => import('./pages/aesthetic/aesthetic_DoctorManagement'))
+const Aesthetic_AuditLogsPage = lazy(() => import('./pages/aesthetic/aesthetic_AuditLogs'))
+const Aesthetic_UserManagementPage = lazy(() => import('./pages/aesthetic/aesthetic_UserManagement'))
+const Aesthetic_Notifications = lazy(() => import('./pages/aesthetic/aesthetic_Notifications'))
+const Aesthetic_StaffAttendance = lazy(() => import('./pages/aesthetic/aesthetic_StaffAttendance'))
+const Aesthetic_StaffManagement = lazy(() => import('./pages/aesthetic/aesthetic_StaffManagement'))
+const Aesthetic_StaffSettings = lazy(() => import('./pages/aesthetic/aesthetic_StaffSettings'))
+const Aesthetic_StaffMonthly = lazy(() => import('./pages/aesthetic/aesthetic_StaffMonthly'))
+const Aesthetic_StaffDashboard = lazy(() => import('./pages/aesthetic/aesthetic_StaffDashboard'))
+const Aesthetic_SupplierReturns = lazy(() => import('./pages/aesthetic/aesthetic_SupplierReturns'))
+const Aesthetic_PurchaseHistory = lazy(() => import('./pages/aesthetic/aesthetic_PurchaseHistory'))
+const Aesthetic_Settings = lazy(() => import('./pages/aesthetic/aesthetic_Settings'))
+const Aesthetic_ConsentTemplates = lazy(() => import('./pages/aesthetic/aesthetic_ConsentTemplates'))
+const Aesthetic_ProcedureCatalog = lazy(() => import('./pages/aesthetic/aesthetic_ProcedureCatalog'))
+const Aesthetic_DoctorFinance = lazy(() => import('./pages/aesthetic/aesthetic_DoctorFinance'))
+const Aesthetic_DoctorPayouts = lazy(() => import('./pages/aesthetic/aesthetic_DoctorPayouts'))
+const Aesthetic_DoctorSchedules = lazy(() => import('./pages/aesthetic/aesthetic_DoctorSchedules'))
+const Aesthetic_Appointments = lazy(() => import('./pages/aesthetic/aesthetic_Appointments'))
+const Aesthetic_SidebarPermissions = lazy(() => import('./pages/aesthetic/aesthetic_SidebarPermissions'))
+const Hospital_OTDashboard = lazy(() => import('./pages/hospital/hospital_OTDashboard'))
+const Hospital_ICUDashboard = lazy(() => import('./pages/hospital/hospital_ICUDashboard'))
+// Nurse Portal
+const Hospital_NurseLogin = lazy(() => import('./pages/hospital/hospital_NurseLogin.tsx'))
+const Hospital_NurseDashboard = lazy(() => import('./pages/hospital/hospital_NurseDashboard.tsx'))
+const Hospital_NurseTasks = lazy(() => import('./pages/hospital/hospital_NurseTasks.tsx'))
+const Hospital_NurseTaskDetail = lazy(() => import('./pages/hospital/hospital_NurseTaskDetail.tsx'))
+const Hospital_NursePatients = lazy(() => import('./pages/hospital/hospital_NursePatients.tsx'))
+const Hospital_NurseVitals = lazy(() => import('./pages/hospital/hospital_NurseVitals.tsx'))
+const Hospital_NurseShifts = lazy(() => import('./pages/hospital/hospital_NurseShifts.tsx'))
+const Hospital_NurseHandover = lazy(() => import('./pages/hospital/hospital_NurseHandover.tsx'))
+const Hospital_NursePerformance = lazy(() => import('./pages/hospital/hospital_NursePerformance.tsx'))
+const Hospital_NurseAdminDashboard = lazy(() => import('./pages/hospital/hospital_NurseAdminDashboard.tsx'))
+// OT Sub-pages
+const OT_Schedule = lazy(() => import('./pages/hospital/ot/ot_Schedule'))
+const OT_Rooms = lazy(() => import('./pages/hospital/ot/ot_Rooms'))
+const OT_Team = lazy(() => import('./pages/hospital/ot/ot_Team'))
+const OT_Sterilization = lazy(() => import('./pages/hospital/ot/ot_Sterilization'))
+const OT_Equipment = lazy(() => import('./pages/hospital/ot/ot_Equipment'))
+const OT_Reports = lazy(() => import('./pages/hospital/ot/ot_Reports'))
+const OT_Procedures = lazy(() => import('./pages/hospital/ot/ot_Procedures'))
+// ICU Sub-pages
+const ICU_Beds = lazy(() => import('./pages/hospital/icu/icu_Beds'))
+const ICU_Monitoring = lazy(() => import('./pages/hospital/icu/icu_Monitoring'))
+const ICU_Scoring = lazy(() => import('./pages/hospital/icu/icu_Scoring'))
+const ICU_Ventilator = lazy(() => import('./pages/hospital/icu/icu_Ventilator'))
+const ICU_Reports = lazy(() => import('./pages/hospital/icu/icu_Reports'))
+const ICU_Transfer = lazy(() => import('./pages/hospital/icu/icu_Transfer'))
+
+// Loading fallback component — 3D eye-catching preloader
+const LoadingFallback = () => {
+  const CACHE_KEY = 'app.hospital.name'
+  const [hospitalName, setHospitalName] = useState<string>(
+    () => {
+      try { return localStorage.getItem(CACHE_KEY) || '' } catch { return '' }
+    }
+  )
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { hospitalApi } = await import('./utils/api')
+        const s: any = await hospitalApi.getSettings()
+        const name: string = s?.name || s?.hospitalName || ''
+        if (!cancelled && name) {
+          setHospitalName(name)
+          try { localStorage.setItem(CACHE_KEY, name) } catch {}
+        }
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [])
+  return (
+  <div style={{
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    height: '100vh', background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
+    overflow: 'hidden', position: 'relative',
+  }}>
+    <style>{`
+      @keyframes spin3d { 0%{transform:rotateX(0deg) rotateY(0deg)} 100%{transform:rotateX(360deg) rotateY(360deg)} }
+      @keyframes ring1  { 0%{transform:rotateZ(0deg) rotateX(65deg)}  100%{transform:rotateZ(360deg) rotateX(65deg)} }
+      @keyframes ring2  { 0%{transform:rotateZ(0deg) rotateY(65deg)}  100%{transform:rotateZ(-360deg) rotateY(65deg)} }
+      @keyframes ring3  { 0%{transform:rotateZ(120deg) rotateX(65deg)} 100%{transform:rotateZ(480deg) rotateX(65deg)} }
+      @keyframes pulse3d { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:0.8} }
+      @keyframes floatUp { 0%{transform:translateY(0) scale(1);opacity:0.6} 100%{transform:translateY(-120px) scale(0);opacity:0} }
+      @keyframes shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
+      @keyframes fadeInUp { 0%{opacity:0;transform:translateY(20px)} 100%{opacity:1;transform:translateY(0)} }
+      .loader-ring { position:absolute; border-radius:50%; border:2px solid transparent; }
+      .lr1 { width:160px;height:160px; border-top-color:#818cf8; border-right-color:#818cf8; animation:ring1 1.8s linear infinite; box-shadow:0 0 20px rgba(129,140,248,0.3); }
+      .lr2 { width:130px;height:130px; border-top-color:#34d399; border-left-color:#34d399;  animation:ring2 2.2s linear infinite; box-shadow:0 0 20px rgba(52,211,153,0.3); }
+      .lr3 { width:100px;height:100px; border-bottom-color:#f472b6; border-right-color:#f472b6; animation:ring3 1.5s linear infinite; box-shadow:0 0 20px rgba(244,114,182,0.3); }
+      .loader-core { width:70px;height:70px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:pulse3d 2s ease-in-out infinite;box-shadow:0 0 40px rgba(99,102,241,0.6),0 0 80px rgba(99,102,241,0.3); }
+      .particle { position:absolute; width:4px;height:4px;border-radius:50%; animation:floatUp 3s ease-in infinite; }
+      .loader-text { background:linear-gradient(90deg,#818cf8,#34d399,#f472b6,#818cf8);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 2s linear infinite; }
+    `}</style>
+
+    {/* Floating particles */}
+    {[...Array(12)].map((_, i) => (
+      <div key={i} className="particle" style={{
+        left: `${10 + (i * 7.5)}%`, bottom: '15%',
+        background: ['#818cf8','#34d399','#f472b6','#fbbf24','#60a5fa'][i % 5],
+        animationDelay: `${i * 0.25}s`, animationDuration: `${2.5 + (i % 3) * 0.5}s`,
+        width: i % 3 === 0 ? '6px' : '4px', height: i % 3 === 0 ? '6px' : '4px',
+      }} />
+    ))}
+
+    {/* 3D Orbit rings */}
+    <div style={{ position: 'relative', width: '160px', height: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center', perspective: '800px' }}>
+      <div className="loader-ring lr1" />
+      <div className="loader-ring lr2" />
+      <div className="loader-ring lr3" />
+      {/* Core */}
+      <div className="loader-core">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" fill="rgba(255,255,255,0.9)" />
+          <path d="M2 17l10 5 10-5" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" fill="none" />
+          <path d="M2 12l10 5 10-5" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" fill="none" />
+        </svg>
+      </div>
+    </div>
+
+    {/* Text */}
+    <div style={{ marginTop: '40px', textAlign: 'center', animation: 'fadeInUp 0.8s ease-out forwards' }}>
+      <div className="loader-text" style={{ fontSize: '22px', fontWeight: 900, letterSpacing: '0.1em', fontFamily: 'system-ui, sans-serif' }}>
+        {hospitalName || 'LOADING…'}
+      </div>
+      <div style={{ color: '#475569', fontSize: '11px', fontWeight: 600, letterSpacing: '0.3em', marginTop: '6px', textTransform: 'uppercase', fontFamily: 'system-ui, sans-serif' }}>
+        Hospital Information System
+      </div>
+      {/* Dots loader */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '20px' }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{
+            width: '7px', height: '7px', borderRadius: '50%', background: '#6366f1',
+            animation: 'pulse3d 1.2s ease-in-out infinite',
+            animationDelay: `${i * 0.2}s`,
+            boxShadow: '0 0 8px rgba(99,102,241,0.6)',
+          }} />
+        ))}
+      </div>
+    </div>
+
+    {/* Corner glows */}
+    <div style={{ position:'absolute', top:'-100px', right:'-100px', width:'300px', height:'300px', borderRadius:'50%', background:'radial-gradient(circle,rgba(99,102,241,0.15) 0%,transparent 70%)', pointerEvents:'none' }} />
+    <div style={{ position:'absolute', bottom:'-80px', left:'-80px', width:'250px', height:'250px', borderRadius:'50%', background:'radial-gradient(circle,rgba(52,211,153,0.1) 0%,transparent 70%)', pointerEvents:'none' }} />
+  </div>
+  )
+}
 
 export default function App() {
-  // Hide the initial HTML preloader only after React has rendered content,
-  // so there's no white-screen gap between preloader and app.
+  const navigate = useNavigate()
+
   useEffect(() => {
-    // Double requestAnimationFrame ensures the browser has painted the DOM
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const hide = (window as any).__hidePreloader
-        if (typeof hide === 'function') hide()
-      })
-    })
-  }, [])
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        navigate('/super-admin/login')
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navigate])
 
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/hospital/login" element={<Hospital_Login />} />
-      <Route path="/aesthetic/login" element={<Aesthetic_Login />} />
-      <Route path="/hospital" element={<Hospital_Layout />}>
-        <Route index element={<Hospital_Dashboard />} />
-        <Route path="today-tokens" element={<Hospital_TodayTokens />} />
-        <Route path="token-history" element={<Hospital_TokenHistory />} />
-        <Route path="my-activity-report" element={<Hospital_MyActivityReport />} />
-        <Route path="token-generator" element={<Hospital_TokenGenerator />} />
-        <Route path="emergency" element={<Hospital_EmergencyQueue />} />
+    <Suspense fallback={<LoadingFallback />}>
+      <GlobalToast />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/hospital/login" element={<Hospital_Login />} />
+        <Route path="/hospital/nurse/login" element={<Hospital_NurseLogin />} />
+        <Route path="/aesthetic/login" element={<Aesthetic_Login />} />
+        <Route path="/hospital" element={<Hospital_Layout />}>
+          <Route index element={<Hospital_Dashboard />} />
+          <Route path="today-tokens" element={<Hospital_TodayTokens />} />
+          <Route path="token-history" element={<Hospital_TokenHistory />} />
+          <Route path="my-activity-report" element={<Hospital_MyActivityReport />} />
+          <Route path="token-generator" element={<Hospital_TokenGenerator />} />
+          <Route path="emergency" element={<Hospital_EmergencyQueue />} />
+        <Route path="er-discharged" element={<Hospital_ErDischarged />} />
         <Route path="emergency/:id" element={<Hospital_EmergencyChart />} />
         <Route path="emergency/:id/billing" element={<Hospital_ERBillingAdd />} />
         <Route path="emergency-services/add" element={<Hospital_EmergencyServiceAdd />} />
@@ -359,18 +507,18 @@ export default function App() {
         <Route path="bed-management" element={<Hospital_BedManagement />} />
         <Route path="patient-list" element={<Hospital_PatientList />} />
         <Route path="patient/:id" element={<Hospital_PatientProfile />} />
-        <Route path="patient/:id/print" element={<Hospital_IpdPrintReport />} />
         <Route path="ipd-referrals" element={<Hospital_IPDReferrals />} />
         <Route path="er-referrals" element={<Hospital_ERReferrals />} />
-        <Route path="er-discharged" element={<Hospital_ERDischarged />} />
         <Route path="ipd-services" element={<Hospital_IPDServices />} />
         <Route path="ipd-services/add" element={<Hospital_IPDServiceAdd />} />
-        <Route path="discharge/:id" element={<Hospital_DischargeWizard />} />
+        <Route path="discharge/:id" element={<Hospital_DischargeForms />} />
         <Route path="discharged" element={<Hospital_Discharged />} />
         <Route path="staff-attendance" element={<Hospital_StaffAttendance />} />
+        <Route path="staff-leaves" element={<Hospital_StaffLeaves />} />
         <Route path="staff-dashboard" element={<Hospital_StaffDashboard />} />
         <Route path="staff-management" element={<Hospital_StaffManagement />} />
         <Route path="staff-settings" element={<Hospital_StaffSettings />} />
+        <Route path="biometric-settings" element={<Hospital_BiometricSettings />} />
         <Route path="staff-monthly" element={<Hospital_StaffMonthly />} />
         <Route path="finance/add-expense" element={<Finance_ExpenseHistory />} />
         <Route path="finance/transactions" element={<Finance_Transactions />} />
@@ -384,10 +532,10 @@ export default function App() {
         <Route path="fbr/reports" element={<Hospital_FbrReports />} />
         <Route path="fbr/credentials" element={<Hospital_FbrCredentials />} />
         <Route path="search-patients" element={<Hospital_SearchPatients />} />
+        <Route path="patients" element={<Hospital_Patients />} />
         <Route path="doctors" element={<Hospital_Doctors />} />
         <Route path="doctor-schedules" element={<Hospital_DoctorSchedules />} />
         <Route path="appointments" element={<Hospital_Appointments />} />
-        <Route path="forms/consent-forms" element={<Hospital_ConsentFormList />} />
         <Route path="forms/received-deaths" element={<Hospital_ReceivedDeathList />} />
         <Route path="forms/death-certificates" element={<Hospital_DeathCertificateList />} />
         <Route path="forms/birth-certificates" element={<Hospital_BirthCertificateList />} />
@@ -396,7 +544,7 @@ export default function App() {
         <Route path="forms/invoices" element={<Hospital_InvoiceList />} />
         <Route path="ipd/admissions/:id/forms/received-death" element={<Hospital_ReceivedDeathDetail />} />
         <Route path="ipd/admissions/:id/forms/death-certificate" element={<Hospital_DeathCertificateDetail />} />
-        <Route path="ipd/admissions/:id/forms/birth-certificate" element={<Hospital_BirthCertificateDetail />} />
+        <Route path="forms/birth-certificates/:id" element={<Hospital_BirthCertificateDetail />} />
         <Route path="ipd/admissions/:id/forms/short-stay" element={<Hospital_ShortStayDetail />} />
         <Route path="ipd/admissions/:id/forms/discharge-summary" element={<Hospital_DischargeSummaryDetail />} />
         <Route path="ipd/admissions/:id/invoice" element={<IpdInvoiceSlip />} />
@@ -430,7 +578,33 @@ export default function App() {
         <Route path="ambulance/fuel" element={<Ambulance_Fuel />} />
         <Route path="ambulance/expenses" element={<Ambulance_Expenses />} />
         <Route path="ambulance/reports" element={<Ambulance_Reports />} />
-        <Route path="*" element={<NotFound />} />
+        {/* OT Module */}
+        <Route path="ot" element={<Hospital_OTDashboard />} />
+        <Route path="ot/schedule" element={<OT_Schedule />} />
+        <Route path="ot/rooms" element={<OT_Rooms />} />
+        <Route path="ot/team" element={<OT_Team />} />
+        <Route path="ot/sterilization" element={<OT_Sterilization />} />
+        <Route path="ot/equipment" element={<OT_Equipment />} />
+        <Route path="ot/reports" element={<OT_Reports />} />
+        <Route path="ot/procedures" element={<OT_Procedures />} />
+        {/* ICU Module */}
+        <Route path="icu" element={<Hospital_ICUDashboard />} />
+        <Route path="icu/beds" element={<ICU_Beds />} />
+        <Route path="icu/monitoring" element={<ICU_Monitoring />} />
+        <Route path="icu/scoring" element={<ICU_Scoring />} />
+        <Route path="icu/ventilator" element={<ICU_Ventilator />} />
+        <Route path="icu/reports" element={<ICU_Reports />} />
+        <Route path="icu/transfer/:id" element={<ICU_Transfer />} />
+        {/* Nurse Portal */}
+        <Route path="nurse/dashboard" element={<Hospital_NurseDashboard />} />
+        <Route path="nurse/tasks" element={<Hospital_NurseTasks />} />
+        <Route path="nurse/tasks/:id" element={<Hospital_NurseTaskDetail />} />
+        <Route path="nurse/patients" element={<Hospital_NursePatients />} />
+        <Route path="nurse/vitals" element={<Hospital_NurseVitals />} />
+        <Route path="nurse/shifts" element={<Hospital_NurseShifts />} />
+        <Route path="nurse/handover" element={<Hospital_NurseHandover />} />
+        <Route path="nurse/performance" element={<Hospital_NursePerformance />} />
+        <Route path="nurse-admin/dashboard" element={<Hospital_NurseAdminDashboard />} />
       </Route>
       <Route path="/aesthetic" element={<Aesthetic_Layout />}>
         <Route index element={<Aesthetic_Dashboard />} />
@@ -464,12 +638,12 @@ export default function App() {
         <Route path="staff-monthly" element={<Aesthetic_StaffMonthly />} />
         <Route path="staff-dashboard" element={<Aesthetic_StaffDashboard />} />
         <Route path="settings" element={<Aesthetic_Settings />} />
-        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/diagnostic/login" element={<Diagnostic_Login />} />
       <Route path="/diagnostic" element={<Diagnostic_Layout />}>
         <Route index element={<Diagnostic_Dashboard />} />
         <Route path="token-generator" element={<Diagnostic_TokenGenerator />} />
+        <Route path="token-history" element={<Diagnostic_TokenHistory />} />
         <Route path="tests" element={<Diagnostic_Tests />} />
         <Route path="sample-tracking" element={<Diagnostic_SampleTracking />} />
         <Route path="result-entry" element={<Diagnostic_ResultEntry />} />
@@ -480,7 +654,6 @@ export default function App() {
         <Route path="user-management" element={<Diagnostic_UserManagement />} />
         <Route path="audit-logs" element={<Diagnostic_AuditLogs />} />
         <Route path="settings" element={<Diagnostic_Settings />} />
-        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/doctor" element={<Doctor_Layout />}>
         <Route index element={<Doctor_Dashboard />} />
@@ -488,6 +661,12 @@ export default function App() {
         <Route path="ipd-patients" element={<Hospital_PatientList />} />
         <Route path="patient/:id" element={<Hospital_PatientProfile />} />
         <Route path="patient-search" element={<Hospital_SearchPatients />} />
+        <Route path="emergency" element={<Hospital_EmergencyQueue />} />
+        <Route path="emergency/:id" element={<Hospital_EmergencyChart />} />
+        <Route path="emergency/:id/billing" element={<Hospital_ERBillingAdd />} />
+        <Route path="emergency-services/add" element={<Hospital_EmergencyServiceAdd />} />
+        <Route path="emergency-services" element={<Hospital_EmergencyServices />} />
+        <Route path="emergency/:id/services" element={<Hospital_EmergencyServices />} />
         <Route path="prescription" element={<Doctor_Prescription />} />
         <Route path="prescriptions" element={<Doctor_PrescriptionHistory />} />
         <Route path="prescription-history" element={<Doctor_PrescriptionHistory />} />
@@ -496,66 +675,64 @@ export default function App() {
         <Route path="referrals" element={<Doctor_Referrals />} />
         <Route path="notifications" element={<Doctor_Notifications />} />
         <Route path="settings" element={<Doctor_Settings />} />
-        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/lab/login" element={<Lab_Login />} />
       <Route path="/lab" element={<Lab_Layout />}>
-        <Route index element={<ErrorBoundary name="Dashboard"><Lab_Dashboard /></ErrorBoundary>} />
-        <Route path="today-tokens" element={<ErrorBoundary name="Today's Tokens"><Lab_TodaysTokens /></ErrorBoundary>} />
-        <Route path="orders" element={<ErrorBoundary name="Orders"><Lab_Orders /></ErrorBoundary>} />
-        <Route path="tracking" element={<ErrorBoundary name="Tracking"><Lab_Tracking /></ErrorBoundary>} />
-        <Route path="barcodes" element={<ErrorBoundary name="Barcodes"><Lab_Barcodes /></ErrorBoundary>} />
-        <Route path="appointments" element={<ErrorBoundary name="Appointments"><Lab_Appointments /></ErrorBoundary>} />
-        <Route path="tests" element={<ErrorBoundary name="Tests"><Lab_Tests /></ErrorBoundary>} />
-        <Route path="results" element={<ErrorBoundary name="Results"><Lab_Results /></ErrorBoundary>} />
-        <Route path="referrals" element={<ErrorBoundary name="Referrals"><Lab_Referrals /></ErrorBoundary>} />
-        <Route path="report-approval" element={<ErrorBoundary name="Report Approval"><Lab_ReportApproval /></ErrorBoundary>} />
-        <Route path="reports" element={<ErrorBoundary name="Reports"><Lab_ReportGenerator /></ErrorBoundary>} />
-        <Route path="income-ledger" element={<ErrorBoundary name="Income Ledger"><Lab_IncomeLedger /></ErrorBoundary>} />
-        <Route path="reports-summary" element={<ErrorBoundary name="Reports Summary"><Lab_Reports /></ErrorBoundary>} />
-        <Route path="inventory" element={<ErrorBoundary name="Inventory"><Lab_Inventory /></ErrorBoundary>} />
-        <Route path="inventory/add-invoice" element={<ErrorBoundary name="Add Invoice"><Lab_AddInvoicePage /></ErrorBoundary>} />
-        <Route path="inventory/edit-invoice/:id" element={<ErrorBoundary name="Edit Invoice"><Lab_AddInvoicePage /></ErrorBoundary>} />
-        <Route path="suppliers" element={<ErrorBoundary name="Suppliers"><Lab_Suppliers /></ErrorBoundary>} />
-        <Route path="companies" element={<ErrorBoundary name="Companies"><Lab_Companies /></ErrorBoundary>} />
-        <Route path="supplier-returns" element={<ErrorBoundary name="Supplier Returns"><Lab_SupplierReturns /></ErrorBoundary>} />
-        <Route path="return-history" element={<ErrorBoundary name="Return History"><Lab_ReturnHistory /></ErrorBoundary>} />
-        <Route path="purchase-orders" element={<ErrorBoundary name="Purchase Orders"><Lab_PurchaseOrders /></ErrorBoundary>} />
-        <Route path="purchase-history" element={<ErrorBoundary name="Purchase History"><Lab_PurchaseHistory /></ErrorBoundary>} />
-        <Route path="user-management" element={<ErrorBoundary name="User Management"><Lab_UserManagement /></ErrorBoundary>} />
-        <Route path="sidebar-permissions" element={<ErrorBoundary name="Sidebar Permissions"><Lab_SidebarPermissions /></ErrorBoundary>} />
-        <Route path="staff-attendance" element={<ErrorBoundary name="Staff Attendance"><Lab_StaffAttendance /></ErrorBoundary>} />
-        <Route path="staff-management" element={<ErrorBoundary name="Staff Management"><Lab_StaffManagement /></ErrorBoundary>} />
-        <Route path="staff-settings" element={<ErrorBoundary name="Staff Settings"><Lab_StaffSettings /></ErrorBoundary>} />
-        <Route path="staff-monthly" element={<ErrorBoundary name="Staff Monthly"><Lab_StaffMonthly /></ErrorBoundary>} />
-        <Route path="expenses" element={<ErrorBoundary name="Expenses"><Lab_Expenses /></ErrorBoundary>} />
-        <Route path="audit-logs" element={<ErrorBoundary name="Audit Logs"><Lab_AuditLogs /></ErrorBoundary>} />
-        <Route path="pay-in-out" element={<ErrorBoundary name="Pay In/Out"><Lab_PayInOut /></ErrorBoundary>} />
-        <Route path="manager-cash-count" element={<ErrorBoundary name="Cash Count"><Lab_ManagerCashCount /></ErrorBoundary>} />
-        <Route path="settings" element={<ErrorBoundary name="Settings"><Lab_Settings /></ErrorBoundary>} />
+        <Route index element={<Lab_Dashboard />} />
+        <Route path="today-tokens" element={<Lab_TodaysTokens />} />
+        <Route path="orders" element={<Lab_Orders />} />
+        <Route path="tracking" element={<Lab_Tracking />} />
+        <Route path="barcodes" element={<Lab_Barcodes />} />
+        <Route path="appointments" element={<Lab_Appointments />} />
+        <Route path="tests" element={<Lab_Tests />} />
+        <Route path="results" element={<Lab_Results />} />
+        <Route path="referrals" element={<Lab_Referrals />} />
+        <Route path="report-approval" element={<Lab_ReportApproval />} />
+        <Route path="reports" element={<Lab_ReportGenerator />} />
+        <Route path="income-ledger" element={<Lab_IncomeLedger />} />
+        <Route path="reports-summary" element={<Lab_Reports />} />
+        <Route path="inventory" element={<Lab_Inventory />} />
+        <Route path="inventory/add-invoice" element={<Lab_AddInvoicePage />} />
+        <Route path="inventory/edit-invoice/:id" element={<Lab_AddInvoicePage />} />
+        <Route path="suppliers" element={<Lab_Suppliers />} />
+        <Route path="companies" element={<Lab_Companies />} />
+        <Route path="supplier-returns" element={<Lab_SupplierReturns />} />
+        <Route path="return-history" element={<Lab_ReturnHistory />} />
+        <Route path="purchase-orders" element={<Lab_PurchaseOrders />} />
+        <Route path="purchase-history" element={<Lab_PurchaseHistory />} />
+        <Route path="user-management" element={<Lab_UserManagement />} />
+        <Route path="sidebar-permissions" element={<Lab_SidebarPermissions />} />
+        <Route path="staff-attendance" element={<Lab_StaffAttendance />} />
+        <Route path="staff-management" element={<Lab_StaffManagement />} />
+        <Route path="staff-settings" element={<Lab_StaffSettings />} />
+        <Route path="staff-monthly" element={<Lab_StaffMonthly />} />
+        <Route path="expenses" element={<Lab_Expenses />} />
+        <Route path="audit-logs" element={<Lab_AuditLogs />} />
+        <Route path="pay-in-out" element={<Lab_PayInOut />} />
+        <Route path="manager-cash-count" element={<Lab_ManagerCashCount />} />
+        <Route path="settings" element={<Lab_Settings />} />
         {/* Collection Centers */}
-        <Route path="collection-centers" element={<ErrorBoundary name="Collection Centers"><Lab_CollectionCenters /></ErrorBoundary>} />
-        <Route path="center-revenue" element={<ErrorBoundary name="Center Revenue"><Lab_CollectionCenterRevenue /></ErrorBoundary>} />
-        <Route path="center-payments" element={<ErrorBoundary name="Center Payments"><Lab_CollectionCenterPayments /></ErrorBoundary>} />
-        <Route path="center-rate-list" element={<ErrorBoundary name="Center Rate List"><Lab_CenterRateList /></ErrorBoundary>} />
-        {/* Mega-upgrade additions */}
-        <Route path="critical-values" element={<ErrorBoundary name="Critical Values"><Lab_CriticalValues /></ErrorBoundary>} />
-        <Route path="total-tests" element={<ErrorBoundary name="Total Tests"><Lab_TotalTests /></ErrorBoundary>} />
-        <Route path="test-packages" element={<ErrorBoundary name="Test Packages"><Lab_TestPackages /></ErrorBoundary>} />
-        <Route path="outsource-labs" element={<ErrorBoundary name="Outsource Labs"><Lab_OutsourceLabs /></ErrorBoundary>} />
-        <Route path="outsource-rates" element={<ErrorBoundary name="Outsource Rates"><Lab_OutsourceRateList /></ErrorBoundary>} />
-        <Route path="outsource-dispatch" element={<ErrorBoundary name="Outsource Dispatch"><Lab_OutsourceDispatch /></ErrorBoundary>} />
-        <Route path="patient-cards" element={<ErrorBoundary name="Patient Cards"><Lab_PatientCards /></ErrorBoundary>} />
-        <Route path="ward-imports" element={<ErrorBoundary name="Ward Imports"><Lab_WardImports /></ErrorBoundary>} />
-        <Route path="daily-worksheet" element={<ErrorBoundary name="Daily Worksheet"><Lab_DailyWorksheet /></ErrorBoundary>} />
-        <Route path="main-register" element={<ErrorBoundary name="Main Register"><Lab_MainRegister /></ErrorBoundary>} />
-        <Route path="tat" element={<ErrorBoundary name="TAT"><Lab_TAT /></ErrorBoundary>} />
+        <Route path="collection-centers" element={<Lab_CollectionCenters />} />
+        <Route path="center-revenue" element={<Lab_CollectionCenterRevenue />} />
+        <Route path="center-payments" element={<Lab_CollectionCenterPayments />} />
+        <Route path="center-rate-list" element={<Lab_CenterRateList />} />
         {/* Blood Bank */}
-        <Route path="bb/donors" element={<ErrorBoundary name="BB Donors"><Lab_BB_Donors /></ErrorBoundary>} />
-        <Route path="bb/inventory" element={<ErrorBoundary name="BB Inventory"><Lab_BB_Inventory /></ErrorBoundary>} />
-        <Route path="bb/receivers" element={<ErrorBoundary name="BB Receivers"><Lab_BB_Receivers /></ErrorBoundary>} />
+        <Route path="bb/donors" element={<Lab_BB_Donors />} />
+        <Route path="bb/inventory" element={<Lab_BB_Inventory />} />
+        <Route path="bb/receivers" element={<Lab_BB_Receivers />} />
+        {/* New Lab Pages */}
+        <Route path="critical-values" element={<Lab_CriticalValues />} />
+        <Route path="test-packages" element={<Lab_TestPackages />} />
+        <Route path="patient-cards" element={<Lab_PatientCards />} />
+        <Route path="ward-imports" element={<Lab_WardImports />} />
+        <Route path="outsource-labs" element={<Lab_OutsourceLabs />} />
+        <Route path="outsource-rates" element={<Lab_OutsourceRateList />} />
+        <Route path="outsource-dispatch" element={<Lab_OutsourceDispatch />} />
+        <Route path="total-tests" element={<Lab_TotalTests />} />
+        <Route path="tat" element={<Lab_TAT />} />
+        <Route path="daily-worksheet" element={<Lab_DailyWorksheet />} />
+        <Route path="main-register" element={<Lab_MainRegister />} />
         {/* BB reports-labels and settings routes removed */}
-        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/pharmacy/login" element={<Pharmacy_Login />} />
       <Route path="/pharmacy" element={<Pharmacy_Layout />}>
@@ -591,7 +768,6 @@ export default function App() {
         <Route path="pay-in-out" element={<Pharmacy_PayInOut />} />
         <Route path="manager-cash-count" element={<Pharmacy_ManagerCashCount />} />
         <Route path="returns" element={<Pharmacy_CustomerReturns />} />
-        <Route path="*" element={<NotFound />} />
       </Route>
       {/* Indoor Pharmacy Routes */}
       <Route path="/indoor-pharmacy/login" element={<IndoorPharmacy_Login />} />
@@ -625,62 +801,43 @@ export default function App() {
         <Route path="pay-in-out" element={<IndoorPharmacy_PayInOut />} />
         <Route path="manager-cash-count" element={<IndoorPharmacy_ManagerCashCount />} />
         <Route path="returns" element={<IndoorPharmacy_CustomerReturns />} />
-        <Route path="*" element={<NotFound />} />
+        <Route path="integration-dashboard" element={<IndoorPharmacy_IntegrationDashboard />} />
+        <Route path="orders" element={<IndoorPharmacy_OrderQueue />} />
       </Route>
       <Route path="/finance/login" element={<Finance_Login />} />
       <Route path="/finance" element={<Finance_Layout />}>
-        {/* Dashboard */}
-        <Route index element={<Finance_Dashboard />} />
-
-        {/* General Ledger */}
-        <Route path="chart-of-accounts"  element={<Finance_ChartOfAccounts2 />} />
-        <Route path="journal-vouchers"   element={<Finance_JournalVouchers />} />
-        <Route path="ledger-explorer"    element={<Finance_LedgerExplorer />} />
-        <Route path="trial-balance"      element={<Finance_TrialBalance />} />
-        <Route path="profit-loss"        element={<Finance_ProfitLoss />} />
-        <Route path="balance-sheet"      element={<Finance_BalanceSheet />} />
-        <Route path="petty-cash"         element={<Finance_PettyCash />} />
-        <Route path="ledger/:accountId"  element={<Finance_AccountLedger />} />
-
-        {/* Receivables */}
-        <Route path="receivables/patient"   element={<Finance_PatientAR />} />
-        {/* <Route path="receivables/corporate" element={<Finance_CorporateAR />} /> */}
-        <Route path="receivables/aging"     element={<Finance_ARAging />} />
-
-        {/* Payables */}
-        <Route path="vendors"          element={<Finance_Vendors />} />
-        <Route path="bills"            element={<Finance_Bills />} />
-        <Route path="vendor-payments"  element={<Finance_VendorPayments />} />
-        <Route path="payables/aging"   element={<Finance_APAging />} />
-
-        {/* Expenses */}
-        <Route path="expenses" element={<Finance_Expenses />} />
-
-        {/* Payroll & HR */}
-        <Route path="payroll/staff"                element={<Finance_StaffPayroll />} />
-        <Route path="payroll/doctors"              element={<Finance_DoctorPayroll />} />
-        <Route path="payroll/attendance"           element={<Finance_AttendanceFinance />} />
-        <Route path="payroll/earnings-deductions"  element={<Finance_EarningsDeductions />} />
-
-        {/* Module Integrations */}
-        <Route path="integrations/:module" element={<Finance_ModuleIntegration />} />
-
-        {/* Reconciliation & admin */}
-        <Route path="reconciliation"       element={<Finance_Reconciliation />} />
-        <Route path="audit-logs"           element={<Finance_AuditLogs />} />
-        <Route path="sidebar-permissions"  element={<Finance_SidebarPermissions />} />
-        <Route path="user-management"      element={<Finance_UserManagement />} />
-        <Route path="settings"             element={<Finance_Settings />} />
-
-        {/* Legacy routes — still reachable if bookmarked */}
-        <Route path="cash-handover"        element={<Finance_CashHandover />} />
-        <Route path="pending-handovers"    element={<Finance_PendingHandovers />} />
-        <Route path="user-accounts"        element={<Finance_UserAccounts />} />
-        <Route path="transactions"         element={<Finance_Transactions />} />
-        <Route path="add-expense"          element={<Finance_ExpenseHistory />} />
-        <Route path="doctor-payouts"       element={<Hospital_DoctorPayouts />} />
-        <Route path="cash-sessions"        element={<Hospital_CashSessions />} />
-        <Route path="*" element={<NotFound />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<Finance_Dashboard />} />
+        <Route path="add-expense" element={<Finance_ExpenseHistory />} />
+        <Route path="transactions" element={<Finance_Transactions />} />
+        <Route path="expenses" element={<Finance_ExpenseHistory />} />
+        <Route path="doctor-payouts" element={<Hospital_DoctorPayouts />} />
+        <Route path="pharmacy-reports" element={<Pharmacy_Reports />} />
+        <Route path="lab-reports" element={<Lab_Reports />} />
+        <Route path="diagnostics-dashboard" element={<Diagnostic_Dashboard />} />
+        <Route path="staff-dashboard" element={<Hospital_StaffDashboard />} />
+        <Route path="hospital-dashboard" element={<Hospital_Dashboard />} />
+        <Route path="audit-logs" element={<Finance_AuditLogs />} />
+        <Route path="chart-of-accounts" element={<Finance_ChartOfAccounts />} />
+        <Route path="ledger/:accountId" element={<Finance_AccountLedger />} />
+        <Route path="accounts-ledger" element={<Finance_AllAccountsLedger />} />
+        <Route path="sidebar-permissions" element={<Finance_SidebarPermissions />} />
+        <Route path="user-management" element={<Finance_UserManagement />} />
+        <Route path="vouchers" element={<Finance_VoucherList />} />
+        <Route path="vouchers/new" element={<Finance_VoucherForm />} />
+        <Route path="vouchers/:id" element={<Finance_VoucherForm />} />
+        <Route path="trial-balance" element={<Finance_TrialBalance />} />
+        <Route path="profit-loss" element={<Finance_ProfitLoss />} />
+        <Route path="balance-sheet" element={<Finance_BalanceSheet />} />
+        <Route path="cash-flow" element={<Finance_CashFlow />} />
+        <Route path="recurring-vouchers" element={<Finance_RecurringVouchers />} />
+        <Route path="fiscal-periods" element={<Finance_FiscalPeriods />} />
+        <Route path="budgets" element={<Finance_Budgets />} />
+        <Route path="bank-reconciliation" element={<Finance_BankReconciliation />} />
+        <Route path="approval-queue" element={<Finance_ApprovalQueue />} />
+        <Route path="voucher-print" element={<Finance_VoucherPrint />} />
+        <Route path="shift-reports" element={<Finance_ShiftReports />} />
+        <Route path="shift-settings" element={<Finance_ShiftSettings />} />
       </Route>
       <Route path="/reception/login" element={<Reception_Login />} />
       <Route path="/reception" element={<Reception_Layout />}>
@@ -698,13 +855,16 @@ export default function App() {
         <Route path="staff-settings" element={<Reception_StaffSettings />} />
         <Route path="sidebar-permissions" element={<Reception_SidebarPermissions />} />
         <Route path="my-activity-report" element={<Reception_MyActivityReport />} />
+        <Route path="pay-in-out" element={<Reception_PayInOut />} />
         <Route path="diagnostic/token-generator" element={<Diagnostic_TokenGenerator />} />
+        <Route path="diagnostic/token-history" element={<Diagnostic_TokenHistory />} />
         <Route path="diagnostic/sample-tracking" element={<Diagnostic_SampleTracking />} />
+        <Route path="diagnostic/referrals" element={<Diagnostic_Referrals />} />
         <Route path="lab/sample-intake" element={<Lab_Orders />} />
         <Route path="lab/tokens" element={<Lab_TodaysTokens />} />
         <Route path="lab/sample-tracking" element={<Lab_Tracking />} />
+        <Route path="lab/referrals" element={<Lab_Referrals />} />
         <Route path="lab/manager-cash-count" element={<Lab_ManagerCashCount />} />
-        <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/dialysis/login" element={<Dialysis_Login />} />
       <Route path="/dialysis" element={<Dialysis_Layout />}>
@@ -719,11 +879,17 @@ export default function App() {
         <Route path="audit" element={<Dialysis_AuditLogs />} />
         <Route path="settings" element={<Dialysis_Settings />} />
         <Route path="master-data" element={<Dialysis_MasterData />} />
-        <Route path="patient-history" element={<Dialysis_PatientHistory />} />
-        <Route path="discharged-patients" element={<Dialysis_DischargedPatients />} />
-        <Route path="*" element={<NotFound />} />
       </Route>
+      {/* Super Admin Portal */}
+      <Route path="/super-admin/login" element={<SuperAdminLogin />} />
+      <Route path="/super-admin" element={<SuperAdminGuard><SuperAdminDashboard /></SuperAdminGuard>} />
+      <Route path="/super-admin/modules" element={<SuperAdminGuard><ModuleManager /></SuperAdminGuard>} />
+      <Route path="/super-admin/client" element={<SuperAdminGuard><ClientProfilePage /></SuperAdminGuard>} />
+      <Route path="/super-admin/usage" element={<SuperAdminGuard><UsageStatsPage /></SuperAdminGuard>} />
+      <Route path="/super-admin/admins" element={<SuperAdminGuard><SuperAdminUsersPage /></SuperAdminGuard>} />
+
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   )
 }

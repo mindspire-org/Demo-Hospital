@@ -33,7 +33,7 @@ export default forwardRef(function PrescriptionDiagnosticOrders({ initialTestsTe
       <div className="mb-1 block text-sm font-semibold text-slate-700">Diagnostic Orders</div>
       <div>
         <label className="mb-1 block text-sm text-slate-700">Diagnostic Tests (comma or one per line)</label>
-        <SuggestField rows={3} value={testsText} onChange={v=>setTestsText(v)} suggestions={suggestionsTests} placeholder="Ultrasound Abdomen, Echocardiography, CT Scan" />
+        <SuggestField mode="multi" rows={3} value={testsText} onChange={v=>setTestsText(v)} suggestions={suggestionsTests} placeholder="Ultrasound Abdomen, Echocardiography, CT Scan" />
       </div>
     </div>
   )

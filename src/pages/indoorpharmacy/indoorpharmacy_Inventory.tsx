@@ -33,7 +33,7 @@ export default function IndoorPharmacy_Inventory() {
     let mounted = true
     // Instant cached stats for perceived speed (only if fresh < 60s)
     try {
-      const cached = JSON.parse(localStorage.getItem('pharmacy.inventory.summary') || 'null')
+      const cached = JSON.parse(localStorage.getItem('indoorpharmacy.inventory.summary') || 'null')
       if (cached?.stats && cached?.at && (Date.now() - Number(cached.at) < 60_000) && mounted) setStats(cached.stats)
     } catch {}
     ;(async ()=>{
@@ -41,7 +41,7 @@ export default function IndoorPharmacy_Inventory() {
         const sum: any = await indoorPharmacyApi.inventorySummaryCached(undefined, { ttlMs: 120_000, forceRefresh: refreshTick>0 })
         if (mounted && sum?.stats){
           setStats(sum.stats)
-          try { localStorage.setItem('pharmacy.inventory.summary', JSON.stringify({ stats: sum.stats, at: Date.now() })) } catch {}
+          try { localStorage.setItem('indoorpharmacy.inventory.summary', JSON.stringify({ stats: sum.stats, at: Date.now() })) } catch {}
         }
       } catch {}
     })()

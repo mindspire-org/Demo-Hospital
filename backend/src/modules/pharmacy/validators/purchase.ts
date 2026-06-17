@@ -11,6 +11,8 @@ export const purchaseLineSchema = z.object({
   salePerPack: z.coerce.number().nonnegative().default(0),
   salePerUnit: z.coerce.number().nonnegative().default(0),
   expiry: z.string().optional(),
+  expiryAlertDate: z.string().optional(),
+  shelfNumber: z.string().optional(),
 })
 
 export const purchaseCreateSchema = z.object({

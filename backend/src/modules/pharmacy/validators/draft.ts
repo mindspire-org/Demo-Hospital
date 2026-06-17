@@ -12,6 +12,8 @@ export const draftLineSchema = z.object({
   salePerPack: z.coerce.number().nonnegative().default(0),
   salePerUnit: z.coerce.number().nonnegative().default(0),
   expiry: z.string().optional(),
+  expiryAlertDate: z.string().optional(),
+  shelfNumber: z.string().optional(),
   category: z.string().optional(),
   minStock: z.coerce.number().int().nonnegative().optional(),
   defaultDiscountPct: z.coerce.number().min(0).max(100).optional(),

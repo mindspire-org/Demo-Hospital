@@ -5,9 +5,9 @@ const itemSchema = z.object({
   dose: z.string().optional(),
   frequency: z.string().optional(),
   duration: z.string().optional(),
+  notes: z.string().optional(),
   route: z.string().optional(),
   instruction: z.string().optional(),
-  notes: z.string().optional(),
 })
 
 const manualAttachmentSchema = z.object({
@@ -16,9 +16,30 @@ const manualAttachmentSchema = z.object({
   dataUrl: z.string().optional(),
 }).partial()
 
+const preAnesthesiaSchema = z.object({
+  isApplied: z.boolean().default(false),
+  history: z.object({
+    cvs: z.string().optional().nullable(),
+    respiratory: z.string().optional().nullable(),
+    renal: z.string().optional().nullable(),
+    hepatic: z.string().optional().nullable(),
+    diabetic: z.string().optional().nullable(),
+    neurology: z.string().optional().nullable(),
+    previousAnesthesia: z.string().optional().nullable(),
+    allergies: z.string().optional().nullable(),
+  }).partial().optional(),
+  examination: z.object({
+    mallampatiScore: z.string().optional().nullable(),
+    asaClass: z.string().optional().nullable(),
+    airway: z.string().optional().nullable(),
+    teeth: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  }).partial().optional(),
+  recommendation: z.string().optional().nullable(),
+}).partial().optional()
+
 const baseSchema = z.object({
   encounterId: z.string().min(1),
-  tokenNo: z.string().optional(),
   prescriptionMode: z.enum(['electronic','manual']).optional(),
   manualAttachment: manualAttachmentSchema.optional(),
   labTests: z.array(z.string().min(1)).optional(),
@@ -34,6 +55,7 @@ const baseSchema = z.object({
   examFindings: z.string().optional(),
   diagnosis: z.string().optional(),
   advice: z.string().optional(),
+  nextFollowUp: z.string().optional(),
   vitals: z.object({
     pulse: z.coerce.number().optional(),
     temperatureC: z.coerce.number().optional(),
@@ -46,7 +68,11 @@ const baseSchema = z.object({
     bmi: z.coerce.number().optional(),
     bsa: z.coerce.number().optional(),
     spo2: z.coerce.number().optional(),
+    ar: z.string().optional(),
+    va: z.string().optional(),
+    iop: z.string().optional(),
   }).partial().optional(),
+  preAnesthesia: preAnesthesiaSchema,
   createdBy: z.string().optional(),
 })
 
@@ -60,16 +86,15 @@ export const createPrescriptionSchema = z.union([
 ])
 
 export const updatePrescriptionSchema = z.object({
-  tokenNo: z.string().optional(),
   items: z.array(z.object({
     name: z.string().min(1),
     dose: z.string().optional(),
     frequency: z.string().optional(),
     duration: z.string().optional(),
+    notes: z.string().optional(),
     route: z.string().optional(),
     instruction: z.string().optional(),
-    notes: z.string().optional(),
-  })).optional(),
+  })).min(1).optional(),
   prescriptionMode: z.enum(['electronic','manual']).optional(),
   manualAttachment: manualAttachmentSchema.optional(),
   labTests: z.array(z.string().min(1)).optional(),
@@ -85,6 +110,7 @@ export const updatePrescriptionSchema = z.object({
   examFindings: z.string().optional(),
   diagnosis: z.string().optional(),
   advice: z.string().optional(),
+  nextFollowUp: z.string().optional(),
   vitals: z.object({
     pulse: z.coerce.number().optional(),
     temperatureC: z.coerce.number().optional(),
@@ -97,5 +123,9 @@ export const updatePrescriptionSchema = z.object({
     bmi: z.coerce.number().optional(),
     bsa: z.coerce.number().optional(),
     spo2: z.coerce.number().optional(),
+    ar: z.string().optional(),
+    va: z.string().optional(),
+    iop: z.string().optional(),
   }).partial().optional(),
+  preAnesthesia: preAnesthesiaSchema,
 })

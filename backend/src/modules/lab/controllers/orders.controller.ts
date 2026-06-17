@@ -3,6 +3,7 @@ import { LabOrder } from '../models/Order'
 import { LabOrderTest } from '../models/OrderTest'
 import { LabToken } from '../models/Token'
 import { LabAuditLog } from '../models/AuditLog'
+import { LabSettings } from '../models/Settings'
 import { orderCreateSchema, orderQuerySchema, orderTrackUpdateSchema } from '../validators/order'
 import { LabCounter } from '../models/Counter'
 import { LabResult } from '../models/Result'
@@ -13,7 +14,8 @@ import { resolveTestPrice } from '../../corporate/utils/price'
 import { CorporateTransaction } from '../../corporate/models/Transaction'
 import { CorporateCompany } from '../../corporate/models/Company'
 import { postFbrInvoiceViaSDC } from '../../hospital/services/fbr'
-import { postUserRevenueJournal } from '../../finance/controllers/finance_ledger'
+import { postLabOrderJournal } from '../../finance/controllers/finance_ledger'
+import { formatLabNumber } from '../../../common/utils/labNumberFormat'
 
 function getPakistanDate(): string {
   // Pakistan Standard Time is UTC+5
@@ -21,6 +23,13 @@ function getPakistanDate(): string {
   const pakistanOffset = 5 * 60 * 60 * 1000 // 5 hours in milliseconds
   const pakistanTime = new Date(now.getTime() + pakistanOffset)
   return pakistanTime.toISOString().slice(0, 10)
+}
+
+function resolvePaidMethod(paymentMethod?: string): 'Cash' | 'Bank' | 'AR' {
+  const method = String(paymentMethod || '').trim().toLowerCase()
+  if (method === 'cash') return 'Cash'
+  if (method === 'bank' || method === 'card') return 'Bank'
+  return 'AR'
 }
 
 async function nextLabNumber(): Promise<number> {
@@ -32,10 +41,9 @@ async function nextLabNumber(): Promise<number> {
 async function nextToken(date?: Date){
   const d = date || new Date()
   const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const day = String(d.getDate()).padStart(2,'0')
-  const key = 'lab_token_global'
+  const key = `lab_token_${y}${m}${day}`
   const c: any = await LabCounter.findByIdAndUpdate(key, { $inc: { seq: 1 } }, { upsert: true, new: true, setDefaultsOnInsert: true })
-  const seq = String((c?.seq || 1)).padStart(3,'0')
-  return `D${day}${m}${y}-${seq}`
+  return String(c?.seq || 1)
 }
 
 function resolveActor(req: Request) {
@@ -112,9 +120,10 @@ export async function list(req: Request, res: Response){
   ])
 
   // Fetch associated tests for each order
+  const fmt = await LabSettings.findOne().lean().then((s: any) => s?.labNumberFormat).catch(() => undefined)
   const ordersWithTests = await Promise.all(items.map(async (order: any) => {
     const tests = await LabOrderTest.find({ orderId: order._id }).lean()
-    return { ...order, tests }
+    return { ...order, tests, formattedLabNumber: formatLabNumber(order.labNumber, fmt) }
   }))
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / lim))
@@ -434,21 +443,23 @@ export async function create(req: Request, res: Response){
     const net = Number((data as any).net || 0)
     if (!isCorporate && net > 0) {
       const userAccount = `${actor}/lab`
-      await postUserRevenueJournal({
-        userAccountName: userAccount,
-        revenueAccount: 'LAB_REVENUE',
+      await postLabOrderJournal({
+        orderId: String(doc._id),
+        dateIso: getPakistanDate(),
         amount: net,
-        refType: 'lab_order',
-        refId: String(doc._id),
-        description: `Lab Order ${tokenNo}`,
-        dateIso: getPakistanDate()
+        paidMethod: resolvePaidMethod((data as any).paymentMethod),
+        patientName: (data as any)?.patient?.fullName,
+        mrn: (data as any)?.patient?.mrn,
+        tokenNo: tokenNo,
+        createdByUsername: actor,
       })
     }
   } catch (e) {
     console.error('Failed to post Lab revenue journal:', e)
   }
 
-  res.status(201).json(doc)
+  const fmt = await LabSettings.findOne().lean().then((s: any) => s?.labNumberFormat).catch(() => undefined)
+  res.status(201).json({ ...doc.toObject(), formattedLabNumber: formatLabNumber(doc.labNumber, fmt) })
 }
 
 export async function receivePayment(req: Request, res: Response){
@@ -544,13 +555,15 @@ export async function updateTrack(req: Request, res: Response){
         // Create refund if requested or by default for return
         const amountToRefund = patch.refundAmount !== undefined ? patch.refundAmount : (testDoc.price || 0)
         if (amountToRefund > 0) {
+          const rawMethod = String(patch.refundMethod || 'cash').toLowerCase()
+          const safeMethod = ['cash', 'card', 'online', 'bank_transfer', 'corporate_credit'].includes(rawMethod) ? rawMethod : (rawMethod === 'corporate' ? 'corporate_credit' : 'cash')
           await LabPayment.create({
             tokenId: before.tokenId,
             orderId: id,
             patientId: before.patientId,
             type: 'refund',
             amount: amountToRefund,
-            method: patch.refundMethod || 'cash',
+            method: safeMethod,
             note: `Refund for returned test: ${testDoc.testName}. Reason: ${testDoc.returnReason || 'N/A'}`,
             createdBy: actor
           })

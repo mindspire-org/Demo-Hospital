@@ -2,35 +2,31 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import PortalSwitcher from '../PortalSwitcher'
-import {
-  LayoutDashboard,
-  PlusCircle,
-  Ticket,
-  History,
-  Building2,
-  Activity,
-  Bed,
-  Users,
-  LogOut,
-  Calendar,
-  UserCog,
-  Settings,
-  CalendarDays,
-  Search,
-  Stethoscope,
-  FileText,
-  ScrollText,
-  Database,
-  ReceiptText,
-  CreditCard,
-  Wallet,
-  Siren,
-  UserMinus,
-  Package,
-  Truck,
-  ClipboardList,
-  BarChart3,
+import { useSystemConfig } from '../../contexts/SystemConfigContext'
+import { 
+  LayoutDashboard, 
+  PlusCircle, 
+  Ticket, 
+  History, 
+  Building2, 
+  Activity, 
+  Bed, 
+  Users, 
+  LogOut, 
+  Calendar, 
+  UserCog, 
+  Settings, 
+  Fingerprint,
+  CalendarDays, 
+  Search, 
+  Stethoscope, 
+  ScrollText, 
+  Database, 
+  ReceiptText, 
+  CreditCard, 
+  Wallet, 
+  Siren, 
+  ClipboardList, 
 } from 'lucide-react'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: LucideIcon }
@@ -51,6 +47,7 @@ const tokenGenerationSection: Section = {
     { to: '/hospital/appointments', label: 'Appointments', icon: Calendar },
     { to: '/hospital/finance/cash-sessions', label: 'Cash Sessions', icon: Wallet },
     { to: '/hospital/search-patients', label: 'Search Patients', icon: Search },
+    { to: '/hospital/patients', label: 'Patients', icon: Users },
   ],
 }
 
@@ -58,8 +55,8 @@ const erSection: Section = {
   label: 'ER MANAGEMENT',
   items: [
     { to: '/hospital/emergency', label: 'Emergency', icon: Siren },
+    { to: '/hospital/er-discharged', label: 'ER Discharged', icon: LogOut },
     { to: '/hospital/er-referrals', label: 'ER Referrals', icon: Activity },
-    { to: '/hospital/er-discharged', label: 'ER Discharged', icon: UserMinus },
     { to: '/hospital/er-billing', label: 'ER Billing (Add)', icon: CreditCard, end: true },
     { to: '/hospital/er-billing/collect', label: 'ER Billing (Collect)', icon: CreditCard },
     { to: '/hospital/emergency-services', label: 'Emergency Services', icon: ReceiptText },
@@ -85,7 +82,6 @@ const ipdSection: Section = {
 const ipdFormsSection: Section = {
   label: 'IPD FORMS',
   items: [
-    { to: '/hospital/forms/consent-forms', label: 'Consent Forms', icon: FileText },
     { to: '/hospital/forms/received-deaths', label: 'Received Death', icon: ScrollText },
     { to: '/hospital/forms/death-certificates', label: 'Death Certificates', icon: ScrollText },
     { to: '/hospital/forms/birth-certificates', label: 'Birth Certificates', icon: ScrollText },
@@ -100,8 +96,10 @@ const staffSection: Section = {
   items: [
     { to: '/hospital/staff-dashboard', label: 'Staff Dashboard', icon: LayoutDashboard },
     { to: '/hospital/staff-attendance', label: 'Staff Attendance', icon: Calendar },
+    { to: '/hospital/staff-leaves', label: 'Staff Leaves', icon: ClipboardList },
     { to: '/hospital/staff-monthly', label: 'Staff Monthly', icon: CalendarDays },
     { to: '/hospital/staff-settings', label: 'Staff Settings', icon: Settings },
+    { to: '/hospital/biometric-settings', label: 'Biometric Settings', icon: Fingerprint },
     { to: '/hospital/staff-management', label: 'Staff Management', icon: UserCog },
   ],
 }
@@ -116,52 +114,77 @@ const doctorSection: Section = {
   ],
 }
 
-const expenseSection: Section = {
-  label: 'EXPENSE MANAGEMENT',
+const financeSection: Section = {
+  label: 'FINANCE',
   items: [
     { to: '/hospital/finance/transactions', label: 'Transactions', icon: CreditCard },
-    { to: '/hospital/finance/add-expense', label: 'Add Expense', icon: ReceiptText },
+    { to: '/hospital/finance/add-expense', label: 'Add Expense', icon: PlusCircle },
+    { to: '/hospital/finance/expenses', label: 'Expense History', icon: ClipboardList },
   ],
 }
 
-/*const equipmentSection: Section = {
-  label: 'EQUIPMENT MANAGEMENT',
+const corporateSection: Section = {
+  label: 'CORPORATE',
   items: [
-    { to: '/hospital/equipment', label: 'Equipment', icon: Wrench },
-    { to: '/hospital/equipment-due', label: 'Equipment Due', icon: CalendarDays },
-    { to: '/hospital/equipment/kpis', label: 'Equipment KPIs', icon: Activity },
-    { to: '/hospital/equipment/breakdown-register', label: 'Breakdown Register', icon: AlertTriangle },
-    { to: '/hospital/equipment/condemnation-register', label: 'Condemnation Register', icon: Trash2 },
+    { to: '/hospital/corporate', label: 'Corporate Dashboard', icon: LayoutDashboard, end: true },
+    { to: '/hospital/corporate/companies', label: 'Companies', icon: Building2 },
+    { to: '/hospital/corporate/rate-rules', label: 'Rate Rules', icon: ScrollText },
+    { to: '/hospital/corporate/transactions', label: 'Transactions', icon: CreditCard },
+    { to: '/hospital/corporate/claims', label: 'Claims', icon: ReceiptText },
+    { to: '/hospital/corporate/payments', label: 'Payments', icon: Wallet },
+    { to: '/hospital/corporate/reports', label: 'Reports', icon: ScrollText },
   ],
 }
-*/
+
+const otSection: Section = {
+  label: 'OT MANAGEMENT',
+  items: [
+    { to: '/hospital/ot', label: 'OT Dashboard', icon: LayoutDashboard, end: true },
+    { to: '/hospital/ot/schedule', label: 'OT Schedule', icon: CalendarDays },
+    { to: '/hospital/ot/rooms', label: 'OT Rooms', icon: Building2 },
+    { to: '/hospital/ot/team', label: 'OT Team', icon: Users },
+    { to: '/hospital/ot/sterilization', label: 'Sterilization', icon: ScrollText },
+    { to: '/hospital/ot/equipment', label: 'OT Equipment', icon: Settings },
+    { to: '/hospital/ot/procedures', label: 'OT Procedures', icon: ClipboardList },
+    { to: '/hospital/ot/reports', label: 'OT Reports', icon: ScrollText },
+  ],
+}
+
+const icuSection: Section = {
+  label: 'ICU MANAGEMENT',
+  items: [
+    { to: '/hospital/icu', label: 'ICU Dashboard', icon: LayoutDashboard, end: true },
+    { to: '/hospital/icu/beds', label: 'ICU Bed Status', icon: Bed },
+    { to: '/hospital/icu/monitoring', label: 'Vitals Monitoring', icon: Activity },
+    { to: '/hospital/icu/scoring', label: 'Severity Scoring', icon: ScrollText },
+    { to: '/hospital/icu/ventilator', label: 'Ventilator/Device', icon: Settings },
+    { to: '/hospital/icu/reports', label: 'ICU Reports', icon: ScrollText },
+  ],
+}
 
 const storeSection: Section = {
-  label: 'STORE / INVENTORY',
+  label: 'STORE & INVENTORY',
   items: [
-    // { to: '/hospital/store', label: 'Store Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/hospital/store/suppliers', label: 'Suppliers', icon: Truck },
-    { to: '/hospital/store/purchase-orders', label: 'Purchase Orders', icon: FileText },
-    { to: '/hospital/store/purchase-history', label: 'Purchase History', icon: ClipboardList },
-    { to: '/hospital/store/inventory', label: 'Inventory', icon: Package },
-    { to: '/hospital/store/issue-history', label: 'Issue History', icon: History },
-    { to: '/hospital/store/reports', label: 'Reports', icon: BarChart3 },
+    { to: '/hospital/store', label: 'Store Dashboard', icon: LayoutDashboard, end: true },
+    { to: '/hospital/store/inventory', label: 'Store Inventory', icon: Database },
+    { to: '/hospital/store/add-purchase', label: 'Add Purchase', icon: PlusCircle },
+    { to: '/hospital/store/purchase-history', label: 'Purchase History', icon: History },
+    { to: '/hospital/store/purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
+    { to: '/hospital/store/issue-history', label: 'Issue History', icon: ScrollText },
+    { to: '/hospital/store/suppliers', label: 'Store Suppliers', icon: Users },
+    { to: '/hospital/store/reports', label: 'Store Reports', icon: ScrollText },
   ],
 }
 
-/* Hidden - ambulance
-const ambulanceSection: Section = {
-  label: 'AMBULANCE MANAGEMENT',
+const equipmentSection: Section = {
+  label: 'EQUIPMENT MANAGEMENT',
   items: [
-    { to: '/hospital/ambulance', label: 'Ambulance Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/hospital/ambulance/master', label: 'Ambulance Master', icon: Ambulance },
-    { to: '/hospital/ambulance/trips', label: 'Trip Tracking', icon: Route },
-    { to: '/hospital/ambulance/fuel', label: 'Fuel Tracking', icon: Fuel },
-    { to: '/hospital/ambulance/expenses', label: 'Expenses', icon: ReceiptText },
-    { to: '/hospital/ambulance/reports', label: 'Reports', icon: BarChart3 },
+    { to: '/hospital/equipment/dashboard', label: 'Equipment Dashboard', icon: LayoutDashboard },
+    { to: '/hospital/equipment', label: 'Equipment List', icon: Settings, end: true },
+    { to: '/hospital/equipment/purchases', label: 'Equipment Purchases', icon: CreditCard },
+    { to: '/hospital/equipment/suppliers', label: 'Equipment Suppliers', icon: Users },
   ],
 }
-*/
 
 const adminSection: Section = {
   label: 'ADMIN',
@@ -178,14 +201,17 @@ const dashboardItem: NavItem = { to: '/hospital', label: 'Dashboard', icon: Layo
 
 const allSections: Section[] = [
   tokenGenerationSection,
+  financeSection,
+  corporateSection,
   erSection,
   ipdSection,
+  otSection,
+  icuSection,
   ipdFormsSection,
+  storeSection,
+  equipmentSection,
   staffSection,
   doctorSection,
-  expenseSection,
-  storeSection,
-  // corporateSection,
   adminSection,
 ]
 
@@ -226,11 +252,8 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
     return ()=>{ mounted = false }
   }, [role])
 
-  const canShow = (path: string) => {
-    if (path === '/hospital/sidebar-permissions' && String(role||'').toLowerCase() !== 'admin') return false
-    const perm = permMap.get(path)
-    return perm ? perm.visible !== false : true
-  }
+  const { isPathVisible } = useSystemConfig()
+  const canShow = (path: string) => isPathVisible('hospital', path)
 
   const byOrder = (a: NavItem, b: NavItem) => {
     const oa = permMap.get(a.to)?.order ?? Number.MAX_SAFE_INTEGER
@@ -246,22 +269,24 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
         key={item.to}
         to={item.to}
         title={collapsed ? item.label : undefined}
+        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' } as any) : undefined)}
         className={({ isActive }) => {
           const base = collapsed
-            ? 'rounded-lg p-2 text-sm font-semibold flex items-center justify-center transition-all duration-150'
-            : 'rounded-lg px-3 py-2 text-[13px] font-semibold flex items-center gap-2.5 transition-all duration-150'
+            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center transition-all'
+            : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2 transition-all'
           const active = isActive
-            ? 'bg-linear-to-r from-(--navy) to-(--navy-700) text-white shadow-md'
-            : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+            ? 'text-sky-800'
+            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
           return `${base} ${active}`
         }}
         end={item.end}
       >
         {({ isActive }) => (
           <>
-            <div className={collapsed ? '' : 'flex h-7 w-7 items-center justify-center rounded-md ' + (isActive ? 'bg-white/20' : 'bg-slate-100/60')}>
-              <Icon className={isActive ? 'h-4 w-4 text-white' : 'h-4 w-4 text-slate-500'} strokeWidth={isActive ? 2.2 : 1.8} />
-            </div>
+            <Icon className={collapsed 
+              ? (isActive ? 'h-5 w-5 text-sky-700' : 'h-5 w-5 text-slate-700 dark:text-slate-400') 
+              : (isActive ? 'h-4 w-4 text-sky-700' : 'h-4 w-4 text-slate-700 dark:text-slate-400')} 
+            />
             {!collapsed && <span className="truncate">{item.label}</span>}
           </>
         )}
@@ -274,15 +299,12 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
     if (visibleItems.length === 0) return null
 
     return (
-      <div key={section.label} className="space-y-0.5">
+      <div key={section.label} className="space-y-1">
         {!collapsed && (
-          <div className="px-3 pt-4 pb-1.5 flex items-center gap-2">
-            <div className="h-px flex-1 bg-linear-to-r from-slate-200 to-transparent" />
-            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 whitespace-nowrap">{section.label}</span>
-            <div className="h-px flex-1 bg-linear-to-l from-slate-200 to-transparent" />
+          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600 mt-4 first:mt-0">
+            {section.label}
           </div>
         )}
-        {collapsed && <div className="my-2 border-t border-slate-100" />}
         {visibleItems.map(renderNavItem)}
       </div>
     )
@@ -290,21 +312,16 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
 
   return (
     <aside
-      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col md:border-r bg-white/80 backdrop-blur-md shadow-sm dark:bg-slate-900/60 dark:border-slate-700`}
+      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:flex-col md:border-r bg-white/80 backdrop-blur-md shadow-sm dark:bg-slate-900/60 dark:border-slate-700`}
     >
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2' : 'p-3'} space-y-1`}>
-        {/* Dashboard at top — prominent */}
-        {canShow(dashboardItem.to) && (
-          <div className="mb-2">
-            {renderNavItem(dashboardItem)}
-          </div>
-        )}
+      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2' : 'p-3'} space-y-4`}>
+        {/* Dashboard at top */}
+        {canShow(dashboardItem.to) && renderNavItem(dashboardItem)}
 
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
-      <div className={collapsed ? 'p-2 space-y-2 border-t border-slate-100' : 'p-3 space-y-2 border-t border-slate-100'}>
-        {String(role || '').toLowerCase() === 'admin' ? <PortalSwitcher compact={collapsed} /> : null}
+      <div className={collapsed ? 'p-2' : 'p-3'}>
         <button
           onClick={async () => {
             try {
@@ -313,12 +330,15 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
               await hospitalApi.logoutHospitalUser(u?.username||'')
             } catch {}
             try { localStorage.removeItem('hospital.session') } catch {}
+            try { localStorage.removeItem('hospital.token') } catch {}
+            try { localStorage.removeItem('lab.token') } catch {}
+            try { localStorage.removeItem('token') } catch {}
             navigate('/hospital/login')
           }}
           title={collapsed ? 'Logout' : undefined}
-          className={collapsed
-            ? 'w-full inline-flex items-center justify-center rounded-lg p-2 text-sm font-semibold transition-colors text-rose-600 hover:bg-rose-50'
-            : 'w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors text-rose-600 hover:bg-rose-50'}
+          className={collapsed 
+            ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium transition-all bg-white dark:bg-slate-800 text-[#0f2d5c] dark:text-slate-300 border border-[#0f2d5c] dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700' 
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all bg-white dark:bg-slate-800 text-[#0f2d5c] dark:text-slate-300 border border-[#0f2d5c] dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}
           aria-label="Logout"
         >
           <LogOut className="h-4 w-4" />

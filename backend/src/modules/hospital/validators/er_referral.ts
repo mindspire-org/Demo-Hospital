@@ -56,4 +56,7 @@ export const updateErReferralStatusSchema = z.object({
 export const startErVisitSchema = z.object({
   departmentId: z.string().min(1),
   doctorId: z.string().optional(),
+  bedId: z.string().min(1, 'Bed is mandatory'),
+  triage: z.enum(['red', 'yellow', 'green']).optional(),
+  arrivalMode: z.enum(['walk-in', 'ambulance', 'referral']).default('referral'),
 })

@@ -31,7 +31,8 @@ const defaultSidebarItems = [
   { path: '/hospital/staff-attendance', label: 'Staff Attendance', order: 31 },
   { path: '/hospital/staff-monthly', label: 'Staff Monthly', order: 32 },
   { path: '/hospital/staff-settings', label: 'Staff Settings', order: 33 },
-  { path: '/hospital/staff-management', label: 'Staff Management', order: 34 },
+  { path: '/hospital/biometric-settings', label: 'Biometric Settings', order: 34 },
+  { path: '/hospital/staff-management', label: 'Staff Management', order: 35 },
 
   // Doctor Management
   { path: '/hospital/doctors', label: 'Add Doctors', order: 40 },
@@ -39,37 +40,69 @@ const defaultSidebarItems = [
   { path: '/hospital/finance/doctors', label: 'Doctors Finance', order: 42 },
   { path: '/hospital/finance/doctor-payouts', label: 'Doctor Payouts', order: 43 },
 
-  // Equipment Management
-  { path: '/hospital/equipment', label: 'Equipment', order: 50 },
-  { path: '/hospital/equipment-due', label: 'Equipment Due', order: 51 },
-  { path: '/hospital/equipment/kpis', label: 'Equipment KPIs', order: 52 },
-  { path: '/hospital/equipment/breakdown-register', label: 'Breakdown Register', order: 53 },
-  { path: '/hospital/equipment/condemnation-register', label: 'Condemnation Register', order: 54 },
+  // OT Management
+  { path: '/hospital/ot', label: 'OT Dashboard', order: 50 },
+  { path: '/hospital/ot/schedule', label: 'OT Schedule', order: 51 },
+  { path: '/hospital/ot/rooms', label: 'OT Rooms', order: 52 },
+  { path: '/hospital/ot/team', label: 'OT Team', order: 53 },
+  { path: '/hospital/ot/sterilization', label: 'Sterilization', order: 54 },
+  { path: '/hospital/ot/equipment', label: 'OT Equipment', order: 55 },
+  { path: '/hospital/ot/procedures', label: 'OT Procedures', order: 56 },
+  { path: '/hospital/ot/reports', label: 'OT Reports', order: 57 },
+
+  // ICU Management
+  { path: '/hospital/icu', label: 'ICU Dashboard', order: 60 },
+  { path: '/hospital/icu/beds', label: 'ICU Bed Status', order: 61 },
+  { path: '/hospital/icu/monitoring', label: 'Vitals Monitoring', order: 62 },
+  { path: '/hospital/icu/scoring', label: 'Severity Scoring', order: 63 },
+  { path: '/hospital/icu/ventilator', label: 'Ventilator/Device', order: 64 },
+  { path: '/hospital/icu/reports', label: 'ICU Reports', order: 65 },
 
   // Store Management
-  { path: '/hospital/store-management', label: 'Store Management', order: 60 },
+  { path: '/hospital/store', label: 'Store Dashboard', order: 70 },
+  { path: '/hospital/store/inventory', label: 'Store Inventory', order: 71 },
+  { path: '/hospital/store/add-purchase', label: 'Add Purchase', order: 72 },
+  { path: '/hospital/store/purchase-history', label: 'Purchase History', order: 73 },
+  { path: '/hospital/store/purchase-orders', label: 'Purchase Orders', order: 74 },
+  { path: '/hospital/store/issue-history', label: 'Issue History', order: 75 },
+  { path: '/hospital/store/suppliers', label: 'Store Suppliers', order: 76 },
+  { path: '/hospital/store/reports', label: 'Store Reports', order: 77 },
+
+  // Equipment Management
+  { path: '/hospital/equipment/dashboard', label: 'Equipment Dashboard', order: 80 },
+  { path: '/hospital/equipment', label: 'Equipment List', order: 81 },
+  { path: '/hospital/equipment/purchases', label: 'Equipment Purchases', order: 82 },
+  { path: '/hospital/equipment/suppliers', label: 'Equipment Suppliers', order: 83 },
+
+  // Ambulance Management
+  { path: '/hospital/ambulance', label: 'Ambulance Dashboard', order: 90 },
+  { path: '/hospital/ambulance/master', label: 'Ambulance List', order: 91 },
+  { path: '/hospital/ambulance/trips', label: 'Trips History', order: 92 },
+  { path: '/hospital/ambulance/fuel', label: 'Fuel Logs', order: 93 },
+  { path: '/hospital/ambulance/expenses', label: 'Expenses', order: 94 },
+  { path: '/hospital/ambulance/reports', label: 'Ambulance Reports', order: 95 },
 
   // Expense Management
-  { path: '/hospital/finance/add-expense', label: 'Add Expense', order: 70 },
-  { path: '/hospital/finance/expenses', label: 'Expense History', order: 71 },
-  { path: '/hospital/finance/transactions', label: 'Transactions', order: 72 },
+  { path: '/hospital/finance/add-expense', label: 'Add Expense', order: 100 },
+  { path: '/hospital/finance/expenses', label: 'Expense History', order: 101 },
+  { path: '/hospital/finance/transactions', label: 'Transactions', order: 102 },
 
   // Corporate Panel
-  { path: '/hospital/corporate', label: 'Corporate Dashboard', order: 80 },
-  { path: '/hospital/corporate/companies', label: 'Companies', order: 81 },
-  { path: '/hospital/corporate/rate-rules', label: 'Rate Rules', order: 82 },
-  { path: '/hospital/corporate/transactions', label: 'Transactions', order: 83 },
-  { path: '/hospital/corporate/claims', label: 'Claims', order: 84 },
-  { path: '/hospital/corporate/payments', label: 'Payments', order: 85 },
-  { path: '/hospital/corporate/reports', label: 'Reports', order: 86 },
+  { path: '/hospital/corporate', label: 'Corporate Dashboard', order: 110 },
+  { path: '/hospital/corporate/companies', label: 'Companies', order: 111 },
+  { path: '/hospital/corporate/rate-rules', label: 'Rate Rules', order: 112 },
+  { path: '/hospital/corporate/transactions', label: 'Transactions', order: 113 },
+  { path: '/hospital/corporate/claims', label: 'Claims', order: 114 },
+  { path: '/hospital/corporate/payments', label: 'Payments', order: 115 },
+  { path: '/hospital/corporate/reports', label: 'Reports', order: 116 },
 
   // Bottom
-  { path: '/hospital/search-patients', label: 'Search Patients', order: 90 },
-  { path: '/hospital/user-management', label: 'Users', order: 91 },
-  { path: '/hospital/sidebar-permissions', label: 'Sidebar Permissions', order: 92 },
-  { path: '/hospital/audit', label: 'Audit log', order: 93 },
-  { path: '/hospital/settings', label: 'Settings', order: 94 },
-  { path: '/hospital/backup', label: 'Backup', order: 95 },
+  { path: '/hospital/search-patients', label: 'Search Patients', order: 120 },
+  { path: '/hospital/user-management', label: 'Users', order: 121 },
+  { path: '/hospital/sidebar-permissions', label: 'Sidebar Permissions', order: 122 },
+  { path: '/hospital/audit', label: 'Audit log', order: 123 },
+  { path: '/hospital/settings', label: 'Settings', order: 124 },
+  { path: '/hospital/backup', label: 'Backup', order: 125 },
 ]
 
 const defaultVisibility: Record<string, Array<{ path: string; label: string; visible: boolean; order: number }>> = {
@@ -81,6 +114,20 @@ const defaultVisibility: Record<string, Array<{ path: string; label: string; vis
       '/hospital/corporate','/hospital/corporate/companies','/hospital/corporate/rate-rules','/hospital/corporate/transactions','/hospital/corporate/claims','/hospital/corporate/payments','/hospital/corporate/reports',
       '/hospital/finance/doctors','/hospital/finance/doctor-payouts',
     ].includes(item.path) ? false : true,
+  })),
+  reception: defaultSidebarItems.map(item => ({
+    ...item,
+    visible: [
+      '/hospital','/hospital/token-generator','/hospital/today-tokens','/hospital/token-history',
+      '/hospital/search-patients','/hospital/patient-list','/hospital/departments',
+    ].includes(item.path) ? true : false,
+  })),
+  nurse: defaultSidebarItems.map(item => ({
+    ...item,
+    visible: [
+      '/hospital','/hospital/ipd','/hospital/patient-list','/hospital/search-patients',
+      '/hospital/bed-management','/hospital/forms/discharge-summaries',
+    ].includes(item.path) ? true : false,
   })),
 }
 
@@ -114,7 +161,7 @@ export async function createRole(req: Request, res: Response){
 export async function deleteRole(req: Request, res: Response){
   const role = normRole(req.params.role)
   if (!role) return res.status(400).json({ message: 'Role is required' })
-  if (['admin','staff','superadmin'].includes(role)) return res.status(400).json({ message: 'Default roles cannot be deleted' })
+  if (['admin','staff','reception','nurse','superadmin'].includes(role)) return res.status(400).json({ message: 'Default roles cannot be deleted' })
   await HospitalSidebarPermission.deleteOne({ role })
   res.json({ ok: true })
 }
@@ -159,7 +206,7 @@ export async function resetToDefaults(req: Request, res: Response){
 }
 
 export async function createDefaultPermissions(){
-  const roles = ['admin','staff']
+  const roles = ['admin','staff','reception','nurse']
   const docs: any[] = []
   for (const r of roles){
     const ex = await HospitalSidebarPermission.findOne({ role: r }).lean()

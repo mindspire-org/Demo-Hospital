@@ -3,50 +3,76 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 
 import { pharmacyApi } from '../../utils/api'
+import { getLocalDate } from '../../utils/date'
 
-import { ArrowLeft, Plus, Trash2, Save, ChevronDown, ChevronUp, Package, Pause, FileText } from 'lucide-react'
+import { ArrowLeft, Plus, Edit2, Trash2, Save, ChevronDown, ChevronUp, Package, Pause, FileStack, X } from 'lucide-react'
 
 import Pharmacy_AddSupplierDialog, { type Supplier } from '../../components/pharmacy/pharmacy_AddSupplierDialog'
 import Pharmacy_AddCompanyDialog, { type Company } from '../../components/pharmacy/pharmacy_AddCompanyDialog'
 import SearchableSelect from '../common/SearchableSelect'
-import ModernDatePicker from '../common/ModernDatePicker'
 
 
 
 type ItemRow = {
+
   id: string
+
   name?: string
+
   genericName?: string
-  packs?: number
-  unitsPerPack?: number
-  buyPerPack?: number
-  salePerPack?: number
-  totalItems?: number
-  buyPerUnit?: number
-  salePerUnit?: number
-  lineTaxType?: 'percent' | 'fixed'
-  lineTaxValue?: number
-  category?: string
-  brand?: string
-  unitType?: string
-  shelfNumber?: string
-  maxPackAllow?: number
-  minPackStock?: number
-  barcode?: string
-  manufacturer?: string
-  minStock?: number
+
   expiry?: string
+
+  expiryAlertDate?: string
+
+  shelfNumber?: string
+
+  packs?: number
+
+  unitsPerPack?: number
+
+  buyPerPack?: number
+
+  salePerPack?: number
+
+  totalItems?: number
+
+  buyPerUnit?: number
+
+  salePerUnit?: number
+
+  lineTaxType?: 'percent' | 'fixed'
+
+  lineTaxValue?: number
+
+  category?: string
+
+  barcode?: string
+
+  minStock?: number
+
   collapsed?: boolean
+
   inventoryKey?: string
+
   defaultDiscountPct?: number
+
 }
 
+
+
 type InvoiceTax = {
+
   id: string
+
   name?: string
+
   value?: number
+
   type?: 'percent' | 'fixed'
+
   applyOn?: 'gross' | 'net'
+
 }
 
 
@@ -97,71 +123,14 @@ export default function Pharmacy_AddInvoicePage() {
 
   const [invoiceNo, setInvoiceNo] = useState('')
 
-  const [invoiceDate, setInvoiceDate] = useState(() => isEdit ? '' : new Date().toISOString().split('T')[0])
-
-  // Auto-generate sequential invoice number
-  useEffect(() => {
-    if (isEdit) return
-    let mounted = true
-      ; (async () => {
-        let nextNum = 1
-        try {
-          const candidates: any[] = []
-          try {
-            const resp1: any = await pharmacyApi.listPurchases({ search: 'INV-', limit: 50 })
-            const arr1 = resp1?.items ?? resp1 ?? []
-            candidates.push(...arr1)
-          } catch { }
-          if (candidates.length < 1) {
-            try {
-              const resp2: any = await pharmacyApi.listPurchases({ limit: 50 })
-              const arr2 = resp2?.items ?? resp2 ?? []
-              candidates.push(...arr2)
-            } catch { }
-          }
-          let maxNum = 0
-          for (const it of candidates) {
-            const inv = String(it?.invoice || '')
-            const m = inv.match(/^INV-(\d+)$/)
-            if (m) {
-              const n = parseInt(m[1], 10)
-              if (!isNaN(n)) maxNum = Math.max(maxNum, n)
-            }
-          }
-          if (maxNum > 0) nextNum = maxNum + 1
-        } catch { }
-        try {
-          const localLast = localStorage.getItem('pharmacy.purchase.invoice.seq.last')
-          const n = localLast ? parseInt(localLast, 10) : 0
-          if (!isNaN(n) && n >= nextNum) nextNum = n + 1
-        } catch { }
-        if (mounted) setInvoiceNo(`INV-${String(nextNum).padStart(6, '0')}`)
-      })()
-    return () => { mounted = false }
-  }, [isEdit])
+  const [invoiceDate, setInvoiceDate] = useState(() => getLocalDate())
 
   const [showTaxSection, setShowTaxSection] = useState(false)
 
-  // Enforce standardized invoice format if a non-standard value appears (e.g., imports or restored drafts)
-  useEffect(() => {
-    if (isEdit) return
-    const cur = String(invoiceNo || '')
-    const ok = /^INV-\d{6}$/.test(cur)
-    if (ok) return
-    let mounted = true
-      ; (async () => {
-        let nextNum = 1
-        try {
-          const localLast = localStorage.getItem('pharmacy.purchase.invoice.seq.last')
-          const n = localLast ? parseInt(localLast, 10) : 0
-          if (!isNaN(n) && n > 0) nextNum = n + 1
-        } catch { }
-        if (mounted) setInvoiceNo(`INV-${String(nextNum).padStart(6, '0')}`)
-      })()
-    return () => { mounted = false }
-  }, [invoiceNo, isEdit])
-
-
+  // Held invoices state
+  const [heldInvoicesOpen, setHeldInvoicesOpen] = useState(false)
+  const [heldInvoices, setHeldInvoices] = useState<any[]>([])
+  const [heldLoading, setHeldLoading] = useState(false)
 
   // Autocomplete state
 
@@ -172,326 +141,6 @@ export default function Pharmacy_AddInvoicePage() {
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-
-  const [heldOpen, setHeldOpen] = useState(false)
-  const [heldInvoices, setHeldInvoices] = useState<any[]>([])
-  const [loadingHeld, setLoadingHeld] = useState(false)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [heldToDelete, setHeldToDelete] = useState<string | null>(null)
-
-  const refreshHeld = async () => {
-    setLoadingHeld(true)
-    try {
-      const res: any = await pharmacyApi.listPurchaseDrafts({ limit: 100 })
-      setHeldInvoices(res?.items ?? res ?? [])
-    } catch {
-      setHeldInvoices([])
-    } finally {
-      setLoadingHeld(false)
-    }
-  }
-
-  useEffect(() => {
-    if (heldOpen) refreshHeld()
-  }, [heldOpen])
-
-  // --- AUTO-SAVE / AUTO-RESTORE LOGIC ---
-  const DRAFT_KEY = 'pharmacy_purchase_invoice_draft'
-  const isRestoringRef = useRef(false)
-  const lastStateRef = useRef<any>(null)
-
-  // Restore draft on mount (only for new invoices)
-  useEffect(() => {
-    if (isEdit) return
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY)
-      if (saved) {
-        const draft = JSON.parse(saved)
-        isRestoringRef.current = true
-        if (draft.items) setItems(draft.items)
-        if (draft.invoiceNo) setInvoiceNo(draft.invoiceNo)
-        if (draft.invoiceDate) setInvoiceDate(draft.invoiceDate)
-        if (draft.supplierId) setSupplierId(draft.supplierId)
-        if (draft.supplierName) setSupplierName(draft.supplierName)
-        if (draft.companyId) setCompanyId(draft.companyId)
-        if (draft.companyName) setCompanyName(draft.companyName)
-        if (draft.invoiceTaxes) setInvoiceTaxes(draft.invoiceTaxes)
-        // Reset the ref after a short delay to allow state updates to settle
-        setTimeout(() => { isRestoringRef.current = false }, 100)
-      }
-    } catch (e) {
-      console.error('Failed to restore draft:', e)
-    }
-  }, [isEdit])
-
-  // Track latest state in a ref for unmount save
-  useEffect(() => {
-    lastStateRef.current = {
-      items,
-      invoiceNo,
-      invoiceDate,
-      supplierId,
-      supplierName,
-      companyId,
-      companyName,
-      invoiceTaxes
-    }
-  }, [items, invoiceNo, invoiceDate, supplierId, supplierName, companyId, companyName, invoiceTaxes])
-
-  // Save draft whenever state changes (debounced)
-  useEffect(() => {
-    if (isEdit || isRestoringRef.current) return
-
-    const timer = setTimeout(() => {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(lastStateRef.current))
-    }, 1000)
-
-    return () => {
-      clearTimeout(timer)
-      // On unmount, if we are not in edit mode and haven't just cleared the draft, save it immediately
-      if (!isEdit && !isRestoringRef.current && localStorage.getItem(DRAFT_KEY) !== null) {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(lastStateRef.current))
-      }
-    }
-  }, [items, invoiceNo, invoiceDate, supplierId, supplierName, companyId, companyName, invoiceTaxes, isEdit])
-
-  const clearDraft = () => {
-    localStorage.removeItem(DRAFT_KEY)
-    lastStateRef.current = null // Prevent unmount re-save
-  }
-
-  const saveInvoice = async () => {
-    const lines = items
-      .filter(r => (r.name || '').trim() && (r.packs || 0) > 0)
-      .map(r => ({
-        medicineId: r.inventoryKey || undefined,
-        name: (r.name || '').trim(),
-        genericName: r.genericName || undefined,
-        unitsPerPack: r.unitsPerPack || 1,
-        packs: r.packs || 0,
-        totalItems: (r.totalItems != null) ? r.totalItems : ((r.unitsPerPack || 1) * (r.packs || 0)),
-        buyPerPack: r.buyPerPack || 0,
-        buyPerUnit: (r.buyPerUnit != null) ? r.buyPerUnit : ((r.buyPerPack || 0) / Math.max(1, (r.unitsPerPack || 1))),
-        salePerPack: r.salePerPack || 0,
-        salePerUnit: (r.salePerUnit != null) ? r.salePerUnit : ((r.salePerPack || 0) / Math.max(1, (r.unitsPerPack || 1))),
-        category: r.category || undefined,
-        brand: r.brand || undefined,
-        unitType: r.unitType || undefined,
-        shelfNumber: r.shelfNumber || undefined,
-        maxPackAllow: r.maxPackAllow != null ? r.maxPackAllow : undefined,
-        minPackStock: r.minPackStock != null ? r.minPackStock : undefined,
-        manufacturer: r.manufacturer || undefined,
-        barcode: r.barcode || undefined,
-        minStock: r.minStock != null ? r.minStock : undefined,
-        expiry: r.expiry || undefined,
-        defaultDiscountPct: (r.defaultDiscountPct != null) ? Math.max(0, Math.min(100, Number(r.defaultDiscountPct))) : undefined,
-        lineTaxType: r.lineTaxType || undefined,
-        lineTaxValue: r.lineTaxValue || undefined,
-        inventoryKey: r.inventoryKey || undefined,
-      }))
-    if (!invoiceNo.trim() || !invoiceDate) {
-      showToast('error', 'Invoice No and Invoice Date are required')
-      return
-    }
-
-    if (!lines.length) {
-      showToast('error', 'Add at least one medicine with Qty (Packs)')
-      return
-    }
-
-    const invalidLine = items.find(r => {
-      const hasName = !!String(r.name || '').trim()
-      const packsOk = Number(r.packs || 0) > 0
-      const unitsOk = Number(r.unitsPerPack || 0) > 0
-      return (hasName && (!packsOk || !unitsOk))
-    })
-
-    if (invalidLine) {
-      showToast('error', 'Each medicine must have Qty (Packs) and Units/Pack greater than 0')
-      return
-    }
-
-    try {
-      const payload = {
-        date: invoiceDate,
-        invoice: invoiceNo,
-        supplierId: supplierId || undefined,
-        supplierName: supplierName || undefined,
-        companyId: companyId || undefined,
-        companyName: companyName || undefined,
-        invoiceTaxes: invoiceTaxes
-          .filter(t => (t.name || '').trim() && (t.value || 0) > 0)
-          .map(t => ({
-            name: (t.name || '').trim(),
-            value: t.value || 0,
-            type: t.type || 'percent',
-            applyOn: t.applyOn || 'gross'
-          })),
-        discount,
-        lines: lines,
-      }
-
-      if (isEdit && id) {
-        await pharmacyApi.updatePurchaseDraft(id, payload)
-        showToast('success', 'Invoice updated')
-      } else {
-        await pharmacyApi.createPurchase(payload)
-        clearDraft()
-        try {
-          const m = String(invoiceNo || '').match(/^INV-(\d+)$/)
-          if (m) {
-            const used = parseInt(m[1], 10)
-            if (!isNaN(used) && used > 0) {
-              localStorage.setItem('pharmacy.purchase.invoice.seq.last', String(used))
-            }
-          }
-        } catch { }
-        if (fromPending && id) {
-          try {
-            await pharmacyApi.deletePurchaseDraft(id)
-          } catch (err) {
-            console.error('Failed to delete draft after purchase:', err)
-          }
-        }
-        showToast('success', 'Invoice saved successfully')
-      }
-      navigate('/pharmacy/inventory')
-    } catch (error) {
-      console.error('Error saving invoice:', error)
-      showToast('error', 'Failed to save invoice. Please try again.')
-    }
-  }
-
-  const cancelInvoice = async () => {
-    if (isEdit && fromPending && id) {
-      if (window.confirm('Are you sure you want to cancel and delete this held invoice?')) {
-        try {
-          await pharmacyApi.deletePurchaseDraft(id)
-          showToast('success', 'Held invoice cancelled and removed')
-          navigate('/pharmacy/inventory')
-        } catch {
-          showToast('error', 'Failed to cancel held invoice')
-        }
-        return
-      }
-    } else {
-      clearDraft()
-    }
-    navigate(fromPending ? '/pharmacy/inventory?tab=pending' : '/pharmacy/inventory')
-  }
-
-  // --------------------------------------
-
-  const holdInvoice = async () => {
-    if (!invoiceNo.trim()) {
-      showToast('error', 'Invoice number is required')
-      return
-    }
-
-    const holdAction = async () => {
-      const lines = items
-        .filter(r => (r.name || '').trim() && (r.packs || 0) > 0)
-        .map(r => ({
-          medicineId: r.inventoryKey || undefined,
-          name: (r.name || '').trim(),
-          genericName: r.genericName || undefined,
-          unitsPerPack: r.unitsPerPack || 1,
-          packs: r.packs || 0,
-          totalItems: (r.totalItems != null) ? r.totalItems : ((r.unitsPerPack || 1) * (r.packs || 0)),
-          buyPerPack: r.buyPerPack || 0,
-          buyPerUnit: (r.buyPerUnit != null) ? r.buyPerUnit : ((r.buyPerPack || 0) / Math.max(1, (r.unitsPerPack || 1))),
-          salePerPack: r.salePerPack || 0,
-          salePerUnit: (r.salePerUnit != null) ? r.salePerUnit : ((r.salePerPack || 0) / Math.max(1, (r.unitsPerPack || 1))),
-          category: r.category || undefined,
-          brand: r.brand || undefined,
-          unitType: r.unitType || undefined,
-          shelfNumber: r.shelfNumber || undefined,
-          maxPackAllow: r.maxPackAllow != null ? r.maxPackAllow : undefined,
-          minPackStock: r.minPackStock != null ? r.minPackStock : undefined,
-          manufacturer: r.manufacturer || undefined,
-          barcode: r.barcode || undefined,
-          minStock: r.minStock != null ? r.minStock : undefined,
-          expiry: r.expiry || undefined,
-          defaultDiscountPct: (r.defaultDiscountPct != null) ? Math.max(0, Math.min(100, Number(r.defaultDiscountPct))) : undefined,
-          lineTaxType: r.lineTaxType || undefined,
-          lineTaxValue: r.lineTaxValue || undefined,
-          inventoryKey: r.inventoryKey || undefined,
-        }))
-
-      if (!lines.length) {
-        showToast('error', 'Add at least one item to hold the invoice')
-        return
-      }
-
-      try {
-        const payload = {
-          date: invoiceDate || new Date().toISOString().split('T')[0],
-          invoice: invoiceNo || `HELD-${Date.now()}`,
-          supplierId: supplierId || undefined,
-          supplierName: supplierName || undefined,
-          companyId: companyId || undefined,
-          companyName: companyName || undefined,
-          invoiceTaxes: invoiceTaxes
-            .filter(t => (t.name || '').trim() && (t.value || 0) > 0)
-            .map(t => ({
-              name: (t.name || '').trim(),
-              value: t.value || 0,
-              type: t.type || 'percent',
-              applyOn: t.applyOn || 'gross'
-            })),
-          discount: 0,
-          lines: lines,
-          status: 'Held'
-        }
-
-        if (isEdit && id && !fromPending) {
-          await pharmacyApi.updatePurchaseDraft(id, payload)
-          showToast('success', 'Invoice updated and held')
-        } else {
-          await pharmacyApi.createPurchaseDraft(payload)
-          showToast('success', 'Invoice held successfully')
-          clearDraft()
-          if (!isEdit) {
-            setItems([{ id: crypto.randomUUID() }])
-            setInvoiceNo('')
-            setSupplierId('')
-            setSupplierName('')
-            setCompanyId('')
-            setCompanyName('')
-          }
-        }
-      } catch (e) {
-        console.error(e)
-        showToast('error', 'Failed to hold invoice')
-      }
-    }
-
-    await holdAction()
-  }
-
-  const restoreHeld = (heldId: string) => {
-    setHeldOpen(false)
-    navigate(`/pharmacy/inventory/edit-invoice/${heldId}?from=pending`)
-  }
-
-  const confirmDeleteHeld = (heldId: string) => {
-    setHeldToDelete(heldId)
-    setDeleteConfirmOpen(true)
-  }
-
-  const deleteHeld = async () => {
-    if (!heldToDelete) return
-    try {
-      await pharmacyApi.deletePurchaseDraft(heldToDelete)
-      showToast('success', 'Held invoice deleted')
-      refreshHeld()
-    } catch {
-      showToast('error', 'Failed to delete held invoice')
-    } finally {
-      setDeleteConfirmOpen(false)
-      setHeldToDelete(null)
-    }
-  }
 
   const toastTimerRef = useRef<number | null>(null)
 
@@ -573,23 +222,9 @@ export default function Pharmacy_AddInvoicePage() {
 
         category: it.category ?? r.category,
 
-        brand: it.brand ?? r.brand,
-
-        unitType: it.unitType ?? r.unitType,
-
-        shelfNumber: it.shelfNumber ?? r.shelfNumber,
-
-        maxPackAllow: (it.maxPackAllow != null) ? Number(it.maxPackAllow) : r.maxPackAllow,
-
-        minPackStock: (it.minPackStock != null) ? Number(it.minPackStock) : r.minPackStock,
-
         minStock: (it.minStock != null) ? Number(it.minStock) : r.minStock,
 
-        manufacturer: it.manufacturer || r.manufacturer,
-
         barcode: it.barcode || r.barcode,
-
-        expiry: it.expiry || r.expiry,
 
         buyPerPack: buyPack || r.buyPerPack,
 
@@ -602,10 +237,20 @@ export default function Pharmacy_AddInvoicePage() {
         genericName: gen || r.genericName,
 
         inventoryKey: key || r.inventoryKey,
+
+        expiry: (it.lastExpiry || it.earliestExpiry || r.expiry || ''),
+
+        expiryAlertDate: it.expiryAlertDate || r.expiryAlertDate || '',
+
+        shelfNumber: it.shelfNumber || r.shelfNumber || '',
+
         totalItems: (r.packs || 0) * (units || r.unitsPerPack || 1),
+
         defaultDiscountPct: (it.defaultDiscountPct != null) ? Number(it.defaultDiscountPct) : r.defaultDiscountPct,
+
       } : r))
-    } catch { }
+
+    } catch {}
 
   }
 
@@ -657,22 +302,15 @@ export default function Pharmacy_AddInvoicePage() {
 
         ...r,
 
+        name: it.name || r.name,
 
         unitsPerPack: units || r.unitsPerPack,
 
         category: it.category ?? r.category,
 
-        brand: it.brand ?? r.brand,
-
-        unitType: it.unitType ?? r.unitType,
-
-        shelfNumber: it.shelfNumber ?? r.shelfNumber,
-
-        manufacturer: it.manufacturer || r.manufacturer,
+        minStock: (it.minStock != null) ? Number(it.minStock) : r.minStock,
 
         barcode: itemBarcode,
-
-        expiry: it.expiry || r.expiry,
 
         buyPerPack: buyPack || r.buyPerPack,
 
@@ -685,10 +323,16 @@ export default function Pharmacy_AddInvoicePage() {
         genericName: gen || r.genericName,
 
         inventoryKey: key || r.inventoryKey,
+
+        expiry: (it.lastExpiry || it.earliestExpiry || r.expiry || ''),
+        expiryAlertDate: it.expiryAlertDate || it.earliestExpiryAlert || r.expiryAlertDate || '',
         totalItems: (r.packs || 0) * (units || r.unitsPerPack || 1),
+
         defaultDiscountPct: (it.defaultDiscountPct != null) ? Number(it.defaultDiscountPct) : r.defaultDiscountPct,
+
       } : r))
-    } catch { }
+
+    } catch {}
 
   }
 
@@ -708,10 +352,7 @@ export default function Pharmacy_AddInvoicePage() {
         if (newId) {
           setCompanyId(newId)
           const found = list.find((x: any) => String(x._id) === newId)
-          const newName = found?.name || c.name || ''
-          setCompanyName(newName)
-          // Also update manufacturer for all existing items when a new company is added and selected
-          setItems(prev => prev.map(r => ({ ...r, manufacturer: newName })))
+          setCompanyName(found?.name || c.name || '')
         }
       }
       showToast('success', 'Company added')
@@ -752,7 +393,7 @@ export default function Pharmacy_AddInvoicePage() {
 
       setSuppliers(list)
 
-    }).catch(() => { })
+    }).catch(() => {})
 
     return () => { mounted = false }
 
@@ -761,43 +402,32 @@ export default function Pharmacy_AddInvoicePage() {
   // Load companies when supplier changes
   useEffect(() => {
     let mounted = true
-      ; (async () => {
-        try {
-          if (!supplierId) { setCompanies([]); setCompanyId(''); setCompanyName(''); return }
-          const res: any = await pharmacyApi.listAllCompanies({ distributorId: supplierId })
-          if (!mounted) return
-          const list = res?.items ?? res ?? []
-          setCompanies(list)
-          const found = companyId ? list.find((x: any) => String(x._id) === String(companyId)) : null
-          if (found) {
-            setCompanyName(found.name || '')
-          } else if (list.length === 1) {
-            setCompanyId(String(list[0]._id))
-            setCompanyName(String(list[0].name || ''))
-            // Auto-fill manufacturer for existing rows if only one company exists
-            setItems(prev => prev.map(r => ({ ...r, manufacturer: r.manufacturer || list[0].name })))
-          } else {
-            setCompanyId('')
-            setCompanyName('')
-          }
-        } catch {
-          if (!mounted) return
-          setCompanies([])
+    ;(async () => {
+      try {
+        if (!supplierId) { setCompanies([]); setCompanyId(''); setCompanyName(''); return }
+        const res: any = await pharmacyApi.listAllCompanies({ distributorId: supplierId })
+        if (!mounted) return
+        const list = res?.items ?? res ?? []
+        setCompanies(list)
+        const found = companyId ? list.find((x: any) => String(x._id) === String(companyId)) : null
+        if (found) {
+          setCompanyName(found.name || '')
+        } else if (list.length === 1) {
+          setCompanyId(String(list[0]._id))
+          setCompanyName(String(list[0].name || ''))
+        } else {
           setCompanyId('')
           setCompanyName('')
         }
-      })()
+      } catch {
+        if (!mounted) return
+        setCompanies([])
+        setCompanyId('')
+        setCompanyName('')
+      }
+    })()
     return () => { mounted = false }
   }, [supplierId])
-
-  // Auto-fill manufacturer for all items when companyName changes
-  useEffect(() => {
-    if (!companyName) return
-    setItems(prev => prev.map(r => ({
-      ...r,
-      manufacturer: companyName
-    })))
-  }, [companyName])
 
 
 
@@ -807,105 +437,106 @@ export default function Pharmacy_AddInvoicePage() {
 
     let mounted = true
 
-      ; (async () => {
+    ;(async () => {
 
-        if (!isEdit || !id) return
+      if (!isEdit || !id) return
 
-        try {
+      try {
 
-          const doc: any = await pharmacyApi.getPurchaseDraft(id)
+        const doc: any = await pharmacyApi.getPurchaseDraft(id)
 
-          if (!mounted || !doc) return
+        if (!mounted || !doc) return
 
-          setInvoiceNo(String(doc.invoice || ''))
+        setInvoiceNo(String(doc.invoice || ''))
 
-          setInvoiceDate(String(doc.date || ''))
+        setInvoiceDate(String(doc.date || ''))
 
-          setSupplierId(String(doc.supplierId || ''))
+        setSupplierId(String(doc.supplierId || ''))
 
-          setSupplierName(String(doc.supplierName || ''))
+        setSupplierName(String(doc.supplierName || ''))
 
-          setCompanyId(String((doc as any).companyId || ''))
+        setCompanyId(String((doc as any).companyId || ''))
 
-          setCompanyName(String((doc as any).companyName || ''))
+        setCompanyName(String((doc as any).companyName || ''))
 
-          const mappedItems: ItemRow[] = (doc.lines || []).map((l: any) => ({
+        const mappedItems: ItemRow[] = (doc.lines || []).map((l: any) => ({
 
-            id: crypto.randomUUID(),
+          id: crypto.randomUUID(),
 
-            name: l.name || '',
+          name: l.name || '',
 
-            genericName: l.genericName || '',
+          genericName: l.genericName || '',
 
-            packs: Number(l.packs || 0),
+          expiry: l.expiry || '',
+          expiryAlertDate: l.expiryAlertDate || '',
+          shelfNumber: l.shelfNumber || '',
+          packs: Number(l.packs || 0),
 
-            unitsPerPack: Number(l.unitsPerPack || 1),
+          unitsPerPack: Number(l.unitsPerPack || 1),
 
-            buyPerPack: Number(l.buyPerPack || 0),
+          buyPerPack: Number(l.buyPerPack || 0),
 
-            salePerPack: Number(l.salePerPack || 0),
+          salePerPack: Number(l.salePerPack || 0),
 
-            totalItems: Number(l.totalItems != null ? l.totalItems : (Number(l.unitsPerPack || 1) * Number(l.packs || 0))),
+          totalItems: Number(l.totalItems != null ? l.totalItems : (Number(l.unitsPerPack||1) * Number(l.packs||0))),
 
-            buyPerUnit: Number(l.buyPerUnit != null ? l.buyPerUnit : ((Number(l.unitsPerPack || 1) ? Number(l.buyPerPack || 0) / Number(l.unitsPerPack || 1) : 0))),
+          buyPerUnit: Number(l.buyPerUnit != null ? l.buyPerUnit : ((Number(l.unitsPerPack||1) ? Number(l.buyPerPack||0)/Number(l.unitsPerPack||1) : 0))),
 
-            salePerUnit: Number(l.salePerUnit != null ? l.salePerUnit : ((Number(l.unitsPerPack || 1) ? Number(l.salePerPack || 0) / Number(l.unitsPerPack || 1) : 0))),
+          salePerUnit: Number(l.salePerUnit != null ? l.salePerUnit : ((Number(l.unitsPerPack||1) ? Number(l.salePerPack||0)/Number(l.unitsPerPack||1) : 0))),
 
-            lineTaxType: l.lineTaxType || undefined,
+          lineTaxType: l.lineTaxType || undefined,
 
-            lineTaxValue: Number(l.lineTaxValue || 0),
+          lineTaxValue: Number(l.lineTaxValue || 0),
 
-            category: l.category || '',
+          category: l.category || '',
 
-            brand: l.brand || '',
+          minStock: (l.minStock != null) ? Number(l.minStock) : undefined,
 
-            unitType: l.unitType || '',
+          collapsed: false,
 
-            shelfNumber: l.shelfNumber || '',
+          defaultDiscountPct: (l.defaultDiscountPct != null) ? Number(l.defaultDiscountPct) : undefined,
 
-            maxPackAllow: (l.maxPackAllow != null) ? Number(l.maxPackAllow) : undefined,
+        }))
 
-            minPackStock: (l.minPackStock != null) ? Number(l.minPackStock) : undefined,
+        setItems(mappedItems.length ? mappedItems : [{ id: crypto.randomUUID() }])
 
-            manufacturer: l.manufacturer || '',
+        const taxes: InvoiceTax[] = (doc.invoiceTaxes || []).map((t: any) => ({
 
-            minStock: (l.minStock != null) ? Number(l.minStock) : undefined,
+          id: crypto.randomUUID(),
 
-            expiry: l.expiry || '',
+          name: t.name || '',
 
-            collapsed: false,
+          value: Number(t.value || 0),
 
-            defaultDiscountPct: (l.defaultDiscountPct != null) ? Number(l.defaultDiscountPct) : undefined,
+          type: (t.type === 'fixed' ? 'fixed' : 'percent'),
 
-          }))
+          applyOn: (t.applyOn === 'net' ? 'net' : 'gross'),
 
-          setItems(mappedItems.length ? mappedItems : [{ id: crypto.randomUUID() }])
+        }))
 
-          const taxes: InvoiceTax[] = (doc.invoiceTaxes || []).map((t: any) => ({
+        setInvoiceTaxes(taxes)
 
-            id: crypto.randomUUID(),
+      } catch {}
 
-            name: t.name || '',
-
-            value: Number(t.value || 0),
-
-            type: (t.type === 'fixed' ? 'fixed' : 'percent'),
-
-            applyOn: (t.applyOn === 'net' ? 'net' : 'gross'),
-
-          }))
-
-          setInvoiceTaxes(taxes)
-
-        } catch { }
-
-      })()
+    })()
 
     return () => { mounted = false }
 
   }, [isEdit, id])
 
-
+  // Auto-fetch next invoice number for new invoices
+  useEffect(() => {
+    if (isEdit) return
+    let mounted = true
+    ;(async () => {
+      try {
+        const res: any = await pharmacyApi.getNextPurchaseInvoiceNumber()
+        if (!mounted) return
+        if (res?.invoiceNo) setInvoiceNo(res.invoiceNo)
+      } catch {}
+    })()
+    return () => { mounted = false }
+  }, [isEdit])
 
   // Global scanner listener (works when no input is focused). Detects fast key bursts and Enter or inactivity timeout.
 
@@ -929,7 +560,7 @@ export default function Pharmacy_AddInvoicePage() {
 
       scanBufRef.current.last = now
 
-      if (scanBufRef.current.timer) { try { clearTimeout(scanBufRef.current.timer) } catch { } }
+      if (scanBufRef.current.timer) { try { clearTimeout(scanBufRef.current.timer) } catch {} }
 
       if (e.key === 'Enter') {
 
@@ -983,36 +614,9 @@ export default function Pharmacy_AddInvoicePage() {
 
     window.addEventListener('keydown', handler as any)
 
-    const onAddRow = () => {
-      setItems(prev => {
-        const newItems = [...prev, { id: crypto.randomUUID(), manufacturer: companyName || '' }]
-        setTimeout(() => {
-          const newIdx = newItems.length - 1
-          const input = document.getElementById(`pharmacy-medicine-input-${newIdx}`) as HTMLInputElement | null
-          input?.focus()
-        }, 50)
-        return newItems
-      })
-    }
-    const onSave = () => {
-      saveInvoice()
-    }
-    const onHold = () => holdInvoice()
-    const onCancel = () => cancelInvoice()
+    return () => window.removeEventListener('keydown', handler as any)
 
-    window.addEventListener('pharmacy:invoice:add-row', onAddRow)
-    window.addEventListener('pharmacy:invoice:save', onSave)
-    window.addEventListener('pharmacy:invoice:hold', onHold)
-    window.addEventListener('pharmacy:invoice:cancel', onCancel)
-
-    return () => {
-      window.removeEventListener('keydown', handler as any)
-      window.removeEventListener('pharmacy:invoice:add-row', onAddRow)
-      window.removeEventListener('pharmacy:invoice:save', onSave)
-      window.removeEventListener('pharmacy:invoice:hold', onHold)
-      window.removeEventListener('pharmacy:invoice:cancel', onCancel)
-    }
-  }, [items, invoiceNo, invoiceDate, supplierId, supplierName, companyId, companyName, invoiceTaxes, isEdit, id, fromPending, navigate])
+  }, [items])
 
 
 
@@ -1101,7 +705,7 @@ export default function Pharmacy_AddInvoicePage() {
 
       if (Array.isArray(meds)) setAllMedicines(meds)
 
-    }).catch(() => { })
+    }).catch(() => {})
 
     return () => { mounted = false }
 
@@ -1149,7 +753,7 @@ export default function Pharmacy_AddInvoicePage() {
 
     setItems(prev => prev.map(it => it.id === rowId ? { ...it, name: value } : it))
 
-
+    
 
     if (searchTimeoutRef.current) {
 
@@ -1177,108 +781,94 @@ export default function Pharmacy_AddInvoicePage() {
 
     setSuggestions([])
 
-      ; (async () => {
+    ;(async () => {
 
-        try {
+      try {
 
-          const res: any = await pharmacyApi.listInventory({ search: suggestion.name, limit: 1 })
+        const res: any = await pharmacyApi.listInventory({ search: suggestion.name, limit: 1 })
 
-          const it = (res?.items || [])[0]
+        const it = (res?.items || [])[0]
 
-          if (!it) return
+        if (!it) return
 
-          const units = Number(it.unitsPerPack || 1)
+        const units = Number(it.unitsPerPack || 1)
 
-          const directSaleUnit = (it.lastSalePerUnit != null) ? Number(it.lastSalePerUnit) : undefined
+        const directSaleUnit = (it.lastSalePerUnit != null) ? Number(it.lastSalePerUnit) : undefined
 
-          const directSalePack = (it.lastSalePerPack != null) ? Number(it.lastSalePerPack) : undefined
+        const directSalePack = (it.lastSalePerPack != null) ? Number(it.lastSalePerPack) : undefined
 
-          const saleUnit = (directSaleUnit != null) ? directSaleUnit : (units ? (Number(directSalePack || 0) / units) : 0)
+        const saleUnit = (directSaleUnit != null) ? directSaleUnit : (units ? (Number(directSalePack || 0) / units) : 0)
 
-          const salePack = (directSalePack != null) ? directSalePack : ((saleUnit || 0) * units)
+        const salePack = (directSalePack != null) ? directSalePack : ((saleUnit || 0) * units)
 
-          const directBuyUnit = (it.lastBuyPerUnit != null) ? Number(it.lastBuyPerUnit) : undefined
+        const directBuyUnit = (it.lastBuyPerUnit != null) ? Number(it.lastBuyPerUnit) : undefined
 
-          const directBuyPack = (it.lastBuyPerPack != null) ? Number(it.lastBuyPerPack) : undefined
+        const directBuyPack = (it.lastBuyPerPack != null) ? Number(it.lastBuyPerPack) : undefined
 
-          const buyUnit = (directBuyUnit != null) ? directBuyUnit : (units ? (Number(directBuyPack || 0) / units) : 0)
+        const buyUnit = (directBuyUnit != null) ? directBuyUnit : (units ? (Number(directBuyPack || 0) / units) : 0)
 
-          const buyPack = (directBuyPack != null) ? directBuyPack : ((buyUnit || 0) * units)
+        const buyPack = (directBuyPack != null) ? directBuyPack : ((buyUnit || 0) * units)
 
-          const gen = it.lastGenericName || it.genericName || ''
+        const gen = it.lastGenericName || it.genericName || ''
 
-          const key = String(it.key || it._id || it.name || '')
+        const key = String(it.key || it._id || it.name || '')
 
-          setItems(prev => prev.map(r => r.id === rowId ? {
+        setItems(prev => prev.map(r => r.id === rowId ? {
 
-            ...r,
+          ...r,
 
-            unitsPerPack: units || r.unitsPerPack,
+          unitsPerPack: units || r.unitsPerPack,
 
-            category: it.category ?? r.category,
+          category: it.category ?? r.category,
 
-            brand: it.brand ?? r.brand,
+          minStock: (it.minStock != null) ? Number(it.minStock) : r.minStock,
 
-            unitType: it.unitType ?? r.unitType,
+          barcode: it.barcode || r.barcode,
 
-            shelfNumber: it.shelfNumber ?? r.shelfNumber,
+          buyPerPack: buyPack || r.buyPerPack,
 
-            manufacturer: it.manufacturer || r.manufacturer,
+          buyPerUnit: buyUnit || r.buyPerUnit,
 
-            barcode: it.barcode || r.barcode,
+          salePerPack: salePack || r.salePerPack,
 
-            buyPerPack: buyPack || r.buyPerPack,
+          salePerUnit: saleUnit || r.salePerUnit,
 
-            buyPerUnit: buyUnit || r.buyPerUnit,
+          genericName: gen || r.genericName,
 
-            salePerPack: salePack || r.salePerPack,
+          inventoryKey: key || r.inventoryKey,
 
-            salePerUnit: saleUnit || r.salePerUnit,
+        expiry: (it.lastExpiry || it.earliestExpiry || r.expiry || ''),
+        expiryAlertDate: it.expiryAlertDate || it.earliestExpiryAlert || r.expiryAlertDate || '',
+        shelfNumber: it.shelfNumber || r.shelfNumber || '',
+        totalItems: (r.packs || 0) * (units || r.unitsPerPack || 1),
 
-            genericName: gen || r.genericName,
+          defaultDiscountPct: (it.defaultDiscountPct != null) ? Number(it.defaultDiscountPct) : r.defaultDiscountPct,
 
-            inventoryKey: key || r.inventoryKey,
+        } : r))
 
-            totalItems: (r.packs || 0) * (units || r.unitsPerPack || 1),
+      } catch {}
 
-            defaultDiscountPct: (it.defaultDiscountPct != null) ? Number(it.defaultDiscountPct) : r.defaultDiscountPct,
-
-          } : r))
-        } catch { }
-
-      })()
+    })()
 
   }
 
 
 
-  const handleEnterKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      const target = e.target as HTMLElement
-      // If it's a textarea, let it handle Enter normally
-      if (target.tagName.toLowerCase() === 'textarea') return
+  const collapseItem = (id: string) => {
 
-      e.preventDefault()
+    setItems(prev => prev.map(it => it.id === id ? { ...it, collapsed: true } : it))
 
-      if (target.id === 'pharmacy-add-invoice-date') {
-        const firstMedInput = document.getElementById('pharmacy-medicine-input-0')
-        if (firstMedInput) {
-          firstMedInput.focus()
-          return
-        }
-      }
-
-      const form = target.closest('.flex-nowrap') || target.closest('.grid') || target.closest('tr') || target.closest('form')
-      if (!form) return
-
-      const focusable = Array.from(form.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])')) as HTMLElement[]
-      const index = focusable.indexOf(target)
-
-      if (index > -1 && index < focusable.length - 1) {
-        focusable[index + 1].focus()
-      }
-    }
   }
+
+
+
+  const expandItem = (id: string) => {
+
+    setItems(prev => prev.map(it => it.id === id ? { ...it, collapsed: false } : it))
+
+  }
+
+
 
   // derived totals
 
@@ -1320,30 +910,137 @@ export default function Pharmacy_AddInvoicePage() {
 
   const netTotal = taxableBase + lineTaxesTotal + invoiceTaxesTotal
 
-  const autoMinWidth = (val: string | undefined, base: number) => {
-    const n = String(val || '').trim().length
-    const px = base + Math.max(0, n - 10) * 9
-    return Math.min(900, Math.max(base, px))
+  // Hold invoice handlers
+  const handleHoldInvoice = async () => {
+    const validItems = items.filter(r => (r.name || '').trim() || (r.packs || 0) > 0)
+    if (!validItems.length && !invoiceNo.trim() && !supplierId) {
+      showToast('error', 'Nothing to hold')
+      return
+    }
+    try {
+      await pharmacyApi.createHoldPurchaseInvoice({
+        invoiceNo,
+        invoiceDate,
+        supplierId,
+        supplierName,
+        companyId,
+        companyName,
+        items: validItems.map(r => ({
+          ...r,
+          id: r.id || crypto.randomUUID(),
+        })),
+        invoiceTaxes,
+        discount,
+      })
+      showToast('success', 'Invoice held')
+      // Reset form
+      setItems([{ id: crypto.randomUUID() }])
+      setInvoiceNo('')
+      setInvoiceDate(new Date().toISOString().slice(0, 10))
+      setSupplierId('')
+      setSupplierName('')
+      setCompanyId('')
+      setCompanyName('')
+      setInvoiceTaxes([])
+    } catch {
+      showToast('error', 'Failed to hold invoice')
+    }
   }
 
+  const loadHeldInvoices = async () => {
+    setHeldLoading(true)
+    try {
+      const res: any = await pharmacyApi.listHoldPurchaseInvoices()
+      setHeldInvoices(res?.items || [])
+    } catch {
+      setHeldInvoices([])
+    } finally {
+      setHeldLoading(false)
+    }
+  }
+
+  const loadHeldInvoice = async (id: string) => {
+    try {
+      const doc: any = await pharmacyApi.getHoldPurchaseInvoice(id)
+      if (!doc) return
+      setInvoiceNo(doc.invoiceNo || '')
+      setInvoiceDate(doc.invoiceDate || new Date().toISOString().slice(0, 10))
+      setSupplierId(doc.supplierId || '')
+      setSupplierName(doc.supplierName || '')
+      setCompanyId(doc.companyId || '')
+      setCompanyName(doc.companyName || '')
+      const mappedItems: ItemRow[] = (doc.items || []).map((l: any) => ({
+        id: l.id || crypto.randomUUID(),
+        name: l.name || '',
+        genericName: l.genericName || '',
+
+        expiry: l.expiry || '',
+          expiryAlertDate: l.expiryAlertDate || '',
+          shelfNumber: l.shelfNumber || '',
+          packs: l.packs || 0,
+        unitsPerPack: l.unitsPerPack || 1,
+        buyPerPack: l.buyPerPack || 0,
+        salePerPack: l.salePerPack || 0,
+        totalItems: l.totalItems || 0,
+        buyPerUnit: l.buyPerUnit || 0,
+        salePerUnit: l.salePerUnit || 0,
+        lineTaxType: l.lineTaxType || 'percent',
+        lineTaxValue: l.lineTaxValue || 0,
+        category: l.category || '',
+        barcode: l.barcode || '',
+        minStock: l.minStock,
+        inventoryKey: l.inventoryKey || '',
+        defaultDiscountPct: l.defaultDiscountPct,
+        collapsed: l.collapsed || false,
+      }))
+      setItems(mappedItems.length ? mappedItems : [{ id: crypto.randomUUID() }])
+      const taxes: InvoiceTax[] = (doc.invoiceTaxes || []).map((t: any) => ({
+        id: t.id || crypto.randomUUID(),
+        name: t.name || '',
+        value: t.value || 0,
+        type: t.type || 'percent',
+        applyOn: t.applyOn || 'gross',
+      }))
+      setInvoiceTaxes(taxes)
+      // Delete the held invoice after loading
+      await pharmacyApi.deleteHoldPurchaseInvoice(id)
+      setHeldInvoicesOpen(false)
+      setHeldInvoices(prev => prev.filter(h => h._id !== id))
+      showToast('success', 'Held invoice loaded')
+    } catch {
+      showToast('error', 'Failed to load held invoice')
+    }
+  }
+
+  const deleteHeldInvoice = async (id: string) => {
+    try {
+      await pharmacyApi.deleteHoldPurchaseInvoice(id)
+      setHeldInvoices(prev => prev.filter(h => h._id !== id))
+      showToast('success', 'Held invoice deleted')
+    } catch {
+      showToast('error', 'Failed to delete held invoice')
+    }
+  }
+
+  
 
   return (
 
-    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100">
+    <div className="min-h-dvh bg-transparent">
 
-      {toast ? (
+      {toast && (
 
-        <div className="fixed right-4 top-4 z-60 w-[min(92vw,420px)]">
+        <div className="fixed right-4 top-4 z-[60] w-[min(92vw,420px)]">
 
           <div
 
-            className={`flex items-start gap-3 rounded-xl border p-4 shadow-lg ring-1 ring-black/5 ${toast?.type === 'success'
+            className={`flex items-start gap-3 rounded-xl border p-4 shadow-lg ring-1 ring-black/5 dark:ring-white/10 ${toast.type === 'success'
 
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-900/30 dark:text-emerald-100'
 
-              : 'border-rose-200 bg-rose-50 text-rose-900'
+              : 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900/50 dark:bg-rose-900/30 dark:text-rose-100'
 
-              }`}
+            }`}
 
             role="status"
 
@@ -1353,7 +1050,7 @@ export default function Pharmacy_AddInvoicePage() {
 
             <div className="mt-0.5 shrink-0">
 
-              {toast?.type === 'success' ? (
+              {toast.type === 'success' ? (
 
                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
 
@@ -1375,9 +1072,9 @@ export default function Pharmacy_AddInvoicePage() {
 
             <div className="min-w-0 flex-1">
 
-              <div className="text-sm font-semibold">{toast?.type === 'success' ? 'Success' : 'Error'}</div>
+              <div className="text-sm font-semibold">{toast.type === 'success' ? 'Success' : 'Error'}</div>
 
-              <div className="mt-0.5 text-sm opacity-90">{toast?.message}</div>
+              <div className="mt-0.5 text-sm opacity-90">{toast.message}</div>
 
             </div>
 
@@ -1417,13 +1114,13 @@ export default function Pharmacy_AddInvoicePage() {
 
         </div>
 
-      ) : null}
+      )}
 
 
 
       {/* Header */}
 
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200">
+      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-700 dark:bg-slate-900/70">
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
@@ -1435,13 +1132,13 @@ export default function Pharmacy_AddInvoicePage() {
 
                 onClick={() => navigate(fromPending ? '/pharmacy/inventory?tab=pending' : '/pharmacy/inventory')}
 
-                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
 
               >
 
                 <ArrowLeft className="h-4 w-4" />
 
-                Back
+                Back to Inventory
 
               </button>
 
@@ -1449,47 +1146,210 @@ export default function Pharmacy_AddInvoicePage() {
 
                 <Package className="h-6 w-6 text-indigo-600" />
 
-                <h1 className="text-xl font-bold text-slate-900">{isEdit ? 'Edit Purchase Invoice' : 'Add Purchase Invoice'}</h1>
+                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{isEdit ? 'Edit Purchase Invoice' : 'Add Purchase Invoice'}</h1>
 
               </div>
 
             </div>
 
             <div className="flex items-center gap-2">
+
               <button
-                type="button"
-                onClick={holdInvoice}
-                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100"
+                onClick={() => { setHeldInvoicesOpen(true); loadHeldInvoices() }}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                title="Held Invoices"
               >
-                <Pause className="h-4 w-4" />
-                Hold Invoice
+                <FileStack className="h-4 w-4" />
+                <span>Held</span>
+                {heldInvoices.length > 0 && (
+                  <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs font-semibold text-indigo-700">{heldInvoices.length}</span>
+                )}
               </button>
 
               <button
-                type="button"
-                onClick={() => setHeldOpen(true)}
-                className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 "
-              >
-                <Package className="h-4 w-4" />
-                Held Invoices
-              </button>
 
-              <button
-                type="button"
-                onClick={cancelInvoice}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => navigate(fromPending ? '/pharmacy/inventory?tab=pending' : '/pharmacy/inventory')}
+
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+
               >
+
                 Cancel
+
               </button>
 
               <button
-                type="button"
-                onClick={saveInvoice}
+
+                onClick={async () => {
+
+                  const lines = items
+
+                    .filter(r => (r.name || '').trim() && (r.packs || 0) > 0)
+
+                    .map(r => ({
+
+                      name: (r.name || '').trim(),
+
+                      genericName: r.genericName || undefined,
+
+                      unitsPerPack: r.unitsPerPack || 1,
+
+                      packs: r.packs || 0,
+
+                      totalItems: (r.totalItems != null) ? r.totalItems : ((r.unitsPerPack || 1) * (r.packs || 0)),
+
+                      buyPerPack: r.buyPerPack || 0,
+
+                      buyPerUnit: (r.buyPerUnit != null) ? r.buyPerUnit : ((r.buyPerPack || 0) / Math.max(1, (r.unitsPerPack || 1))),
+
+                      salePerPack: r.salePerPack || 0,
+
+                      salePerUnit: (r.salePerUnit != null) ? r.salePerUnit : ((r.salePerPack || 0) / Math.max(1, (r.unitsPerPack || 1))),
+
+                      category: r.category || undefined,
+
+                      barcode: r.barcode || undefined,
+
+                      minStock: r.minStock != null ? r.minStock : undefined,
+
+                      defaultDiscountPct: (r.defaultDiscountPct != null) ? Math.max(0, Math.min(100, Number(r.defaultDiscountPct))) : undefined,
+
+                      lineTaxType: r.lineTaxType || undefined,
+
+                      lineTaxValue: r.lineTaxValue || undefined,
+
+                      expiry: r.expiry || undefined,
+                      expiryAlertDate: r.expiryAlertDate || undefined,
+                      shelfNumber: r.shelfNumber || undefined,
+                      inventoryKey: r.inventoryKey || undefined,
+
+                    }))
+
+                  
+
+                  if (!invoiceNo.trim() || !invoiceDate) {
+
+                    showToast('error', 'Invoice No and Invoice Date are required')
+
+                    return
+
+                  }
+
+                  if (!lines.length) {
+
+                    showToast('error', 'Add at least one medicine with Qty (Packs)')
+
+                    return
+
+                  }
+
+                  const invalidLine = items.find(r => {
+
+                    const hasName = !!String(r.name || '').trim()
+
+                    const packsOk = Number(r.packs || 0) > 0
+
+                    const unitsOk = Number(r.unitsPerPack || 0) > 0
+
+                    return (hasName && (!packsOk || !unitsOk))
+
+                  })
+
+                  if (invalidLine) {
+
+                    showToast('error', 'Each medicine must have Qty (Packs) and Units/Pack greater than 0')
+
+                    return
+
+                  }
+
+                  
+
+                  try {
+
+                    const payload = {
+
+                      date: invoiceDate,
+
+                      invoice: invoiceNo,
+
+                      supplierId: supplierId || undefined,
+
+                      supplierName: supplierName || undefined,
+
+                      companyId: companyId || undefined,
+
+                      companyName: companyName || undefined,
+
+                      invoiceTaxes: invoiceTaxes
+
+                        .filter(t => (t.name || '').trim() && (t.value || 0) > 0)
+
+                        .map(t => ({
+
+                          name: (t.name || '').trim(),
+
+                          value: t.value || 0,
+
+                          type: t.type || 'percent',
+
+                          applyOn: t.applyOn || 'gross'
+
+                        })),
+
+                      discount,
+
+                      lines: lines,
+
+                    }
+
+                    if (isEdit && id) {
+
+                      await pharmacyApi.updatePurchaseDraft(id, payload)
+
+                      showToast('success', 'Invoice updated')
+
+                    } else {
+
+                      await pharmacyApi.createPurchaseDraft(payload)
+
+                      showToast('success', 'Invoice saved successfully')
+
+                    }
+
+                    setTimeout(() => navigate(fromPending ? '/pharmacy/inventory?tab=pending' : '/pharmacy/inventory'), 350)
+
+                  } catch (error) {
+
+                    console.error('Error saving invoice:', error)
+
+                    showToast('error', 'Failed to save invoice. Please try again.')
+
+                  }
+
+                }}
+
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors shadow-lg"
+
               >
+
                 <Save className="h-4 w-4" />
+
                 {isEdit ? 'Update Invoice' : 'Save Invoice'}
+
               </button>
+
+              {!isEdit && (
+                <button
+                  onClick={handleHoldInvoice}
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+                  title="Hold Invoice"
+                >
+                  <Pause className="h-4 w-4" />
+                  Hold
+                </button>
+              )}
+
             </div>
 
           </div>
@@ -1502,730 +1362,948 @@ export default function Pharmacy_AddInvoicePage() {
 
       {/* Main Content */}
 
-      {heldOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl ">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-indigo-600" />
-                <h2 className="text-xl font-bold text-slate-900">Held Invoices</h2>
+      <div className="mx-auto max-w-full px-4 sm:px-6 lg:px-8 py-8">
+
+        <div className="grid gap-6 lg:grid-cols-3">
+
+          {/* Left Column - Invoice Details & Items */}
+
+          <div className="lg:col-span-2 space-y-6">
+
+            {/* Invoice Details Card */}
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Invoice Details</h2>
+
               </div>
-              <button type="button" onClick={() => setHeldOpen(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 ">
-                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
-              </button>
-            </div>
 
-            <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-slate-200 ">
-              {loadingHeld ? (
-                <div className="p-8 text-center text-slate-500">Loading held invoices...</div>
-              ) : heldInvoices.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">No held invoices found</div>
-              ) : (
-                <div className="divide-y divide-slate-200">
-                  {heldInvoices.map(h => (
-                    <div key={h._id} className="flex items-center justify-between gap-4 p-4 hover:bg-slate-50 ">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900 truncate">{h.invoice}</span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{h.status || 'Held'}</span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                          <span>{new Date(h.date || h.createdAtIso).toLocaleDateString()}</span>
-                          <span>{h.supplierName || 'No Supplier'}</span>
-                          <span>{h.lines?.length || 0} Items</span>
-                          <span className="font-medium text-indigo-600">PKR {Number(h.totalAmount || h.totals?.net || 0).toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => restoreHeld(h._id)}
-                          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
-                        >
-                          Restore
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => confirmDeleteHeld(h._id)}
-                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+              <div className="p-6">
 
-            <div className="mt-6 flex justify-end">
-              <button type="button" onClick={() => setHeldOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                <div className="grid gap-4 sm:grid-cols-4">
 
-      {/* Delete Confirmation Dialog */}
-      {deleteConfirmOpen && (
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 ">
-                <svg className="h-5 w-5 text-red-600 " viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5Zm0 9a1 1 0 100-2 1 1 0 000 2Z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h2 className="text-lg font-bold text-slate-900 ">Delete Held Invoice?</h2>
-            </div>
-            <p className="mb-6 text-sm text-slate-600 ">
-              This action cannot be undone. The held invoice will be permanently removed.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => { setDeleteConfirmOpen(false); setHeldToDelete(null); }}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={deleteHeld}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                  <div>
 
-      <div className="w-full px-2 sm:px-4 lg:px-6 py-6">
-        <div className="space-y-6">
-          {/* Top Row: Invoice Details */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
-              <FileText className="h-4 w-4 text-indigo-600" />
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Invoice Details</h2>
-            </div>
-            <div className="p-4">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Supplier</label>
-                  <div className="flex gap-1.5">
-                    <div className="flex-1 min-w-0">
-                      <SearchableSelect
-                        value={supplierId}
-                        onChange={(v) => {
-                          setSupplierId(v)
-                          const s = suppliers.find((x: any) => String(x._id) === String(v))
-                          setSupplierName(s?.name || '')
-                        }}
-                        options={(suppliers || []).map((s: any) => ({ value: String(s._id), label: String(s.name || '') }))}
-                        placeholder="Supplier..."
-                      />
-                    </div>
-                    <button type="button" onClick={() => setAddSupplierOpen(true)} className="px-2.5 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded-lg transition-colors whitespace-nowrap">+ Add</button>
-                  </div>
-                </div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Supplier</label>
 
-                <div>
-                  <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Company</label>
-                  <div className="flex gap-1.5">
-                    <div className="flex-1 min-w-0">
-                      <SearchableSelect
-                        value={companyId}
-                        disabled={!supplierId}
-                        onChange={(v) => {
-                          setCompanyId(v)
-                          const c = companies.find((x: any) => String(x._id) === String(v))
-                          setCompanyName(c?.name || '')
-                        }}
-                        options={(companies || []).map((c: any) => ({ value: String(c._id), label: String(c.name || '') }))}
-                        placeholder={supplierId ? 'Company...' : 'Select supplier'}
-                      />
-                    </div>
-                    <button type="button" onClick={() => setAddCompanyOpen(true)} className="px-2.5 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded-lg transition-colors whitespace-nowrap">+ Add</button>
-                  </div>
-                </div>
+                    <div className="flex gap-2">
 
-                <div>
-                  <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Invoice No *</label>
-                  <input
-                    id="pharmacy-add-invoice-no"
-                    value={invoiceNo}
-                    onChange={e => setInvoiceNo(e.target.value)}
-                    onKeyDown={handleEnterKey}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                    placeholder="INV-001"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <ModernDatePicker
-                    value={invoiceDate}
-                    onChange={v => setInvoiceDate(v)}
-                    label="Invoice Date *"
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Middle Row: Medicine Items (Expanded to Full Width) */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-                    <Package className="h-5 w-5" />
-                  </div>
-                  <h2 className="text-lg font-semibold text-slate-900">Medicine Items ({items.length})</h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setItems(prev => [...prev, { id: crypto.randomUUID() }])}
-                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-md active:scale-95"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add New Item
-                </button>
-              </div>
-            </div>
-
-            <div className="p-0">
-              <div className="max-h-[70vh] overflow-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent hover:scrollbar-thumb-slate-400">
-                <table className="w-full border-collapse text-left">
-                  <thead className="sticky top-0 z-30 bg-slate-100/90 backdrop-blur-sm border-b border-slate-200">
-                    <tr className="divide-x divide-slate-200">
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[50px]">#</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[300px]">Medicine Name *</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[180px]">Generic Name</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[140px]">Expiry</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[160px]">Barcode</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[140px]">Category</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[140px]">Brand</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[180px]">Manufacturer</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Unit Type</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[100px]">Qty (Pks) *</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[100px]">Units/Pk *</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Buy/Pk *</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Sale/Pk *</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Buy/Unit</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Sale/Unit</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[100px]">Total Items</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[100px]">Min Stock</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Max Disc/Unit</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[100px]">Shelf#</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Max Pk Allow</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Min Pk Stock</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[180px]">Line Tax</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[120px]">Subtotal</th>
-                      <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap min-w-[80px]">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {items.map((row, idx) => (
-                      <tr key={row.id} className="divide-x divide-slate-100 hover:bg-slate-50 transition-colors group">
-                        <td className="px-2 py-2 text-center align-middle">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                            {idx + 1}
-                          </span>
-                        </td>
-                        <td className="px-2 py-2 relative" style={{ minWidth: autoMinWidth(row.name, 300) }}>
-                          <input
-                            id={`pharmacy-medicine-input-${idx}`}
-                            list="pharmacy-medicine-list"
-                            value={row.name || ''}
-                            onChange={e => handleMedicineInput(e.target.value, row.id)}
-                            onKeyDown={handleEnterKey}
-                            onFocus={() => { if (row.name?.trim()) searchMedicines(row.name, row.id) }}
-                            onBlur={() => autofillFromInventoryByName(row.name, row.id)}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all outline-none"
-                            placeholder="Medicine name..."
-                          />
-                          <datalist id="pharmacy-medicine-list">
-                            {allMedicines.map(m => <option key={m.id} value={m.name} />)}
-                          </datalist>
-                          {showSuggestions === row.id && suggestions.length > 0 && (
-                            <div className="absolute z-50 left-0 top-full mt-1 rounded-lg border border-slate-200 bg-white shadow-xl max-h-60 overflow-y-auto ring-1 ring-black/5 min-w-[480px] max-w-[80vw]">
-                              {suggestions.map((sug) => (
-                                <button
-                                  key={sug.id}
-                                  type="button"
-                                  onClick={() => selectSuggestion(sug, row.id)}
-                                  className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 transition-colors border-b border-slate-50 last:border-0 font-medium text-slate-700 whitespace-nowrap"
-                                >
-                                  {sug.name}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-2 py-2" style={{ minWidth: autoMinWidth(row.genericName, 180) }}>
-                          <input
-                            value={row.genericName || ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, genericName: e.target.value } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2" style={{ minWidth: 180 }}>
-                          <ModernDatePicker
-                            value={row.expiry || ''}
-                            onChange={v => setItems(prev => prev.map(it => it.id === row.id ? { ...it, expiry: v } : it))}
-                            className="w-full"
-                          />
-                        </td>
-                        <td className="px-2 py-2" style={{ minWidth: autoMinWidth(row.barcode, 160) }}>
-                          <input
-                            value={row.barcode || ''}
-                            onChange={e => {
-                              const v = e.target.value
-                              setItems(prev => prev.map(it => it.id === row.id ? { ...it, barcode: v } : it))
-                              const t = barcodeTimersRef.current[row.id]
-                              if (t) try { clearTimeout(t) } catch { }
-                              barcodeTimersRef.current[row.id] = setTimeout(() => {
-                                const code = v?.trim()
-                                if (code && code.length >= 6) autofillFromInventoryByBarcode(code, row.id)
-                              }, 220)
-                            }}
-                            onBlur={() => autofillFromInventoryByBarcode(row.barcode, row.id)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur(); handleEnterKey(e) } }}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                            placeholder="Scan..."
-                          />
-                        </td>
-                        <td className="px-2 py-2" style={{ minWidth: autoMinWidth(row.category, 140) }}>
-                          <input
-                            value={row.category || ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, category: e.target.value } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2" style={{ minWidth: autoMinWidth(row.brand, 140) }}>
-                          <input
-                            value={row.brand || ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, brand: e.target.value } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2" style={{ minWidth: autoMinWidth(row.manufacturer, 180) }}>
-                          <input
-                            value={row.manufacturer || ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, manufacturer: e.target.value } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[120px]">
-                          <input
-                            value={row.unitType || ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, unitType: e.target.value } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[100px]">
-                          <input
-                            type="number"
-                            value={row.packs ?? ''}
-                            onChange={e => {
-                              const packs = Number(e.target.value || 0);
-                              setItems(prev => prev.map(it => {
-                                if (it.id === row.id) {
-                                  const updates: Partial<ItemRow> = {
-                                    packs: packs,
-                                    totalItems: packs * Math.max(1, row.unitsPerPack || 1)
-                                  };
-                                  // Auto-populate Max Pack Allow and Min Pack Stock from packs on first entry
-                                  if (it.maxPackAllow === undefined || it.maxPackAllow === 0) {
-                                    updates.maxPackAllow = packs;
-                                    updates.minPackStock = Math.floor(packs / 2);
-                                  } else {
-                                    // If user is editing packs and it was already auto-populated, keep it synced? 
-                                    // The user said "jitna ham total pack buy kry gy utny maximum allow field my auto ana chahiya"
-                                    // So we should always sync if the user hasn't manually overridden it?
-                                    // For now, let's just fix why 50 becomes 5. 
-                                    // Actually, if I type '5', packs is 5. If I type '0' after '5' to make it '50', 
-                                    // packs becomes 50. But if maxPackAllow was already set to 5, it won't update.
-                                    updates.maxPackAllow = packs;
-                                    updates.minPackStock = Math.floor(packs / 2);
-                                  }
-                                  return { ...it, ...updates };
-                                }
-                                return it;
-                              }));
-                            }}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-bold text-indigo-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[100px]">
-                          <input
-                            type="number"
-                            value={row.unitsPerPack ?? ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, unitsPerPack: Number(e.target.value || 0), buyPerUnit: (row.buyPerPack || 0) / Math.max(1, Number(e.target.value || 0)), salePerUnit: (row.salePerPack || 0) / Math.max(1, Number(e.target.value || 0)), totalItems: (row.packs || 0) * Math.max(1, Number(e.target.value || 0)) } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[120px]">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={row.buyPerPack ?? ''}
-                            onChange={e => {
-                              const newBuyPerPack = Number(e.target.value || 0)
-                              const buyPerUnit = Math.max(0, newBuyPerPack) / Math.max(1, row.unitsPerPack || 1)
-                              
-                              // Calculate maximum discount percentage
-                              // Max discount = ((salePerPack - buyPerPack) / salePerPack) * 100
-                              let maxDiscount = 0
-                              if (row.salePerPack && row.salePerPack > newBuyPerPack) {
-                                maxDiscount = Math.floor(((row.salePerPack - newBuyPerPack) / row.salePerPack) * 100)
-                              }
-                              
-                              setItems(prev => prev.map(it => it.id === row.id ? { 
-                                ...it, 
-                                buyPerPack: newBuyPerPack, 
-                                buyPerUnit,
-                                defaultDiscountPct: maxDiscount
-                              } : it))
-                            }}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-bold text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[120px]">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={row.salePerPack ?? ''}
-                            onChange={e => {
-                              const newSalePerPack = Number(e.target.value || 0)
-                              const salePerUnit = Math.max(0, newSalePerPack) / Math.max(1, row.unitsPerPack || 1)
-                              
-                              // Calculate maximum discount percentage
-                              // Max discount = ((salePerPack - buyPerPack) / salePerPack) * 100
-                              let maxDiscount = 0
-                              if (newSalePerPack && row.buyPerPack && newSalePerPack > row.buyPerPack) {
-                                maxDiscount = Math.floor(((newSalePerPack - row.buyPerPack) / newSalePerPack) * 100)
-                              }
-                              
-                              setItems(prev => prev.map(it => it.id === row.id ? { 
-                                ...it, 
-                                salePerPack: newSalePerPack, 
-                                salePerUnit,
-                                defaultDiscountPct: maxDiscount
-                              } : it))
-                            }}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-bold text-emerald-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[120px]">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={row.buyPerUnit ?? ''}
-                            onChange={e => {
-                              const newBuyPerUnit = Number(e.target.value || 0)
-                              const newBuyPerPack = newBuyPerUnit * Math.max(1, row.unitsPerPack || 1)
-                              
-                              // Calculate maximum discount percentage
-                              let maxDiscount = 0
-                              if (row.salePerPack && row.salePerPack > newBuyPerPack) {
-                                maxDiscount = Math.floor(((row.salePerPack - newBuyPerPack) / row.salePerPack) * 100)
-                              }
-                              
-                              setItems(prev => prev.map(it => it.id === row.id ? { 
-                                ...it, 
-                                buyPerUnit: newBuyPerUnit, 
-                                buyPerPack: newBuyPerPack,
-                                defaultDiscountPct: maxDiscount
-                              } : it))
-                            }}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[120px]">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={row.salePerUnit ?? ''}
-                            onChange={e => {
-                              const newSalePerUnit = Number(e.target.value || 0)
-                              const newSalePerPack = newSalePerUnit * Math.max(1, row.unitsPerPack || 1)
-                              
-                              // Calculate maximum discount percentage
-                              let maxDiscount = 0
-                              if (newSalePerPack && row.buyPerPack && newSalePerPack > row.buyPerPack) {
-                                maxDiscount = Math.floor(((newSalePerPack - row.buyPerPack) / newSalePerPack) * 100)
-                              }
-                              
-                              setItems(prev => prev.map(it => it.id === row.id ? { 
-                                ...it, 
-                                salePerUnit: newSalePerUnit, 
-                                salePerPack: newSalePerPack,
-                                defaultDiscountPct: maxDiscount
-                              } : it))
-                            }}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[100px]">
-                          <input
-                            type="number"
-                            value={row.totalItems ?? ((row.unitsPerPack || 1) * (row.packs || 0))}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, totalItems: Number(e.target.value || 0), packs: Math.ceil(Number(e.target.value || 0) / Math.max(1, row.unitsPerPack || 1)) } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-600 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[100px]">
-                          <input
-                            type="number"
-                            autoComplete="off"
-                            value={row.minStock ?? ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, minStock: Number(e.target.value || 0) } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[120px]">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            max={100}
-                            value={row.defaultDiscountPct ?? ''}
-                            onChange={e => {
-                              const v = Math.max(0, Math.min(100, Number(e.target.value || 0)))
-                              setItems(prev => prev.map(it => it.id === row.id ? { ...it, defaultDiscountPct: v } : it))
-                            }}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[100px]">
-                          <input
-                            value={row.shelfNumber || ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, shelfNumber: e.target.value } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[120px]">
-                          <input
-                            type="number"
-                            autoComplete="off"
-                            value={row.maxPackAllow ?? ''}
-                            onChange={e => {
-                              const val = Number(e.target.value || 0);
-                              setItems(prev => prev.map(it => it.id === row.id ? { 
-                                ...it, 
-                                maxPackAllow: val,
-                                minPackStock: Math.floor(val / 2)
-                              } : it))
-                            }}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[120px]">
-                          <input
-                            type="number"
-                            autoComplete="off"
-                            value={row.minPackStock ?? ''}
-                            onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, minPackStock: Number(e.target.value || 0) } : it))}
-                            onKeyDown={handleEnterKey}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                          />
-                        </td>
-                        <td className="px-2 py-2 min-w-[180px]">
-                          <div className="flex gap-1">
-                            <select
-                              value={(row.lineTaxType || 'percent') === 'percent' ? '%' : 'PKR'}
-                              onChange={e => {
-                                const val = e.target.value === '%' ? 'percent' : 'fixed'
-                                setItems(prev => prev.map(it => it.id === row.id ? { ...it, lineTaxType: val as 'percent' | 'fixed' } : it))
-                              }}
-                              onKeyDown={handleEnterKey}
-                              className="w-14 rounded-lg border border-slate-200 px-1 py-1.5 text-sm outline-none"
-                            >
-                              <option>%</option>
-                              <option>PKR</option>
-                            </select>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={row.lineTaxValue ?? ''}
-                              onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, lineTaxValue: Number(e.target.value || 0) } : it))}
-                              onKeyDown={handleEnterKey}
-                              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                              placeholder="0"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-right min-w-[120px] align-middle">
-                          <span className="text-sm font-bold text-indigo-600">
-                            PKR {((row.buyPerPack || 0) * (row.packs || 0)).toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-center align-middle min-w-[80px]">
-                          {items.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setItems(prev => prev.filter(it => it.id !== row.id))}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="Remove Item"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Row: Summary & Taxes */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Invoice-Level Taxes */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-fit">
-              <button
-                type="button"
-                onClick={() => setShowTaxSection(!showTaxSection)}
-                className="flex w-full items-center justify-between px-6 py-4 text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                  <h2 className="text-lg font-semibold text-slate-900">Invoice-Level Taxes ({invoiceTaxes.length})</h2>
-                </div>
-                {showTaxSection ? <ChevronUp className="h-5 w-5 text-slate-400" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
-              </button>
-
-              {showTaxSection && (
-                <div className="border-t border-slate-200 p-6 space-y-4">
-                  {invoiceTaxes.map(t => (
-                    <div key={t.id} className="grid gap-3 sm:grid-cols-4 items-end bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <div className="sm:col-span-1">
-                        <label className="mb-1.5 block text-[10px] font-bold uppercase text-slate-500">Tax Name</label>
-                        <input
-                          value={t.name || ''}
-                          onChange={e => setInvoiceTaxes(prev => prev.map(x => x.id === t.id ? { ...x, name: e.target.value } : x))}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-200"
-                          placeholder="GST..."
+                      <div className="w-full">
+                        <SearchableSelect
+                          value={supplierId}
+                          onChange={(v) => {
+                            setSupplierId(v)
+                            const s = suppliers.find((x: any) => String(x._id) === String(v))
+                            setSupplierName(s?.name || '')
+                          }}
+                          options={(suppliers || []).map((s: any) => ({ value: String(s._id), label: String(s.name || '') }))}
+                          placeholder="Type to search supplier..."
+                          className=""
                         />
                       </div>
-                      <div className="flex gap-2 sm:col-span-1">
-                        <div className="flex-1">
-                          <label className="mb-1.5 block text-[10px] font-bold uppercase text-slate-500">Type</label>
-                          <select
-                            value={(t.type || 'percent') === 'percent' ? '%' : 'PKR'}
-                            onChange={e => {
-                              const val = e.target.value === '%' ? 'percent' : 'fixed'
-                              setInvoiceTaxes(prev => prev.map(x => x.id === t.id ? { ...x, type: val as 'percent' | 'fixed' } : x))
-                            }}
-                            className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
-                          >
-                            <option>%</option>
-                            <option>PKR</option>
-                          </select>
-                        </div>
-                        <div className="flex-1">
-                          <label className="mb-1.5 block text-[10px] font-bold uppercase text-slate-500">Value</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={t.value ?? ''}
-                            onChange={e => setInvoiceTaxes(prev => prev.map(x => x.id === t.id ? { ...x, value: Number(e.target.value || 0) } : x))}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
-                      <div className="sm:col-span-1">
-                        <label className="mb-1.5 block text-[10px] font-bold uppercase text-slate-500">Apply On</label>
-                        <select
-                          value={t.applyOn || 'gross'}
-                          onChange={e => setInvoiceTaxes(prev => prev.map(x => x.id === t.id ? { ...x, applyOn: e.target.value as 'gross' | 'net' } : x))}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        >
-                          <option value="gross">On Gross</option>
-                          <option value="net">On Net</option>
-                        </select>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setInvoiceTaxes(prev => prev.filter(x => x.id !== t.id))}
-                        className="sm:col-span-1 h-9 rounded-lg px-3 text-sm font-bold text-rose-600 hover:bg-rose-100 transition-colors"
-                      >
-                        Remove
-                      </button>
+
+                      <button type="button" onClick={() => setAddSupplierOpen(true)} className="btn-outline-navy whitespace-nowrap">+ Add</button>
+
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceTaxes(prev => [...prev, { id: crypto.randomUUID(), type: 'percent', applyOn: 'gross' }])}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-bold text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Global Tax
-                  </button>
+
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Company</label>
+                    <div className="flex gap-2">
+                      <div className="w-full">
+                        <SearchableSelect
+                          value={companyId}
+                          disabled={!supplierId}
+                          onChange={(v) => {
+                            setCompanyId(v)
+                            const c = companies.find((x: any) => String(x._id) === String(v))
+                            setCompanyName(c?.name || '')
+                          }}
+                          options={(companies || []).map((c: any) => ({ value: String(c._id), label: String(c.name || '') }))}
+                          placeholder={supplierId ? 'Type to search company...' : 'Select supplier first'}
+                        />
+                      </div>
+
+                      <button type="button" onClick={() => setAddCompanyOpen(true)} className="btn-outline-navy whitespace-nowrap">+ Add</button>
+                    </div>
+                  </div>
+
+                  <div>
+
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Invoice No *</label>
+
+                    <input 
+
+                      value={invoiceNo} 
+
+                      onChange={e => setInvoiceNo(e.target.value)} 
+
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                      placeholder="INV-001"
+
+                      required
+
+                    />
+
+                  </div>
+
+                  <div>
+
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Invoice Date *</label>
+
+                    <input 
+
+                      type="date" 
+
+                      value={invoiceDate} 
+
+                      onChange={e => setInvoiceDate(e.target.value)} 
+
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                      required
+
+                    />
+
+                  </div>
+
                 </div>
-              )}
+
+              </div>
+
             </div>
 
-            {/* Totals Summary */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 text-slate-900 overflow-hidden h-fit">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                <h2 className="text-sm font-bold flex items-center gap-2 uppercase tracking-wider text-slate-700">
-                  <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                  Invoice Summary
-                </h2>
-              </div>
-              <div className="px-4 py-4 space-y-2">
-                <div className="flex justify-between items-center text-slate-600">
-                  <span className="text-[11px] font-bold uppercase tracking-wider opacity-80">Gross Amount</span>
-                  <span className="text-sm font-semibold">PKR {gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between items-center text-slate-600">
-                  <span className="text-[11px] font-bold uppercase tracking-wider opacity-80">Line Taxes</span>
-                  <span className="text-sm font-semibold">+ PKR {lineTaxesTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between items-center text-slate-600">
-                  <span className="text-[11px] font-bold uppercase tracking-wider opacity-80">Invoice Taxes</span>
-                  <span className="text-sm font-semibold">+ PKR {invoiceTaxesTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+
+
+            {/* Items Card */}
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+
+                <div className="flex items-center justify-between">
+
+                  <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Medicine Items ({items.length})</h2>
+
+                  <button
+
+                    type="button"
+
+                    onClick={() => setItems(prev => [...prev, { id: crypto.randomUUID() }])}
+
+                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+
+                  >
+
+                    <Plus className="h-4 w-4" />
+
+                    Add Item
+
+                  </button>
+
                 </div>
 
-                <div className="pt-3 border-t border-slate-100">
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Net Total Amount</span>
-                    <span className="text-2xl font-black tracking-tight text-indigo-600">
-                      PKR {netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
+              </div>
+
+
+
+              <div className="p-6">
+
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+
+                  {items.map((row, idx) => (
+
+                    <div key={row.id} className={`rounded-lg border ${row.collapsed ? 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40' : 'border-indigo-200 bg-white dark:border-slate-700 dark:bg-slate-800'} p-4`}>
+
+                      {row.collapsed ? (
+
+                        // Collapsed View
+
+                        <div className="flex items-center justify-between gap-4">
+
+                          <div className="flex-1 min-w-0">
+
+                            <div className="flex items-center gap-3">
+
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold dark:bg-indigo-900/30 dark:text-indigo-300">#{idx + 1}</span>
+
+                              <div>
+
+                                <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{row.name || 'Unnamed'}</p>
+
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{row.packs || 0} packs × PKR {row.buyPerPack || 0}</p>
+
+                              </div>
+
+                            </div>
+
+                          </div>
+
+                          <div className="flex items-center gap-2">
+
+                            <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">PKR {((row.buyPerPack || 0) * (row.packs || 0)).toFixed(2)}</span>
+
+                            <button
+
+                              type="button"
+
+                              onClick={() => expandItem(row.id)}
+
+                              className="rounded p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+
+                              title="Edit"
+
+                            >
+
+                              <Edit2 className="h-4 w-4" />
+
+                            </button>
+
+                            {items.length > 1 && (
+
+                              <button
+
+                                type="button"
+
+                                onClick={() => setItems(prev => prev.filter(it => it.id !== row.id))}
+
+                                className="rounded p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+
+                                title="Delete"
+
+                              >
+
+                                <Trash2 className="h-4 w-4" />
+
+                              </button>
+
+                            )}
+
+                          </div>
+
+                        </div>
+
+                      ) : (
+
+                        // Expanded View
+
+                        <div className="space-y-4">
+
+                          <div className="flex items-center justify-between">
+
+                            <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Item #{idx + 1}</span>
+
+                            <button
+
+                              type="button"
+
+                              onClick={() => collapseItem(row.id)}
+
+                              className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30"
+
+                            >
+
+                              <Save className="h-4 w-4" />
+
+                              Save & Collapse
+
+                            </button>
+
+                          </div>
+
+
+
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                            {/* Medicine Name with Autocomplete */}
+
+                            <div className="relative lg:col-span-2">
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Medicine Name *</label>
+
+                              <input
+
+                                list="pharmacy-medicine-list"
+
+                                value={row.name || ''}
+
+                                onChange={e => handleMedicineInput(e.target.value, row.id)}
+
+                                onFocus={() => {
+
+                                  if (row.name && row.name.trim()) {
+
+                                    searchMedicines(row.name, row.id)
+
+                                  }
+
+                                }}
+
+                                onBlur={() => autofillFromInventoryByName(row.name, row.id)}
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+
+                                placeholder="Type to search medicines..."
+
+                              />
+
+                              <datalist id="pharmacy-medicine-list">
+
+                                {allMedicines.map(m => (
+
+                                  <option key={m.id} value={m.name} />
+
+                                ))}
+
+                              </datalist>
+
+                              {showSuggestions === row.id && suggestions.length > 0 && (
+
+                                <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+
+                                  {suggestions.map((sug) => (
+
+                                    <button
+
+                                      key={sug.id}
+
+                                      type="button"
+
+                                      onClick={() => selectSuggestion(sug, row.id)}
+
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700 last:border-0"
+
+                                    >
+
+                                      {sug.name}
+
+                                    </button>
+
+                                  ))}
+
+                                </div>
+
+                              )}
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Generic Name</label>
+
+                              <input 
+
+                                value={row.genericName || ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, genericName: e.target.value } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Barcode</label>
+
+                              <input 
+
+                                value={row.barcode || ''} 
+
+                                onChange={e => {
+
+                                  const v = e.target.value
+
+                                  setItems(prev => prev.map(it => it.id === row.id ? { ...it, barcode: v } : it))
+
+                                  const t = barcodeTimersRef.current[row.id]
+
+                                  if (t) try { clearTimeout(t) } catch {}
+
+                                  barcodeTimersRef.current[row.id] = setTimeout(() => {
+
+                                    const code = v?.trim()
+
+                                    if (code && code.length >= 6) autofillFromInventoryByBarcode(code, row.id)
+
+                                  }, 220)
+
+                                }} 
+
+                                onBlur={() => autofillFromInventoryByBarcode(row.barcode, row.id)}
+
+                                onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur() } }}
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                                placeholder="Scan or enter barcode"
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Category</label>
+
+                              <input 
+
+                                value={row.category || ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, category: e.target.value } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Expiry Date</label>
+
+                              <input 
+
+                                type="date" 
+
+                                value={row.expiry || ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, expiry: e.target.value } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Expiry Alert Date</label>
+
+                              <input 
+
+                                type="date" 
+
+                                value={row.expiryAlertDate || ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, expiryAlertDate: e.target.value } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                               />
+
+                             </div>
+
+
+
+                             <div>
+
+                               <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Shelf Number</label>
+
+                               <input 
+
+                                 type="text" 
+
+                                 value={row.shelfNumber || ''} 
+
+                                 onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, shelfNumber: e.target.value } : it))} 
+
+                                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                                 placeholder="Shelf #"
+
+                               />
+
+                             </div>
+
+
+
+                             <div>
+
+                               <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Qty (Packs) *</label>
+
+                              <input 
+
+                                type="number"
+
+                                value={row.packs ?? ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, packs: Number(e.target.value || 0), totalItems: Number(e.target.value || 0) * Math.max(1, row.unitsPerPack || 1) } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Units/Pack *</label>
+
+                              <input 
+
+                                type="number"
+
+                                value={row.unitsPerPack ?? ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, unitsPerPack: Number(e.target.value || 0), buyPerUnit: (row.buyPerPack || 0) / Math.max(1, Number(e.target.value || 0)), salePerUnit: (row.salePerPack || 0) / Math.max(1, Number(e.target.value || 0)), totalItems: (row.packs || 0) * Math.max(1, Number(e.target.value || 0)) } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Buy/Pack *</label>
+
+                              <input 
+
+                                type="number"
+
+                                step="0.01"
+
+                                value={row.buyPerPack ?? ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, buyPerPack: Number(e.target.value || 0), buyPerUnit: Math.max(0, Number(e.target.value || 0)) / Math.max(1, row.unitsPerPack || 1) } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Sale/Pack *</label>
+
+                              <input 
+
+                                type="number"
+
+                                step="0.01"
+
+                                value={row.salePerPack ?? ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, salePerPack: Number(e.target.value || 0), salePerUnit: Math.max(0, Number(e.target.value || 0)) / Math.max(1, row.unitsPerPack || 1) } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Buy/Unit</label>
+
+                              <input 
+
+                                type="number"
+
+                                step="0.01"
+
+                                value={row.buyPerUnit ?? ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, buyPerUnit: Number(e.target.value || 0), buyPerPack: Number(e.target.value || 0) * Math.max(1, row.unitsPerPack || 1) } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Sale/Unit</label>
+
+                              <input 
+
+                                type="number"
+
+                                step="0.01"
+
+                                value={row.salePerUnit ?? ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, salePerUnit: Number(e.target.value || 0), salePerPack: Number(e.target.value || 0) * Math.max(1, row.unitsPerPack || 1) } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Total Items</label>
+
+                              <input 
+
+                                type="number"
+
+                                value={row.totalItems ?? ((row.unitsPerPack || 1) * (row.packs || 0))} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, totalItems: Number(e.target.value || 0), packs: Math.ceil(Number(e.target.value || 0) / Math.max(1, row.unitsPerPack || 1)) } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Min Stock</label>
+
+                              <input 
+
+                                type="number"
+
+                                value={row.minStock ?? ''} 
+
+                                onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, minStock: Number(e.target.value || 0) } : it))} 
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" 
+
+                              />
+
+                            </div>
+
+
+
+                            <div>
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Default Discount (%)</label>
+
+                              <input
+
+                                type="number"
+
+                                step="0.01"
+
+                                min={0}
+
+                                max={100}
+
+                                value={row.defaultDiscountPct ?? ''}
+
+                                onChange={e => {
+
+                                  const v = Math.max(0, Math.min(100, Number(e.target.value || 0)))
+
+                                  setItems(prev => prev.map(it => it.id === row.id ? { ...it, defaultDiscountPct: v } : it))
+
+                                }}
+
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+
+                                placeholder="0"
+
+                              />
+
+                            </div>
+
+
+
+                            {/* Line Tax */}
+
+                            <div className="lg:col-span-3">
+
+                              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Line Tax (Optional)</label>
+
+                              <div className="flex gap-2">
+
+                                <select
+
+                                  value={(row.lineTaxType || 'percent') === 'percent' ? '%' : 'PKR'}
+
+                                  onChange={e => {
+
+                                    const val = e.target.value === '%' ? 'percent' : 'fixed'
+
+                                    setItems(prev => prev.map(it => it.id === row.id ? { ...it, lineTaxType: val as 'percent' | 'fixed' } : it))
+
+                                  }}
+
+                                  className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+
+                                >
+
+                                  <option>%</option>
+
+                                  <option>PKR</option>
+
+                                </select>
+
+                                <input
+
+                                  type="number"
+
+                                  step="0.01"
+
+                                  value={row.lineTaxValue ?? ''}
+
+                                  onChange={e => setItems(prev => prev.map(it => it.id === row.id ? { ...it, lineTaxValue: Number(e.target.value || 0) } : it))}
+
+                                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+
+                                  placeholder="0"
+
+                                />
+
+                              </div>
+
+                            </div>
+
+                          </div>
+
+
+
+                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3 dark:bg-slate-700/50">
+
+                            <span className="text-sm text-slate-600 dark:text-slate-400">Line Total:</span>
+
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">PKR {((row.buyPerPack || 0) * (row.packs || 0)).toFixed(2)}</span>
+
+                          </div>
+
+                        </div>
+
+                      )}
+
+                    </div>
+
+                  ))}
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+
+          {/* Right Column - Summary & Taxes */}
+
+          <div className="space-y-6">
+
+            {/* Invoice-Level Taxes */}
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+
+              <button
+
+                type="button"
+
+                onClick={() => setShowTaxSection(!showTaxSection)}
+
+                className="flex w-full items-center justify-between px-6 py-4 text-left"
+
+              >
+
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Invoice-Level Taxes ({invoiceTaxes.length})</h2>
+
+                {showTaxSection ? <ChevronUp className="h-5 w-5 text-slate-400" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
+
+              </button>
+
+              
+
+              {showTaxSection && (
+
+                <div className="border-t border-slate-200 dark:border-slate-700">
+
+                  <div className="p-6 space-y-3">
+
+                    {invoiceTaxes.map(t => (
+
+                      <div key={t.id} className="space-y-2">
+
+                        <input
+
+                          value={t.name || ''}
+
+                          onChange={e => setInvoiceTaxes(prev => prev.map(x => x.id === t.id ? { ...x, name: e.target.value } : x))}
+
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+
+                          placeholder="Tax name (e.g., GST)"
+
+                        />
+
+                        <div className="grid gap-2 sm:grid-cols-4">
+
+                          <select
+
+                            value={(t.type || 'percent') === 'percent' ? '%' : 'PKR'}
+
+                            onChange={e => {
+
+                              const val = e.target.value === '%' ? 'percent' : 'fixed'
+
+                              setInvoiceTaxes(prev => prev.map(x => x.id === t.id ? { ...x, type: val as 'percent' | 'fixed' } : x))
+
+                            }}
+
+                            className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+
+                          >
+
+                            <option>%</option>
+
+                            <option>PKR</option>
+
+                          </select>
+
+                          <input
+
+                            type="number"
+
+                            step="0.01"
+
+                            value={t.value ?? ''}
+
+                            onChange={e => setInvoiceTaxes(prev => prev.map(x => x.id === t.id ? { ...x, value: Number(e.target.value || 0) } : x))}
+
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+
+                            placeholder="Value"
+
+                          />
+
+                          <select
+
+                            value={t.applyOn || 'gross'}
+
+                            onChange={e => setInvoiceTaxes(prev => prev.map(x => x.id === t.id ? { ...x, applyOn: e.target.value as 'gross' | 'net' } : x))}
+
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+
+                          >
+
+                            <option value="gross">On Gross</option>
+
+                            <option value="net">On Net</option>
+
+                          </select>
+
+                          <button
+
+                            type="button"
+
+                            onClick={() => setInvoiceTaxes(prev => prev.filter(x => x.id !== t.id))}
+
+                            className="w-full rounded-lg px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+
+                          >
+
+                            Remove
+
+                          </button>
+
+                        </div>
+
+                      </div>
+
+                    ))}
+
+                    <button
+
+                      type="button"
+
+                      onClick={() => setInvoiceTaxes(prev => [...prev, { id: crypto.randomUUID(), type: 'percent', applyOn: 'gross' }])}
+
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
+
+                    >
+
+                      <Plus className="h-4 w-4" />
+
+                      Add Invoice Tax
+
+                    </button>
+
+                  </div>
+
+                </div>
+
+              )}
+
+            </div>
+
+
+
+            {/* Totals Summary */}
+
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl shadow-sm border border-emerald-200">
+
+              <div className="px-6 py-4">
+                <h2 className="text-lg font-semibold text-emerald-800">Invoice Summary</h2>
+              </div>
+              
+              <div className="px-6 pb-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-emerald-700 font-medium">Gross Amount:</span>
+                    <span className="text-emerald-900 font-bold">PKR {gross.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-emerald-700 font-medium">Line Taxes:</span>
+                    <span className="text-emerald-900 font-bold text-rose-600">PKR {lineTaxesTotal.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-emerald-700 font-medium">Invoice Taxes:</span>
+                    <span className="text-emerald-900 font-bold text-rose-600">PKR {invoiceTaxesTotal.toFixed(2)}</span>
+                  </div>
+
+                  <div className="h-px bg-emerald-200" />
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-bold text-emerald-900">Net Total:</span>
+                    <span className="text-xl font-extrabold text-emerald-900">PKR {netTotal.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
             </div>
+
           </div>
+
         </div>
+
       </div>
 
 
@@ -2246,8 +2324,61 @@ export default function Pharmacy_AddInvoicePage() {
         onSave={addCompany}
       />
 
+      {/* Held Invoices Dialog */}
+      {heldInvoicesOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Held Invoices</h3>
+              <button onClick={() => setHeldInvoicesOpen(false)} className="rounded p-1 hover:bg-slate-100 dark:hover:bg-slate-700">
+                <X className="h-5 w-5 text-slate-500" />
+              </button>
+            </div>
+            {heldLoading ? (
+              <div className="py-8 text-center text-slate-500">Loading...</div>
+            ) : heldInvoices.length === 0 ? (
+              <div className="py-8 text-center text-slate-500">No held invoices</div>
+            ) : (
+              <div className="max-h-80 space-y-2 overflow-y-auto">
+                {heldInvoices.map((h: any) => (
+                  <div key={h._id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-900 dark:text-slate-100">{h.invoiceNo || 'No Invoice#'}</span>
+                        <span className="text-xs text-slate-500">{h.invoiceDate || ''}</span>
+                      </div>
+                      <div className="text-sm text-slate-500 truncate">
+                        {h.supplierName || 'No supplier'} • {h.items?.length || 0} items
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {new Date(h.createdAtIso).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => loadHeldInvoice(h._id)}
+                        className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => deleteHeldInvoice(h._id)}
+                        className="rounded-md bg-rose-100 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-200"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
 
   )
 
 }
+

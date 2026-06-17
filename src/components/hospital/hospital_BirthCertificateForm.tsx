@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react'
 import { hospitalApi, api as coreApi } from '../../utils/api'
 import Toast, { type ToastState } from '../ui/Toast'
 
-export default function Hospital_BirthCertificateForm({ encounterId, docId, patient, showPatientHeader = true, onSaved }: { encounterId?: string; docId?: string; patient?: any; showPatientHeader?: boolean; onSaved?: (doc: any) => void }) {
+export default function Hospital_BirthCertificateForm({ docId, patient, showPatientHeader = true, onSaved }: { docId?: string; patient?: any; showPatientHeader?: boolean; onSaved?: (doc: any) => void }) {
   const [form, setForm] = useState<any>({})
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
   const [currentId, setCurrentId] = useState<string | undefined>(docId)
 
   useEffect(() => { setCurrentId(docId) }, [docId])
-  useEffect(()=>{ setCurrentId(docId) }, [docId])
 
   useEffect(()=>{
     if (!showPatientHeader || !patient) return
@@ -22,53 +21,6 @@ export default function Hospital_BirthCertificateForm({ encounterId, docId, pati
     }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPatientHeader, patient?.name, patient?.mrn, patient?.phone, patient?.address])
-
-  useEffect(() => {
-    const onAction = (ev: Event) => {
-      const detail = (ev as CustomEvent).detail as any
-      if (!detail || detail.key !== 'BirthCertificate') return
-      if (detail.action === 'save') { void save() }
-      if (detail.action === 'print') { void printOnly() }
-    }
-    window.addEventListener('dw:form-action', onAction as any)
-    return () => window.removeEventListener('dw:form-action', onAction as any)
-  }, [encounterId, docId, currentId, form, loading])
-
-  useEffect(()=>{ (async()=>{
-    if (!encounterId || docId) return
-    try {
-      setLoading(true)
-      const res: any = await hospitalApi.getIpdBirthCertificate(encounterId).catch(()=>null)
-      const c = res?.birthCertificate
-      if (c){
-        setForm((f: any) => ({
-          ...f,
-          srNo: c.srNo || f.srNo,
-          bcSerialNo: c.bcSerialNo || f.bcSerialNo,
-          motherName: c.motherName || f.motherName,
-          fatherName: c.fatherName || '',
-          mrNumber: c.mrNumber || f.mrNumber,
-          phone: c.phone || f.phone,
-          address: c.address || f.address,
-          babyName: c.babyName || '',
-          sexOfBaby: c.sexOfBaby || '',
-          dateOfBirth: c.dateOfBirth ? fmtDateISO(c.dateOfBirth) : '',
-          timeOfBirth: c.timeOfBirth || '',
-          deliveryType: c.deliveryType || '',
-          deliveryMode: c.deliveryMode || '',
-          conditionAtBirth: c.conditionAtBirth || '',
-          weightAtBirth: c.weightAtBirth || '',
-          bloodGroup: c.bloodGroup || '',
-          birthMark: c.birthMark || '',
-          congenitalAbnormality: c.congenitalAbnormality || '',
-          babyHandedOverTo: c.babyHandedOverTo || '',
-          notes: c.notes || '',
-          parentSignature: c.parentSignature || '',
-          doctorSignature: c.doctorSignature || '',
-        }))
-      }
-    } finally { setLoading(false) }
-  })() }, [encounterId, docId])
 
   useEffect(()=>{ (async()=>{
     if (!docId) return
@@ -119,8 +71,6 @@ export default function Hospital_BirthCertificateForm({ encounterId, docId, pati
       if (idToUpdate){
         saved = await hospitalApi.updateBirthCertificateById(idToUpdate, payload)
         setCurrentId(idToUpdate)
-      } else if (encounterId){
-        saved = await hospitalApi.upsertIpdBirthCertificate(encounterId, payload)
       } else {
         // If neither provided, create standalone
         const created = await hospitalApi.createBirthCertificate(payload)
@@ -147,8 +97,6 @@ export default function Hospital_BirthCertificateForm({ encounterId, docId, pati
     const idToUse = savedDoc?._id || currentId
     if (idToUse){
       html = await coreApi(`/hospital/ipd/forms/birth-certificates/${encodeURIComponent(idToUse)}/print`) as any
-    } else if (encounterId){
-      html = await coreApi(`/hospital/ipd/admissions/${encodeURIComponent(encounterId)}/birth-certificate/print`) as any
     }
     const w = window.open('', '_blank'); if (!w) return
     w.document.write(String(html)); w.document.close(); w.focus()

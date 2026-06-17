@@ -10,6 +10,7 @@ export type CashCountEntry = {
   receiver?: string
   handoverBy?: string
   amount?: number
+  createdAt?: string
 }
 
 type Props = {
@@ -90,7 +91,20 @@ export default function Hospital_CashCountSlipDialog({ open, onClose, entry }: P
               <hr className="my-3 border-dashed" />
               <div className="text-center font-medium print:text-black">CASH COUNT</div>
               <div className="mt-2 text-xs text-slate-700 print:text-black">
-                <div>Date : {new Date(entry.date || new Date().toISOString()).toLocaleString()}</div>
+                <div>Date : {(() => {
+                  if (entry.createdAt) {
+                    const d = new Date(entry.createdAt)
+                    return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  }
+                  const entryDate = entry.date || new Date().toISOString()
+                  const d = new Date(entryDate)
+                  // Check if original string has time (not just date-only like "2026-05-08")
+                  const isDateOnly = typeof entryDate === 'string' && entryDate.length <= 10
+                  if (isDateOnly) {
+                    return `${d.toLocaleDateString()}`
+                  }
+                  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                })()}</div>
               </div>
 
               <div className="mt-3 text-sm print:text-black space-y-1">

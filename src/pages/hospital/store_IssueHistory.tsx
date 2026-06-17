@@ -87,7 +87,7 @@ export default function Store_IssueHistory() {
 
   const loadDepartments = async () => {
     try {
-      const depRes: any = await hospitalApi.listDepartments()
+      const depRes: any = await hospitalApi.listDepartments({ limit: 1000 })
       const depArray: any[] = (depRes?.departments || depRes?.data || depRes || []) as any[]
       const deps: Department[] = depArray.map((d: any) => ({
         id: String(d._id || d.id),
@@ -162,7 +162,7 @@ export default function Store_IssueHistory() {
       let department = undefined
       if (issue?.departmentId) {
         try {
-          const deptRes = await hospitalApi.listDepartments() as any
+          const deptRes = await hospitalApi.listDepartments({ limit: 1000 }) as any
           const depts = deptRes.departments || deptRes.data || deptRes || []
           department = depts.find((d: any) => String(d._id || d.id) === issue.departmentId)
         } catch {

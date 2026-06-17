@@ -14,6 +14,7 @@ export default function Aesthetic_TokenGeneratorPage() {
   const [guardianName, setGuardianName] = useState('')
   const [cnic, setCnic] = useState('')
   const [doctorId, setDoctorId] = useState('')
+  const [billingType, setBillingType] = useState<'Cash'|'Bank'|'Corporate'>('Cash')
   const [apptDate, setApptDate] = useState(() => getLocalDate())
   const [schedules, setSchedules] = useState<Array<{ _id: string; doctorId: string; dateIso: string; startTime: string; endTime: string; slotMinutes: number; fee?: number; followupFee?: number }>>([])
   const [scheduleId, setScheduleId] = useState('')
@@ -355,7 +356,7 @@ export default function Aesthetic_TokenGeneratorPage() {
       } catch { }
     }
 
-    const res: any = await aestheticApi.createToken({
+    const tokenPayload: any = {
       date: new Date().toISOString(),
       patientName: nameVal,
       phone: phoneVal,
@@ -386,7 +387,13 @@ export default function Aesthetic_TokenGeneratorPage() {
       procedureSessionId: createdSessionId,
       depositToday: createdSessionId ? Number(procPaid || 0) : undefined,
       status: 'queued',
-    })
+    }
+
+    if (billingType === 'Cash') tokenPayload.paidMethod = 'Cash'
+    else if (billingType === 'Bank') tokenPayload.paidMethod = 'Bank'
+    else if (billingType === 'Corporate') tokenPayload.paidMethod = 'AR'
+
+    const res: any = await aestheticApi.createToken(tokenPayload)
     const rec = res?.token
     setToast(`Generated token #${rec?.number ?? ''}${pat?.mrn ? ` • MRN ${pat.mrn}` : ''}`)
     try {
@@ -427,7 +434,7 @@ export default function Aesthetic_TokenGeneratorPage() {
       setShowSlip(true)
     } catch { }
     setTimeout(() => setToast(null), 2000)
-    setPhone(''); setPatientName(''); setMrNumber(''); setAge(''); setGender(''); setGuardianRelation(''); setGuardianName(''); setCnic(''); setAddress(''); setDoctorId(''); setConsultationFee(''); setDiscount('0');
+    setPhone(''); setPatientName(''); setMrNumber(''); setAge(''); setGender(''); setGuardianRelation(''); setGuardianName(''); setCnic(''); setAddress(''); setDoctorId(''); setBillingType('Cash'); setConsultationFee(''); setDiscount('0');
     setSchedules([]); setScheduleId(''); setSelectedSlotNo(null); setSlotRows([])
     setCreateSession(false); setProcId(''); setProcDoctorId(''); setProcPrice(''); setProcDiscount('0'); setProcPaid('0')
     // refresh next number
@@ -547,6 +554,14 @@ export default function Aesthetic_TokenGeneratorPage() {
                   {doctors.map(d => (
                     <option key={d.id} value={d.id}>{d.name}{d.specialty ? ` • ${d.specialty}` : ''}</option>
                   ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Billing Type</label>
+                <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-fuchsia-500 focus:ring-2 focus:ring-fuchsia-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" value={billingType} onChange={e => setBillingType(e.target.value as any)}>
+                  <option value="Cash">Cash</option>
+                  <option value="Bank">Bank</option>
+                  <option value="Corporate">Corporate</option>
                 </select>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -673,7 +688,7 @@ export default function Aesthetic_TokenGeneratorPage() {
         <div className="flex items-center justify-between">
           <div className="text-sm text-slate-600 dark:text-slate-400">Next Token: <span className="font-semibold">{nextNumber}</span></div>
           <div className="flex items-center gap-3">
-            <button type="reset" onClick={(e) => { e.preventDefault(); setPhone(''); setPatientName(''); setMrNumber(''); setAge(''); setGender(''); setGuardianRelation(''); setGuardianName(''); setCnic(''); setAddress(''); setDoctorId(''); setConsultationFee(''); setDiscount('0') }} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Reset</button>
+            <button type="reset" onClick={(e) => { e.preventDefault(); setPhone(''); setPatientName(''); setMrNumber(''); setAge(''); setGender(''); setGuardianRelation(''); setGuardianName(''); setCnic(''); setAddress(''); setDoctorId(''); setBillingType('Cash'); setConsultationFee(''); setDiscount('0') }} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Reset</button>
             <button type="submit" className="rounded-md bg-fuchsia-700 px-4 py-2 text-sm font-medium text-white hover:bg-fuchsia-800">Generate Token</button>
           </div>
         </div>

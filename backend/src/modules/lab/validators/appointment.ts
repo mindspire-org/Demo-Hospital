@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const createAppointmentSchema = z.object({
   dateIso: z.string().min(10),
   time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  tests: z.array(z.string().min(1)).min(1),
+  tests: z.array(z.string()).optional().default([]),
   // patient linkage optional
   patientId: z.string().optional(),
   mrn: z.string().optional(),
@@ -17,7 +17,7 @@ export const createAppointmentSchema = z.object({
 export const updateAppointmentSchema = z.object({
   dateIso: z.string().min(10).optional(),
   time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  tests: z.array(z.string().min(1)).min(1).optional(),
+  tests: z.array(z.string()).optional(),
   patientName: z.string().optional(),
   phone: z.string().optional(),
   gender: z.string().optional(),
@@ -36,4 +36,5 @@ export const listAppointmentsSchema = z.object({
   status: z.enum(['booked','confirmed','cancelled','converted']).optional(),
   q: z.string().optional(),
   limit: z.coerce.number().int().positive().max(500).optional(),
+  page: z.coerce.number().int().positive().optional(),
 })

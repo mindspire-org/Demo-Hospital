@@ -13,7 +13,7 @@ export const createIpdVitalSchema = z.object({
   recordedBy: z.string().optional(),
   note: z.string().optional(),
   // Daily Monitoring Chart additions
-  shift: z.enum(['morning','evening','night']).optional().or(z.literal('').transform(() => undefined)),
+  shift: z.preprocess((val) => (val === '' ? undefined : val), z.enum(['morning','evening','night']).optional()),
   bsr: z.coerce.number().optional(),
   intakeIV: z.string().optional(),
   urine: z.string().optional(),
@@ -61,22 +61,16 @@ export const createIpdMedicationOrderSchema = z.object({
   prn: z.coerce.boolean().optional(),
   status: z.enum(['active','stopped']).optional(),
   prescribedBy: z.string().optional(),
+  prescribingDoctorId: z.string().optional(),
 }).refine((d)=> !!(d.drugId || d.drugName), { message: 'drugId or drugName required' })
 export const updateIpdMedicationOrderSchema = createIpdMedicationOrderSchema
-
-export const createIpdMedicationAdminSchema = z.object({
-  givenAt: z.coerce.date().optional(),
-  doseGiven: z.string().optional(),
-  byUser: z.string().optional(),
-  status: z.enum(['given','missed','held']).optional(),
-  remarks: z.string().optional(),
-})
-export const updateIpdMedicationAdminSchema = createIpdMedicationAdminSchema
 
 export const createIpdLabLinkSchema = z.object({
   externalLabOrderId: z.string().optional(),
   testIds: z.array(z.string()).optional(),
   status: z.string().optional(),
+  doctorId: z.string().optional(),
+  referredBy: z.string().optional(),
 })
 export const updateIpdLabLinkSchema = createIpdLabLinkSchema
 
@@ -105,6 +99,7 @@ export const createIpdPaymentSchema = z.object({
   amount: z.coerce.number().min(0.01),
   type: z.enum(['payment', 'refund', 'adjustment']).optional().default('payment'),
   method: z.string().optional(),
+  paymentMode: z.string().optional(),
   refNo: z.string().optional(),
   receivedBy: z.string().optional(),
   receivedAt: z.coerce.date().optional(),
@@ -129,7 +124,7 @@ export const updateIpdPaymentSchema = z.object({
 })
 
 // Clinical Notes (Preop / Operation / Postop / Consultant / Anesthesia* / Forms)
-const clinicalNoteType = z.enum(['preop','operation','postop','consultant','anes-pre','anes-intra','anes-recovery','anes-post-recovery','anes-adverse','consent-form','infection-control','blood-transfusion','operation-consent','history-exam','surgical-signin','surgical-timeout','surgical-signout','icu-monitoring'])
+const clinicalNoteType = z.enum(['preop','operation','postop','consultant','anes-pre','anes-intra','anes-recovery','anes-post-recovery','anes-adverse','consent-form','infection-control','blood-transfusion','operation-consent','history-exam','surgical-signin','surgical-timeout','surgical-signout'])
 const preopDataSchema = z.object({
   npoFrom: z.string().optional(),
   maintainIV: z.string().optional(),
@@ -519,16 +514,6 @@ export const createIpdClinicalNoteSchema = z.discriminatedUnion('type', [
     doctorName: z.string().optional(),
     sign: z.string().optional(),
     data: surgicalSignOutDataSchema,
-  }),
-
-  z.object({
-    type: z.literal('icu-monitoring'),
-    recordedAt: z.coerce.date().optional(),
-    createdBy: z.string().optional(),
-    createdByRole: z.string().optional(),
-    doctorName: z.string().optional(),
-    sign: z.string().optional(),
-    data: z.any().optional(),
   }),
 ])
 

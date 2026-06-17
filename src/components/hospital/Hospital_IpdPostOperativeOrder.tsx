@@ -1,25 +1,21 @@
 import React, { useEffect, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
-import { useEncounterDefaults } from '../../hooks/useEncounterDefaults'
-import { ClinicalDialogShell, ClinicalDatePicker, clinicalInp, clinicalLbl } from '../ui/ClinicalDialog'
-import { ClipboardList } from 'lucide-react'
+import { ipdApi } from '../../utils/api'
 
 export default function PostOperativeOrder({ encounterId }: { encounterId: string }){
   const [rows, setRows] = useState<Array<{ id: string; when: string; text: string; doctorName?: string; sign?: string }>>([])
   const [open, setOpen] = useState(false)
-  const encDefaults = useEncounterDefaults(encounterId)
 
   useEffect(()=>{ if(encounterId){ reload() } }, [encounterId])
 
   async function reload(){
     try{
-      const res = await hospitalApi.listIpdClinicalNotes(encounterId, { type: 'postop', limit: 200 }) as any
-      const items = (res.notes || []).map((n: any)=>({
+      const res = await ipdApi.listIpdSurgeryRecords(encounterId, { status: 'postop', limit: 200 }) as any
+      const items = (res.surgeryRecords || []).map((n: any)=>({
         id: String(n._id),
-        when: String(n.recordedAt || n.createdAt || ''),
-        text: String((n.data||{}).text || ''),
-        doctorName: n.doctorName || '',
-        sign: n.sign || '',
+        when: String(n.surgeryDate || n.createdAt || ''),
+        text: String(n.postOpInstructions || ''),
+        doctorName: n.surgeonName || '',
+        sign: n.surgeonSign || '',
       }))
       setRows(items)
     }catch{}
@@ -28,12 +24,12 @@ export default function PostOperativeOrder({ encounterId }: { encounterId: strin
   const add = async (d: { when?: string; text?: string; doctorName?: string; sign?: string }) => {
     try{
       const when = d.when || new Date().toISOString()
-      await hospitalApi.createIpdClinicalNote(encounterId, {
-        type: 'postop',
-        recordedAt: when,
-        doctorName: d.doctorName,
-        sign: d.sign,
-        data: { text: d.text || '' },
+      await ipdApi.createIpdSurgeryRecord(encounterId, {
+        surgeryDate: when,
+        postOpInstructions: d.text || '',
+        surgeonName: d.doctorName,
+        surgeonSign: d.sign,
+        status: 'postop',
       })
       setOpen(false)
       await reload()
@@ -64,41 +60,54 @@ export default function PostOperativeOrder({ encounterId }: { encounterId: strin
           ))}
         </ul>
       )}
-      <PostopDialog open={open} onClose={()=>setOpen(false)} onSave={add} defaults={encDefaults} />
+      <PostopDialog open={open} onClose={()=>setOpen(false)} onSave={add} />
     </div>
   )
 }
 
-function PostopDialog({ open, onClose, onSave, defaults }: { open: boolean; onClose: ()=>void; onSave: (d: { when?: string; text?: string; doctorName?: string; sign?: string })=>void; defaults?: any }){
-  const [form, setForm] = useState({ when: new Date().toISOString().slice(0,16), text: '', doctorName: '', sign: '' })
-
-  useEffect(()=>{
-    if (open) setForm({ when: new Date().toISOString().slice(0,16), text: '', doctorName: defaults?.doctorName || '', sign: '' })
-  }, [open])
-
-  const submit = (e: React.FormEvent) => {
+function PostopDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void; onSave: (d: { when?: string; text?: string; doctorName?: string; sign?: string })=>void }){
+  if(!open) return null
+  const now = new Date()
+  const defaultDateTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16)
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    onSave(form)
+    const fd = new FormData(e.currentTarget)
+    onSave({
+      when: String(fd.get('when')||''),
+      text: String(fd.get('text')||''),
+      doctorName: String(fd.get('doctorName')||''),
+      sign: String(fd.get('sign')||''),
+    })
   }
   return (
-    <ClinicalDialogShell open={open} title="Add Post-Operative Order" subtitle="Post-Surgical Orders" icon={ClipboardList} onClose={onClose} onSubmit={submit}>
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <ClinicalDatePicker label="Date/Time" value={form.when} onChange={v=>setForm({...form,when:v})} />
-          <div>
-            <label className={clinicalLbl}>Doctor Name</label>
-            <input value={form.doctorName} onChange={e=>setForm({...form,doctorName:e.target.value})} className={clinicalInp} />
-          </div>
-          <div>
-            <label className={clinicalLbl}>Sign</label>
-            <input value={form.sign} onChange={e=>setForm({...form,sign:e.target.value})} className={clinicalInp} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <form onSubmit={submit} className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+        <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Add Post-Operative Order</div>
+        <div className="px-5 py-4 text-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="postop-when" className="block text-xs font-medium text-slate-600">Date/Time</label>
+              <input id="postop-when" name="when" type="datetime-local" defaultValue={defaultDateTime} className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div>
+              <label htmlFor="postop-doctor" className="block text-xs font-medium text-slate-600">Doctor Name</label>
+              <input id="postop-doctor" name="doctorName" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div>
+              <label htmlFor="postop-sign" className="block text-xs font-medium text-slate-600">Sign</label>
+              <input id="postop-sign" name="sign" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="postop-text" className="block text-xs font-medium text-slate-600">Order</label>
+              <textarea id="postop-text" name="text" className="h-32 w-full rounded-md border border-slate-300 px-3 py-2"></textarea>
+            </div>
           </div>
         </div>
-        <div>
-          <label className={clinicalLbl}>Order</label>
-          <textarea value={form.text} onChange={e=>setForm({...form,text:e.target.value})} rows={5} className={clinicalInp + ' resize-none'}></textarea>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>
+          <button type="submit" className="btn">Save</button>
         </div>
-      </div>
-    </ClinicalDialogShell>
+      </form>
+    </div>
   )
 }

@@ -32,6 +32,7 @@ const PrescriptionSchema = new Schema({
   examFindings: { type: String },
   diagnosis: { type: String },
   advice: { type: String },
+  nextFollowUp: { type: String },
   vitals: {
     pulse: { type: Number },
     temperatureC: { type: Number },
@@ -44,6 +45,30 @@ const PrescriptionSchema = new Schema({
     bmi: { type: Number },
     bsa: { type: Number },
     spo2: { type: Number },
+    ar: { type: String },
+    va: { type: String },
+    iop: { type: String },
+  },
+  preAnesthesia: {
+    isApplied: { type: Boolean, default: false },
+    history: {
+      cvs: { type: String },
+      respiratory: { type: String },
+      renal: { type: String },
+      hepatic: { type: String },
+      diabetic: { type: String },
+      neurology: { type: String },
+      previousAnesthesia: { type: String },
+      allergies: { type: String },
+    },
+    examination: {
+      mallampatiScore: { type: String }, // I, II, III, IV
+      asaClass: { type: String },        // I, II, III, IV, V, VI, E
+      airway: { type: String },
+      teeth: { type: String },
+      notes: { type: String },
+    },
+    recommendation: { type: String }, // e.g., Fit for surgery, Unfit, High Risk
   },
   tokenNo: { type: String },
   createdBy: { type: String },
@@ -69,6 +94,7 @@ export type HospitalPrescriptionDoc = {
   examFindings?: string
   diagnosis?: string
   advice?: string
+  nextFollowUp?: string
   vitals?: {
     pulse?: number
     temperatureC?: number
@@ -81,6 +107,20 @@ export type HospitalPrescriptionDoc = {
     bmi?: number
     bsa?: number
     spo2?: number
+    ar?: string
+    va?: string
+    iop?: string
+  }
+  preAnesthesia?: {
+    isApplied: boolean
+    history?: {
+      cvs?: string; respiratory?: string; renal?: string; hepatic?: string; diabetic?: string
+      neurology?: string; previousAnesthesia?: string; allergies?: string
+    }
+    examination?: {
+      mallampatiScore?: string; asaClass?: string; airway?: string; teeth?: string; notes?: string
+    }
+    recommendation?: string
   }
   tokenNo?: string
   createdBy?: string

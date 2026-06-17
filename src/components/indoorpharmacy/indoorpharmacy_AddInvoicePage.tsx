@@ -2,13 +2,13 @@ import { useEffect, useState, useRef } from 'react'
 
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 import { getLocalDate } from '../../utils/date'
 
 import { ArrowLeft, Plus, Edit2, Trash2, Save, ChevronDown, ChevronUp, Package, Pause, FileStack, X } from 'lucide-react'
 
-import Pharmacy_AddSupplierDialog, { type Supplier } from '../../components/pharmacy/pharmacy_AddSupplierDialog'
-import Pharmacy_AddCompanyDialog, { type Company } from '../../components/pharmacy/pharmacy_AddCompanyDialog'
+import Pharmacy_AddSupplierDialog, { type Supplier } from './indoorpharmacy_AddSupplierDialog'
+import Pharmacy_AddCompanyDialog, { type Company } from './indoorpharmacy_AddCompanyDialog'
 import SearchableSelect from '../common/SearchableSelect'
 
 
@@ -176,7 +176,7 @@ export default function Pharmacy_AddInvoicePage() {
 
     try {
 
-      const res: any = await pharmacyApi.listInventory({ search: q, limit: 1 })
+      const res: any = await indoorPharmacyApi.listInventory({ search: q, limit: 1 })
 
       const it = (res?.items || [])[0]
 
@@ -256,7 +256,7 @@ export default function Pharmacy_AddInvoicePage() {
 
     try {
 
-      const res: any = await pharmacyApi.listInventory({ search: q, limit: 1 })
+      const res: any = await indoorPharmacyApi.listInventory({ search: q, limit: 1 })
 
       const it = (res?.items || [])[0]
 
@@ -332,7 +332,7 @@ export default function Pharmacy_AddInvoicePage() {
 
   const addCompany = async (c: Company) => {
     try {
-      const created: any = await pharmacyApi.createCompany({
+      const created: any = await indoorPharmacyApi.createCompany({
         name: c.name,
         distributorId: supplierId || undefined,
         distributorName: supplierName || undefined,
@@ -377,7 +377,7 @@ export default function Pharmacy_AddInvoicePage() {
 
     let mounted = true
 
-    pharmacyApi.listAllSuppliers().then((res: any) => {
+    indoorPharmacyApi.listAllSuppliers().then((res: any) => {
 
       if (!mounted) return
 
@@ -397,7 +397,7 @@ export default function Pharmacy_AddInvoicePage() {
     ;(async () => {
       try {
         if (!supplierId) { setCompanies([]); setCompanyId(''); setCompanyName(''); return }
-        const res: any = await pharmacyApi.listAllCompanies({ distributorId: supplierId })
+        const res: any = await indoorPharmacyApi.listAllCompanies({ distributorId: supplierId })
         if (!mounted) return
         const list = res?.items ?? res ?? []
         setCompanies(list)
@@ -435,7 +435,7 @@ export default function Pharmacy_AddInvoicePage() {
 
       try {
 
-        const doc: any = await pharmacyApi.getPurchaseDraft(id)
+        const doc: any = await indoorPharmacyApi.getPurchaseDraft(id)
 
         if (!mounted || !doc) return
 
@@ -521,7 +521,7 @@ export default function Pharmacy_AddInvoicePage() {
     let mounted = true
     ;(async () => {
       try {
-        const res: any = await pharmacyApi.getNextPurchaseInvoiceNumber()
+        const res: any = await indoorPharmacyApi.getNextPurchaseInvoiceNumber()
         if (!mounted) return
         if (res?.invoiceNo) setInvoiceNo(res.invoiceNo)
       } catch {}
@@ -613,7 +613,7 @@ export default function Pharmacy_AddInvoicePage() {
 
   const refreshSuppliers = async () => {
 
-    const res: any = await pharmacyApi.listAllSuppliers()
+    const res: any = await indoorPharmacyApi.listAllSuppliers()
 
     const list = res?.items ?? res ?? []
 
@@ -624,7 +624,7 @@ export default function Pharmacy_AddInvoicePage() {
   }
 
   const refreshCompanies = async (distId: string) => {
-    const res: any = await pharmacyApi.listAllCompanies({ distributorId: distId })
+    const res: any = await indoorPharmacyApi.listAllCompanies({ distributorId: distId })
     const list = res?.items ?? res ?? []
     setCompanies(list)
     return list as any[]
@@ -636,7 +636,7 @@ export default function Pharmacy_AddInvoicePage() {
 
     try {
 
-      const created: any = await pharmacyApi.createSupplier({
+      const created: any = await indoorPharmacyApi.createSupplier({
 
         name: s.name,
 
@@ -688,7 +688,7 @@ export default function Pharmacy_AddInvoicePage() {
 
     let mounted = true
 
-    pharmacyApi.getAllMedicines().then((res: any) => {
+    indoorPharmacyApi.getAllMedicines().then((res: any) => {
 
       if (!mounted) return
 
@@ -720,7 +720,7 @@ export default function Pharmacy_AddInvoicePage() {
 
     try {
 
-      const res: any = await pharmacyApi.searchMedicines(query, 20)
+      const res: any = await indoorPharmacyApi.searchMedicines(query, 20)
 
       if (res?.suggestions && Array.isArray(res.suggestions)) {
 
@@ -776,7 +776,7 @@ export default function Pharmacy_AddInvoicePage() {
 
       try {
 
-        const res: any = await pharmacyApi.listInventory({ search: suggestion.name, limit: 1 })
+        const res: any = await indoorPharmacyApi.listInventory({ search: suggestion.name, limit: 1 })
 
         const it = (res?.items || [])[0]
 
@@ -908,7 +908,7 @@ export default function Pharmacy_AddInvoicePage() {
       return
     }
     try {
-      await pharmacyApi.createHoldPurchaseInvoice({
+      await indoorPharmacyApi.createHoldPurchaseInvoice({
         invoiceNo,
         invoiceDate,
         supplierId,
@@ -940,7 +940,7 @@ export default function Pharmacy_AddInvoicePage() {
   const loadHeldInvoices = async () => {
     setHeldLoading(true)
     try {
-      const res: any = await pharmacyApi.listHoldPurchaseInvoices()
+      const res: any = await indoorPharmacyApi.listHoldPurchaseInvoices()
       setHeldInvoices(res?.items || [])
     } catch {
       setHeldInvoices([])
@@ -951,7 +951,7 @@ export default function Pharmacy_AddInvoicePage() {
 
   const loadHeldInvoice = async (id: string) => {
     try {
-      const doc: any = await pharmacyApi.getHoldPurchaseInvoice(id)
+      const doc: any = await indoorPharmacyApi.getHoldPurchaseInvoice(id)
       if (!doc) return
       setInvoiceNo(doc.invoiceNo || '')
       setInvoiceDate(doc.invoiceDate || new Date().toISOString().slice(0, 10))
@@ -990,7 +990,7 @@ export default function Pharmacy_AddInvoicePage() {
       }))
       setInvoiceTaxes(taxes)
       // Delete the held invoice after loading
-      await pharmacyApi.deleteHoldPurchaseInvoice(id)
+      await indoorPharmacyApi.deleteHoldPurchaseInvoice(id)
       setHeldInvoicesOpen(false)
       setHeldInvoices(prev => prev.filter(h => h._id !== id))
       showToast('success', 'Held invoice loaded')
@@ -1001,7 +1001,7 @@ export default function Pharmacy_AddInvoicePage() {
 
   const deleteHeldInvoice = async (id: string) => {
     try {
-      await pharmacyApi.deleteHoldPurchaseInvoice(id)
+      await indoorPharmacyApi.deleteHoldPurchaseInvoice(id)
       setHeldInvoices(prev => prev.filter(h => h._id !== id))
       showToast('success', 'Held invoice deleted')
     } catch {
@@ -1117,7 +1117,7 @@ export default function Pharmacy_AddInvoicePage() {
 
               <button
 
-                onClick={() => navigate(fromPending ? '/pharmacy/inventory?tab=pending' : '/pharmacy/inventory')}
+                onClick={() => navigate(fromPending ? '/indoor-pharmacy/inventory?tab=pending' : '/indoor-pharmacy/inventory')}
 
                 className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
 
@@ -1155,7 +1155,7 @@ export default function Pharmacy_AddInvoicePage() {
 
               <button
 
-                onClick={() => navigate(fromPending ? '/pharmacy/inventory?tab=pending' : '/pharmacy/inventory')}
+                onClick={() => navigate(fromPending ? '/indoor-pharmacy/inventory?tab=pending' : '/indoor-pharmacy/inventory')}
 
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
 
@@ -1291,19 +1291,19 @@ export default function Pharmacy_AddInvoicePage() {
 
                     if (isEdit && id) {
 
-                      await pharmacyApi.updatePurchaseDraft(id, payload)
+                      await indoorPharmacyApi.updatePurchaseDraft(id, payload)
 
                       showToast('success', 'Invoice updated')
 
                     } else {
 
-                      await pharmacyApi.createPurchaseDraft(payload)
+                      await indoorPharmacyApi.createPurchaseDraft(payload)
 
                       showToast('success', 'Invoice saved successfully')
 
                     }
 
-                    setTimeout(() => navigate(fromPending ? '/pharmacy/inventory?tab=pending' : '/pharmacy/inventory'), 350)
+                    setTimeout(() => navigate(fromPending ? '/indoor-pharmacy/inventory?tab=pending' : '/indoor-pharmacy/inventory'), 350)
 
                   } catch (error) {
 

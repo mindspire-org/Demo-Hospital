@@ -3,6 +3,7 @@ import { Schema, model, models } from 'mongoose'
 const BiometricMappingSchema = new Schema({
   deviceId: { type: String, required: true, index: true },
   enrollId: { type: String, required: true, index: true },
+  enrollName: { type: String, default: '' },
   staffId: { type: String, required: true, index: true },
   active: { type: Boolean, default: true },
 }, { timestamps: true })
@@ -13,6 +14,7 @@ export type BiometricMappingDoc = {
   _id: string
   deviceId: string
   enrollId: string
+  enrollName: string
   staffId: string
   active: boolean
 }

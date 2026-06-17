@@ -3,7 +3,6 @@ import { FBRConfig } from '../../common/models/FBRConfig'
 import { FBRInvoice } from '../../common/models/FBRInvoice'
 import { getFBRService, initializeFBRService } from '../../common/services/fbrService'
 import { FBRInvoiceStatus, FBREnvironment } from '../../common/types/fbrTypes'
-import { env } from '../../config/env'
 import { MockFbrLog } from '../hospital/models/MockFbrLog'
 
 /**
@@ -13,16 +12,16 @@ export async function getConfig(_req: Request, res: Response) {
     try {
         let config = await FBRConfig.findOne()
 
-        // If no config exists, create default from env
+        // If no config exists, create default
         if (!config) {
             config = new FBRConfig({
-                posId: env.FBR_POS_ID,
+                posId: '',
                 facilityName: 'Hospital Management System',
-                ntn: env.FBR_NTN,
-                usinPrefix: env.FBR_USIN_PREFIX,
-                imsServiceUrl: env.FBR_IMS_URL,
-                isEnabled: env.FBR_ENABLED,
-                environment: env.FBR_ENVIRONMENT as FBREnvironment
+                ntn: '',
+                usinPrefix: 'HMS',
+                imsServiceUrl: 'http://localhost:8524',
+                isEnabled: false,
+                environment: 'sandbox' as FBREnvironment
             })
             await config.save()
         }

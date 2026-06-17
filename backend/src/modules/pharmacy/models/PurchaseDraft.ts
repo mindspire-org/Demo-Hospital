@@ -12,6 +12,8 @@ const LineSchema = new Schema({
   salePerPack: { type: Number, default: 0 },
   salePerUnit: { type: Number, default: 0 },
   expiry: { type: String }, // yyyy-mm-dd
+  expiryAlertDate: { type: String }, // User requested field
+  shelfNumber: { type: String }, // User requested field
   category: { type: String },
   minStock: { type: Number },
   defaultDiscountPct: { type: Number },
@@ -62,6 +64,8 @@ export type PurchaseDraftDoc = {
     salePerPack: number
     salePerUnit: number
     expiry?: string
+    expiryAlertDate?: string
+    shelfNumber?: string
     category?: string
     minStock?: number
     defaultDiscountPct?: number

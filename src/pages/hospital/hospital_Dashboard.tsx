@@ -1,17 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
-import { TrendingUp, DollarSign, Users, BedSingle, Activity, RefreshCw, Clock, CalendarClock, Filter, RotateCcw, BarChart3, X, HeartPulse, Stethoscope, Ambulance, Building2, UserCheck, AlertTriangle, ChevronDown } from 'lucide-react'
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { hospitalApi, financeApi, labApi } from '../../utils/api'
-import { fmt12 } from '../../utils/timeFormat'
-import ModernDatePicker from '../../components/common/ModernDatePicker'
-import ModernTimePicker from '../../components/common/ModernTimePicker'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { DollarSign, Users, Activity, RefreshCw, Clock, Filter, RotateCcw, BarChart3, X, Wallet, BedDouble, TrendingUp, CalendarClock } from 'lucide-react'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
+import { hospitalApi, labApi } from '../../utils/api'
+import ModernDateInput from '../../components/common/ModernDateInput'
 
-function iso(d: Date){ return d.toISOString().slice(0,10) }
+function iso(d: Date){ return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 function startOfMonth(d: Date){ const x = new Date(d); x.setDate(1); return x }
 function money(x: any){ const n = Number(x||0); return isFinite(n) ? n : 0 }
-function fmtRs(n: number){ return `Rs ${Math.round(n).toLocaleString('en-PK')}` }
-
-const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316']
 
 export default function Hospital_Dashboard() {
   const [loading, setLoading] = useState(false)
@@ -20,6 +15,8 @@ export default function Hospital_Dashboard() {
   const [toDate, setToDate] = useState<string>(iso(new Date()))
   const [fromTime, setFromTime] = useState<string>('')
   const [toTime, setToTime] = useState<string>('')
+  const [shifts, setShifts] = useState<Array<{ id: string; name: string; start: string; end: string }>>([])
+  const [filterShiftId, setFilterShiftId] = useState<string>('')
   const [revByMethod, setRevByMethod] = useState<{ cash: number; card: number }>({ cash: 0, card: 0 })
   const [stats, setStats] = useState({
     tokens: 0,
@@ -28,50 +25,66 @@ export default function Hospital_Dashboard() {
     activeIpd: 0,
     bedsAvailable: 0,
     occupancy: 0,
-    present: 0,
-    late: 0,
+    avgFee: 0,
+    totalPatients: 0,
+    erCount: 0,
+    otCount: 0,
   })
   const [tokens, setTokens] = useState<any[]>([])
-  const [ipdAdmissions, setIpdAdmissions] = useState<any[]>([])
   const [expenses, setExpenses] = useState<any[]>([])
   const [ipdPayments, setIpdPayments] = useState<any[]>([])
-  const [doctorEarnRows, setDoctorEarnRows] = useState<any[]>([])
-  const [doctorPayoutsTotal, setDoctorPayoutsTotal] = useState<number>(0)
-  const [opdRevenueAmt, setOpdRevenueAmt] = useState<number>(0)
-  const [ipdRevenueAmt, setIpdRevenueAmt] = useState<number>(0)
-  const [erRevenueAmt, setErRevenueAmt] = useState<number>(0)
-  const [erTransactions, setErTransactions] = useState<any[]>([])
-  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([])
+  const [erPayments, setErPayments] = useState<any[]>([])
+  const [dashboardStats, setDashboardStats] = useState<any>(null)
   const [corporateArItems, setCorporateArItems] = useState<Array<{ companyId: string; companyName: string; balance: number }>>([])
   const [corporateArAmt, setCorporateArAmt] = useState<number>(0)
   const [showArModal, setShowArModal] = useState(false)
   const REFRESH_MS = 15000
 
-  // Shifts for global filter
-  const [shifts, setShifts] = useState<Array<{ id: string; name: string; start: string; end: string }>>([])
-  const [filterShiftId, setFilterShiftId] = useState<string>('')
+  // Use refs to avoid stale closures in polling
+  const fromDateRef = useRef<string>(fromDate)
+  const toDateRef = useRef<string>(toDate)
+  const fromTimeRef = useRef<string>(fromTime)
+  const toTimeRef = useRef<string>(toTime)
+  const filterShiftIdRef = useRef<string>(filterShiftId)
+  const shiftsRef = useRef<Array<{ id: string; name: string; start: string; end: string }>>(shifts)
+
+  useEffect(() => {
+    fromDateRef.current = fromDate
+    toDateRef.current = toDate
+    fromTimeRef.current = fromTime
+    toTimeRef.current = toTime
+    filterShiftIdRef.current = filterShiftId
+    shiftsRef.current = shifts
+  }, [fromDate, toDate, fromTime, toTime, filterShiftId, shifts])
 
   useEffect(() => { load() }, [fromDate, toDate, fromTime, toTime, filterShiftId])
 
   function getEffectiveWindow(){
     // If custom time range is provided, it overrides shift
-    const hasTime = !!(fromTime && toTime)
+    const fDate = fromDateRef.current
+    const tDate = toDateRef.current
+    const fTime = fromTimeRef.current
+    const tTime = toTimeRef.current
+    const sId = filterShiftIdRef.current
+    const sList = shiftsRef.current
+
+    const hasTime = !!(fTime && tTime)
     if (hasTime){
       try{
-        const [fy,fm,fd] = fromDate.split('-').map(n=>parseInt(n||'0',10))
-        const [ty,tm,td] = toDate.split('-').map(n=>parseInt(n||'0',10))
-        const [fh,fmin] = fromTime.split(':').map(n=>parseInt(n||'0',10))
-        const [th,tmin] = toTime.split(':').map(n=>parseInt(n||'0',10))
+        const [fy,fm,fd] = fDate.split('-').map((n: string)=>parseInt(n||'0',10))
+        const [ty,tm,td] = tDate.split('-').map((n: string)=>parseInt(n||'0',10))
+        const [fh,fmin] = fTime.split(':').map((n: string)=>parseInt(n||'0',10))
+        const [th,tmin] = tTime.split(':').map((n: string)=>parseInt(n||'0',10))
         const start = new Date(fy,(fm-1),fd,fh||0,fmin||0,0)
         let end = new Date(ty,(tm-1),td,th||0,tmin||0,0)
         if (end <= start) end = new Date(end.getTime() + 24*60*60*1000)
         return { start, end }
       }catch{ return null }
     }
-    if (filterShiftId){
-      const sh = shifts.find(s=> s.id===filterShiftId)
-      const win = getShiftWindow(toDate, sh)
-      return win
+    if (sId){
+      const sh = sList.find(s=> s.id===sId)
+      if (!sh) return null
+      return getShiftWindow(tDate, sh)
     }
     return null
   }
@@ -85,31 +98,29 @@ export default function Hospital_Dashboard() {
   async function load(){
     setLoading(true)
     try {
-      const [tokensRes, expensesRes, staffRes, bedsAllRes, bedsOccRes, attRes, shiftsRes, ipdAdmsRes, doctorsRes, depsRes] = await Promise.all([
-        hospitalApi.listTokens({ from: fromDate, to: toDate }) as any,
-        hospitalApi.listExpenses({ from: fromDate, to: toDate }) as any,
-        hospitalApi.listStaff() as any,
+      const fDate = fromDateRef.current
+      const tDate = toDateRef.current
+      
+      const [tokensRes, expensesRes, bedsAllRes, bedsOccRes, shiftsRes, ipdAdmsRes, _doctorsRes, _depsRes] = await Promise.all([
+        hospitalApi.listTokens({ from: fDate, to: tDate }) as any,
+        hospitalApi.listExpenses({ from: fDate, to: tDate }) as any,
         hospitalApi.listBeds() as any,
         hospitalApi.listBeds({ status: 'occupied' }) as any,
-        hospitalApi.listAttendance({ from: fromDate, to: toDate, limit: 5000 }) as any,
         hospitalApi.listShifts() as any,
-        hospitalApi.listIPDAdmissions({ from: fromDate, to: toDate, limit: 500 }) as any,
+        hospitalApi.listIPDAdmissions({ from: fDate, to: tDate, limit: 500 }) as any,
         hospitalApi.listDoctors() as any,
-        hospitalApi.listDepartments() as any,
+        hospitalApi.listDepartments({ limit: 1000 }) as any,
       ])
       let tokensArr: any[] = tokensRes?.tokens || tokensRes?.items || tokensRes || []
       let expensesArr: any[] = expensesRes?.expenses || expensesRes?.items || expensesRes || []
-      let staffArr: any[] = staffRes?.staff || staffRes?.items || staffRes || []
       const allBeds: any[] = bedsAllRes?.beds || []
       const occBeds: any[] = bedsOccRes?.beds || []
-      let attendance: any[] = attRes?.items || []
       let shifts: any[] = (shiftsRes?.items || shiftsRes || [])
       const ipdAdms: any[] = ipdAdmsRes?.admissions || ipdAdmsRes?.items || ipdAdmsRes || []
 
       try {
-        const depArr: any[] = (depsRes?.departments || depsRes?.items || depsRes || [])
-        setDepartments(depArr.map((d:any)=> ({ id: String(d._id||d.id), name: String(d.name||'') })).filter((d:any)=> d.id && d.name))
-      } catch { setDepartments([]) }
+        // Unused department fetching removed
+      } catch { }
 
       // Apply global time window if enabled
       const win = getEffectiveWindow()
@@ -118,43 +129,17 @@ export default function Hospital_Dashboard() {
         tokensArr = tokensArr.filter(inWin)
         expensesArr = expensesArr.filter(inWin)
       }
-      setIpdAdmissions(ipdAdms)
-      setTokens(tokensArr)
       setExpenses(expensesArr)
-      setDoctorEarnRows([])
-
-      // Fallback to Lab source if no hospital attendance
-      if ((attendance?.length||0) === 0){
+      setTokens(tokensArr)
+      // Fallback to Lab source if no hospital shifts found
+      if ((shifts?.length||0) === 0){
         try {
-          const [attLab, shiftsLab, staffLab] = await Promise.all([
-            labApi.listAttendance({ from: fromDate, to: toDate, limit: 5000 }) as any,
+          const [shiftsLab] = await Promise.all([
             labApi.listShifts() as any,
-            labApi.listStaff({ limit: 1000 }) as any,
           ])
-          attendance = (attLab?.items || attLab || [])
           shifts = (shiftsLab?.items || shiftsLab || [])
-          staffArr = (staffLab?.items || [])
-            .map((x:any)=> ({ _id: x._id, id: x._id, name: x.name, role: x.position || 'other', phone: x.phone, salary: x.salary, shiftId: x.shiftId, active: x.status !== 'inactive' }))
         } catch {}
       }
-
-      // Doctor payouts sum across all doctors in range
-      try {
-        const doctors: any[] = (doctorsRes?.doctors || doctorsRes?.items || doctorsRes || []).map((d:any)=> ({ id: String(d._id||d.id) }))
-        const payoutsLists = await Promise.all(doctors.map(async d => {
-          try { const r:any = await financeApi.doctorPayouts(d.id, 200); return (r?.payouts || []) } catch { return [] }
-        }))
-        let payouts = ([] as any[]).concat(...payoutsLists)
-        if (win){
-          const inWin = (x:any)=>{ const t = toTimeMs(x); return Number.isFinite(t) && t >= win.start.getTime() && t < win.end.getTime() }
-          payouts = payouts.filter(inWin)
-        } else {
-          payouts = payouts.filter(p=>{ const dt = String(p.dateIso||p.date||p.createdAt||'').slice(0,10); return dt>=fromDate && dt<=toDate })
-        }
-        const total = payouts
-          .reduce((s,p)=> s + money(p.amount), 0)
-        setDoctorPayoutsTotal(total)
-      } catch { setDoctorPayoutsTotal(0) }
 
       const ipdPaysArrays = await Promise.all(ipdAdms.slice(0, 200).map(async (a:any)=>{
         const id = String(a._id||a.id||a.encounterId||'')
@@ -172,62 +157,36 @@ export default function Hospital_Dashboard() {
       }
       setIpdPayments(ipdPayFlat)
 
-      // Fetch ER transactions with department info for department revenue calculation
+      // Fetch ER payments
       try {
-        const erTxRes: any = await hospitalApi.listTransactions({ from: fromDate, to: toDate, type: 'ER', limit: 1000 })
-        setErTransactions(erTxRes?.transactions || [])
-      } catch { setErTransactions([]) }
+        const erTxRes: any = await hospitalApi.listTransactions({ from: fDate, to: tDate, type: 'ER', limit: 1000 })
+        setErPayments(erTxRes?.transactions || [])
+      } catch { setErPayments([]) }
+
+      // Fetch dashboard stats
+      try {
+        const dStats = await hospitalApi.dashboardStats({ from: fDate, to: tDate })
+        setDashboardStats(dStats)
+      } catch (err) {
+        console.error('Failed to fetch dashboard stats', err)
+      }
+
       // Fetch corporate AR breakdown
       try {
-        const arRes: any = await hospitalApi.getCorporateARBreakdown({ from: fromDate, to: toDate })
+        const arRes: any = await hospitalApi.getCorporateARBreakdown({ from: fDate, to: tDate })
         setCorporateArItems(arRes?.items || [])
         setCorporateArAmt(arRes?.totalAR || 0)
       } catch { setCorporateArItems([]); setCorporateArAmt(0) }
-
-      // Calculate OPD revenue from tokens (sum of fees)
-      const opdRev = tokensArr.reduce((sum: number, t: any) => {
-        const fee = Number(t?.fee || 0)
-        return sum + (isFinite(fee) ? fee : 0)
-      }, 0)
-      setOpdRevenueAmt(opdRev)
-
-      // Calculate IPD revenue from ipdPayments
-      const ipdRev = ipdPayFlat.reduce((sum: number, p: any) => {
-        const amt = Number(p?.amount || 0)
-        return sum + (isFinite(amt) ? amt : 0)
-      }, 0)
-      setIpdRevenueAmt(ipdRev)
-
-      // Calculate ER revenue from erTransactions
-      const erRev = (erTransactions || []).reduce((sum: number, t: any) => {
-        const amt = Number(t?.fee || t?.totalAmount || t?.amount || 0)
-        return sum + (isFinite(amt) ? amt : 0)
-      }, 0)
-      setErRevenueAmt(erRev)
 
       const totalBeds = allBeds.length
       const occupied = occBeds.length
       const bedsAvailable = Math.max(0, totalBeds - occupied)
       const occupancy = totalBeds ? Math.round((occupied / totalBeds) * 100) : 0
 
-      const todayStr = toDate
-      const dateOf = (x:any) => String(x?.date || x?.dateIso || x?.createdAt || '').slice(0,10)
-      const presentToday = attendance.filter(a => dateOf(a) === todayStr && (String(a.status||'').toLowerCase()==='present' || !!a.clockIn)).length
-      const shiftMap: Record<string, any> = {}
-      for (const sh of shifts){ shiftMap[String(sh._id || sh.id)] = sh }
-      const staffMap: Record<string, any> = {}
-      for (const st of staffArr){ staffMap[String(st._id || st.id)] = st }
-      function toMin(hm?: string){ if(!hm) return null; const [h,m] = String(hm).split(':').map((n:any)=>parseInt(n||'0')); return isFinite(h) ? (h*60 + (m||0)) : null }
-      let lateToday = 0
-      for (const a of attendance){
-        if (dateOf(a) !== todayStr || String(a.status||'').toLowerCase() !== 'present' || !a.clockIn) continue
-        const sid = String(a.shiftId || staffMap[a.staffId]?.shiftId || '')
-        const sh = shiftMap[sid]
-        const smin = toMin(sh?.start), inMin = toMin(a.clockIn)
-        if (smin!=null && inMin!=null && inMin > smin) lateToday++
-      }
-
-      setStats({ tokens: tokensArr.length, admissions: ipdAdms.length, discharges: (ipdAdmsRes?.admissions||[]).filter((a:any)=>a.status==='discharged').length, activeIpd: occupied, bedsAvailable, occupancy, present: presentToday, late: lateToday })
+      const totalPatients = tokensArr.length + ipdAdms.length
+      const avgFee = tokensArr.length > 0 ? Math.round(tokensArr.reduce((s,t)=>s + money(t.fee), 0) / tokensArr.length) : 0
+      const erCount = (dashboardStats?.activePatients?.er || 0)
+      setStats({ tokens: tokensArr.length, admissions: ipdAdms.length, discharges: (ipdAdmsRes?.admissions||[]).filter((a:any)=>a.status==='discharged').length, activeIpd: occupied, bedsAvailable, occupancy, avgFee, totalPatients, erCount, otCount: 0 })
       setUpdatedAt(new Date().toLocaleString())
 
       // Revenue split by payment method (cash vs card/bank) using finance transactions
@@ -259,126 +218,124 @@ export default function Hospital_Dashboard() {
     } finally { setLoading(false) }
   }
 
-  // Department map no longer needed after removing dept-wise widget
-  // IPD revenue derived from backend trial balance
-  const expensesTotal = useMemo(()=> expenses.reduce((s,e)=> s + money(e.amount), 0), [expenses])
-  const doctorPayouts = useMemo(()=> (doctorEarnRows||[]).filter((r:any)=>{
-    const t = String(r.type||'').toLowerCase()
-    return t==='payout' || money(r.amount)<0
-  }).reduce((s:any,r:any)=> s + Math.abs(money(r.amount)), 0), [doctorEarnRows])
-  const doctorPayoutsCard = useMemo(()=> doctorPayoutsTotal>0 ? doctorPayoutsTotal : doctorPayouts, [doctorPayoutsTotal, doctorPayouts])
-  // Salaries widget removed per request
+  // Calculate total revenue from tokens as fallback when finance transactions are empty
+  const tokenRevenue = useMemo(() => {
+    return tokens.reduce((sum, t) => sum + money(t.fee || t.amount), 0)
+  }, [tokens])
 
-  const totalRevenueByMethod = useMemo(()=> revByMethod.cash + revByMethod.card, [revByMethod])
+  // Use finance transactions if available, otherwise fall back to token fees
+  const displayRevByMethod = useMemo(() => {
+    const financeTotal = revByMethod.cash + revByMethod.card
+    // If finance transactions show 0 but we have tokens with fees, show all as cash
+    if (financeTotal === 0 && tokenRevenue > 0) {
+      return { cash: tokenRevenue, card: 0 }
+    }
+    return revByMethod
+  }, [revByMethod, tokenRevenue])
+
+  const totalRevenueByMethod = useMemo(() => displayRevByMethod.cash + displayRevByMethod.card, [displayRevByMethod])
+
+  const trendData = useMemo(() => {
+    const days: Record<string, { date: string; revenue: number; expense: number }> = {}
+    
+    // Initialize last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const dateStr = iso(d)
+      const label = dateStr.slice(5) // MM-DD
+      days[dateStr] = { date: label, revenue: 0, expense: 0 }
+    }
+
+    // Populate revenue (tokens)
+    for (const t of tokens) {
+      const dateStr = String(t.dateIso || t.createdAt || '').slice(0, 10)
+      if (days[dateStr]) days[dateStr].revenue += money(t.fee || t.amount)
+    }
+    // Populate revenue (IPD)
+    for (const p of ipdPayments) {
+      const dateStr = String(p.receivedAt || p.createdAt || '').slice(0, 10)
+      if (days[dateStr]) days[dateStr].revenue += money(p.amount)
+    }
+    // Populate revenue (ER)
+    for (const p of erPayments) {
+      const dateStr = String(p.receivedAt || p.createdAt || '').slice(0, 10)
+      if (days[dateStr]) days[dateStr].revenue += money(p.amount)
+    }
+
+    // Populate expenses
+    for (const e of expenses) {
+      const dateStr = String(e.dateIso || e.createdAt || '').slice(0, 10)
+      if (days[dateStr]) days[dateStr].expense += money(e.amount)
+    }
+
+    return Object.values(days)
+  }, [tokens, ipdPayments, erPayments, expenses])
+
+  // Department revenue data for chart
+  const deptRevenueData = useMemo(() => {
+    const byDept: Record<string, number> = {}
+    
+    // OPD revenue from tokens
+    for (const t of tokens) {
+      const depName = t?.departmentName || t?.departmentId?.name || 'Other'
+      byDept[depName] = (byDept[depName] || 0) + money(t.fee || t.amount)
+    }
+
+    // IPD revenue from payments
+    for (const p of ipdPayments) {
+      const depName = p?.departmentName || p?.departmentId?.name || 'IPD'
+      byDept[depName] = (byDept[depName] || 0) + money(p.amount)
+    }
+
+    // ER revenue from payments
+    for (const p of erPayments) {
+      const depName = p?.departmentName || p?.departmentId?.name || 'ER'
+      byDept[depName] = (byDept[depName] || 0) + money(p.amount)
+    }
+
+    return Object.entries(byDept)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8) // Top 8 departments
+  }, [tokens, ipdPayments, erPayments])
+
+  const occupancyData = useMemo(() => [
+    { name: 'Occupied', value: stats.activeIpd, color: '#ef4444' },
+    { name: 'Available', value: stats.bedsAvailable, color: '#10b981' }
+  ], [stats])
+
+  const topCards = [
+    { title: 'TOTAL REVENUE', value: `Rs ${totalRevenueByMethod.toLocaleString()}`, tone: 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white', icon: Wallet, label: 'REVENUE' },
+    { title: 'TOKENS ISSUED', value: String(stats.tokens), tone: 'bg-gradient-to-br from-violet-500 to-purple-600 text-white', icon: Activity, label: 'OPD' },
+    { title: 'ACTIVE IPD', value: String(dashboardStats?.activePatients?.ipd || stats.activeIpd), tone: 'bg-gradient-to-br from-sky-500 to-blue-600 text-white', icon: Users, label: 'INPATIENT' },
+    { title: 'BEDS AVAILABLE', value: String(stats.bedsAvailable), tone: 'bg-gradient-to-br from-cyan-500 to-cyan-600 text-white', icon: BedDouble, label: 'WARD' },
+    { title: 'AVG FEE', value: `Rs ${stats.avgFee.toLocaleString()}`, tone: 'bg-gradient-to-br from-amber-500 to-orange-600 text-white', icon: DollarSign, label: 'METRIC' },
+    { title: 'ER PATIENTS', value: String(dashboardStats?.activePatients?.er || stats.erCount), tone: 'bg-gradient-to-br from-rose-500 to-red-600 text-white', icon: Activity, label: 'EMERGENCY' },
+  ]
+
+  const statsCards: any[] = [
+    { title: 'ADMISSIONS', value: String(stats.admissions), color: 'bg-blue-500', icon: TrendingUp, sub: 'New patients this period' },
+    { title: 'DISCHARGES', value: String(stats.discharges), color: 'bg-emerald-500', icon: CalendarClock, sub: 'Patients discharged' },
+    { title: 'OCCUPANCY', value: `${stats.occupancy}%`, color: 'bg-amber-500', icon: BedDouble, sub: `${stats.activeIpd} occupied / ${stats.activeIpd + stats.bedsAvailable} total` },
+    { title: 'ACTIVE ER', value: String(dashboardStats?.activePatients?.er || 0), color: 'bg-red-500', icon: Activity, sub: 'Emergency patients' },
+    { title: 'TOTAL PATIENTS', value: String(stats.totalPatients), color: 'bg-indigo-500', icon: Users, sub: 'All departments' },
+    { title: 'CASH REVENUE', value: `Rs ${displayRevByMethod.cash.toLocaleString()}`, color: 'bg-emerald-600', icon: Wallet, sub: `${displayRevByMethod.cash + displayRevByMethod.card > 0 ? Math.round(displayRevByMethod.cash / (displayRevByMethod.cash + displayRevByMethod.card) * 100) : 0}% of total` },
+    { title: 'CARD REVENUE', value: `Rs ${displayRevByMethod.card.toLocaleString()}`, color: 'bg-sky-600', icon: Wallet, sub: `${displayRevByMethod.cash + displayRevByMethod.card > 0 ? Math.round(displayRevByMethod.card / (displayRevByMethod.cash + displayRevByMethod.card) * 100) : 0}% of total` },
+    { title: 'CORPORATE AR', value: `Rs ${corporateArAmt.toLocaleString()}`, color: 'bg-violet-500', icon: DollarSign, sub: 'Outstanding balance' },
+  ]
+
+  const ipdErCards = [
+    { title: 'Advance Available (IPD)', value: `Rs ${(dashboardStats?.advances?.ipd || 0).toLocaleString()}`, icon: Wallet, tone: 'bg-white border-slate-200 text-slate-700' },
+    { title: 'Advance Available (ER)', value: `Rs ${(dashboardStats?.advances?.er || 0).toLocaleString()}`, icon: Wallet, tone: 'bg-white border-slate-200 text-slate-700' },
+    { title: 'Pending Payment (IPD)', value: `Rs ${(dashboardStats?.pending?.ipd || 0).toLocaleString()}`, icon: Clock, tone: 'bg-white border-slate-200 text-slate-700' },
+    { title: 'Pending Payment (ER)', value: `Rs ${(dashboardStats?.pending?.er || 0).toLocaleString()}`, icon: Clock, tone: 'bg-white border-slate-200 text-slate-700' },
+  ]
+
   const recentIpdPayments = useMemo(()=> {
     const getDate = (p:any)=> new Date(String(p.receivedAt||p.dateIso||p.date||p.createdAt||'') || 0).getTime()
     return [...ipdPayments].sort((a,b)=> getDate(b) - getDate(a)).slice(0, 10)
   }, [ipdPayments])
-
-  // Chart data: Revenue breakdown by source (OPD / IPD / ER)
-  const revenueBreakdownData = useMemo(() => [
-    { name: 'OPD', value: opdRevenueAmt, color: '#6366f1' },
-    { name: 'IPD', value: ipdRevenueAmt, color: '#10b981' },
-    { name: 'ER', value: erRevenueAmt, color: '#f59e0b' },
-  ].filter(d => d.value > 0), [opdRevenueAmt, ipdRevenueAmt, erRevenueAmt])
-
-  // Chart data: Cash vs Card revenue
-  const paymentMethodData = useMemo(() => [
-    { name: 'Cash', value: revByMethod.cash, color: '#10b981' },
-    { name: 'Card/Bank', value: revByMethod.card, color: '#6366f1' },
-  ].filter(d => d.value > 0), [revByMethod])
-
-  // Chart data: Bed occupancy donut
-  const bedOccupancyData = useMemo(() => {
-    const occupied = stats.activeIpd
-    const available = stats.bedsAvailable
-    return [
-      { name: 'Occupied', value: occupied, color: '#ef4444' },
-      { name: 'Available', value: available, color: '#10b981' },
-    ].filter(d => d.value > 0)
-  }, [stats.activeIpd, stats.bedsAvailable])
-
-  // Chart data: Department revenue for bar chart
-  const deptRevenueChartData = useMemo(() => {
-    const byDept: Record<string, number> = {}
-    for (const d of departments) byDept[d.id] = 0
-    for (const t of tokens){
-      const depId = String(t?.departmentId?._id || t?.departmentId || '')
-      if (!depId) continue
-      const fee = Number(t?.fee || t?.amount || 0)
-      if (byDept[depId] == null) byDept[depId] = 0
-      byDept[depId] += fee
-    }
-    for (const a of ipdAdmissions){
-      const depId = String(a?.departmentId?._id || a?.departmentId || '')
-      if (!depId) continue
-      const totalBill = Number(a?.totalBill || a?.totalAmount || a?.billTotal || 0)
-      const deposit = Number(a?.deposit || a?.totalPaid || 0)
-      const ipdRevenue = totalBill > 0 ? totalBill : deposit
-      if (byDept[depId] == null) byDept[depId] = 0
-      byDept[depId] += ipdRevenue
-    }
-    for (const t of erTransactions){
-      const depId = String(t?.departmentId || '')
-      if (!depId) continue
-      const amount = Number(t?.fee || t?.totalAmount || 0)
-      if (byDept[depId] == null) byDept[depId] = 0
-      byDept[depId] += amount
-    }
-    return departments
-      .map((d, i) => ({ name: d.name.length > 12 ? d.name.slice(0, 11) + '…' : d.name, revenue: byDept[d.id] || 0, color: CHART_COLORS[i % CHART_COLORS.length] }))
-      .filter(d => d.revenue > 0)
-  }, [departments, tokens, ipdAdmissions, erTransactions])
-
-  // Chart data: Revenue vs Expenses comparison
-  const revenueVsExpenseData = useMemo(() => [
-    { name: 'Revenue', value: totalRevenueByMethod, fill: '#10b981' },
-    { name: 'Expenses', value: expensesTotal, fill: '#ef4444' },
-    { name: 'Doctor Payouts', value: doctorPayoutsCard, fill: '#f59e0b' },
-  ], [totalRevenueByMethod, expensesTotal, doctorPayoutsCard])
-
-  
-  // Department revenue cards - calculate OPD + IPD + ER revenue per department
-  const deptRevenueCards = useMemo(() => {
-    const byDept: Record<string, number> = {}
-    for (const d of departments) byDept[d.id] = 0
-
-    // OPD revenue from tokens (fee per department)
-    for (const t of tokens){
-      const depId = String(t?.departmentId?._id || t?.departmentId || '')
-      if (!depId) continue
-      const fee = Number(t?.fee || t?.amount || 0)
-      if (byDept[depId] == null) byDept[depId] = 0
-      byDept[depId] += fee
-    }
-
-    // IPD revenue from admissions (deposit + total billed per department)
-    for (const a of ipdAdmissions){
-      const depId = String(a?.departmentId?._id || a?.departmentId || '')
-      if (!depId) continue
-      const totalBill = Number(a?.totalBill || a?.totalAmount || a?.billTotal || 0)
-      const deposit = Number(a?.deposit || a?.totalPaid || 0)
-      const ipdRevenue = totalBill > 0 ? totalBill : deposit
-      if (byDept[depId] == null) byDept[depId] = 0
-      byDept[depId] += ipdRevenue
-    }
-
-    // ER revenue from transactions (distributed by department from finance journals)
-    for (const t of erTransactions){
-      const depId = String(t?.departmentId || '')
-      if (!depId) continue
-      const amount = Number(t?.fee || t?.totalAmount || 0)
-      if (byDept[depId] == null) byDept[depId] = 0
-      byDept[depId] += amount
-    }
-
-    return departments.map(d => ({
-      title: d.name,
-      value: `Rs ${(byDept[d.id] || 0).toFixed(0)}`,
-      tone: 'bg-white border-slate-200',
-      icon: DollarSign,
-    }))
-  }, [departments, tokens, ipdAdmissions, erTransactions])
 
   // Auto-refresh for real-time chart and widgets
   useEffect(()=>{
@@ -437,286 +394,226 @@ export default function Hospital_Dashboard() {
 
   
 
-  // Key metric cards with gradient backgrounds
-  const keyCards = [
-    { title: 'Total Revenue', value: fmtRs(totalRevenueByMethod), icon: DollarSign, gradient: 'from-emerald-500 to-teal-600', iconBg: 'bg-emerald-400/30' },
-    { title: 'Expenses', value: fmtRs(expensesTotal), icon: TrendingUp, gradient: 'from-rose-500 to-pink-600', iconBg: 'bg-rose-400/30' },
-    { title: 'Tokens Today', value: String(stats.tokens), icon: Activity, gradient: 'from-violet-500 to-purple-600', iconBg: 'bg-violet-400/30' },
-    { title: 'Active IPD', value: String(stats.activeIpd), icon: BedSingle, gradient: 'from-sky-500 to-blue-600', iconBg: 'bg-sky-400/30' },
-  ]
-
-  // Secondary stat cards
-  const secondaryCards = [
-    { title: 'Admissions', value: String(stats.admissions), icon: Users, color: 'text-violet-600', bg: 'bg-violet-50' },
-    { title: 'Discharges', value: String(stats.discharges), icon: CalendarClock, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { title: 'Beds Available', value: String(stats.bedsAvailable), icon: BedSingle, color: 'text-cyan-600', bg: 'bg-cyan-50' },
-    { title: 'OPD Revenue', value: fmtRs(opdRevenueAmt), icon: Stethoscope, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-    { title: 'IPD Revenue', value: fmtRs(ipdRevenueAmt), icon: HeartPulse, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { title: 'ER Revenue', value: fmtRs(erRevenueAmt), icon: Ambulance, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { title: 'Doctor Payouts', value: fmtRs(doctorPayoutsCard), icon: DollarSign, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { title: 'Corporate AR', value: fmtRs(corporateArAmt), icon: Building2, color: 'text-indigo-600', bg: 'bg-indigo-50', onClick: () => setShowArModal(true) },
-    { title: 'Staff Present', value: String(stats.present), icon: UserCheck, color: 'text-green-600', bg: 'bg-green-50' },
-    { title: 'Late Staff', value: String(stats.late), icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
-  ]
-
   return (
-    <div className="space-y-6">
-      {/* Enhanced Filters */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm overflow-visible">
-        <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4">
-          <div className="flex items-center gap-2.5 text-slate-900 font-bold">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-              <Filter className="h-4 w-4" />
-            </div>
-            <span className="text-base uppercase tracking-wider">Dashboard Filters</span>
-          </div>
-          <button 
-            onClick={()=>{ setFromDate(iso(startOfMonth(new Date()))); setToDate(iso(new Date())); setFilterShiftId(''); setFromTime(''); setToTime('') }} 
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:shadow-sm active:scale-95"
-          >
-            <RotateCcw className="h-4 w-4" /> Reset All
-          </button>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-          <ModernDatePicker
-            label="Date From"
-            value={fromDate}
-            onChange={v => setFromDate(v)}
-          />
-
-          <ModernDatePicker
-            label="Date To"
-            value={toDate}
-            onChange={v => setToDate(v)}
-          />
-
-          {/* Shift */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Working Shift</label>
-            <div className="relative group">
-              <select 
-                value={filterShiftId} 
-                onChange={e=> setFilterShiftId(e.target.value)} 
-                className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pl-11 text-sm font-medium transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none hover:border-slate-300 cursor-pointer"
-              >
-                <option value="">Full Day (24h)</option>
-                {shifts.map(s=> <option key={s.id} value={s.id}>{s.name} ({fmt12(s.start)}-{fmt12(s.end)})</option>)}
+    <div className="space-y-6 bg-slate-50/50 dark:bg-slate-950 p-6 min-h-screen transition-colors duration-300">
+      
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-lg shadow-slate-200/50 dark:shadow-none transition-colors duration-300">
+        <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-lg"><Filter className="h-5 w-5 text-sky-500" /> Date Range & Filters</div>
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <ModernDateInput label="From Date" value={fromDate} onChange={setFromDate} />
+          <ModernDateInput label="To Date" value={toDate} onChange={setToDate} />
+          <label className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider"><span>Shift</span>
+            <div className="relative">
+              <select value={filterShiftId} onChange={e=> setFilterShiftId(e.target.value)} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 outline-none transition-all hover:border-slate-300 appearance-none cursor-pointer">
+                <option value="">All day</option>
+                {shifts.map(s=> <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-              <Clock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-              <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              </div>
             </div>
+          </label>
+          <label className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider"><span>Start Time</span>
+            <div className="relative">
+              <input type="time" value={fromTime} onChange={e=>{ setFromTime(e.target.value); if (e.target.value) setFilterShiftId('') }} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 outline-none transition-all hover:border-slate-300" />
+            </div>
+          </label>
+          <label className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider"><span>End Time</span>
+            <div className="relative">
+              <input type="time" value={toTime} onChange={e=>{ setToTime(e.target.value); if (e.target.value) setFilterShiftId('') }} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 outline-none transition-all hover:border-slate-300" />
+            </div>
+          </label>
+          <div className="flex items-end">
+            <button onClick={()=>{ setFromDate(iso(startOfMonth(new Date()))); setToDate(iso(new Date())); setFilterShiftId(''); setFromTime(''); setToTime('') }} className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 dark:bg-sky-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:hover:bg-sky-500 transition-all shadow-md shadow-slate-300/50 dark:shadow-sky-900/30"><RotateCcw className="h-4 w-4" /> RESET</button>
           </div>
-
-          {/* Manual Time From */}
-          <ModernTimePicker
-            label="Manual Time From"
-            value={fromTime}
-            onChange={v => { setFromTime(v); if (v) setFilterShiftId('') }}
-          />
-
-          {/* Manual Time To */}
-          <ModernTimePicker
-            label="Manual Time To"
-            value={toTime}
-            onChange={v => { setToTime(v); if (v) setFilterShiftId('') }}
-          />
         </div>
       </div>
 
-      {/* Key Metric Cards - Gradient */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {keyCards.map(({ title, value, icon: Icon, gradient, iconBg }) => (
-          <div key={title} className={`relative overflow-hidden rounded-2xl bg-linear-to-br ${gradient} p-5 text-white shadow-lg`}>
-            <div className="relative z-10">
-              <div className="text-sm font-medium text-white/80">{title}</div>
-              <div className="mt-2 text-2xl font-bold tracking-tight">{value}</div>
-            </div>
-            <div className={`absolute right-3 top-3 rounded-xl ${iconBg} p-2.5`}>
-              <Icon className="h-6 w-6 text-white" />
-            </div>
-            {/* Decorative circle */}
-            <div className="absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-white/10" />
-          </div>
-        ))}
-      </div>
-
-      {/* Secondary Stat Cards */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
-        {secondaryCards.map(({ title, value, icon: Icon, color, bg, onClick }) => (
-          <div
-            key={title}
-            className={`rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition-all hover:shadow-md ${onClick ? 'cursor-pointer' : ''}`}
-            onClick={onClick}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`rounded-lg ${bg} p-2`}>
-                <Icon className={`h-4 w-4 ${color}`} />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {topCards.map((card) => (
+          <div key={card.title} className={`rounded-2xl ${card.tone} p-5 shadow-lg shadow-slate-300/40 dark:shadow-none relative overflow-hidden transition-all hover:shadow-xl hover:-translate-y-0.5 group`}>
+            <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-white/10 rounded-full blur-xl group-hover:bg-white/20 transition-all" />
+            <div className="flex justify-between items-start relative z-10">
+              <div>
+                <div className="text-[10px] font-bold opacity-90 uppercase tracking-wider">{card.title}</div>
+                <div className="mt-2 text-2xl font-black tracking-tight">{card.value}</div>
+                <div className="mt-1 text-[10px] opacity-70 font-medium">{card.label}</div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs text-slate-500">{title}</div>
-                <div className="text-sm font-semibold text-slate-900">{value}</div>
+              <div className="rounded-xl bg-white/25 p-2.5 shadow-sm backdrop-blur-sm border border-white/10">
+                <card.icon className="h-5 w-5 text-white" />
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Charts Row 1: Revenue Breakdown + Cash vs Card + Bed Occupancy */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Revenue Breakdown Donut */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <BarChart3 className="h-4 w-4 text-indigo-500" /> Revenue Breakdown
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-8">
+        {statsCards.map((card) => (
+          <div key={card.title} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-md shadow-slate-200/30 dark:shadow-none flex flex-col items-center text-center gap-2 transition-all hover:shadow-lg hover:-translate-y-0.5">
+            <div className={`p-2.5 rounded-xl ${card.color} bg-opacity-10 text-white ${card.color.replace('bg-', 'bg-opacity-100')} shadow-sm`}>
+              <card.icon className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-lg font-black text-slate-800 dark:text-slate-100">{card.value}</div>
+              <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">{card.title}</div>
+              {card.sub && <div className="text-[9px] text-slate-400 dark:text-slate-500 font-medium mt-0.5 leading-tight">{card.sub}</div>}
+            </div>
           </div>
-          {revenueBreakdownData.length === 0 ? (
-            <div className="flex h-[200px] items-center justify-center text-sm text-slate-400">No revenue data</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
+        ))}
+      </div>
+
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        {ipdErCards.map((card) => (
+          <div key={card.title} className={`rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm transition-all hover:shadow-md`}>
+            <div className="flex items-start justify-between mb-3">
+              <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2">
+                <card.icon className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+              </div>
+            </div>
+            <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{card.title}</div>
+            <div className="mt-1 text-lg font-extrabold text-slate-900 dark:text-slate-100">{card.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Bed Occupancy Pie Chart */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-lg shadow-slate-200/40 dark:shadow-none relative">
+          <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-lg"><BedDouble className="h-5 w-5 text-rose-500" /> Bed Occupancy</div>
+          <div className="h-[300px] w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={revenueBreakdownData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={50} paddingAngle={3} strokeWidth={0}>
-                  {revenueBreakdownData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                <Pie
+                  data={occupancyData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={70}
+                  outerRadius={95}
+                  paddingAngle={4}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {occupancyData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
                 </Pie>
-                <Tooltip formatter={(v) => fmtRs(Number(v ?? 0))} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#f1f5f9', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}
+                  itemStyle={{ color: '#f1f5f9' }}
+                />
+                <Legend verticalAlign="bottom" height={36} iconType="circle"/>
               </PieChart>
             </ResponsiveContainer>
-          )}
-          <div className="mt-3 flex flex-wrap justify-center gap-4 text-xs text-slate-600">
-            {revenueBreakdownData.map(d => (
-              <span key={d.name} className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />
-                {d.name}: {fmtRs(d.value)}
-              </span>
-            ))}
+            {/* Center label overlay */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <div className="text-3xl font-black text-slate-800 dark:text-slate-100">{stats.occupancy}%</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Occupied</div>
+            </div>
           </div>
         </div>
 
-        {/* Cash vs Card Bar Chart */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <DollarSign className="h-4 w-4 text-emerald-500" /> Payment Methods
-          </div>
-          {paymentMethodData.length === 0 ? (
-            <div className="flex h-[200px] items-center justify-center text-sm text-slate-400">No payment data</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={paymentMethodData} barSize={48}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v) => fmtRs(Number(v ?? 0))} />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                  {paymentMethodData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+        {/* Department-wise Revenue Bar Chart */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-lg shadow-slate-200/40 dark:shadow-none">
+          <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-lg"><BarChart3 className="h-5 w-5 text-indigo-500" /> Department Revenue</div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={deptRevenueData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#a855f7" stopOpacity={1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:opacity-10" />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip 
+                  formatter={(val: any) => [`Rs ${Number(val||0).toLocaleString()}`, 'Revenue']}
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#f1f5f9', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}
+                  itemStyle={{ color: '#f1f5f9' }}
+                />
+                <Bar dataKey="value" fill="url(#barGrad)" radius={[6, 6, 0, 0]} barSize={28}>
+                  <LabelList dataKey="value" position="top" formatter={(v:any) => `Rs ${(v/1000).toFixed(0)}k`} fill="#64748b" fontSize={10} fontWeight={700} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-lg shadow-slate-200/40 dark:shadow-none">
+          <div className="mb-6 flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-lg">
+            <BarChart3 className="h-5 w-5 text-emerald-500" /> Revenue & Expense Trend
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.25}/>
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25}/>
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:opacity-10" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} tickFormatter={(val) => val >= 1000 ? `${val/1000}k` : val} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', color: '#f1f5f9' }}
+                  itemStyle={{ color: '#f1f5f9' }}
+                  formatter={(val: any) => [`Rs ${Number(val).toLocaleString()}`, '']}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" activeDot={{ r: 5, strokeWidth: 0 }} />
+                <Area type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExp)" activeDot={{ r: 5, strokeWidth: 0 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        {/* Bed Occupancy Donut */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <BedSingle className="h-4 w-4 text-sky-500" /> Bed Occupancy
-          </div>
-          {bedOccupancyData.length === 0 ? (
-            <div className="flex h-[200px] items-center justify-center text-sm text-slate-400">No bed data</div>
-          ) : (
-            <div className="relative">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={bedOccupancyData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={55} paddingAngle={3} strokeWidth={0}>
-                    {bedOccupancyData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center label */}
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-slate-900">{stats.occupancy}%</div>
-                  <div className="text-xs text-slate-500">Occupied</div>
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-lg shadow-slate-200/40 dark:shadow-none">
+          <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-lg"><Clock className="h-5 w-5 text-amber-500" /> Recent IPD Transactions</div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[300px] overflow-auto custom-scrollbar">
+            {recentIpdPayments.length === 0 && <div className="text-sm text-slate-400 dark:text-slate-500 italic py-2">No recent payments.</div>}
+            {recentIpdPayments.map((p:any, i:number) => (
+              <div key={i} className="flex items-center justify-between py-2.5">
+                <div>
+                  <div className="text-sm font-bold text-slate-800 dark:text-slate-200">Rs {Number(p.amount).toLocaleString()}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">{String(p.receivedAt || p.createdAt).slice(0, 10)} • {p.method || 'CASH'}</div>
+                </div>
+                <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
+                  Advance
                 </div>
               </div>
-            </div>
-          )}
-          <div className="mt-3 flex flex-wrap justify-center gap-4 text-xs text-slate-600">
-            {bedOccupancyData.map(d => (
-              <span key={d.name} className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />
-                {d.name}: {d.value}
-              </span>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Charts Row 2: Revenue vs Expenses + Department Revenue */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Revenue vs Expenses Bar Chart */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <BarChart3 className="h-4 w-4 text-amber-500" /> Revenue vs Expenses
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={revenueVsExpenseData} barSize={56}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-              <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v: any) => fmtRs(Number(v ?? 0))} />
-              <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                {revenueVsExpenseData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Department Revenue Bar Chart */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <Building2 className="h-4 w-4 text-violet-500" /> Department Revenue
-          </div>
-          {deptRevenueChartData.length === 0 ? (
-            <div className="flex h-[240px] items-center justify-center text-sm text-slate-400">No department revenue data</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={deptRevenueChartData} layout="vertical" barSize={20}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" width={100} />
-                <Tooltip formatter={(v) => fmtRs(Number(v ?? 0))} />
-                <Bar dataKey="revenue" radius={[0, 6, 6, 0]}>
-                  {deptRevenueChartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      {/* Corporate AR Section */}
       {corporateArItems.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <Building2 className="h-4 w-4 text-indigo-500" /> Corporate AR by Company
-            </div>
-            <button
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-slate-800 dark:text-slate-100 font-semibold">Corporate AR by Company</div>
+            <button 
               onClick={() => setShowArModal(true)}
-              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-500 font-medium"
             >
               View All →
             </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {corporateArItems.slice(0, 8).map((item) => (
-              <div key={item.companyId} className="rounded-xl border bg-linear-to-br from-indigo-50 to-white border-indigo-200 p-3.5 transition-all hover:shadow-md">
+              <div key={item.companyId} className="rounded-xl border bg-indigo-50/50 border-indigo-200 p-3">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-slate-600 truncate" title={item.companyName}>{item.companyName}</div>
                     <div className="mt-1 text-lg font-semibold text-slate-900">Rs {item.balance.toFixed(0)}</div>
                     <div className="text-xs text-slate-500">Outstanding</div>
                   </div>
-                  <div className="rounded-lg bg-indigo-100 p-2 text-indigo-600 shrink-0">
+                  <div className="rounded-md bg-white/60 p-2 text-slate-700 shadow-sm shrink-0">
                     <DollarSign className="h-4 w-4" />
                   </div>
                 </div>
@@ -726,61 +623,6 @@ export default function Hospital_Dashboard() {
         </div>
       )}
 
-      {/* Department Revenue Cards (fallback if no chart data) */}
-      {deptRevenueCards.length > 0 && deptRevenueChartData.length === 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-3 text-slate-800 font-semibold">Departments Revenue</div>
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {deptRevenueCards.map(({ title, value, tone, icon: Icon }) => (
-              <div key={title} className={`rounded-xl border ${tone} p-3`}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="text-sm text-slate-600">{title}</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">{value}</div>
-                    <div className="text-xs text-slate-500">Revenue</div>
-                  </div>
-                  <div className="rounded-md bg-slate-50 p-2 text-slate-700 shadow-sm">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recent IPD Transactions */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <HeartPulse className="h-4 w-4 text-emerald-500" /> Recent IPD Transactions
-        </div>
-        <div className="divide-y divide-slate-100">
-          {recentIpdPayments.length === 0 && (
-            <div className="py-6 text-center text-sm text-slate-400">No IPD payments in the selected range.</div>
-          )}
-          {recentIpdPayments.map((p:any, i:number)=>{
-            const when = String(p.receivedAt||p.dateIso||p.date||p.createdAt||'').replace('T',' ').slice(0,19)
-            const method = p.method || p.paymentMethod || '—'
-            const ref = p.refNo || p.ref || ''
-            return (
-              <div key={i} className="flex items-center justify-between py-3 text-sm">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
-                    <DollarSign className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-slate-800">Rs {money(p.amount).toFixed(0)}</div>
-                    <div className="text-xs text-slate-500">{when} • {method}{ref?` • ${ref}`:''}</div>
-                  </div>
-                </div>
-                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">{method}</span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Footer */}
       <div className="flex items-center justify-end gap-3 text-xs text-slate-500">
         <Clock className="h-4 w-4" />
         <span>Last updated: {updatedAt}</span>

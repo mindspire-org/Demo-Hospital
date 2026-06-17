@@ -3,8 +3,6 @@ import Pharmacy_AddSupplierDialog, { type Supplier } from '../../components/phar
 import Pharmacy_SupplierDetailsDialog from '../../components/pharmacy/pharmacy_SupplierDetailsDialog'
 import Pharmacy_AssignSupplierCompaniesDialog from '../../components/pharmacy/pharmacy_AssignSupplierCompaniesDialog'
 import { pharmacyApi } from '../../utils/api'
-import MiniDashboard from '../../components/common/MiniDashboard'
-import { Users, DollarSign, UserPlus } from 'lucide-react'
 
 export default function Pharmacy_Suppliers() {
   const [query, setQuery] = useState('')
@@ -147,35 +145,19 @@ export default function Pharmacy_Suppliers() {
     setPaymentFor(null)
   }
 
-  const totalPurchases = suppliers.reduce((s, x) => s + (x.totalPurchases || 0), 0)
-  const totalPaid = suppliers.reduce((s, x) => s + (x.paid || 0), 0)
-  const totalRemaining = totalPurchases - totalPaid
-  const activeCount = suppliers.filter(s => s.status === 'Active').length
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600"><Users className="h-5 w-5" /></div>
-          <h1 className="text-xl font-bold text-slate-800">Supplier Management</h1>
-        </div>
+        <div className="text-xl font-bold text-slate-800">Supplier Management</div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={()=>setAddOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"><UserPlus className="h-4 w-4" /> Add Supplier</button>
+          <button type="button" onClick={()=>setAddOpen(true)} className="btn">+ Add Supplier</button>
         </div>
       </div>
 
-      <MiniDashboard cards={[
-        { label: 'Total Suppliers', value: total, icon: Users, color: 'bg-indigo-500' },
-        { label: 'Active', value: activeCount, icon: Users, color: 'bg-sky-500' },
-        { label: 'Total Paid', value: `Rs ${totalPaid.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' },
-        { label: 'Outstanding', value: `Rs ${totalRemaining.toFixed(0)}`, icon: DollarSign, color: 'bg-rose-500' },
-      ]} />
-
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">Search</div>
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
         <div className="flex items-center gap-3">
-          <input value={query} onChange={e=>{ setQuery(e.target.value); setPage(1) }} placeholder="Search suppliers.." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" />
-          <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-slate-700">
+          <input value={query} onChange={e=>{ setQuery(e.target.value); setPage(1) }} placeholder="Search suppliers.." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+          <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700">
             <option value={10}>10</option>
             <option value={20}>20</option>
             <option value={50}>50</option>

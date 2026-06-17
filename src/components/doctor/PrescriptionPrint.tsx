@@ -1,9 +1,11 @@
+type PrescriptionLanguage = 'english' | 'urdu'
+
 type Props = {
   printId?: string
   doctor: { name?: string; specialization?: string; qualification?: string; departmentName?: string; phone?: string }
   settings: { name: string; address: string; phone: string; logoDataUrl?: string }
   patient: { name?: string; mrn?: string; gender?: string; fatherName?: string; age?: string; phone?: string; address?: string }
-  items: Array<{ name: string; frequency?: string; duration?: string; dose?: string; instruction?: string; route?: string }>
+  items: Array<{ name: string; frequency?: string; duration?: string; dose?: string; instruction?: string; route?: string; notes?: string }>
   labTests?: string[]
   labNotes?: string
   diagnosticTests?: string[]
@@ -17,11 +19,67 @@ type Props = {
   examFindings?: string
   diagnosis?: string
   advice?: string
+  nextFollowUp?: string
   createdAt?: string | Date
+  language?: PrescriptionLanguage
 }
 
-export default function PrescriptionPrint({ printId = 'prescription-print', doctor, settings, patient, items, labTests, labNotes, diagnosticTests, diagnosticNotes, primaryComplaint, primaryComplaintHistory, familyHistory, treatmentHistory, allergyHistory, history, examFindings, diagnosis, advice, createdAt }: Props){
+export default function PrescriptionPrint({ printId = 'prescription-print', doctor, settings, patient, items, labTests, labNotes, diagnosticTests, diagnosticNotes, primaryComplaint, primaryComplaintHistory, familyHistory, treatmentHistory, allergyHistory, history, examFindings, diagnosis, advice, nextFollowUp, createdAt, language = 'english' }: Props){
   const dt = createdAt ? new Date(createdAt) : new Date()
+  const isUrdu = language === 'urdu'
+  
+  // Labels based on language
+  const labels = {
+    drug: isUrdu ? 'دوا' : 'Drug',
+    frequency: isUrdu ? 'فریکوئنسی' : 'Frequency',
+    dosage: isUrdu ? 'خوراک' : 'Dosage',
+    duration: isUrdu ? 'مدت' : 'Duration',
+    instruction: isUrdu ? 'ہدایات' : 'Instruction',
+    route: isUrdu ? 'طریقہ' : 'Route',
+    prescription: isUrdu ? 'نسخہ' : 'Prescription',
+    medication: isUrdu ? 'ادویات' : 'Medication',
+    complaint: isUrdu ? 'شکایت' : 'Complaint',
+    diagnosis: isUrdu ? 'تشخیص / بیماری' : 'Diagnosis / Disease',
+    advice: isUrdu ? 'تجاویز' : 'Advice',
+    examination: isUrdu ? 'معائنہ' : 'Examination',
+    history: isUrdu ? 'طبی تاریخ' : 'Medical History',
+    familyHistory: isUrdu ? 'خاندانی تاریخ' : 'Family History',
+    allergyHistory: isUrdu ? 'الرجی کی تاریخ' : 'Allergy History',
+    treatmentHistory: isUrdu ? 'علاج کی تاریخ' : 'Treatment History',
+    labTests: isUrdu ? 'لیب ٹیسٹ' : 'Lab Tests',
+    diagnosticTests: isUrdu ? 'تشخیصی ٹیسٹ' : 'Diagnostic Tests',
+    nextFollowUp: isUrdu ? 'اگلی ملاقات' : 'Next Follow Up',
+    qualification: isUrdu ? 'قابلیت' : 'Qualification',
+    department: isUrdu ? 'شعبہ' : 'Department',
+    patient: isUrdu ? 'مریض' : 'Patient',
+    date: isUrdu ? 'تاریخ' : 'Date',
+  }
+  
+  // Helper to translate common terms
+  const translate = (text: string): string => {
+    if (!isUrdu || !text) return text
+    const map: Record<string, string> = {
+      'oral': 'منہ سے',
+      'iv': 'ورید میں',
+      'im': 'پٹھوں میں',
+      'sc': 'جلد کے نیچے',
+      'before meals': 'کھانے سے پہلے',
+      'after meals': 'کھانے کے بعد',
+      'with meals': 'کھانے کے ساتھ',
+      'empty stomach': 'خالی پیٹ',
+      'bed time': 'سونے کے وقت',
+      'once daily': 'دن میں ایک بار',
+      'twice daily': 'دن میں دو بار',
+      'thrice daily': 'دن میں تین بار',
+      'four times daily': 'دن میں چار بار',
+      'morning': 'صبح',
+      'night': 'رات',
+      'sos': 'ضرورت کے مطابق',
+      'stat': 'فوری',
+    }
+    return map[text.toLowerCase().trim()] || text
+  }
+  
   const rows = (items||[]).map((m, i) => {
     const parts = String(m.frequency||'').split('/').map(s=>s.trim()).filter(Boolean)
     let en = '-', ur = ''
@@ -31,12 +89,20 @@ export default function PrescriptionPrint({ printId = 'prescription-print', doct
     else if (cnt === 3) { en = 'Thrice a day'; ur = 'دن میں تین بار' }
     else if (cnt >= 4) { en = 'Four times a day'; ur = 'دن میں چار بار' }
     else if ((m.frequency||'').trim()) { en = String(m.frequency).trim() }
-    const freq = ur ? `${en}\n${ur}` : en
+    
+    // Show both English and Urdu for frequency
+    const freq = isUrdu && ur ? `${en}\n${ur}` : (isUrdu ? translate(en) : en)
+    
     const d = String(m.duration||'').trim()
     const dm = d.match(/\d+/)
-    const duration = dm ? `${d}\nدن ${dm[0]}` : (d || '-')
+    // For Urdu, show duration with Urdu number
+    const duration = isUrdu && dm ? `${d}\n${dm[0]} دن` : (d || '-')
+    
     const dose = (m as any).dose || (m as any).qty || '-'
-    return { sr: i+1, name: m.name||'-', freq, dose, duration, instruction: (m as any).instruction || '-', route: (m as any).route || '-' }
+    const instruction = translate((m as any).instruction || '-')
+    const route = translate((m as any).route || '-')
+    
+    return { sr: i+1, name: m.name||'-', freq, dose, duration, instruction, route, notes: m.notes || '' }
   })
   return (
     <div id={printId} className="hidden print:block">
@@ -160,27 +226,36 @@ export default function PrescriptionPrint({ printId = 'prescription-print', doct
                 <div className="min-h-[32px] whitespace-pre-wrap rounded-md border border-slate-300 p-2 text-sm">{diagnosticNotes}</div>
               </div>
             )}
+            {nextFollowUp && nextFollowUp.trim() && (
+              <div>
+                <div className="text-xs font-semibold text-slate-700">Next Follow Up</div>
+                <div className="min-h-[32px] whitespace-pre-wrap rounded-md border border-slate-300 p-2 text-sm font-bold text-sky-700">{nextFollowUp}</div>
+              </div>
+            )}
           </div>
 
           <div className="col-span-7">
-            <div className="mb-2 text-sm font-semibold">Medication</div>
-            <table className="w-full table-fixed border-collapse text-sm">
+            <div className={`mb-2 text-sm font-semibold ${isUrdu ? 'urdu-font' : ''}`}>{labels.medication}</div>
+            <table className={`w-full table-fixed border-collapse text-sm ${isUrdu ? 'urdu-font' : ''}`}>
               <thead>
                 <tr>
                   <th className="w-10 border border-slate-300 px-2 py-1 text-left">Sr.</th>
-                  <th className="border border-slate-300 px-2 py-1 text-left">Drug</th>
-                  <th className="w-28 border border-slate-300 px-2 py-1">Frequency</th>
-                  <th className="w-20 border border-slate-300 px-2 py-1">Dosage</th>
-                  <th className="w-24 border border-slate-300 px-2 py-1">Duration</th>
-                  <th className="w-28 border border-slate-300 px-2 py-1">Instruction</th>
-                  <th className="w-20 border border-slate-300 px-2 py-1">Route</th>
+                  <th className="border border-slate-300 px-2 py-1 text-left">{labels.drug}</th>
+                  <th className="w-28 border border-slate-300 px-2 py-1">{labels.frequency}</th>
+                  <th className="w-20 border border-slate-300 px-2 py-1">{labels.dosage}</th>
+                  <th className="w-24 border border-slate-300 px-2 py-1">{labels.duration}</th>
+                  <th className="w-28 border border-slate-300 px-2 py-1">{labels.instruction}</th>
+                  <th className="w-20 border border-slate-300 px-2 py-1">{labels.route}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i}>
                     <td className="border border-slate-300 px-2 py-1 align-top">{r.sr}</td>
-                    <td className="border border-slate-300 px-2 py-1 align-top"><span className="font-medium">{r.name}</span></td>
+                    <td className="border border-slate-300 px-2 py-1 align-top">
+                      <div className="font-medium">{r.name}</div>
+                      {r.notes && <div className="text-[10px] text-slate-600 mt-0.5 leading-tight italic">Note: {r.notes}</div>}
+                    </td>
                     <td className="border border-slate-300 px-2 py-1 whitespace-pre-line text-center align-top">{r.freq}</td>
                     <td className="border border-slate-300 px-2 py-1 text-center align-top">{r.dose}</td>
                     <td className="border border-slate-300 px-2 py-1 whitespace-pre-line text-center align-top">{r.duration}</td>
@@ -203,6 +278,16 @@ export default function PrescriptionPrint({ printId = 'prescription-print', doct
           html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
           header, nav, aside, footer, .no-print, .app-header, .sidebar { display: none !important; }
           #${printId} { display: block !important; position: static !important; width: 100% !important; min-height: 100vh !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: #ffffff !important; }
+        }
+        /* Urdu Font Support - Uses Jameel Noori Nastaleeq or common alternatives */
+        .urdu-font {
+          font-family: 'Jameel Noori Nastaleeq', 'Nafees Nastaleeq', 'Nastaleeq', 'Urdu Typesetting', 'Noto Nastaliq Urdu', 'Alvi Nastaleeq', 'Pakistan Nastaleeq', 'Tallqalam Taj Nasteeq', sans-serif;
+          direction: rtl;
+          text-align: right;
+        }
+        .urdu-font td, .urdu-font th {
+          direction: rtl;
+          text-align: right;
         }
       `}</style>
     </div>

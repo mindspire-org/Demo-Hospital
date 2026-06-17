@@ -1,9 +1,17 @@
+import { Printer } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
 
 export default function Hospital_ErDailyMonitoring({ encounterId }: { encounterId: string }){
   const [rows, setRows] = useState<Array<{ id: string; date: string; time: string; bp?: string; temp?: string; pulse?: string; resp?: string; bsr?: string; intakeIV?: string; urine?: string; nurseSign?: string; shift?: 'morning'|'evening'|'night' }>>([])
   const [open, setOpen] = useState(false)
+  const [toast, setToast] = useState<{ type: 'success'|'error'|'info'; message: string } | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = window.setTimeout(() => setToast(null), 3000)
+    return () => window.clearTimeout(t)
+  }, [toast])
 
   useEffect(()=>{ if(encounterId){ reload() } }, [encounterId])
 
@@ -50,15 +58,22 @@ export default function Hospital_ErDailyMonitoring({ encounterId }: { encounterI
         nurseSign: d.nurseSign,
         shift: d.shift,
       })
-      setOpen(false); await reload()
-    }catch(e: any){ alert(e?.message || 'Failed to save monitoring entry') }
+      setOpen(false)
+      setToast({ type: 'success', message: 'Monitoring entry saved successfully' })
+      await reload()
+    }catch(e: any){ 
+      setToast({ type: 'error', message: e?.message || 'Failed to save monitoring entry' })
+    }
   }
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="mb-2 flex items-center justify-between">
         <div className="text-lg font-semibold text-slate-900">Daily Monitoring Charts</div>
-        <button onClick={()=>setOpen(true)} className="btn">Add Monitoring Entry</button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => window.print()} className="btn-outline-navy flex items-center gap-2 print:hidden"><Printer className="h-4 w-4"/> Print</button>
+          <button onClick={()=>setOpen(true)} className="btn">Add Monitoring Entry</button>
+        </div>
       </div>
       {rows.length === 0 ? (
         <div className="text-slate-500">No vitals recorded yet.</div>
@@ -118,6 +133,17 @@ export default function Hospital_ErDailyMonitoring({ encounterId }: { encounterI
         </div>
       )}
       <VitalsDialog open={open} onClose={()=>setOpen(false)} onSave={save} />
+      
+      {toast && (
+        <div className="fixed right-4 top-16 z-[60] max-w-sm">
+          <div className={toast.type==='success' ? 'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow' : toast.type==='error' ? 'rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow' : 'rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow'}>
+            <div className="flex items-start justify-between gap-3">
+              <div>{toast.message}</div>
+              <button type="button" className="text-slate-500 hover:text-slate-700" onClick={()=>setToast(null)}>×</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

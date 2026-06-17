@@ -10,6 +10,7 @@ import {
   Coins,
   CheckCircle,
   XCircle,
+  Download,
 } from 'lucide-react'
 import MiniDashboard from '../../components/common/MiniDashboard'
 import { useLabSession } from '../../hooks/useLabSession'
@@ -165,10 +166,15 @@ export default function Lab_CollectionCenters() {
     
     try {
       setSubmitting(true)
+      const payload = { ...formData }
+      if (!payload.parentCenterId) {
+        delete (payload as any).parentCenterId
+      }
+
       if (editingCenter) {
-        await labApi.updateCollectionCenter(editingCenter._id, formData)
+        await labApi.updateCollectionCenter(editingCenter._id, payload)
       } else {
-        await labApi.createCollectionCenter(formData)
+        await labApi.createCollectionCenter(payload)
       }
       await loadCenters()
       closeModal()
@@ -177,6 +183,23 @@ export default function Lab_CollectionCenters() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  function exportCSV() {
+    const rows = [
+      ['Name', 'Code', 'Region', 'Contact Person', 'Phone', 'Email', 'Address', 'Commission %', 'Status', 'Total Tokens', 'Total Revenue', 'Total Commission', 'Balance Due'],
+      ...centers.map(c => [
+        c.name, c.code, c.region || '', c.contactPerson || '', c.phone || '', c.email || '', c.address || '',
+        c.commissionPercent, c.status, c.totalTokens || 0,
+        c.totalRevenue || 0, c.totalCommission || 0, c.balanceDue || 0,
+      ]),
+    ]
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `collection-centers-${new Date().toISOString().slice(0,10)}.csv`
+    a.click(); URL.revokeObjectURL(url)
   }
 
   async function handleDelete(center: CollectionCenter) {
@@ -201,15 +224,25 @@ export default function Lab_CollectionCenters() {
             <h2 className="text-2xl font-bold">Collection Centers</h2>
             <div className="mt-0.5 text-sm text-sky-100">Manage external collection centers and their commission rates</div>
           </div>
-          {session.isAdmin && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={openAddModal}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/30"
+              onClick={exportCSV}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/20"
+              title="Export CSV"
             >
-              <Plus className="h-4 w-4" />
-              Add New Center
+              <Download className="h-4 w-4" />
+              Export CSV
             </button>
-          )}
+            {session.isAdmin && (
+              <button
+                onClick={openAddModal}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/30"
+              >
+                <Plus className="h-4 w-4" />
+                Add New Center
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

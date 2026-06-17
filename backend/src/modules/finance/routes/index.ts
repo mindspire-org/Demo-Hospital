@@ -1,60 +1,21 @@
 import { Router } from 'express'
 import * as FinanceCtl from '../controllers/finance.controller'
 import * as ChartOfAccount from '../controllers/chartOfAccount.controller'
-import * as CashHandover from '../controllers/cashHandover.controller'
 import * as FinanceSidebarPerms from '../controllers/finance_sidebarPermission.controller'
 import { list as financeUsersList, create as financeUsersCreate, update as financeUsersUpdate, remove as financeUsersRemove, login as financeUsersLogin, logout as financeUsersLogout } from '../controllers/finance_users.controller'
 import * as FinanceAudit from '../controllers/finance_audit.controller'
 import * as CashCounts from '../controllers/cash_count.controller'
-import * as Reports from '../controllers/reports.controller'
-import * as Ops from '../controllers/operations.controller'
-import { auth } from '../../../common/middleware/auth'
+import { listAllAccountsLedger } from '../controllers/accountTransaction.controller'
+import * as Voucher from '../controllers/voucher.controller'
+import * as Report from '../controllers/report.controller'
+import * as FiscalPeriod from '../controllers/fiscalPeriod.controller'
+import * as RecurringVoucher from '../controllers/recurringVoucher.controller'
+import * as Budget from '../controllers/budget.controller'
+import * as BankReconciliation from '../controllers/bankReconciliation.controller'
+import * as Settlement from '../controllers/settlement.controller'
+import * as VoucherPrint from '../controllers/voucherPrint.controller'
 
 const r = Router()
-
-// Public routes (no auth required)
-r.post('/users/login', financeUsersLogin)
-
-// All routes below require authentication
-r.use(auth)
-
-// ---------- Dashboard & Reports (derive from unified journal) ----------
-r.get('/dashboard',                  Reports.dashboard)
-r.get('/reports/trial-balance',      Reports.trialBalance)
-r.get('/reports/profit-loss',        Reports.profitLoss)
-r.get('/reports/balance-sheet',      Reports.balanceSheet)
-r.get('/ledger-explorer',            Reports.ledgerExplorer)
-r.get('/receivables/aging',          Reports.receivablesAging)
-r.get('/payables/aging',             Reports.payablesAging)
-r.get('/module-integrations/:module',Reports.moduleIntegration)
-r.get('/reconciliation',             Reports.reconciliation)
-
-// Journal vouchers
-r.get('/journal-vouchers',           Reports.listJournalVouchers)
-r.post('/journal-vouchers',          Reports.createJournalVoucher)
-
-// ---------- Centralized Expenses ----------
-r.get('/expenses',                   Ops.listExpenses)
-r.get('/expenses/by-department',     Ops.listExpensesByDepartment)
-r.post('/expenses',                  Ops.createExpense)
-r.delete('/expenses/:id',            Ops.removeExpense)
-
-// ---------- Vendors / Bills / Payments ----------
-r.get('/vendors',                    Ops.listVendors)
-r.post('/vendors',                   Ops.createVendor)
-r.get('/vendors/:id',                Ops.getVendor)
-r.get('/bills',                      Ops.listBills)
-r.post('/bills',                     Ops.createBill)
-r.get('/vendor-payments',            Ops.listVendorPayments)
-r.post('/vendor-payments',           Ops.createVendorPayment)
-
-// ---------- Payroll ----------
-r.get('/payroll/staff',              Ops.payrollStaff)
-r.post('/payroll/staff/:id/pay',     Ops.payStaff)
-r.get('/payroll/doctors',            Ops.payrollDoctors)
-r.post('/payroll/doctors/:id/pay',   Ops.payDoctor)
-r.get('/payroll/attendance',         Ops.payrollAttendance)
-r.get('/payroll/earnings-deductions',Ops.payrollEarningsDeductions)
 
 // Chart of Accounts
 r.get('/chart-of-accounts', ChartOfAccount.list)
@@ -65,14 +26,8 @@ r.delete('/chart-of-accounts/:id', ChartOfAccount.remove)
 r.get('/chart-of-accounts/:id/balance', ChartOfAccount.getBalance)
 r.get('/chart-of-accounts/:id/ledger', ChartOfAccount.getLedger)
 r.post('/chart-of-accounts/create-user-account', ChartOfAccount.createUserAccount)
+r.post('/chart-of-accounts/import', ChartOfAccount.importAccounts)
 r.post('/chart-of-accounts/seed-defaults', ChartOfAccount.seedDefaultAccounts)
-
-// Cash Handover
-r.post('/cash-handovers', CashHandover.create)
-r.get('/cash-handovers', CashHandover.list)
-r.get('/cash-handovers/pending', CashHandover.getPending)
-r.post('/cash-handovers/:id/approve', CashHandover.approve)
-r.post('/cash-handovers/:id/reject', CashHandover.reject)
 
 // Cash Counts (Manager Cash Count)
 r.get('/cash-counts', CashCounts.list)
@@ -97,6 +52,7 @@ r.get('/users', financeUsersList)
 r.post('/users', financeUsersCreate)
 r.put('/users/:id', financeUsersUpdate)
 r.delete('/users/:id', financeUsersRemove)
+r.post('/users/login', financeUsersLogin)
 r.post('/users/logout', financeUsersLogout)
 
 // Finance Sidebar Permissions
@@ -110,5 +66,81 @@ r.post('/sidebar-permissions/:role/reset', FinanceSidebarPerms.resetToDefaults)
 // Finance Audit Logs
 r.get('/audit-logs', FinanceAudit.list)
 r.post('/audit-logs', FinanceAudit.create)
+
+// Accounts Ledger
+r.get('/accounts-ledger', listAllAccountsLedger)
+
+// Vouchers
+r.get('/vouchers/next-no', Voucher.nextVoucherNo)
+r.get('/vouchers', Voucher.list)
+r.get('/vouchers/:id', Voucher.get)
+r.post('/vouchers', Voucher.create)
+r.post('/vouchers/expense', Voucher.createExpense)
+r.get('/vouchers/expense-list', Voucher.listExpenses)
+r.put('/vouchers/:id', Voucher.update)
+r.delete('/vouchers/:id', Voucher.remove)
+r.post('/vouchers/:id/post', Voucher.post)
+r.post('/vouchers/:id/cancel', Voucher.cancel)
+r.post('/vouchers/:id/approve', Voucher.approve)
+r.get('/vouchers/:id/print', VoucherPrint.print)
+
+// Fiscal Periods
+r.get('/fiscal-periods', FiscalPeriod.list)
+r.post('/fiscal-periods', FiscalPeriod.create)
+r.post('/fiscal-periods/:id/close', FiscalPeriod.close)
+r.post('/fiscal-periods/:id/year-end-close', FiscalPeriod.yearEndClose)
+r.post('/fiscal-periods/:id/lock', FiscalPeriod.lock)
+r.post('/fiscal-periods/:id/reopen', FiscalPeriod.reopen)
+
+// Recurring Vouchers
+r.get('/recurring-vouchers', RecurringVoucher.list)
+r.post('/recurring-vouchers', RecurringVoucher.create)
+r.put('/recurring-vouchers/:id', RecurringVoucher.update)
+r.delete('/recurring-vouchers/:id', RecurringVoucher.remove)
+r.post('/recurring-vouchers/generate-due', RecurringVoucher.generateDue)
+
+// Budgets
+r.get('/budgets', Budget.list)
+r.post('/budgets', Budget.create)
+r.put('/budgets/:id', Budget.update)
+r.get('/budgets/vs-actual', Budget.budgetVsActual)
+r.get('/budgets/cost-center-pnl', Budget.departmentWisePnL)
+
+// Bank Reconciliation
+r.get('/bank-reconciliation', BankReconciliation.list)
+r.post('/bank-reconciliation', BankReconciliation.create)
+r.put('/bank-reconciliation/:id', BankReconciliation.update)
+r.post('/bank-reconciliation/:id/auto-match', BankReconciliation.autoMatch)
+r.post('/bank-reconciliation/:id/reconcile', BankReconciliation.reconcile)
+
+// Inter-module Settlements
+r.post('/settlements', Settlement.createSettlement)
+r.get('/settlements', Settlement.listSettlements)
+
+// Reports
+r.get('/reports/trial-balance', Report.trialBalance)
+r.get('/reports/profit-loss', Report.profitLoss)
+r.get('/reports/balance-sheet', Report.balanceSheet)
+r.get('/reports/cash-flow', Report.cashFlow)
+
+// Shift Management
+import * as ShiftController from '../controllers/shift.controller'
+r.get('/shifts', ShiftController.listShifts)
+r.get('/shifts/current', ShiftController.getCurrentShift)
+r.get('/shifts/summary', ShiftController.getShiftSummary)
+r.get('/shifts/:id', ShiftController.getShift)
+r.post('/shifts', ShiftController.openShift)
+r.post('/shifts/:id/collections', ShiftController.updateShiftCollections)
+r.post('/shifts/:id/expenses', ShiftController.updateShiftExpenses)
+r.post('/shifts/:id/close', ShiftController.closeShift)
+r.post('/shifts/:id/approve', ShiftController.approveShiftClosure)
+r.post('/shifts/:id/reconcile', ShiftController.reconcileShift)
+r.post('/shifts/compare', ShiftController.compareShifts)
+
+// Shift Settings
+import * as ShiftSettingsController from '../controllers/shiftSettings.controller'
+r.get('/shift-settings', ShiftSettingsController.getShiftSettings)
+r.put('/shift-settings', ShiftSettingsController.updateShiftSettings)
+r.get('/shift-settings/current-slot', ShiftSettingsController.getCurrentShiftTimeSlot)
 
 export default r

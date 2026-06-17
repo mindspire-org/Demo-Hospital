@@ -2,23 +2,17 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { financeApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { exportToPdf } from '../../utils/financeExportPdf'
 
-type JournalLine = {
-  account: string
-  debit: number
-  credit: number
-  tags?: any
-}
-
-type Journal = {
+type LedgerEntry = {
   _id: string
   dateIso: string
   refType?: string
   refId?: string
   memo?: string
-  lines: JournalLine[]
-  status: string
-  createdAt: string
+  debit: number
+  credit: number
+  balance: number
 }
 
 type Account = {
@@ -33,11 +27,15 @@ export default function Finance_AccountLedger() {
   const { accountId } = useParams<{ accountId: string }>()
   const navigate = useNavigate()
   const [account, setAccount] = useState<Account | null>(null)
-  const [journals, setJournals] = useState<Journal[]>([])
+  const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [limit, setLimit] = useState(20)
 
   const loadAccount = async () => {
     if (!accountId) return
@@ -54,8 +52,10 @@ export default function Finance_AccountLedger() {
     if (!accountId) return
     setLoading(true)
     try {
-      const res = await financeApi.getAccountLedger(accountId, { from, to })
-      setJournals(res || [])
+      const res: any = await financeApi.getAccountLedger(accountId, { from, to, page, limit })
+      setEntries(res.ledger || [])
+      setTotal(res.total || 0)
+      setTotalPages(res.totalPages || 1)
     } catch (e) {
       console.error(e)
       setToast({ type: 'error', message: 'Failed to load ledger' })
@@ -66,24 +66,27 @@ export default function Finance_AccountLedger() {
   useEffect(() => {
     loadAccount()
     loadLedger()
-  }, [accountId])
+  }, [accountId, page, limit])
 
-  const filteredJournals = journals.filter(j =>
-    j.lines.some(l => l.account === account?.name)
-  )
+  // Entries already have debit, credit, and running balance from backend
 
-  const calculateRunningBalance = () => {
-    let balance = 0
-    return filteredJournals.map(j => {
-      const line = j.lines.find(l => l.account === account?.name)
-      const debit = line?.debit || 0
-      const credit = line?.credit || 0
-      balance += debit - credit
-      return { ...j, debit, credit, runningBalance: balance }
+  function handleExportPdf() {
+    if (!account) return
+    exportToPdf({
+      title: `${account.name} - Account Ledger`,
+      subtitle: `${account.code ? `Code: ${account.code} | ` : ''}Type: ${account.type} | Balance: ${account.balance.toFixed(2)}`,
+      filename: `ledger-${account.name.replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}`,
+      headers: ['Date', 'Reference', 'Description', 'Debit', 'Credit', 'Balance'],
+      rows: entries.map(e => [
+        new Date(e.dateIso).toLocaleDateString(),
+        [e.refType, e.refId ? `#${String(e.refId).slice(-6)}` : ''].filter(Boolean).join(' ') || '-',
+        e.memo || '-',
+        e.debit > 0 ? e.debit.toFixed(2) : '-',
+        e.credit > 0 ? e.credit.toFixed(2) : '-',
+        e.balance.toFixed(2)
+      ])
     })
   }
-
-  const journalWithBalance = calculateRunningBalance()
 
   return (
     <div className="p-6">
@@ -91,10 +94,10 @@ export default function Finance_AccountLedger() {
 
       <div className="flex items-center gap-4 mb-6">
         <button
-          onClick={() => navigate('/finance/chart-of-accounts')}
+          onClick={() => navigate('/finance/accounts-ledger')}
           className="text-blue-600 hover:text-blue-800"
         >
-          ← Back to Chart of Accounts
+          ← Back to Accounts Ledger
         </button>
       </div>
 
@@ -108,9 +111,17 @@ export default function Finance_AccountLedger() {
                 Type: <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">{account.type}</span>
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-600">Current Balance</p>
-              <p className="text-2xl font-mono font-semibold">{account.balance.toLocaleString()}</p>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleExportPdf}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              >
+                Export PDF
+              </button>
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Current Balance</p>
+                <p className="text-2xl font-mono font-semibold">{account.balance.toLocaleString()}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -147,47 +158,82 @@ export default function Finance_AccountLedger() {
             <tr>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Date</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Reference</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Memo</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Description</th>
               <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">Debit</th>
               <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">Credit</th>
               <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">Balance</th>
-              <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Status</th>
             </tr>
           </thead>
           <tbody>
-            {journalWithBalance.map((j) => (
-              <tr key={j._id} className="border-t hover:bg-gray-50">
-                <td className="px-4 py-3 text-sm">{new Date(j.dateIso).toLocaleDateString()}</td>
+            {entries.map((e) => (
+              <tr key={e._id} className="border-t hover:bg-gray-50">
+                <td className="px-4 py-3 text-sm">{new Date(e.dateIso).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-sm">
-                  {j.refType && <span className="text-gray-600">{j.refType}</span>}
-                  {j.refId && <span className="text-gray-400 ml-1">#{j.refId.slice(-6)}</span>}
+                  {e.refType && <span className="text-gray-600">{e.refType}</span>}
+                  {e.refId && <span className="text-gray-400 ml-1">#{String(e.refId).slice(-6)}</span>}
                 </td>
-                <td className="px-4 py-3 text-sm">{j.memo || '-'}</td>
+                <td className="px-4 py-3 text-sm">{e.memo || '-'}</td>
                 <td className="px-4 py-3 text-sm text-right font-mono">
-                  {j.debit > 0 ? j.debit.toLocaleString() : '-'}
+                  {e.debit > 0 ? e.debit.toLocaleString() : '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-right font-mono">
-                  {j.credit > 0 ? j.credit.toLocaleString() : '-'}
+                  {e.credit > 0 ? e.credit.toLocaleString() : '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-right font-mono font-medium">
-                  {j.runningBalance.toLocaleString()}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <span className={`px-2 py-1 rounded text-xs ${j.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {j.status}
-                  </span>
+                  {e.balance.toLocaleString()}
                 </td>
               </tr>
             ))}
-            {journalWithBalance.length === 0 && (
+            {entries.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   {loading ? 'Loading...' : 'No transactions found'}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+
+        {/* Pagination */}
+        <div className="p-4 border-t flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Rows:</span>
+            <select
+              value={limit}
+              onChange={e => { setLimit(Number(e.target.value)); setPage(1) }}
+              className="px-2 py-1 border rounded text-sm"
+            >
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={0}>All</option>
+            </select>
+            <span className="text-sm text-gray-500">
+              {total} entr{total !== 1 ? 'ies' : 'y'}
+            </span>
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 text-sm"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 text-sm"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

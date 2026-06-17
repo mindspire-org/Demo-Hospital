@@ -11,9 +11,15 @@
  * - Notifications, Audit Logs
  */
 
-import { api, withQuery } from '@/api'
+import { api, withQuery } from '../../../api'
 
 export const sharedApi = {
+  // -------------------------------------------------------------------------
+  // Auth
+  // -------------------------------------------------------------------------
+  login: (data: { username: string; password: string }) =>
+    api('/hospital/users/login', { method: 'POST', body: JSON.stringify(data) }),
+
   // -------------------------------------------------------------------------
   // Settings
   // -------------------------------------------------------------------------
@@ -25,6 +31,8 @@ export const sharedApi = {
   // -------------------------------------------------------------------------
   myActivityReport: (params?: { mode?: 'today' | 'shift' }) =>
     api(withQuery('/hospital/reports/my-activity', params)),
+  dashboardStats: (params?: { from?: string; to?: string }) =>
+    api(withQuery('/hospital/reports/dashboard-stats', params)),
 
   // -------------------------------------------------------------------------
   // FBR
@@ -40,10 +48,14 @@ export const sharedApi = {
   // -------------------------------------------------------------------------
   // Finance Transactions
   // -------------------------------------------------------------------------
-  listTransactions: (params?: { from?: string; to?: string; type?: string; method?: string; q?: string; page?: number; limit?: number }) =>
+  listTransactions: (params?: { from?: string; to?: string; type?: string; method?: string; q?: string; page?: number; limit?: number; doctorId?: string; departmentId?: string; username?: string }) =>
     api(withQuery('/hospital/finance/transactions', params)),
   getCorporateARBreakdown: (params?: { from?: string; to?: string }) =>
     api(withQuery('/hospital/finance/corporate-ar-breakdown', params)),
+  listCashBankAccounts: (params?: { active?: boolean; includeBalance?: boolean }) =>
+    api(withQuery('/hospital/finance/cash-bank-accounts', params)),
+  getCashBankAccountBalance: (id: string) =>
+    api(`/hospital/finance/cash-bank-accounts/${encodeURIComponent(id)}/balance`),
 
   // -------------------------------------------------------------------------
   // Patients
@@ -55,7 +67,8 @@ export const sharedApi = {
   // -------------------------------------------------------------------------
   // Masters - Departments & Doctors
   // -------------------------------------------------------------------------
-  listDepartments: () => api('/hospital/departments'),
+  listDepartments: (params?: { page?: number; limit?: number; q?: string; from?: string; to?: string }) =>
+    api(withQuery('/hospital/departments', params || {})),
   createDepartment: (data: { name: string; description?: string; opdBaseFee: number; opdFollowupFee?: number; followupWindowDays?: number; doctorPrices?: Array<{ doctorId: string; price: number }> }) =>
     api('/hospital/departments', { method: 'POST', body: JSON.stringify(data) }),
   updateDepartment: (id: string, data: { name: string; description?: string; opdBaseFee: number; opdFollowupFee?: number; followupWindowDays?: number; doctorPrices?: Array<{ doctorId: string; price: number }> }) =>
@@ -65,9 +78,9 @@ export const sharedApi = {
   listDoctors: (params?: { q?: string; departmentId?: string; active?: boolean; page?: number; limit?: number }) =>
     api(withQuery('/hospital/doctors', params)),
   getDoctor: (id: string) => api(`/hospital/doctors/${id}`),
-  createDoctor: (data: { name: string; departmentIds?: string[]; primaryDepartmentId?: string; opdBaseFee?: number; opdPublicFee?: number; opdPrivateFee?: number; opdFollowupFee?: number; followupWindowDays?: number; username?: string; password?: string; phone?: string; specialization?: string; qualification?: string; cnic?: string; pmdcNo?: string; shares?: number; active?: boolean }) =>
+  createDoctor: (data: { name: string; departmentIds?: string[]; primaryDepartmentId?: string; opdPublicFee?: number; opdPrivateFee?: number; opdSubsidizedFee?: number; opdFollowupFee?: number; followupWindowDays?: number; username?: string; password?: string; phone?: string; specialization?: string; qualification?: string; cnic?: string; pmdcNo?: string; shares?: number; opdShare?: number; ipdShare?: number; active?: boolean }) =>
     api('/hospital/doctors', { method: 'POST', body: JSON.stringify(data) }),
-  updateDoctor: (id: string, data: { name?: string; departmentIds?: string[]; primaryDepartmentId?: string; opdBaseFee?: number; opdPublicFee?: number; opdPrivateFee?: number; opdFollowupFee?: number; followupWindowDays?: number; username?: string; password?: string; phone?: string; specialization?: string; qualification?: string; cnic?: string; pmdcNo?: string; shares?: number; active?: boolean; prescriptionTemplate?: string }) =>
+  updateDoctor: (id: string, data: { name?: string; departmentIds?: string[]; primaryDepartmentId?: string; opdPublicFee?: number; opdPrivateFee?: number; opdSubsidizedFee?: number; opdFollowupFee?: number; followupWindowDays?: number; username?: string; password?: string; phone?: string; specialization?: string; qualification?: string; cnic?: string; pmdcNo?: string; shares?: number; opdShare?: number; ipdShare?: number; active?: boolean; prescriptionTemplate?: string }) =>
     api(`/hospital/doctors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteDoctor: (id: string) => api(`/hospital/doctors/${id}`, { method: 'DELETE' }),
 
@@ -113,12 +126,23 @@ export const sharedApi = {
   // -------------------------------------------------------------------------
   // Staff, Shifts, Attendance, Earnings, Expenses
   // -------------------------------------------------------------------------
-  listStaff: () => api('/hospital/staff'),
+  listStaff: (params?: { page?: number; limit?: number }) => api(withQuery('/hospital/staff', params)),
   listShifts: () => api('/hospital/shifts'),
   fetchBiometricNow: () => api('/hospital/staff/biometric/fetch', { method: 'POST' }),
+  fetchBiometricViaLocal: async () => {
+    const LOCAL_FETCHER_URL = 'http://localhost:4500'
+    const res = await fetch(`${LOCAL_FETCHER_URL}/fetch`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(text || `Local fetcher returned ${res.status}`)
+    }
+    return res.json()
+  },
   biometricStatus: () => api('/hospital/staff/biometric/status'),
   listBiometricDeviceUsers: () => api('/hospital/staff/biometric/device-users'),
   connectStaffBiometric: (id: string, data: any) => api(`/hospital/staff/${id}/biometric/connect`, { method: 'POST', body: JSON.stringify(data) }),
+  getBiometricConfig: () => api('/biometric/config'),
+  updateBiometricConfig: (data: any) => api('/biometric/config', { method: 'PUT', body: JSON.stringify(data) }),
   createShift: (data: any) => api('/hospital/shifts', { method: 'POST', body: JSON.stringify(data) }),
   updateShift: (id: string, data: any) => api(`/hospital/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteShift: (id: string) => api(`/hospital/shifts/${id}`, { method: 'DELETE' }),
@@ -128,6 +152,17 @@ export const sharedApi = {
   createStaff: (data: any) => api('/hospital/staff', { method: 'POST', body: JSON.stringify(data) }),
   updateStaff: (id: string, data: any) => api(`/hospital/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteStaff: (id: string) => api(`/hospital/staff/${id}`, { method: 'DELETE' }),
+
+  // -------------------------------------------------------------------------
+  // Leave Management
+  // -------------------------------------------------------------------------
+  listLeaves: (params?: { staffId?: string; status?: string; from?: string; to?: string }) =>
+    api(withQuery('/hospital/leaves', params)),
+  createLeave: (data: { staffId: string; type: string; startDate: string; endDate: string; isHalfDay?: boolean; halfDayType?: string; reason?: string }) =>
+    api('/hospital/leaves', { method: 'POST', body: JSON.stringify(data) }),
+  approveLeave: (id: string, data: { status: 'approved' | 'rejected'; rejectionReason?: string }) =>
+    api(`/hospital/leaves/${id}/approve`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteLeave: (id: string) => api(`/hospital/leaves/${id}`, { method: 'DELETE' }),
 
   listStaffEarnings: (params?: { staffId?: string; from?: string; to?: string; page?: number; limit?: number }) =>
     api(withQuery('/hospital/staff-earnings', params)),
@@ -141,6 +176,8 @@ export const sharedApi = {
     api(withQuery('/hospital/expenses', params)),
   createExpense: (data: { dateIso: string; departmentId?: string; expenseDepartmentId?: string; departmentName?: string; category: string; expenseCategoryId?: string; categoryName?: string; amount: number; note?: string; method?: string; ref?: string; createdByUsername?: string }) =>
     api('/hospital/expenses', { method: 'POST', body: JSON.stringify(data) }),
+  updateExpense: (id: string, data: { dateIso?: string; departmentId?: string; category?: string; amount?: number; note?: string; method?: string; ref?: string }) =>
+    api(`/hospital/expenses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteExpense: (id: string) => api(`/hospital/expenses/${id}`, { method: 'DELETE' }),
 
   listExpenseDepartments: () => api('/hospital/expense-departments'),
@@ -193,6 +230,101 @@ export const sharedApi = {
     api(withQuery('/hospital/audit-logs', params)),
   createHospitalAuditLog: (data: { actor?: string; action: string; label?: string; method?: string; path?: string; at: string; detail?: string }) =>
     api('/hospital/audit-logs', { method: 'POST', body: JSON.stringify(data) }),
+
+  // -------------------------------------------------------------------------
+  // Doctor Custom Entries (for prescription fields)
+  // -------------------------------------------------------------------------
+  listDoctorCustomEntries: (params?: { doctorId?: string; category?: string }) =>
+    api(withQuery('/hospital/doctor-custom-entries', params)),
+  getDoctorCustomEntriesByCategory: (doctorId: string, category: string) =>
+    api(`/hospital/doctor-custom-entries/doctor/${encodeURIComponent(doctorId)}/category/${encodeURIComponent(category)}`),
+  createDoctorCustomEntry: (data: { doctorId: string; category: string; entryText: string }) =>
+    api('/hospital/doctor-custom-entries', { method: 'POST', body: JSON.stringify(data) }),
+  updateDoctorCustomEntry: (id: string, data: { entryText: string }) =>
+    api(`/hospital/doctor-custom-entries/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDoctorCustomEntry: (id: string) =>
+    api(`/hospital/doctor-custom-entries/${id}`, { method: 'DELETE' }),
+
+  // -------------------------------------------------------------------------
+  // Invoices
+  // -------------------------------------------------------------------------
+  listInvoices: (params?: { encounterType?: 'IPD' | 'EMERGENCY' | 'ALL'; status?: string; from?: string; to?: string; patientId?: string; department?: string; page?: number; limit?: number }) =>
+    api(withQuery('/hospital/invoices', params)),
+  saveInvoice: (encounterId: string, encounterType: 'IPD' | 'EMERGENCY', data: { lineItems: any[]; discount: number; totalAmount: number; totalPaid: number; netOutstanding: number; dateOfDischarge?: string; dischargeTime?: string }) =>
+    api(`/hospital/invoices/${encounterType.toLowerCase()}/${encodeURIComponent(encounterId)}`, { method: 'POST', body: JSON.stringify(data) }),
+  getInvoiceByEncounter: (encounterId: string, encounterType: 'IPD' | 'EMERGENCY') =>
+    api(`/hospital/invoices/${encounterType.toLowerCase()}/${encodeURIComponent(encounterId)}`),
+
+  // -------------------------------------------------------------------------
+  // Nurse Portal
+  // -------------------------------------------------------------------------
+  // Nurse Profile
+  createNurseProfile: (data: any) => api('/hospital/nurses', { method: 'POST', body: JSON.stringify(data) }),
+  listNurseProfiles: (params?: { specialization?: string; department?: string; isActive?: boolean; page?: number; limit?: number }) =>
+    api(withQuery('/hospital/nurses', params)),
+  getNurseProfile: (id: string) => api(`/hospital/nurses/${encodeURIComponent(id)}`),
+  getNurseProfileByUserId: (userId: string) => api(`/hospital/nurses/user/${encodeURIComponent(userId)}`),
+  updateNurseProfile: (id: string, data: any) => api(`/hospital/nurses/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNurseProfile: (id: string) => api(`/hospital/nurses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getAvailableNurses: (params?: { specialization?: string; department?: string; shift?: string; date?: string }) =>
+    api(withQuery('/hospital/nurses/available/list', params)),
+  getNursesByWard: (ward: string, params?: { date?: string }) =>
+    api(withQuery(`/hospital/nurses/by-ward/${encodeURIComponent(ward)}`, params)),
+
+  // Nurse Dashboard
+  getNurseDashboardStats: () => api('/hospital/nurse/dashboard'),
+  getNurseAdminDashboard: () => api('/hospital/nurse-admin/dashboard'),
+
+  // Nurse Tasks
+  createNurseTask: (data: any) => api('/hospital/nurse-tasks', { method: 'POST', body: JSON.stringify(data) }),
+  bulkCreateNurseTasks: (tasks: any[]) => api('/hospital/nurse-tasks/bulk', { method: 'POST', body: JSON.stringify({ tasks }) }),
+  listNurseTasks: (params?: { assignedTo?: string; status?: string; taskType?: string; priority?: string; location?: string; ward?: string; from?: string; to?: string; page?: number; limit?: number }) =>
+    api(withQuery('/hospital/nurse-tasks', params)),
+  getNurseTask: (id: string) => api(`/hospital/nurse-tasks/${encodeURIComponent(id)}`),
+  getNurseTaskByTaskId: (taskId: string) => api(`/hospital/nurse-tasks/task-id/${encodeURIComponent(taskId)}`),
+  getPendingNurseTasks: () => api('/hospital/nurse-tasks/pending'),
+  getOverdueNurseTasks: (params?: { assignedTo?: string; location?: string; ward?: string }) =>
+    api(withQuery('/hospital/nurse-tasks/overdue', params)),
+  getPatientNurseTasks: (patientId: string, params?: { status?: string; limit?: number }) =>
+    api(withQuery(`/hospital/nurse-tasks/patient/${encodeURIComponent(patientId)}`, params)),
+  acceptNurseTask: (id: string) => api(`/hospital/nurse-tasks/${encodeURIComponent(id)}/accept`, { method: 'PUT' }),
+  startNurseTask: (id: string) => api(`/hospital/nurse-tasks/${encodeURIComponent(id)}/start`, { method: 'PUT' }),
+  completeNurseTask: (id: string, data: { notes?: string; complications?: string; patientResponse?: 'excellent' | 'good' | 'fair' | 'poor'; vitalsData?: any }) =>
+    api(`/hospital/nurse-tasks/${encodeURIComponent(id)}/complete`, { method: 'PUT', body: JSON.stringify(data) }),
+  cancelNurseTask: (id: string, reason: string) => api(`/hospital/nurse-tasks/${encodeURIComponent(id)}/cancel`, { method: 'PUT', body: JSON.stringify({ reason }) }),
+  reassignNurseTask: (id: string, newNurseId: string, reason: string) =>
+    api(`/hospital/nurse-tasks/${encodeURIComponent(id)}/reassign`, { method: 'PUT', body: JSON.stringify({ newNurseId, reason }) }),
+
+  // Nurse Shifts
+  createNurseShift: (data: any) => api('/hospital/nurse-shifts', { method: 'POST', body: JSON.stringify(data) }),
+  listNurseShifts: (params?: { nurseId?: string; date?: string; from?: string; to?: string; shiftType?: string; ward?: string; status?: string; page?: number; limit?: number }) =>
+    api(withQuery('/hospital/nurse-shifts', params)),
+  getNurseShift: (id: string) => api(`/hospital/nurse-shifts/${encodeURIComponent(id)}`),
+  updateNurseShift: (id: string, data: any) => api(`/hospital/nurse-shifts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNurseShift: (id: string) => api(`/hospital/nurse-shifts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  checkInNurseShift: (id: string, location?: string) => api(`/hospital/nurse-shifts/${encodeURIComponent(id)}/checkin`, { method: 'PUT', body: JSON.stringify({ location }) }),
+  checkOutNurseShift: (id: string) => api(`/hospital/nurse-shifts/${encodeURIComponent(id)}/checkout`, { method: 'PUT' }),
+  giveHandover: (id: string, notes: string) => api(`/hospital/nurse-shifts/${encodeURIComponent(id)}/handover-give`, { method: 'PUT', body: JSON.stringify({ notes }) }),
+  receiveHandover: (id: string, notes: string) => api(`/hospital/nurse-shifts/${encodeURIComponent(id)}/handover-receive`, { method: 'PUT', body: JSON.stringify({ notes }) }),
+  getCurrentNurseShift: () => api('/hospital/nurse-shifts/current/my'),
+  getMyNurseShifts: (params?: { from?: string; to?: string; limit?: number }) =>
+    api(withQuery('/hospital/nurse-shifts/my/list', params)),
+  getWardSchedule: (ward: string, date: string) =>
+    api(withQuery('/hospital/nurse-shifts/ward/schedule', { ward, date })),
+
+  // Nurse Performance
+  calculateNursePerformance: (data: { nurseId: string; period: 'daily' | 'weekly' | 'monthly'; date: string }) =>
+    api('/hospital/nurse-performance/calculate', { method: 'POST', body: JSON.stringify(data) }),
+  getNursePerformance: (nurseId: string, params?: { period?: string; from?: string; to?: string; limit?: number }) =>
+    api(withQuery(`/hospital/nurse-performance/${encodeURIComponent(nurseId)}`, params)),
+  getMyNursePerformance: (params?: { period?: string; limit?: number }) =>
+    api(withQuery('/hospital/nurse-performance/my/performance', params)),
+  updateSupervisorRating: (id: string, data: { supervisorRating: number; supervisorComments?: string }) =>
+    api(`/hospital/nurse-performance/${encodeURIComponent(id)}/supervisor-rating`, { method: 'PUT', body: JSON.stringify(data) }),
+  getNursePerformanceLeaderboard: (params?: { period?: string; date?: string; limit?: number }) =>
+    api(withQuery('/hospital/nurse-performance/leaderboard/list', params)),
+  getNurseDepartmentSummary: (params?: { department?: string; from?: string; to?: string }) =>
+    api(withQuery('/hospital/nurse-performance/department/summary', params)),
 }
 
 export default sharedApi

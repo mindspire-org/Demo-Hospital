@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { createPrescriptionSchema, updatePrescriptionSchema } from '../validators/prescription'
 import { HospitalPrescription } from '../models/Prescription'
 import { HospitalEncounter } from '../models/Encounter'
+import { HospitalIpdDischargeSummary } from '../models/IpdDischargeSummary'
 import { LabPatient } from '../../lab/models/Patient'
 
 export async function create(req: Request, res: Response){
@@ -16,24 +17,25 @@ export async function create(req: Request, res: Response){
   const pres = await HospitalPrescription.create({
     patientId: enc.patientId,
     encounterId: data.encounterId,
-    tokenNo: data.tokenNo,
-    prescriptionMode: data.prescriptionMode || 'electronic',
+    tokenNo: (data as any).tokenNo,
+    prescriptionMode: (data as any).prescriptionMode || 'electronic',
     manualAttachment: att,
     items: (data as any).items || [],
     labTests: data.labTests,
     labNotes: data.labNotes,
-    diagnosticTests: data.diagnosticTests,
-    diagnosticNotes: data.diagnosticNotes,
-    primaryComplaint: data.primaryComplaint,
-    primaryComplaintHistory: data.primaryComplaintHistory,
-    familyHistory: data.familyHistory,
-    treatmentHistory: data.treatmentHistory,
-    allergyHistory: data.allergyHistory,
+    diagnosticTests: (data as any).diagnosticTests,
+    diagnosticNotes: (data as any).diagnosticNotes,
+    primaryComplaint: (data as any).primaryComplaint,
+    primaryComplaintHistory: (data as any).primaryComplaintHistory,
+    familyHistory: (data as any).familyHistory,
+    treatmentHistory: (data as any).treatmentHistory,
+    allergyHistory: (data as any).allergyHistory,
     history: data.history,
     examFindings: data.examFindings,
     diagnosis: data.diagnosis,
     advice: data.advice,
-    vitals: data.vitals,
+    vitals: (data as any).vitals,
+    preAnesthesia: (data as any).preAnesthesia,
     createdBy: data.createdBy,
   })
 
@@ -75,11 +77,132 @@ export async function list(req: Request, res: Response){
     .limit(limit)
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .lean()
-  res.json({ prescriptions: rows, total, page, limit })
+
+  // Also fetch IPD discharge summary prescriptions for patient history
+  let ipdPrescriptions: any[] = []
+  if (patientMrn) {
+    const pDoc = await LabPatient.findOne({ mrn: patientMrn }).select('_id').lean()
+    if (pDoc) {
+      const ipdEncs = await HospitalEncounter.find({
+        patientId: (pDoc as any)._id,
+        type: 'IPD'
+      }).select('_id').lean()
+      const ipdEncIds = ipdEncs.map(e => e._id)
+
+      if (ipdEncIds.length > 0) {
+        const dischargeCrit: any = { encounterId: { $in: ipdEncIds }, medications: { $exists: true, $not: { $size: 0 } } }
+        if (from || to) {
+          dischargeCrit.createdAt = {}
+          if (from) dischargeCrit.createdAt.$gte = from
+          if (to) dischargeCrit.createdAt.$lte = to
+        }
+
+        const dischargeSummaries = await HospitalIpdDischargeSummary.find(dischargeCrit)
+          .populate('encounterId', 'doctorId patientId startAt admissionNo')
+          .populate('doctorId', 'name')
+          .sort({ createdAt: -1 })
+          .lean()
+
+        ipdPrescriptions = dischargeSummaries.map((ds: any) => ({
+          _id: String(ds._id) + '_ipd',
+          patientId: ds.encounterId?.patientId,
+          encounterId: ds.encounterId,
+          doctorId: ds.doctorId || ds.encounterId?.doctorId,
+          prescriptionMode: 'electronic',
+          items: (ds.medications || []).map((med: string) => ({
+            medicine: med,
+            dosage: '',
+            frequency: '',
+            duration: '',
+            notes: '',
+            route: '',
+            instruction: ''
+          })),
+          labTests: [],
+          labNotes: '',
+          diagnosticTests: [],
+          diagnosticNotes: '',
+          primaryComplaint: '',
+          primaryComplaintHistory: '',
+          familyHistory: '',
+          treatmentHistory: '',
+          allergyHistory: '',
+          history: '',
+          examFindings: '',
+          diagnosis: ds.finalDiagnosis || ds.provisionalDiagnosis || '',
+          advice: ds.dischargeAdvice || '',
+          vitals: {},
+          tokenNo: ds.encounterId?.admissionNo || '',
+          createdBy: ds.createdBy || '',
+          createdAt: ds.createdAt,
+          updatedAt: ds.updatedAt,
+          source: 'ipd_discharge'
+        }))
+      }
+    }
+  }
+
+  // Combine OPD prescriptions and IPD discharge prescriptions
+  const combinedPrescriptions = [...rows, ...ipdPrescriptions].sort(
+    (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
+
+  const combinedTotal = total + ipdPrescriptions.length
+  const paginated = combinedPrescriptions.slice((page - 1) * limit, page * limit)
+
+  res.json({ prescriptions: paginated, total: combinedTotal, page, limit })
 }
 
 export async function getById(req: Request, res: Response){
   const { id } = req.params as any
+
+  // Handle IPD discharge summary prescriptions
+  if (String(id).endsWith('_ipd')) {
+    const dsId = String(id).replace('_ipd', '')
+    const ds: any = await HospitalIpdDischargeSummary.findById(dsId)
+      .populate('encounterId', 'doctorId patientId startAt admissionNo')
+      .populate('doctorId', 'name')
+      .lean()
+    if (!ds) return res.status(404).json({ error: 'Prescription not found' })
+
+    const prescription = {
+      _id: String(ds._id) + '_ipd',
+      patientId: ds.encounterId?.patientId,
+      encounterId: ds.encounterId,
+      doctorId: ds.doctorId || ds.encounterId?.doctorId,
+      prescriptionMode: 'electronic',
+      items: (ds.medications || []).map((med: string) => ({
+        medicine: med,
+        dosage: '',
+        frequency: '',
+        duration: '',
+        notes: '',
+        route: '',
+        instruction: ''
+      })),
+      labTests: [],
+      labNotes: '',
+      diagnosticTests: [],
+      diagnosticNotes: '',
+      primaryComplaint: '',
+      primaryComplaintHistory: '',
+      familyHistory: '',
+      treatmentHistory: '',
+      allergyHistory: '',
+      history: '',
+      examFindings: '',
+      diagnosis: ds.finalDiagnosis || ds.provisionalDiagnosis || '',
+      advice: ds.dischargeAdvice || '',
+      vitals: {},
+      tokenNo: ds.encounterId?.admissionNo || '',
+      createdBy: ds.createdBy || '',
+      createdAt: ds.createdAt,
+      updatedAt: ds.updatedAt,
+      source: 'ipd_discharge'
+    }
+    return res.json({ prescription })
+  }
+
   const row: any = await HospitalPrescription.findById(String(id))
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .lean()
@@ -93,7 +216,16 @@ export async function getById(req: Request, res: Response){
       if (tok?.tokenNo) row.tokenNo = tok.tokenNo
     } catch {}
   }
-  
+
+  // Fallback: fetch vitals from Token collection if not on prescription
+  if (!row.vitals && row.encounterId) {
+    try {
+      const { HospitalToken } = await import('../models/Token')
+      const tok: any = await HospitalToken.findOne({ encounterId: String(row.encounterId?._id || row.encounterId) }).select('vitals').lean()
+      if (tok?.vitals) row.vitals = tok.vitals
+    } catch {}
+  }
+
   res.json({ prescription: row })
 }
 
@@ -101,8 +233,8 @@ export async function update(req: Request, res: Response){
   const { id } = req.params as any
   const data = updatePrescriptionSchema.parse(req.body)
   const set: any = {}
-  if ((data as any).tokenNo !== undefined) set.tokenNo = data.tokenNo
-  if (data.prescriptionMode !== undefined) set.prescriptionMode = data.prescriptionMode
+  if ((data as any).tokenNo !== undefined) set.tokenNo = (data as any).tokenNo
+  if ((data as any).prescriptionMode !== undefined) set.prescriptionMode = (data as any).prescriptionMode
   if ((data as any).manualAttachment !== undefined) {
     const att: any = (data as any).manualAttachment
     if (att && att.dataUrl && !att.uploadedAt) att.uploadedAt = new Date()
@@ -111,18 +243,20 @@ export async function update(req: Request, res: Response){
   if (data.items) set.items = data.items
   if (data.labTests !== undefined) set.labTests = data.labTests
   if (data.labNotes !== undefined) set.labNotes = data.labNotes
-  if (data.diagnosticTests !== undefined) set.diagnosticTests = data.diagnosticTests
-  if (data.diagnosticNotes !== undefined) set.diagnosticNotes = data.diagnosticNotes
-  if (data.primaryComplaint !== undefined) set.primaryComplaint = data.primaryComplaint
-  if (data.primaryComplaintHistory !== undefined) set.primaryComplaintHistory = data.primaryComplaintHistory
-  if (data.familyHistory !== undefined) set.familyHistory = data.familyHistory
-  if (data.treatmentHistory !== undefined) set.treatmentHistory = data.treatmentHistory
-  if (data.allergyHistory !== undefined) set.allergyHistory = data.allergyHistory
+  if ((data as any).diagnosticTests !== undefined) set.diagnosticTests = (data as any).diagnosticTests
+  if ((data as any).diagnosticNotes !== undefined) set.diagnosticNotes = (data as any).diagnosticNotes
+  if ((data as any).primaryComplaint !== undefined) set.primaryComplaint = (data as any).primaryComplaint
+  if ((data as any).primaryComplaintHistory !== undefined) set.primaryComplaintHistory = (data as any).primaryComplaintHistory
+  if ((data as any).familyHistory !== undefined) set.familyHistory = (data as any).familyHistory
+  if ((data as any).treatmentHistory !== undefined) set.treatmentHistory = (data as any).treatmentHistory
+  if ((data as any).alergyHistory !== undefined) set.allergyHistory = (data as any).alergyHistory
+  if ((data as any).allergyHistory !== undefined) set.allergyHistory = (data as any).allergyHistory
   if (data.history !== undefined) set.history = data.history
   if (data.examFindings !== undefined) set.examFindings = data.examFindings
   if (data.diagnosis !== undefined) set.diagnosis = data.diagnosis
   if (data.advice !== undefined) set.advice = data.advice
-  if (data.vitals !== undefined) set.vitals = data.vitals
+  if ((data as any).vitals !== undefined) set.vitals = (data as any).vitals
+  if ((data as any).preAnesthesia !== undefined) set.preAnesthesia = (data as any).preAnesthesia
   const row = await HospitalPrescription.findByIdAndUpdate(String(id), { $set: set }, { new: true })
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .lean()
@@ -135,7 +269,54 @@ export async function getByEncounterId(req: Request, res: Response){
   const row: any = await HospitalPrescription.findOne({ encounterId: String(encounterId) })
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .lean()
-  if (!row) return res.json({ prescription: null })
+  
+  // Fallback: check if IPD discharge summary exists for this encounter
+  if (!row) {
+    const ds: any = await HospitalIpdDischargeSummary.findOne({ encounterId: String(encounterId), medications: { $exists: true, $not: { $size: 0 } } })
+      .populate('encounterId', 'doctorId patientId startAt admissionNo')
+      .populate('doctorId', 'name')
+      .lean()
+    if (ds) {
+      return res.json({
+        prescription: {
+          _id: String(ds._id) + '_ipd',
+          patientId: ds.encounterId?.patientId,
+          encounterId: ds.encounterId,
+          doctorId: ds.doctorId || ds.encounterId?.doctorId,
+          prescriptionMode: 'electronic',
+          items: (ds.medications || []).map((med: string) => ({
+            medicine: med,
+            dosage: '',
+            frequency: '',
+            duration: '',
+            notes: '',
+            route: '',
+            instruction: ''
+          })),
+          labTests: [],
+          labNotes: '',
+          diagnosticTests: [],
+          diagnosticNotes: '',
+          primaryComplaint: '',
+          primaryComplaintHistory: '',
+          familyHistory: '',
+          treatmentHistory: '',
+          allergyHistory: '',
+          history: '',
+          examFindings: '',
+          diagnosis: ds.finalDiagnosis || ds.provisionalDiagnosis || '',
+          advice: ds.dischargeAdvice || '',
+          vitals: {},
+          tokenNo: ds.encounterId?.admissionNo || '',
+          createdBy: ds.createdBy || '',
+          createdAt: ds.createdAt,
+          updatedAt: ds.updatedAt,
+          source: 'ipd_discharge'
+        }
+      })
+    }
+    return res.json({ prescription: null })
+  }
 
   // Fallback: fetch tokenNo from Token collection if not on prescription
   if (!row.tokenNo && encounterId) {
@@ -146,6 +327,15 @@ export async function getByEncounterId(req: Request, res: Response){
     } catch {}
   }
 
+  // Fallback: fetch vitals from Token collection if not on prescription
+  if (!row.vitals && encounterId) {
+    try {
+      const { HospitalToken } = await import('../models/Token')
+      const tok: any = await HospitalToken.findOne({ encounterId: String(encounterId) }).select('vitals').lean()
+      if (tok?.vitals) row.vitals = tok.vitals
+    } catch {}
+  }
+
   res.json({ prescription: row })
 }
 
@@ -153,29 +343,43 @@ export async function upsertVitals(req: Request, res: Response){
   const { encounterId } = req.params as any
   const vitals = (req as any).body?.vitals
   if (!vitals) return res.status(400).json({ error: 'vitals required' })
-  
+
   const enc = await HospitalEncounter.findById(encounterId)
   if (!enc) return res.status(404).json({ error: 'Encounter not found' })
-  
-  let pres = await HospitalPrescription.findOne({ encounterId: String(encounterId) })
-  if (!pres) {
-    // Create a minimal prescription with just vitals
-    pres = await HospitalPrescription.create({
-      patientId: enc.patientId,
-      encounterId: String(encounterId),
-      tokenNo: (req as any).body?.tokenNo,
-      prescriptionMode: 'electronic',
-      items: [],
-      vitals,
-    })
+
+  // Store vitals in the token collection instead of prescription
+  const { HospitalToken } = await import('../models/Token')
+  const token = await HospitalToken.findOne({ encounterId: String(encounterId) })
+  if (token) {
+    await HospitalToken.findByIdAndUpdate(token._id, { $set: { vitals } }, { new: true })
   } else {
-    pres = await HospitalPrescription.findByIdAndUpdate(pres._id, { $set: { vitals } }, { new: true })
+    // If no token exists, create a minimal prescription with just vitals as fallback
+    let pres = await HospitalPrescription.findOne({ encounterId: String(encounterId) })
+    if (!pres) {
+      pres = await HospitalPrescription.create({
+        patientId: enc.patientId,
+        encounterId: String(encounterId),
+        tokenNo: (req as any).body?.tokenNo,
+        prescriptionMode: 'electronic',
+        items: [],
+        vitals,
+      })
+    } else {
+      pres = await HospitalPrescription.findByIdAndUpdate(pres._id, { $set: { vitals } }, { new: true })
+    }
+    const row = await HospitalPrescription.findById(pres._id)
+      .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
+      .lean()
+    return res.json({ prescription: row })
   }
-  
-  const row = await HospitalPrescription.findById(pres._id)
-    .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
+
+  // Return the updated token with vitals
+  const updatedToken = await HospitalToken.findOne({ encounterId: String(encounterId) })
+    .populate('doctorId', 'name')
+    .populate('departmentId', 'name')
+    .populate('patientId', 'mrn fullName fatherName gender age guardianRel phoneNormalized cnicNormalized address')
     .lean()
-  res.json({ prescription: row })
+  res.json({ token: updatedToken })
 }
 
 export async function remove(req: Request, res: Response){

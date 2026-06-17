@@ -58,10 +58,12 @@ export async function listFiltered(req: Request, res: Response){
     }
   } else if (status === 'expiring'){
     const now = new Date()
+    const nowStr = now.toISOString().slice(0,10)
     const soon = new Date(now.getTime() + 30*24*60*60*1000)
     const soonStr = soon.toISOString().slice(0,10)
     // earliestExpiry is stored as yyyy-mm-dd string; lexical compare works
-    query = { ...nameFilter, earliestExpiry: { $lte: soonStr } }
+    // Must have an expiry date and it must be between today and 30 days from now
+    query = { ...nameFilter, earliestExpiry: { $ne: null, $gte: nowStr, $lte: soonStr } }
     sort = { earliestExpiry: 1, name: 1 }
   }
 
@@ -95,14 +97,15 @@ export async function summary(req: Request, res: Response){
   const soonStr = soon.toISOString().slice(0,10)
   const stockSaleValue = allItems.reduce((s:any,it:any)=> s + (Number(it.onHand||0) * Number(it.lastSalePerUnit||0)), 0)
   // Counts via DB queries to exactly match filtered lists
+  const nowStr = now.toISOString().slice(0,10)
   const [lowStockCount, outOfStockCount, expiringSoonCount] = await Promise.all([
     InventoryItem.countDocuments({ ...filter, $expr: { $and: [ { $gt: ['$onHand', 0] }, { $ne: ['$minStock', null] }, { $lt: ['$onHand', '$minStock'] } ] } }),
     InventoryItem.countDocuments({ ...filter, onHand: { $lte: 0 } }),
-    InventoryItem.countDocuments({ ...filter, earliestExpiry: { $lte: soonStr } }),
+    InventoryItem.countDocuments({ ...filter, earliestExpiry: { $ne: null, $gte: nowStr, $lte: soonStr } }),
   ])
   const totalInventoryOnHand = allItems.reduce((s:any,it:any)=> s + Number(it.onHand||0), 0)
   const distinctCount = allItems.length
-  const expiringSoonItems = await InventoryItem.find({ ...filter, earliestExpiry: { $lte: soonStr } })
+  const expiringSoonItems = await InventoryItem.find({ ...filter, earliestExpiry: { $ne: null, $gte: nowStr, $lte: soonStr } })
     .sort({ earliestExpiry: 1, name: 1 })
     .limit(50)
     .select({ name: 1, earliestExpiry: 1, onHand: 1 })

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 
 export type Supplier = {
   id: string
@@ -33,7 +33,7 @@ export default function Pharmacy_AddSupplierDialog({ open, onClose, onSave, init
     if (!open) return
     ;(async () => {
       try {
-        const res: any = await pharmacyApi.listCompanies()
+        const res: any = await indoorPharmacyApi.listCompanies()
         if (!mounted) return
         const all: Array<any> = (res?.items ?? res ?? [])
         // Show only unassigned companies, plus the one already assigned to this supplier (when editing)

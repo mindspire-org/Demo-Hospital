@@ -512,8 +512,8 @@ export default function Store_AddPurchase() {
                         <div className="inventory-dropdown absolute z-50 mt-1 max-h-48 w-full min-w-[250px] overflow-y-auto rounded-md border border-slate-200 bg-white shadow-xl">
                           {(itemSearchQuery
                             ? inventoryItems.filter(inv => inv.name?.toLowerCase().includes(itemSearchQuery.toLowerCase()))
-                            : inventoryItems.slice(0, 10)
-                          ).slice(0, 10).map(inv => (
+                            : inventoryItems
+                          ).map(inv => (
                             <div
                               key={inv.id}
                               className="inventory-dropdown-item cursor-pointer px-3 py-2 text-sm hover:bg-blue-50"

@@ -73,6 +73,7 @@ const TokenSchema = new Schema({
   net: { type: Number, default: 0 },
   receivedAmount: { type: Number, default: 0 },
   receivableAmount: { type: Number, default: 0 },
+  paymentMethod: { type: String },
   
   // Additional info
   referringConsultant: { type: String },
@@ -182,6 +183,7 @@ export type LabTokenDoc = {
   net?: number
   receivedAmount?: number
   receivableAmount?: number
+  paymentMethod?: string
 
   // Registration extras
   sampleType?: 'normal' | 'urgent' | 'stat'

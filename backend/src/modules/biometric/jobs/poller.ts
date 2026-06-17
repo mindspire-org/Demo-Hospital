@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-import { env } from '../../../config/env'
 import { BiometricSyncState } from '../models/BiometricSyncState'
+import { getBiometricConfig } from '../models/BiometricConfig'
 import { processBiometricEvent } from '../services/biometric_attendance'
 
 type ZKAttendanceRow = {
@@ -46,18 +46,36 @@ function getTimestamp(row: ZKAttendanceRow): Date | null {
   return asDate((row as any).timestamp ?? (row as any).time ?? (row as any).recordTime ?? (row as any).checkTime)
 }
 
-function formatZkErr(e: any): string {
+export function formatZkErr(e: any): string {
   if (!e) return 'error'
   if (typeof e === 'string') return e
-  const msg = String(e?.message || '')
-  const err = (e as any)?.err
-  const code = err?.code ? String(err.code) : ''
-  const errno = (typeof err?.errno !== 'undefined') ? String(err.errno) : ''
-  const syscall = err?.syscall ? String(err.syscall) : ''
-  const address = err?.address ? String(err.address) : ''
-  const port = err?.port ? String(err.port) : ''
-  const parts = [msg, code && `code=${code}`, errno && `errno=${errno}`, syscall && `syscall=${syscall}`, address && `address=${address}`, port && `port=${port}`].filter(Boolean)
-  if (parts.length) return parts.join(' ')
+  
+  // Extract message and command from the parent object if present
+  const msg = e.message || ''
+  const command = e.command || ''
+  
+  // Check the nested err object
+  const err = e.err
+  let errDetail = ''
+  if (err) {
+    if (typeof err === 'string') {
+      errDetail = err
+    } else {
+      const internalMsg = err.message || ''
+      const code = err.code ? `code=${err.code}` : ''
+      const syscall = err.syscall ? `syscall=${err.syscall}` : ''
+      errDetail = [internalMsg, code, syscall].filter(Boolean).join(' ')
+    }
+  }
+  
+  const parts = [
+    command && `Command: ${command}`,
+    msg && `Message: ${msg}`,
+    errDetail && `Error: ${errDetail}`,
+    e.ip && `IP: ${e.ip}`
+  ].filter(Boolean)
+  
+  if (parts.length) return parts.join(' | ')
   try { return JSON.stringify(e) } catch { return String(e) }
 }
 
@@ -72,29 +90,53 @@ let pollerPaused = false
 export function isPollerPaused(){ return pollerPaused }
 export function resetPollerState(){ consecutiveFailures = 0; pollerPaused = false; failureCount = 0; nextRunAt = 0 }
 
-export function startBiometricPoller(){
-  if (!env.BIOMETRIC_ENABLED) return
-  if (!env.BIOMETRIC_IP) {
-    console.warn('[biometric] BIOMETRIC_IP is empty; poller not started')
+export function stopBiometricPoller() {
+  if (intervalHandle) {
+    clearInterval(intervalHandle)
+    intervalHandle = null
+  }
+  running = false
+  console.log('[biometric] poller stopped')
+}
+
+export async function startBiometricPoller(){
+  const cfg = await getBiometricConfig()
+  if (!cfg.enabled) return
+  if (!cfg.ip) {
+    console.warn('[biometric] IP is empty; poller not started')
     return
   }
-  if (intervalHandle) return
-
-  const intervalMs = Math.max(1000, Number(env.BIOMETRIC_POLL_INTERVAL_MS || 15000))
+  if (cfg.mode === 'cloud') {
+    console.log('[biometric] Mode is cloud; poller not needed (data pushed from local fetcher)')
+    return
+  }
+  
+  // Always stop existing poller before starting a new one to avoid multiple intervals
+  stopBiometricPoller()
 
   const tick = async () => {
     if (running) return
     if (pollerPaused) {
-      console.log('[biometric] poller is paused, skipping tick')
+      // console.log('[biometric] poller is paused, skipping tick')
       return
     }
     if (Date.now() < nextRunAt) return
+    
+    // Refresh config inside tick to detect interval changes
+    const currentCfg = await getBiometricConfig()
+    if (!currentCfg.enabled || currentCfg.mode === 'cloud') {
+      stopBiometricPoller()
+      return
+    }
+
     running = true
     try {
       await syncOnce()
       failureCount = 0
       consecutiveFailures = 0
-      nextRunAt = 0
+      // On success, schedule next run based on configured pollIntervalMs
+      const currentCfg = await getBiometricConfig()
+      nextRunAt = Date.now() + Math.max(5000, Number(currentCfg.pollIntervalMs || 15000))
       lastLoggedErrorKey = ''
     } catch (e: any) {
       failureCount = Math.min(10, failureCount + 1)
@@ -112,7 +154,7 @@ export function startBiometricPoller(){
         }, pauseMs)
       }
       
-      const base = Math.max(1000, Number(env.BIOMETRIC_POLL_INTERVAL_MS || 15000))
+      const base = Math.max(5000, Number(currentCfg.pollIntervalMs || 15000))
       const backoff = Math.min(5 * 60_000, base * Math.pow(2, failureCount))
       nextRunAt = Date.now() + backoff
 
@@ -135,11 +177,15 @@ export function startBiometricPoller(){
     }
   }
 
+  // Use a short interval to check if it's time to run the next tick.
+  // This allows us to respond to config changes (like pollIntervalMs) more quickly
+  // without having to wait for the old (potentially long) interval to finish.
   intervalHandle = setInterval(() => {
     tick().catch(() => {})
-  }, intervalMs)
+  }, 1000)
+
   tick().catch(() => {})
-  console.log(`[biometric] poller started (${intervalMs}ms)`) 
+  console.log(`[biometric] poller started (polling every ${cfg.pollIntervalMs}ms)`) 
 }
 
 export async function syncOnce(){
@@ -152,12 +198,13 @@ export async function syncOnce(){
 }
 
 async function _syncOnceInternal(){
+  const cfg = await getBiometricConfig()
   const ZKLib = require('node-zklib')
 
-  const deviceId = String(env.BIOMETRIC_DEVICE_ID || 'ZK-01')
-  const ip = String(env.BIOMETRIC_IP)
-  const port = Number(env.BIOMETRIC_PORT || 4370)
-  const password = Number(env.BIOMETRIC_COMM_PASSWORD || 0)
+  const deviceId = String(cfg.deviceId || 'ZK-01')
+  const ip = String(cfg.ip)
+  const port = Number(cfg.port || 4370)
+  const password = Number(cfg.commPassword || 0)
 
   const state = await BiometricSyncState.findOne({ deviceId })
     .lean<{ lastTimestamp?: Date | string } | null>()

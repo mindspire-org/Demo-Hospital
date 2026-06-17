@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
 import Hospital_SalarySlipDialog from './hospital_SalarySlipDialog'
+import { fmt12 } from '../../utils/timeFormat'
 
 type Attendance = { id?: string; staffId: string; date: string; shiftId?: string; status: 'present'|'absent'|'leave'; clockIn?: string; clockOut?: string; notes?: string }
 
 export type LabStaff = { id: string; name: string; position?: string; shiftId?: string; salary?: number }
-export type Shift = { id: string; name: string; start?: string; end?: string; absentCharges?: number; lateDeduction?: number; earlyOutDeduction?: number }
+export type Shift = { id: string; name: string; start?: string; end?: string; lateThreshold?: number; absentCharges?: number; lateDeduction?: number; earlyOutDeduction?: number }
 
 type Props = {
   open: boolean
@@ -57,7 +58,7 @@ export default function Hospital_StaffReportDialog({ open, onClose, staffList, i
           hospitalApi.getSettings().catch(()=>null),
         ])
         if (!mounted) return
-        setShifts((shiftRes.items||[]).map((x:any)=>({ id: x._id, name: x.name, start: x.start, end: x.end, absentCharges: x.absentCharges, lateDeduction: x.lateDeduction, earlyOutDeduction: x.earlyOutDeduction })))
+        setShifts((shiftRes.items||[]).map((x:any)=>({ id: x._id, name: x.name, start: x.start, end: x.end, lateThreshold: Number(x.lateThreshold||0), absentCharges: x.absentCharges, lateDeduction: x.lateDeduction, earlyOutDeduction: x.earlyOutDeduction })))
         if (settingsRes) setSettings(settingsRes)
       } catch {}
     })()
@@ -134,7 +135,7 @@ export default function Hospital_StaffReportDialog({ open, onClose, staffList, i
       if (r.status !== 'present') continue
       const sh = r.shift ? shiftById[r.shift] || (selected?.shiftId ? shiftById[selected.shiftId] : undefined) : (selected?.shiftId ? shiftById[selected.shiftId] : undefined)
       if (!sh) continue
-      const grace = 0
+      const grace = Number(sh.lateThreshold || 0)
       if (r.clockIn && sh.start){ if (toMinutes(r.clockIn) > toMinutes(sh.start) + grace) late++ }
       if (r.clockOut && sh.end){ if (toMinutes(r.clockOut) < toMinutes(sh.end)) early++ }
     }
@@ -370,8 +371,8 @@ export default function Hospital_StaffReportDialog({ open, onClose, staffList, i
                           <td className="px-3 py-2">{r.date}</td>
                           <td className="px-3 py-2">{shiftName(r.shift)}</td>
                           <td className="px-3 py-2"><span className={`rounded px-2 py-0.5 text-xs ${r.status==='present'?'bg-emerald-100 text-emerald-700': r.status==='absent'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700'}`}>{r.status}</span></td>
-                          <td className="px-3 py-2">{r.clockIn || '—'}</td>
-                          <td className="px-3 py-2">{r.clockOut || '—'}</td>
+                          <td className="px-3 py-2">{r.clockIn ? fmt12(r.clockIn) : '—'}</td>
+                          <td className="px-3 py-2">{r.clockOut ? fmt12(r.clockOut) : '—'}</td>
                           <td className="px-3 py-2">{r.status==='present'? fmtHours(r.minutes) : '—'}</td>
                         </tr>
                       ))}

@@ -12,7 +12,6 @@ export default function Hospital_BirthCertificateList(){
   const [loading, setLoading] = useState(false)
 
   const [showModal, setShowModal] = useState(false)
-  const [encounterId, setEncounterId] = useState('')
   const [docId, setDocId] = useState<string|undefined>(undefined)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
@@ -21,36 +20,11 @@ export default function Hospital_BirthCertificateList(){
   async function load(){
     setLoading(true)
     try {
-      const res: any = await hospitalApi.listIpdBirthCertificates({ q, page, limit }).catch(()=>null)
+      const res: any = await hospitalApi.listIpdBirthCertificates({ q, page, limit })
       if (res && Array.isArray(res.results)){
         setRows(res.results)
         setTotal(res.total||res.results.length||0)
-        return
       }
-      const encs: any = await hospitalApi.listIPDAdmissions({ status: 'discharged', q, page, limit }).catch(()=>null)
-      const admissions = encs?.admissions||[]
-      const mapped = await Promise.all(admissions.map(async (e: any)=>{
-        try {
-          const bc: any = await hospitalApi.getIpdBirthCertificate(String(e._id)).catch(()=>null)
-          if (bc?.birthCertificate){
-            const c = bc.birthCertificate
-            return {
-              _id: c._id,
-              encounterId: String(e._id),
-              createdAt: c.createdAt || e.startAt,
-              motherName: c.motherName || (e.patientId?.fullName || ''),
-              mrNumber: c.mrNumber || e.patientId?.mrn,
-              phone: c.phone || e.patientId?.phoneNormalized,
-              dateOfBirth: c.dateOfBirth,
-              timeOfBirth: c.timeOfBirth,
-            }
-          }
-        } catch {}
-        return null
-      }))
-      const rows = mapped.filter(Boolean) as any[]
-      setRows(rows)
-      setTotal(rows.length)
     } finally { setLoading(false) }
   }
 
@@ -94,7 +68,7 @@ export default function Hospital_BirthCertificateList(){
         <div className="flex items-center gap-2">
           <input className="border rounded-md px-2 py-1 text-sm" placeholder="Search mother / MRN / phone" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>{ if (e.key==='Enter') { setPage(1); load() } }} />
           <button className="btn-outline-navy text-sm" onClick={()=>{ setPage(1); load() }} disabled={loading}>Search</button>
-          <button className="btn text-sm" onClick={()=>{ setShowModal(true); setEncounterId('') }}>New Birth Certificate</button>
+          <button className="btn text-sm" onClick={()=>{ setShowModal(true); setDocId(undefined) }}>New Birth Certificate</button>
         </div>
       </div>
 
@@ -120,7 +94,7 @@ export default function Hospital_BirthCertificateList(){
                 <td className="px-3 py-2">{r.phone||'-'}</td>
                 <td className="px-3 py-2">
                   <div className="flex gap-2">
-                    <button className="btn-outline-navy text-xs" onClick={()=> { setShowModal(true); setDocId(String(r._id)); setEncounterId('') }}>Edit</button>
+                    <button className="btn-outline-navy text-xs" onClick={()=> { setShowModal(true); setDocId(String(r._id)) }}>Edit</button>
                     <button className="btn-outline-navy text-xs" onClick={()=> onPrint(String(r._id))}>Print</button>
                     <button className="btn-outline-navy text-xs" onClick={()=> onDelete(String(r._id))}>Delete</button>
                   </div>
@@ -152,7 +126,7 @@ export default function Hospital_BirthCertificateList(){
             </div>
             <div className="text-lg font-semibold text-slate-800 mb-3">New Birth Certificate</div>
             <div className="border rounded-md p-3">
-              <Hospital_BirthCertificateForm encounterId={encounterId} docId={docId} showPatientHeader={false} onSaved={()=> load()} />
+              <Hospital_BirthCertificateForm docId={docId} showPatientHeader={false} onSaved={()=> load()} />
             </div>
           </div>
         </div>

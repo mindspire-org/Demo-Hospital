@@ -8,6 +8,10 @@ import { LabPatient } from '../../lab/models/Patient'
 import { postFbrInvoiceViaSDC } from '../services/fbr'
 import { FinanceJournal, JournalLine } from '../../finance/models/FinanceJournal'
 import { Types } from 'mongoose'
+import { HospitalBed } from '../models/Bed'
+import { HospitalFloor } from '../models/Floor'
+import { HospitalRoom } from '../models/Room'
+import { HospitalWard } from '../models/Ward'
 
 function clampMoney(n: number){
   return Math.round(Number(n || 0) * 100) / 100
@@ -43,8 +47,9 @@ async function postErPaymentJournal(args: { encounter: any; payment: any; patien
   if (existing) return
 
   const dateIso = String((args.payment?.receivedAt || new Date()).toISOString()).slice(0,10)
-  const methodRaw = String(args.payment?.method || '').toLowerCase()
-  const debitAccount = methodRaw === 'bank' ? 'BANK' : (methodRaw === 'cash' ? 'CASH' : 'CASH')
+  const methodRaw = String(args.payment?.paymentMode || args.payment?.method || '').toLowerCase()
+  const isCash = methodRaw === 'cash'
+  const debitAccount = isCash ? 'CASH' : 'BANK'
   const amount = Math.max(0, Number(args.payment?.amount || 0))
   if (!Number.isFinite(amount) || amount <= 0) return
 
@@ -74,7 +79,8 @@ async function postErPaymentJournal(args: { encounter: any; payment: any; patien
   }catch{}
   if ((args.payment as any)?.createdByUserId) tags.createdByUserId = toOid((args.payment as any).createdByUserId) || String((args.payment as any).createdByUserId)
   if ((args.payment as any)?.createdByUsername) tags.createdByUsername = String((args.payment as any).createdByUsername)
-  if ((args.payment as any)?.source) tags.portal = String((args.payment as any).source)
+  if ((args.payment as any)?.portal) tags.portal = String((args.payment as any).portal)
+  else if ((args.payment as any)?.source) tags.portal = String((args.payment as any).source)
 
   let lines: JournalLine[]
   let memo: string
@@ -94,7 +100,7 @@ async function postErPaymentJournal(args: { encounter: any; payment: any; patien
     ]
     memo = `ER Payment ${methodRaw ? '('+methodRaw+')' : ''}`.trim()
   }
-  await FinanceJournal.create({ dateIso, refType: 'er_billing', refId: paymentId, memo, lines })
+  await FinanceJournal.create({ dateIso, module: 'er', refType: 'er_billing', refId: paymentId, memo, lines })
 }
 
 async function computeTotals(encounterId: string){
@@ -394,29 +400,88 @@ export async function listRecentPayments(req: Request, res: Response){
     // Get unique encounter IDs from payments
     const encounterIds = [...new Set(payments.map(p => String(p.encounterId)))]
     
-    // Get token info for these encounters
-    const tokens = await HospitalToken.find({ encounterId: { $in: encounterIds } })
-      .select('encounterId tokenNo')
-      .lean()
+    // Get token info and encounter info for these encounters
+    const [tokens, encounters] = await Promise.all([
+      HospitalToken.find({ encounterId: { $in: encounterIds } })
+        .select('encounterId tokenNo')
+        .lean(),
+      HospitalEncounter.find({ _id: { $in: encounterIds } })
+        .populate({
+          path: 'bedId',
+          model: 'Hospital_Bed',
+          select: 'label floorId locationType locationId'
+        })
+        .lean()
+    ])
     
     const tokenMap = new Map<string, string>()
     for (const t of tokens) {
       tokenMap.set(String(t.encounterId), String(t.tokenNo))
     }
     
+    const encounterMap = new Map<string, any>()
+    for (const e of encounters) {
+      encounterMap.set(String(e._id), e)
+    }
+    
+    // Collect bed location IDs for lookup
+    const floorIds = new Set<string>()
+    const roomIds = new Set<string>()
+    const wardIds = new Set<string>()
+    
+    for (const e of encounters) {
+      const bed = (e as any).bedId
+      if (bed && typeof bed === 'object') {
+        if (bed.floorId) floorIds.add(String(bed.floorId))
+        if (bed.locationType === 'room' && bed.locationId) roomIds.add(String(bed.locationId))
+        if (bed.locationType === 'ward' && bed.locationId) wardIds.add(String(bed.locationId))
+      }
+    }
+    
+    const [floors, rooms, wards] = await Promise.all([
+      HospitalFloor.find({ _id: { $in: Array.from(floorIds) } }).select('_id name').lean(),
+      HospitalRoom.find({ _id: { $in: Array.from(roomIds) } }).select('_id name').lean(),
+      HospitalWard.find({ _id: { $in: Array.from(wardIds) } }).select('_id name').lean(),
+    ])
+    
+    const floorMap = new Map(floors.map(f => [String(f._id), f.name]))
+    const roomMap = new Map(rooms.map(r => [String(r._id), r.name]))
+    const wardMap = new Map(wards.map(w => [String(w._id), w.name]))
+    
     // Enrich payment data
-    const enriched = payments.map((p: any) => ({
-      _id: String(p._id),
-      encounterId: String(p.encounterId),
-      tokenNo: tokenMap.get(String(p.encounterId)) || '-',
-      patientName: p.patientId?.fullName || '-',
-      mrn: p.patientId?.mrn || '-',
-      amount: Number(p.amount || 0),
-      method: p.method || '-',
-      refNo: p.refNo || '',
-      receivedAt: p.receivedAt || p.createdAt,
-      performedBy: p.createdByUsername || '-',
-    }))
+    const enriched = payments.map((p: any) => {
+      const enc = encounterMap.get(String(p.encounterId))
+      const bed = enc?.bedId
+      let bedLocation = undefined
+      
+      if (bed && typeof bed === 'object') {
+        const floorName = floorMap.get(String(bed.floorId)) || ''
+        const locationName = bed.locationType === 'room' 
+          ? (roomMap.get(String(bed.locationId)) || '')
+          : (wardMap.get(String(bed.locationId)) || '')
+        
+        bedLocation = {
+          floor: floorName,
+          type: bed.locationType,
+          location: locationName,
+          bed: bed.label
+        }
+      }
+      
+      return {
+        _id: String(p._id),
+        encounterId: String(p.encounterId),
+        tokenNo: tokenMap.get(String(p.encounterId)) || '-',
+        patientName: p.patientId?.fullName || '-',
+        mrn: p.patientId?.mrn || '-',
+        amount: Number(p.amount || 0),
+        method: p.method || '-',
+        refNo: p.refNo || '',
+        receivedAt: p.receivedAt || p.createdAt,
+        performedBy: p.createdByUsername || '-',
+        bedLocation,
+      }
+    })
     
     res.json({ payments: enriched, total: enriched.length, from: from.toISOString(), to: to.toISOString() })
   }catch(e){ 

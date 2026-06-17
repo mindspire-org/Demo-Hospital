@@ -12,7 +12,7 @@
  * - Sidebar roles & permissions
  */
 
-import { api, withQuery } from '@/api'
+import { api, withQuery } from '../../api'
 
 // ============================================================================
 // TYPES
@@ -114,6 +114,27 @@ export const diagnosticApi = {
     } catch { }
     return { success: true }
   },
+
+  // -------------------------------------------------------------------------
+  // Tokens
+  // -------------------------------------------------------------------------
+  listTokens: (params?: { q?: string; status?: 'token_generated' | 'converted_to_sample' | 'cancelled'; from?: string; to?: string; page?: number; limit?: number }) =>
+    api(withQuery('/diagnostic/tokens', params)),
+
+  createToken: (data: DiagnosticOrder) =>
+    api('/diagnostic/tokens', { method: 'POST', body: JSON.stringify(data) }),
+
+  convertToken: (id: string) =>
+    api(`/diagnostic/tokens/${id}/convert`, { method: 'POST' }),
+
+  updateTokenStatus: (id: string, data: { status: string }) =>
+    api(`/diagnostic/tokens/${id}/status`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteToken: (id: string) =>
+    api(`/diagnostic/tokens/${id}`, { method: 'DELETE' }),
+
+  updateToken: (id: string, data: any) =>
+    api(`/diagnostic/tokens/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // -------------------------------------------------------------------------
   // Orders (Samples)

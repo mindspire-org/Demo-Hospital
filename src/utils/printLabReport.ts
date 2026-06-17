@@ -1,657 +1,960 @@
-import { labApi } from './api'
+import { labApi } from "./api";
+import { fmtDateTime12 } from "./timeFormat";
 
-export type ReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'abnormal_low'|'abnormal_high'|'critical'|'critical_low'|'critical_high'; comment?: string }
+export type ReportRow = {
+  test: string;
+  normal?: string;
+  unit?: string;
+  value?: string;
+  prevValue?: string;
+  flag?: "normal" | "abnormal" | "critical";
+  comment?: string;
+  isSection?: boolean;
+};
 
 async function makeBarcodeDataUrl(value: string): Promise<string> {
   try {
-    const mod: any = await import('jsbarcode')
-    const JsBarcode = mod?.default || mod
-    const canvas = document.createElement('canvas')
-    JsBarcode(canvas, value, { format: 'CODE128', displayValue: false, margin: 0, height: 42 })
-    return canvas.toDataURL('image/png')
+    const mod: any = await import("jsbarcode");
+    const JsBarcode = mod?.default || mod;
+    const canvas = document.createElement("canvas");
+    JsBarcode(canvas, value, {
+      format: "CODE128",
+      displayValue: false,
+      margin: 0,
+      height: 42,
+    });
+    return canvas.toDataURL("image/png");
   } catch {
-    return ''
+    return "";
   }
 }
 
 function pickReportColumns(rows: ReportRow[]) {
-  // Only include rows that have a result value entered — skip parameters with no value
-  // so patients don't see blank results and think the report is incomplete
-  const nonEmptyRows = (rows || []).filter((r) =>
-    (r.value || '').trim().length > 0
-  )
+  const nonEmptyRows = (rows || []).filter(
+    (r) =>
+      r.isSection ||
+      (r.value || "").trim().length > 0 ||
+      (r.normal || "").trim().length > 0 ||
+      (r.unit || "").trim().length > 0 ||
+      (r.prevValue || "").trim().length > 0 ||
+      (r.flag || "").trim().length > 0 ||
+      (r.comment || "").trim().length > 0,
+  );
 
-  const hasNormal = nonEmptyRows.some((r) => (r.normal || '').trim().length > 0)
-  const hasUnit = nonEmptyRows.some((r) => (r.unit || '').trim().length > 0)
-  const hasPrev = nonEmptyRows.some((r) => (r.prevValue || '').trim().length > 0)
-  const hasFlag = nonEmptyRows.some((r) => (r.flag || '').trim().length > 0)
-  const hasComment = nonEmptyRows.some((r) => (r.comment || '').trim().length > 0)
+  const hasNormal = nonEmptyRows.some(
+    (r) => !r.isSection && (r.normal || "").trim().length > 0,
+  );
+  const hasUnit = nonEmptyRows.some(
+    (r) => !r.isSection && (r.unit || "").trim().length > 0,
+  );
+  const hasPrev = nonEmptyRows.some(
+    (r) => !r.isSection && (r.prevValue || "").trim().length > 0,
+  );
+  const hasFlag = nonEmptyRows.some(
+    (r) => !r.isSection && (r.flag || "").trim().length > 0,
+  );
+  const hasComment = nonEmptyRows.some(
+    (r) => !r.isSection && (r.comment || "").trim().length > 0,
+  );
 
   const head = [
-    ['Test', ...(hasNormal ? ['Normal Value'] : []), ...(hasUnit ? ['Unit'] : []), ...(hasPrev ? ['Previous'] : []), 'Result', ...(hasFlag ? ['Flag'] : []), ...(hasComment ? ['Comment'] : [])],
-  ]
-  const body = nonEmptyRows.map((r) => [
-    r.test || '',
-    ...(hasNormal ? [r.normal || ''] : []),
-    ...(hasUnit ? [r.unit || ''] : []),
-    ...(hasPrev ? [r.prevValue || ''] : []),
-    r.value || '',
-    ...(hasFlag ? [r.flag || ''] : []),
-    ...(hasComment ? [r.comment || ''] : []),
-  ])
+    [
+      "Test",
+      ...(hasNormal ? ["Normal Value"] : []),
+      ...(hasUnit ? ["Unit"] : []),
+      ...(hasPrev ? ["Previous"] : []),
+      "Result",
+      ...(hasFlag ? ["Flag"] : []),
+      ...(hasComment ? ["Comment"] : []),
+    ],
+  ];
+  const colCount = head[0].length;
+  const body = nonEmptyRows.map((r) => {
+    if (r.isSection) {
+      return [
+        {
+          content: (r.test || "").toUpperCase(),
+          colSpan: colCount,
+          styles: {
+            fontStyle: "bold",
+            fillColor: [241, 245, 249],
+            textColor: [15, 23, 42],
+            halign: "left",
+          },
+        },
+      ];
+    }
+    return [
+      r.test || "",
+      ...(hasNormal ? [r.normal || ""] : []),
+      ...(hasUnit ? [r.unit || ""] : []),
+      ...(hasPrev ? [r.prevValue || ""] : []),
+      r.value || "",
+      ...(hasFlag ? [r.flag || ""] : []),
+      ...(hasComment ? [r.comment || ""] : []),
+    ];
+  });
 
-  let idx = 1
-  if (hasNormal) idx++
-  if (hasUnit) idx++
-  const idxPrev = hasPrev ? idx++ : -1
-  const idxFlag = hasFlag ? idx + 1 : -1
+  let idx = 1;
+  if (hasNormal) idx++;
+  if (hasUnit) idx++;
+  const idxPrev = hasPrev ? idx++ : -1;
+  const idxFlag = hasFlag ? idx + 1 : -1;
 
-  return { head, body, idxPrev, idxFlag, nonEmptyRows, hasNormal, hasUnit, hasPrev, hasFlag, hasComment }
+  return {
+    head,
+    body,
+    idxPrev,
+    idxFlag,
+    nonEmptyRows,
+    hasNormal,
+    hasUnit,
+    hasPrev,
+    hasFlag,
+    hasComment,
+  };
 }
 
 export async function downloadLabReportPdf(input: {
-  tokenNo: string
-  barcode?: string
-  createdAt: string
-  sampleTime?: string
-  reportingTime?: string
-  approvedAt?: string
-  patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
-  rows: ReportRow[]
-  interpretation?: string
-  submittedBy?: string
-  approvedBy?: string
-  printedBy?: string
-  reportPrintedAt?: string
-  referringConsultant?: string
-  profileLabel?: string
-}){
-  const s: any = await labApi.getSettings().catch(()=>({}))
-  // Dispatch to selected template if configured
-  try {
-    if ((s?.reportTemplate || 'classic') === 'modern'){
-      const mod = await import('./labReport/templates/modern')
-      return mod.downloadLabReportPdfModern(input)
-    }
-    if ((s?.reportTemplate || 'classic') === 'tealGradient'){
-      const mod = await import('./labReport/templates/tealHeader')
-      return mod.downloadLabReportPdfGradient(input)
-    }
-    if ((s?.reportTemplate || 'classic') === 'adl'){
-      const mod = await import('./labReport/templates/adl')
-      return mod.downloadLabReportPdfAdl(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'skmch'){
-      const mod = await import('./labReport/templates/skmch')
-      return mod.downloadLabReportPdfSkmch(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'receiptStyle'){
-      const mod = await import('./labReport/templates/receiptStyle')
-      return mod.downloadLabReportPdfReceiptStyle(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'clinicalPro'){
-      const mod = await import('./labReport/templates/clinicalPro')
-      return mod.downloadLabReportPdfClinicalPro(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'minimalist'){
-      const mod = await import('./labReport/templates/minimalist')
-      return mod.downloadLabReportPdfMinimalist(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'royalBlue'){
-      const mod = await import('./labReport/templates/royalBlue')
-      return mod.downloadLabReportPdfRoyalBlue(input as any)
-    }
-  } catch {}
-  const labName = s?.labName || 'Laboratory'
-  const address = s?.address || '-'
-  const phone = s?.phone || ''
-  const email = s?.email || ''
-  const department = s?.department || 'Department of Pathology'
-  const logo = s?.logoDataUrl || ''
-  const primaryConsultant = { name: s?.consultantName || '', degrees: s?.consultantDegrees || '', title: s?.consultantTitle || '' }
-  const extraConsultants: Array<{ name?: string; degrees?: string; title?: string }> = Array.isArray(s?.consultants) ? s.consultants : []
+  tokenNo: string;
+  barcode?: string;
+  createdAt: string;
+  sampleTime?: string;
+  reportingTime?: string;
+  approvedAt?: string;
+  patient: {
+    fullName: string;
+    phone?: string;
+    mrn?: string;
+    age?: string;
+    gender?: string;
+    address?: string;
+  };
+  rows: ReportRow[];
+  interpretation?: string;
+  submittedBy?: string;
+  approvedBy?: string;
+  printedBy?: string;
+  referringConsultant?: string;
+  profileLabel?: string;
+  skipHeaderFooter?: boolean;
+}) {
+  const s: any = await labApi.getSettings().catch(() => ({}));
+
+  // Letterhead mode: skip all generated header/footer and leave space for pre-printed paper
+  const isLetterhead = (s?.reportTemplate || "classic") === "letterhead";
+  if (isLetterhead) {
+    input.skipHeaderFooter = true;
+  }
+
+  const useCustomHF = !!s?.useCustomHeaderFooter;
+  const customHeader = useCustomHF ? (s?.headerImageUrl || "") : "";
+  const customFooter = useCustomHF ? (s?.footerImageUrl || "") : "";
+
+  // Pre-normalize custom images so drawFooter can stay synchronous
+  let customHeaderData = "";
+  let customFooterData = "";
+  if (customHeader) {
+    try { customHeaderData = await ensurePngDataUrl(customHeader); } catch {}
+  }
+  if (customFooter) {
+    try { customFooterData = await ensurePngDataUrl(customFooter); } catch {}
+  }
+
+  // Dispatch to selected template if configured.
+  // Skip template dispatch when custom header/footer or letterhead mode is active
+  // because specialized templates don't support those features.
+  const shouldUseCustomFeatures = useCustomHF || isLetterhead;
+  if (!shouldUseCustomFeatures) {
+    try {
+      if ((s?.reportTemplate || "classic") === "modern") {
+        const mod = await import("./labReport/templates/modern");
+        return mod.downloadLabReportPdfModern(input);
+      }
+      if ((s?.reportTemplate || "classic") === "tealGradient") {
+        const mod = await import("./labReport/templates/tealHeader");
+        return mod.downloadLabReportPdfGradient(input);
+      }
+      if ((s?.reportTemplate || "classic") === "adl") {
+        const mod = await import("./labReport/templates/adl");
+        return mod.downloadLabReportPdfAdl(input as any);
+      }
+      if ((s?.reportTemplate || "classic") === "skmch") {
+        const mod = await import("./labReport/templates/skmch");
+        return mod.downloadLabReportPdfSkmch(input as any);
+      }
+      if ((s?.reportTemplate || "classic") === "receiptStyle") {
+        const mod = await import("./labReport/templates/receiptStyle");
+        return mod.downloadLabReportPdfReceiptStyle(input as any);
+      }
+    } catch {}
+  }
+  const labName = s?.labName || "Laboratory";
+  const address = s?.address || "-";
+  const phone = s?.phone || "";
+  const email = s?.email || "";
+  const department = s?.department || "Department of Pathology";
+  const logo = s?.logoDataUrl || "";
+  const primaryConsultant = {
+    name: s?.consultantName || "",
+    degrees: s?.consultantDegrees || "",
+    title: s?.consultantTitle || "",
+  };
+  const extraConsultants: Array<{
+    name?: string;
+    degrees?: string;
+    title?: string;
+  }> = Array.isArray(s?.consultants) ? s.consultants : [];
   const consultantsList = [primaryConsultant, ...extraConsultants]
-    .filter(c => (c?.name||'').trim() || (c?.degrees||'').trim() || (c?.title||'').trim())
+    .filter(
+      (c) =>
+        (c?.name || "").trim() ||
+        (c?.degrees || "").trim() ||
+        (c?.title || "").trim(),
+    )
+    .slice(0, 3);
 
+  const { jsPDF } = await import("jspdf");
+  const autoTable = (await import("jspdf-autotable")).default as any;
 
-  const { jsPDF } = await import('jspdf')
-  const autoTable = (await import('jspdf-autotable')).default as any
+  const doc = new jsPDF("p", "pt", "a4");
+  doc.setFont("helvetica", "normal");
+  let y = 40;
 
-  const doc = new jsPDF('p','pt','a4')
-  const reportFont = s?.reportFont || 'helvetica'
-  let fontName = 'helvetica'
-  if (reportFont === 'times') fontName = 'times'
-  else if (reportFont === 'courier') fontName = 'courier'
-  doc.setFont(fontName,'normal')
-  let y = 40
-
-  // Custom header image support
-  const useCustomHF = !!s?.useCustomHeaderFooter
-  const headerImg = s?.headerImageUrl || ''
-  const footerImgDl = s?.footerImageUrl || ''
-  if (useCustomHF && headerImg) {
+  if (isLetterhead) {
+    // Leave space for pre-printed header (approx 100pt = 35mm)
+    y = 100;
+  } else if (customHeaderData) {
+    // Use uploaded header image instead of generated header
     try {
-      const normalized = await ensurePngDataUrl(headerImg)
-      doc.addImage(normalized, 'PNG' as any, 40, 10, 515, 80, undefined, 'FAST')
-      y = 100
+      doc.addImage(customHeaderData, "PNG" as any, 40, 10, 515, 80, undefined, "FAST");
+      y = 100;
+    } catch { y = 40; }
+  } else if (!input.skipHeaderFooter && logo) {
+    try {
+      const normalized = await ensurePngDataUrl(logo);
+      doc.addImage(
+        normalized,
+        "PNG" as any,
+        40,
+        y - 32,
+        70,
+        70,
+        undefined,
+        "FAST",
+      );
     } catch {}
-  } else if (logo) {
-    try {
-      const normalized = await ensurePngDataUrl(logo)
-      // raise logo slightly more so it aligns visually with centered title
-      doc.addImage(normalized, 'PNG' as any, 40, y - 32, 70, 70, undefined, 'FAST')
-    } catch {}
-  }
-  if (!(useCustomHF && headerImg)) {
-    doc.setFont(fontName,'bold')
-    doc.setFontSize(16)
-    doc.text(String(labName), 297.5, y, { align: 'center' }); y += 16
-    doc.setFont(fontName,'bold')
-    doc.setFontSize(10)
-    doc.text(String(address), 297.5, y, { align: 'center' }); y += 12
-    doc.text(`Ph: ${phone || ''}${email? ' • '+email : ''}`, 297.5, y, { align: 'center' }); y += 16
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(String(labName), 297.5, y, { align: "center" });
+    y += 16;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(String(address), 297.5, y, { align: "center" });
+    y += 12;
+    doc.text(`Ph: ${phone || ""}${email ? " • " + email : ""}`, 297.5, y, {
+      align: "center",
+    });
+    y += 16;
+  } else if (!input.skipHeaderFooter) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(String(labName), 297.5, y, { align: "center" });
+    y += 16;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(String(address), 297.5, y, { align: "center" });
+    y += 12;
+    doc.text(`Ph: ${phone || ""}${email ? " • " + email : ""}`, 297.5, y, {
+      align: "center",
+    });
+    y += 16;
   }
 
-  if ((input.barcode || '').trim()) {
+  if ((input.barcode || "").trim()) {
     try {
-      const b = String(input.barcode || '').trim()
-      const png = await makeBarcodeDataUrl(b)
+      const b = String(input.barcode || "").trim();
+      const png = await makeBarcodeDataUrl(b);
       if (png) {
-        const bw = 220
-        const bh = 34
-        const bx = (595 - bw) / 2
-        doc.addImage(png, 'PNG' as any, bx, y - 6, bw, bh, undefined, 'FAST')
-        doc.setFont(fontName,'normal')
-        doc.setFontSize(9)
-        doc.text(b, 297.5, y + bh + 6, { align: 'center' })
-        doc.setFontSize(10)
-        y += bh + 18
+        const bw = 220;
+        const bh = 34;
+        const bx = (595 - bw) / 2;
+        doc.addImage(png, "PNG" as any, bx, y - 6, bw, bh, undefined, "FAST");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(b, 297.5, y + bh + 6, { align: "center" });
+        doc.setFontSize(10);
+        y += bh + 18;
       }
     } catch {}
   }
 
-  doc.setFont(fontName,'normal')
-  doc.setDrawColor(15); doc.line(40, y, 555, y); y += 10
-  doc.setFontSize(11)
-  doc.text(String(department), 297.5, y, { align: 'center' }); y += 16
+  doc.setFont("helvetica", "normal");
+  doc.setDrawColor(15);
+  doc.line(40, y, 555, y);
+  y += 10;
+  doc.setFontSize(11);
+  doc.text(String(department), 297.5, y, { align: "center" });
+  y += 16;
 
   // Key values
-  doc.setFontSize(10)
-  const L = 40, R = 300
-  const dt = (iso?: string)=> fmtDateTime(iso)
+  doc.setFontSize(10);
+  const L = 40,
+    R = 300;
+  const dt = (iso?: string) => fmtDateTime(iso);
   const drawKV = (label: string, value: string, x: number, yy: number) => {
-    doc.setFont(fontName,'bold');
-    doc.text(label, x, yy)
-    const w = doc.getTextWidth(label + ' ')
-    doc.setFont(fontName,'normal');
-    doc.text(value, x + w, yy)
-  }
-  drawKV('Medical Record No :', String(input.patient.mrn || '-'), L, y)
-  drawKV('Sample No / Lab No :', String(input.tokenNo), R, y); y += 14
-  drawKV('Patient Name :', String(input.patient.fullName), L, y)
-  drawKV('Age / Gender :', `${input.patient.age || ''} / ${input.patient.gender || ''}`, R, y); y += 14
-  drawKV('Reg. & Sample Time :', String(dt(input.createdAt)), L, y)
-  drawKV('Reporting Time :', String(dt(input.approvedAt) || input.reportingTime || '-'), R, y); y += 14
-  drawKV('Approved At :', input.approvedAt ? String(dt(input.approvedAt)) + (input.approvedBy ? ` by ${input.approvedBy}` : '') : '-', L, y)
-  drawKV('Report Printed At :', input.reportPrintedAt ? String(dt(input.reportPrintedAt)) : '-', R, y); y += 14
-  drawKV('Contact No :', String(input.patient.phone || '-'), L, y)
-  drawKV('Referring Consultant :', String(input.referringConsultant || '-'), R, y); y += 14
-  drawKV('Address :', String(input.patient.address || '-'), L, y); y += 8
+    doc.setFont("helvetica", "bold");
+    doc.text(label, x, yy);
+    const w = doc.getTextWidth(label + " ");
+    doc.setFont("helvetica", "normal");
+    doc.text(value, x + w, yy);
+  };
+  drawKV("Medical Record No :", String(input.patient.mrn || "-"), L, y);
+  drawKV("Sample No / Lab No :", String(input.tokenNo), R, y);
+  y += 14;
+  drawKV("Patient Name :", String(input.patient.fullName), L, y);
+  drawKV(
+    "Age / Gender :",
+    `${input.patient.age || ""} / ${input.patient.gender || ""}`,
+    R,
+    y,
+  );
+  y += 14;
+  drawKV("Reg. & Sample Time :", String(dt(input.createdAt)), L, y);
+  drawKV(
+    "Reporting Time :",
+    String(dt(input.approvedAt) || input.reportingTime || "-"),
+    R,
+    y,
+  );
+  y += 14;
+  drawKV("Contact No :", String(input.patient.phone || "-"), L, y);
+  drawKV(
+    "Referring Consultant :",
+    String(input.referringConsultant || "-"),
+    R,
+    y,
+  );
+  y += 14;
+  drawKV("Address :", String(input.patient.address || "-"), L, y);
+  y += 8;
 
   // Table
-  const { head, body, idxPrev, idxFlag } = pickReportColumns(input.rows || [])
+  const { head, body, idxPrev, idxFlag } = pickReportColumns(input.rows || []);
   const drawFooter = () => {
-    const pageHeight = (doc.internal.pageSize as any).getHeight ? (doc.internal.pageSize as any).getHeight() : (doc.internal.pageSize as any).height
-    let baseY = pageHeight - 90
-    // Footnote line
-    doc.setFontSize(10)
-    doc.text('System Generated Report, No Signature Required. Approved By Consultant. Not Valid For Any Court Of Law.', 297.5, baseY, { align: 'center' })
-    doc.setDrawColor(51,65,85); doc.line(40, baseY + 8, 555, baseY + 8)
-    // Consultants row
-    if (consultantsList.length){
-      const cols = consultantsList.length
-      const colW = (555 - 40) / cols
-      consultantsList.forEach((c, i) => {
-        const x = 40 + i * colW + 4
-        let yy = baseY + 26
-        doc.setFontSize(11)
-        doc.setFont(fontName, 'bold')
-        if ((c.name||'').trim()) { doc.text(String(c.name), x, yy); yy += 12 }
-        doc.setFontSize(10)
-        if ((c.degrees||'').trim()) { doc.text(String(c.degrees), x, yy); yy += 12 }
-        if ((c.title||'').trim()) { doc.text(String(c.title), x, yy) }
-        doc.setFont(fontName, 'normal')
-      })
-    }
-    if (useCustomHF && footerImgDl) {
-      try { doc.addImage(footerImgDl, 'PNG' as any, 40, baseY - 20, 515, 50, undefined, 'FAST') } catch {}
-    }
-  }
+    if (input.skipHeaderFooter) return; // Skip footer for letterhead mode
+    const pageHeight = (doc.internal.pageSize as any).getHeight
+      ? (doc.internal.pageSize as any).getHeight()
+      : (doc.internal.pageSize as any).height;
+    let baseY = pageHeight - 90;
 
-  const columnStyles: Record<number, any> = {}
-  if (idxPrev >= 0) columnStyles[idxPrev] = { fontStyle: 'bold' }
-  if (idxFlag >= 0) columnStyles[idxFlag] = { fontStyle: 'bold' }
+    // If custom footer image is provided, draw it instead of generated footer
+    if (customFooterData) {
+      try {
+        doc.addImage(customFooterData, "PNG" as any, 40, pageHeight - 100, 515, 80, undefined, "FAST");
+      } catch {
+        // Fallback to generated footer
+      }
+      return;
+    }
+
+    // Footnote line
+    doc.setFontSize(10);
+    doc.text(
+      "System Generated Report, No Signature Required. Approved By Consultant. Not Valid For Any Court Of Law.",
+      297.5,
+      baseY,
+      { align: "center" },
+    );
+    doc.setDrawColor(51, 65, 85);
+    doc.line(40, baseY + 8, 555, baseY + 8);
+    // Consultants row
+    if (consultantsList.length) {
+      const cols = consultantsList.length;
+      const colW = (555 - 40) / cols;
+      consultantsList.forEach((c, i) => {
+        const x = 40 + i * colW + 4;
+        let yy = baseY + 26;
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        if ((c.name || "").trim()) {
+          doc.text(String(c.name), x, yy);
+          yy += 12;
+        }
+        doc.setFontSize(10);
+        if ((c.degrees || "").trim()) {
+          doc.text(String(c.degrees), x, yy);
+          yy += 12;
+        }
+        if ((c.title || "").trim()) {
+          doc.text(String(c.title), x, yy);
+        }
+        doc.setFont("helvetica", "normal");
+      });
+    }
+  };
+
+  const columnStyles: Record<number, any> = {};
+  if (idxPrev >= 0) columnStyles[idxPrev] = { fontStyle: "bold" };
+  if (idxFlag >= 0) columnStyles[idxFlag] = { fontStyle: "bold" };
 
   autoTable(doc, {
     startY: y + 12,
     head,
     body,
     styles: { fontSize: 9, cellPadding: 4, lineWidth: 0.5 },
-    headStyles: { fillColor: [248,250,252], textColor: [15,23,42], halign: 'left', fontStyle: 'bold' },
-    tableLineColor: [15,23,42],
+    headStyles: {
+      fillColor: [248, 250, 252],
+      textColor: [15, 23, 42],
+      halign: "left",
+      fontStyle: "bold",
+    },
+    tableLineColor: [15, 23, 42],
     tableLineWidth: 0.5,
-    theme: 'grid',
+    theme: "grid",
     columnStyles,
     didParseCell: (hookData: any) => {
-      if (hookData.section === 'body' && (hookData.column.index === idxPrev || hookData.column.index === idxFlag)) {
-        hookData.cell.styles.fontStyle = 'bold'
+      if (
+        hookData.section === "body" &&
+        (hookData.column.index === idxPrev || hookData.column.index === idxFlag)
+      ) {
+        hookData.cell.styles.fontStyle = "bold";
       }
     },
     margin: { bottom: 120 },
-  })
+  });
 
-  const hasInterpretation = (input.interpretation || '').trim().length > 0
+  const hasInterpretation = (input.interpretation || "").trim().length > 0;
   if (hasInterpretation) {
-    const bullets = String(input.interpretation || '')
+    const bullets = String(input.interpretation || "")
       .split(/\r?\n/)
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean)
-      .map(s => `• ${s}`)
-      .join('\n')
+      .map((s) => `• ${s}`)
+      .join("\n");
     autoTable(doc, {
-      startY: (((doc as any).lastAutoTable?.finalY) || (y + 12)) + 12,
+      startY: ((doc as any).lastAutoTable?.finalY || y + 12) + 12,
       body: [
-        [{ content: 'Clinical Interpretation:', styles: { fontStyle: 'bold' } }],
-        [{ content: bullets || String(input.interpretation || '') }],
+        [
+          {
+            content: "Clinical Interpretation:",
+            styles: { fontStyle: "bold" },
+          },
+        ],
+        [{ content: bullets || String(input.interpretation || "") }],
       ],
-      theme: 'plain',
-      styles: { fontSize: 10, cellPadding: 0, halign: 'left' },
+      theme: "plain",
+      styles: { fontSize: 10, cellPadding: 0, halign: "left" },
       margin: { left: 40, right: 40, bottom: 120 },
-    })
+    });
   }
 
-  const pageCount1 = (doc as any).internal.getNumberOfPages()
-  for (let i = 1; i <= pageCount1; i++) { (doc as any).setPage(i); drawFooter() }
-
-  // Watermark
-  const wm1 = String(s?.watermark || '').trim()
-  if (wm1) {
-    const wmOpacity1 = Number(s?.watermarkOpacity ?? 0.08)
-    const wmAngle1 = Number(s?.watermarkAngle ?? -45)
-    for (let i = 1; i <= pageCount1; i++) {
-      ;(doc as any).setPage(i)
-      try { doc.saveGraphicsState?.(); doc.setGState?.(new ((doc as any).GState)({ opacity: wmOpacity1 })) } catch {}
-      doc.setFontSize(60); doc.setTextColor(180,180,180)
-      doc.text(wm1, 297.5, 421, { angle: wmAngle1, align: 'center' })
-      try { doc.restoreGraphicsState?.() } catch {}
-    }
+  const pageCount1 = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount1; i++) {
+    (doc as any).setPage(i);
+    drawFooter();
   }
 
-  const fileName = `lab-report-${(input.patient.mrn || '').replace(/\s+/g,'') || input.tokenNo}.pdf`
-  doc.save(fileName)
+  const fileName = input.skipHeaderFooter 
+    ? `lab-report-letterhead-${(input.patient.mrn || "").replace(/\s+/g, "") || input.tokenNo}.pdf`
+    : `lab-report-${(input.patient.mrn || "").replace(/\s+/g, "") || input.tokenNo}.pdf`;
+  doc.save(fileName);
 }
 
 export async function previewLabReportPdf(input: {
-  tokenNo: string
-  barcode?: string
-  createdAt: string
-  sampleTime?: string
-  reportingTime?: string
-  approvedAt?: string
-  patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
-  rows: ReportRow[]
-  interpretation?: string
-  submittedBy?: string
-  approvedBy?: string
-  printedBy?: string
-  reportPrintedAt?: string
-  referringConsultant?: string
-  profileLabel?: string
-}){
-  const s: any = await labApi.getSettings().catch(()=>({}))
-  // Dispatch to selected template if configured
-  try {
-    if ((s?.reportTemplate || 'classic') === 'modern'){
-      const mod = await import('./labReport/templates/modern')
-      return mod.previewLabReportPdfModern(input)
-    }
-    if ((s?.reportTemplate || 'classic') === 'tealGradient'){
-      const mod = await import('./labReport/templates/tealHeader')
-      return mod.previewLabReportPdfGradient(input)
-    }
-    if ((s?.reportTemplate || 'classic') === 'adl'){
-      const mod = await import('./labReport/templates/adl')
-      return mod.previewLabReportPdfAdl(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'skmch'){
-      const mod = await import('./labReport/templates/skmch')
-      return mod.previewLabReportPdfSkmch(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'receiptStyle'){
-      const mod = await import('./labReport/templates/receiptStyle')
-      return mod.previewLabReportPdfReceiptStyle(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'clinicalPro'){
-      const mod = await import('./labReport/templates/clinicalPro')
-      return mod.previewLabReportPdfClinicalPro(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'minimalist'){
-      const mod = await import('./labReport/templates/minimalist')
-      return mod.previewLabReportPdfMinimalist(input as any)
-    }
-    if ((s?.reportTemplate || 'classic') === 'royalBlue'){
-      const mod = await import('./labReport/templates/royalBlue')
-      return mod.previewLabReportPdfRoyalBlue(input as any)
-    }
-  } catch {}
-  const labName = s?.labName || 'Laboratory'
-  const address = s?.address || '-'
-  const phone = s?.phone || ''
-  const email = s?.email || ''
-  const department = s?.department || 'Department of Pathology'
-  const logo = s?.logoDataUrl || ''
-  const primaryConsultant = { name: s?.consultantName || '', degrees: s?.consultantDegrees || '', title: s?.consultantTitle || '' }
-  const extraConsultants: Array<{ name?: string; degrees?: string; title?: string }> = Array.isArray(s?.consultants) ? s.consultants : []
-  const consultantsList = [primaryConsultant, ...extraConsultants]
-    .filter(c => (c?.name||'').trim() || (c?.degrees||'').trim() || (c?.title||'').trim())
+  tokenNo: string;
+  barcode?: string;
+  createdAt: string;
+  sampleTime?: string;
+  reportingTime?: string;
+  approvedAt?: string;
+  patient: {
+    fullName: string;
+    phone?: string;
+    mrn?: string;
+    age?: string;
+    gender?: string;
+    address?: string;
+  };
+  rows: ReportRow[];
+  interpretation?: string;
+  submittedBy?: string;
+  approvedBy?: string;
+  printedBy?: string;
+  referringConsultant?: string;
+  profileLabel?: string;
+  skipHeaderFooter?: boolean;
+}) {
+  const s: any = await labApi.getSettings().catch(() => ({}));
 
+  // Letterhead mode: skip all generated header/footer and leave space for pre-printed paper
+  const isLetterhead = (s?.reportTemplate || "classic") === "letterhead";
+  if (isLetterhead) {
+    input.skipHeaderFooter = true;
+  }
 
-  const { jsPDF } = await import('jspdf')
-  const autoTable = (await import('jspdf-autotable')).default as any
+  const useCustomHF = !!s?.useCustomHeaderFooter;
+  const customHeader = useCustomHF ? (s?.headerImageUrl || "") : "";
+  const customFooter = useCustomHF ? (s?.footerImageUrl || "") : "";
 
-  const doc = new jsPDF('p','pt','a4')
-  const reportFont = s?.reportFont || 'helvetica'
-  let fontName = 'helvetica'
-  if (reportFont === 'times') fontName = 'times'
-  else if (reportFont === 'courier') fontName = 'courier'
-  doc.setFont(fontName,'normal')
-  let y = 40
+  // Pre-normalize custom images so drawFooter can stay synchronous
+  let customHeaderData = "";
+  let customFooterData = "";
+  if (customHeader) {
+    try { customHeaderData = await ensurePngDataUrl(customHeader); } catch {}
+  }
+  if (customFooter) {
+    try { customFooterData = await ensurePngDataUrl(customFooter); } catch {}
+  }
 
-  // Custom header image support
-  const useCustomHF = !!s?.useCustomHeaderFooter
-  const headerImg = s?.headerImageUrl || ''
-  const footerImg = s?.footerImageUrl || ''
-  if (useCustomHF && headerImg) {
+  // Dispatch to selected template if configured.
+  // Skip template dispatch when custom header/footer or letterhead mode is active
+  // because specialized templates don't support those features.
+  const shouldUseCustomFeatures = useCustomHF || isLetterhead;
+  if (!shouldUseCustomFeatures) {
     try {
-      const normalized = await ensurePngDataUrl(headerImg)
-      doc.addImage(normalized, 'PNG' as any, 40, 10, 515, 80, undefined, 'FAST')
-      y = 100
-    } catch {}
-  } else if (logo) {
-    try {
-      const normalized = await ensurePngDataUrl(logo)
-      doc.addImage(normalized, 'PNG' as any, 40, y - 32, 70, 70, undefined, 'FAST')
+      if ((s?.reportTemplate || "classic") === "modern") {
+        const mod = await import("./labReport/templates/modern");
+        return mod.previewLabReportPdfModern(input);
+      }
+      if ((s?.reportTemplate || "classic") === "tealGradient") {
+        const mod = await import("./labReport/templates/tealHeader");
+        return mod.previewLabReportPdfGradient(input);
+      }
+      if ((s?.reportTemplate || "classic") === "adl") {
+        const mod = await import("./labReport/templates/adl");
+        return mod.previewLabReportPdfAdl(input as any);
+      }
+      if ((s?.reportTemplate || "classic") === "skmch") {
+        const mod = await import("./labReport/templates/skmch");
+        return mod.previewLabReportPdfSkmch(input as any);
+      }
+      if ((s?.reportTemplate || "classic") === "receiptStyle") {
+        const mod = await import("./labReport/templates/receiptStyle");
+        return mod.previewLabReportPdfReceiptStyle(input as any);
+      }
     } catch {}
   }
-  doc.setFont('helvetica','bold')
-  doc.setFontSize(16)
-  doc.text(String(labName), 297.5, y, { align: 'center' }); y += 16
-  doc.setFont('helvetica','bold')
-  doc.setFontSize(10)
-  doc.text(String(address), 297.5, y, { align: 'center' }); y += 12
-  doc.text(`Ph: ${phone || ''}${email? ' • '+email : ''}`, 297.5, y, { align: 'center' }); y += 16
+  const labName = s?.labName || "Laboratory";
+  const address = s?.address || "-";
+  const phone = s?.phone || "";
+  const email = s?.email || "";
+  const department = s?.department || "Department of Pathology";
+  const logo = s?.logoDataUrl || "";
+  const primaryConsultant = {
+    name: s?.consultantName || "",
+    degrees: s?.consultantDegrees || "",
+    title: s?.consultantTitle || "",
+  };
+  const extraConsultants: Array<{
+    name?: string;
+    degrees?: string;
+    title?: string;
+  }> = Array.isArray(s?.consultants) ? s.consultants : [];
+  const consultantsList = [primaryConsultant, ...extraConsultants]
+    .filter(
+      (c) =>
+        (c?.name || "").trim() ||
+        (c?.degrees || "").trim() ||
+        (c?.title || "").trim(),
+    )
+    .slice(0, 3);
 
-  if ((input.barcode || '').trim()) {
+  const { jsPDF } = await import("jspdf");
+  const autoTable = (await import("jspdf-autotable")).default as any;
+
+  const doc = new jsPDF("p", "pt", "a4");
+  doc.setFont("helvetica", "normal");
+  let y = 40;
+
+  // Header section
+  if (isLetterhead) {
+    // Leave space for pre-printed header (approx 100pt = 35mm)
+    y = 100;
+  } else if (customHeaderData) {
+    // Use uploaded header image instead of generated header
     try {
-      const b = String(input.barcode || '').trim()
-      const png = await makeBarcodeDataUrl(b)
+      doc.addImage(customHeaderData, "PNG" as any, 40, 10, 515, 80, undefined, "FAST");
+      y = 100;
+    } catch { y = 40; }
+  } else if (!input.skipHeaderFooter) {
+    if (logo) {
+      try {
+        const normalized = await ensurePngDataUrl(logo);
+        doc.addImage(
+          normalized,
+          "PNG" as any,
+          40,
+          y - 32,
+          70,
+          70,
+          undefined,
+          "FAST",
+        );
+      } catch {}
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(String(labName), 297.5, y, { align: "center" });
+    y += 16;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(String(address), 297.5, y, { align: "center" });
+    y += 12;
+    doc.text(`Ph: ${phone || ""}${email ? " • " + email : ""}`, 297.5, y, {
+      align: "center",
+    });
+    y += 16;
+  } else {
+    // For letterhead mode, start higher on the page
+    y = 20;
+  }
+
+  if ((input.barcode || "").trim()) {
+    try {
+      const b = String(input.barcode || "").trim();
+      const png = await makeBarcodeDataUrl(b);
       if (png) {
-        const bw = 220
-        const bh = 34
-        const bx = (595 - bw) / 2
-        doc.addImage(png, 'PNG' as any, bx, y - 6, bw, bh, undefined, 'FAST')
-        doc.setFont('helvetica','normal')
-        doc.setFontSize(9)
-        doc.text(b, 297.5, y + bh + 6, { align: 'center' })
-        doc.setFontSize(10)
-        y += bh + 18
+        const bw = 220;
+        const bh = 34;
+        const bx = (595 - bw) / 2;
+        doc.addImage(png, "PNG" as any, bx, y - 6, bw, bh, undefined, "FAST");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(b, 297.5, y + bh + 6, { align: "center" });
+        doc.setFontSize(10);
+        y += bh + 18;
       }
     } catch {}
   }
 
-  doc.setFont('helvetica','normal')
-  doc.setDrawColor(15); doc.line(40, y, 555, y); y += 10
-  doc.setFontSize(11)
-  doc.text(String(department), 297.5, y, { align: 'center' }); y += 16
+  doc.setFont("helvetica", "normal");
+  doc.setDrawColor(15);
+  doc.line(40, y, 555, y);
+  y += 10;
+  doc.setFontSize(11);
+  doc.text(String(department), 297.5, y, { align: "center" });
+  y += 16;
 
   // Key values
-  doc.setFontSize(10)
-  const L = 40, R = 300
-  const dt = (iso?: string)=> fmtDateTime(iso)
+  doc.setFontSize(10);
+  const L = 40,
+    R = 300;
+  const dt = (iso?: string) => fmtDateTime(iso);
   const drawKV = (label: string, value: string, x: number, yy: number) => {
-    doc.setFont('helvetica','bold');
-    doc.text(label, x, yy)
-    const w = doc.getTextWidth(label + ' ')
-    doc.setFont('helvetica','normal');
-    doc.text(value, x + w, yy)
-  }
-  drawKV('Medical Record No :', String(input.patient.mrn || '-'), L, y)
-  drawKV('Sample No / Lab No :', String(input.tokenNo), R, y); y += 14
-  drawKV('Patient Name :', String(input.patient.fullName), L, y)
-  drawKV('Age / Gender :', `${input.patient.age || ''} / ${input.patient.gender || ''}`, R, y); y += 14
-  drawKV('Reg. & Sample Time :', String(dt(input.createdAt)), L, y)
-  drawKV('Reporting Time :', String(dt(input.approvedAt) || input.reportingTime || '-'), R, y); y += 14
-  drawKV('Approved At :', input.approvedAt ? String(dt(input.approvedAt)) + (input.approvedBy ? ` by ${input.approvedBy}` : '') : '-', L, y)
-  drawKV('Report Printed At :', input.reportPrintedAt ? String(dt(input.reportPrintedAt)) : '-', R, y); y += 14
-  drawKV('Contact No :', String(input.patient.phone || '-'), L, y)
-  drawKV('Referring Consultant :', String(input.referringConsultant || '-'), R, y); y += 14
-  drawKV('Address :', String(input.patient.address || '-'), L, y); y += 8
+    doc.setFont("helvetica", "bold");
+    doc.text(label, x, yy);
+    const w = doc.getTextWidth(label + " ");
+    doc.setFont("helvetica", "normal");
+    doc.text(value, x + w, yy);
+  };
+  drawKV("Medical Record No :", String(input.patient.mrn || "-"), L, y);
+  drawKV("Sample No / Lab No :", String(input.tokenNo), R, y);
+  y += 14;
+  drawKV("Patient Name :", String(input.patient.fullName), L, y);
+  drawKV(
+    "Age / Gender :",
+    `${input.patient.age || ""} / ${input.patient.gender || ""}`,
+    R,
+    y,
+  );
+  y += 14;
+  drawKV("Reg. & Sample Time :", String(dt(input.createdAt)), L, y);
+  drawKV(
+    "Reporting Time :",
+    String(dt(input.approvedAt) || input.reportingTime || "-"),
+    R,
+    y,
+  );
+  y += 14;
+  drawKV("Contact No :", String(input.patient.phone || "-"), L, y);
+  drawKV(
+    "Referring Consultant :",
+    String(input.referringConsultant || "-"),
+    R,
+    y,
+  );
+  y += 14;
+  drawKV("Address :", String(input.patient.address || "-"), L, y);
+  y += 8;
 
-  const { head, body, idxPrev, idxFlag } = pickReportColumns(input.rows || [])
+  const { head, body, idxPrev, idxFlag } = pickReportColumns(input.rows || []);
 
   const drawFooter = () => {
-    const pageHeight = (doc.internal.pageSize as any).getHeight ? (doc.internal.pageSize as any).getHeight() : (doc.internal.pageSize as any).height
-    let baseY = pageHeight - 90
-    doc.setFontSize(10)
-    doc.text('System Generated Report, No Signature Required. Approved By Consultant. Not Valid For Any Court Of Law.', 297.5, baseY, { align: 'center' })
-    doc.setDrawColor(51,65,85); doc.line(40, baseY + 8, 555, baseY + 8)
-    if (consultantsList.length){
-      const cols = consultantsList.length
-      const colW = (555 - 40) / cols
-      consultantsList.forEach((c, i) => {
-        const x = 40 + i * colW + 4
-        let yy = baseY + 26
-        doc.setFontSize(11)
-        if ((c.name||'').trim()) { doc.text(String(c.name), x, yy); yy += 12 }
-        doc.setFontSize(10)
-        if ((c.degrees||'').trim()) { doc.text(String(c.degrees), x, yy); yy += 12 }
-        if ((c.title||'').trim()) { doc.setFont(fontName, 'bold'); doc.text(String(c.title), x, yy); doc.setFont(fontName, 'normal'); }
-      })
-    }
-    if (useCustomHF && footerImg) {
-      try { doc.addImage(footerImg, 'PNG' as any, 40, baseY - 20, 515, 50, undefined, 'FAST') } catch {}
-    }
-  }
+    if (input.skipHeaderFooter) return; // Skip footer for letterhead mode
+    const pageHeight = (doc.internal.pageSize as any).getHeight
+      ? (doc.internal.pageSize as any).getHeight()
+      : (doc.internal.pageSize as any).height;
+    let baseY = pageHeight - 90;
 
-  const columnStyles: Record<number, any> = {}
-  if (idxPrev >= 0) columnStyles[idxPrev] = { fontStyle: 'bold' }
-  if (idxFlag >= 0) columnStyles[idxFlag] = { fontStyle: 'bold' }
+    // If custom footer image is provided, draw it instead of generated footer
+    if (customFooterData) {
+      try {
+        doc.addImage(customFooterData, "PNG" as any, 40, pageHeight - 100, 515, 80, undefined, "FAST");
+      } catch {
+        // Fallback to generated footer
+      }
+      return;
+    }
+
+    doc.setFontSize(10);
+    doc.text(
+      "System Generated Report, No Signature Required. Approved By Consultant. Not Valid For Any Court Of Law.",
+      297.5,
+      baseY,
+      { align: "center" },
+    );
+    doc.setDrawColor(51, 65, 85);
+    doc.line(40, baseY + 8, 555, baseY + 8);
+    if (consultantsList.length) {
+      const cols = consultantsList.length;
+      const colW = (555 - 40) / cols;
+      consultantsList.forEach((c, i) => {
+        const x = 40 + i * colW + 4;
+        let yy = baseY + 26;
+        doc.setFontSize(11);
+        if ((c.name || "").trim()) {
+          doc.text(String(c.name), x, yy);
+          yy += 12;
+        }
+        doc.setFontSize(10);
+        if ((c.degrees || "").trim()) {
+          doc.text(String(c.degrees), x, yy);
+          yy += 12;
+        }
+        if ((c.title || "").trim()) {
+          doc.setFont("helvetica", "bold");
+          doc.text(String(c.title), x, yy);
+          doc.setFont("helvetica", "normal");
+        }
+      });
+    }
+  };
+
+  const columnStyles: Record<number, any> = {};
+  if (idxPrev >= 0) columnStyles[idxPrev] = { fontStyle: "bold" };
+  if (idxFlag >= 0) columnStyles[idxFlag] = { fontStyle: "bold" };
 
   autoTable(doc, {
     startY: y + 12,
     head,
     body,
     styles: { fontSize: 9, cellPadding: 4, lineWidth: 0.5 },
-    headStyles: { fillColor: [248,250,252], textColor: [15,23,42], halign: 'left', fontStyle: 'bold' },
-    tableLineColor: [15,23,42],
+    headStyles: {
+      fillColor: [248, 250, 252],
+      textColor: [15, 23, 42],
+      halign: "left",
+      fontStyle: "bold",
+    },
+    tableLineColor: [15, 23, 42],
     tableLineWidth: 0.5,
-    theme: 'grid',
+    theme: "grid",
     columnStyles,
     didParseCell: (hookData: any) => {
-      if (hookData.section === 'body' && (hookData.column.index === idxPrev || hookData.column.index === idxFlag)) {
-        hookData.cell.styles.fontStyle = 'bold'
+      if (
+        hookData.section === "body" &&
+        (hookData.column.index === idxPrev || hookData.column.index === idxFlag)
+      ) {
+        hookData.cell.styles.fontStyle = "bold";
       }
     },
     margin: { bottom: 120 },
-  })
+  });
 
-  const hasInterpretation2 = (input.interpretation || '').trim().length > 0
+  const hasInterpretation2 = (input.interpretation || "").trim().length > 0;
   if (hasInterpretation2) {
-    const bullets2 = String(input.interpretation || '')
+    const bullets2 = String(input.interpretation || "")
       .split(/\r?\n/)
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean)
-      .map(s => `• ${s}`)
-      .join('\n')
+      .map((s) => `• ${s}`)
+      .join("\n");
     autoTable(doc, {
-      startY: (((doc as any).lastAutoTable?.finalY) || (y + 12)) + 12,
+      startY: ((doc as any).lastAutoTable?.finalY || y + 12) + 12,
       body: [
-        [{ content: 'Clinical Interpretation:', styles: { fontStyle: 'bold' } }],
-        [{ content: bullets2 || String(input.interpretation || '') }],
+        [
+          {
+            content: "Clinical Interpretation:",
+            styles: { fontStyle: "bold" },
+          },
+        ],
+        [{ content: bullets2 || String(input.interpretation || "") }],
       ],
-      theme: 'plain',
-      styles: { fontSize: 10, cellPadding: 0, halign: 'left' },
+      theme: "plain",
+      styles: { fontSize: 10, cellPadding: 0, halign: "left" },
       margin: { left: 40, right: 40, bottom: 120 },
-    })
+    });
   }
 
-  const pageCount2 = (doc as any).internal.getNumberOfPages()
-  for (let i = 1; i <= pageCount2; i++) { (doc as any).setPage(i); drawFooter() }
-
-  // Watermark
-  const wm = String(s?.watermark || '').trim()
-  if (wm) {
-    const wmOpacity = Number(s?.watermarkOpacity ?? 0.08)
-    const wmAngle = Number(s?.watermarkAngle ?? -45)
-    const pageW2 = 595, pageH2 = 842
-    for (let i = 1; i <= pageCount2; i++) {
-      ;(doc as any).setPage(i)
-      try { doc.saveGraphicsState?.(); doc.setGState?.(new ((doc as any).GState)({ opacity: wmOpacity })) } catch {}
-      doc.setFontSize(60); doc.setTextColor(180,180,180)
-      doc.text(wm, pageW2/2, pageH2/2, { angle: wmAngle, align: 'center' })
-      try { doc.restoreGraphicsState?.() } catch {}
-    }
+  const pageCount2 = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount2; i++) {
+    (doc as any).setPage(i);
+    drawFooter();
   }
 
   // Prefer Electron in-app preview when available
-  try{
-    const api = (window as any).electronAPI
-    if (api && typeof api.printPreviewPdf === 'function'){
-      const dataUrl = doc.output('datauristring') as string // data:application/pdf;base64,...
-      await api.printPreviewPdf(dataUrl)
-      return
+  try {
+    const api = (window as any).electronAPI;
+    if (api && typeof api.printPreviewPdf === "function") {
+      const dataUrl = doc.output("datauristring") as string; // data:application/pdf;base64,...
+      await api.printPreviewPdf(dataUrl);
+      return;
     }
-  }catch{}
+  } catch {}
 
   // Browser fallback: open print dialog using hidden iframe
-  doc.autoPrint()
-  const blob = doc.output('blob') as Blob
-  const url = URL.createObjectURL(blob)
-  const iframe = document.createElement('iframe')
-  iframe.style.position = 'fixed'
-  iframe.style.right = '0'
-  iframe.style.bottom = '0'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
-  iframe.style.border = '0'
-  iframe.style.visibility = 'hidden'
+  doc.autoPrint();
+  const blob = doc.output("blob") as Blob;
+  const url = URL.createObjectURL(blob);
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.visibility = "hidden";
   iframe.onload = () => {
     try {
-      iframe.contentWindow?.focus()
-      iframe.contentWindow?.print()
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
     } catch {}
     // Cleanup a bit later to allow print dialog to initialize
-    setTimeout(()=>{ try { URL.revokeObjectURL(url); iframe.remove() } catch {} }, 10000)
-  }
-  iframe.src = url
-  document.body.appendChild(iframe)
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(url);
+        iframe.remove();
+      } catch {}
+    }, 10000);
+  };
+  iframe.src = url;
+  document.body.appendChild(iframe);
 }
 
-function esc(s: string){
-  return (s||'')
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#039;')
+function esc(s: string) {
+  return (s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-function fmtDateTime(iso?: string){
-  if (!iso || iso === '-') return '-'
+function fmtDateTime(iso?: string) {
+  if (!iso || iso === "-") return "-";
   // Handle time-only strings like '14:25'
-  if (/^\d{1,2}:\d{2}$/.test(String(iso))) return String(iso)
-  try { const d = new Date(iso); if (isNaN(d.getTime())) return String(iso); return d.toLocaleDateString()+', '+d.toLocaleTimeString() } catch { return String(iso) }
+  if (/^\d{1,2}:\d{2}$/.test(String(iso))) return String(iso);
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    return fmtDateTime12(iso);
+  } catch {
+    return String(iso);
+  }
 }
 
 // Ensure the logo is a PNG data URL (jsPDF reliably supports PNG/JPEG; SVG/WEBP may fail)
 async function ensurePngDataUrl(src: string): Promise<string> {
   try {
-    if (/^data:image\/png/i.test(src)) return src
+    if (/^data:image\/png/i.test(src)) return src;
     // Draw into canvas and re-encode as PNG
     return await new Promise<string>((resolve) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
+      const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
         try {
-          const canvas = document.createElement('canvas')
-          canvas.width = img.naturalWidth || img.width || 200
-          canvas.height = img.naturalHeight || img.height || 200
-          const ctx = canvas.getContext('2d')
-          ctx?.drawImage(img, 0, 0)
-          const out = canvas.toDataURL('image/png')
-          resolve(out || src)
-        } catch { resolve(src) }
-      }
-      img.onerror = () => resolve(src)
-      img.src = src
-    })
-  } catch { return src }
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth || img.width || 200;
+          canvas.height = img.naturalHeight || img.height || 200;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0);
+          const out = canvas.toDataURL("image/png");
+          resolve(out || src);
+        } catch {
+          resolve(src);
+        }
+      };
+      img.onerror = () => resolve(src);
+      img.src = src;
+    });
+  } catch {
+    return src;
+  }
 }
 
 export async function printLabReport(input: {
-  tokenNo: string
-  barcode?: string
-  createdAt: string
-  sampleTime?: string
-  reportingTime?: string
-  approvedAt?: string
-  approvedBy?: string
-  patient: { fullName: string; phone?: string; mrn?: string; age?: string; gender?: string; address?: string }
-  rows: ReportRow[]
-  interpretation?: string
-  printedBy?: string
-  reportPrintedAt?: string
-  referringConsultant?: string
-}){
-  const s: any = await labApi.getSettings().catch(()=>({}))
-  const labName = s?.labName || 'Laboratory'
-  const address = s?.address || '-'
-  const phone = s?.phone || ''
-  const email = s?.email || ''
-  const department = s?.department || 'Department of Pathology'
-  const logo = s?.logoDataUrl || ''
-  const primaryConsultant = { name: s?.consultantName || '', degrees: s?.consultantDegrees || '', title: s?.consultantTitle || '' }
-  const extraConsultants: Array<{ name?: string; degrees?: string; title?: string }> = Array.isArray(s?.consultants) ? s.consultants : []
+  tokenNo: string;
+  barcode?: string;
+  createdAt: string;
+  sampleTime?: string;
+  reportingTime?: string;
+  approvedAt?: string;
+  patient: {
+    fullName: string;
+    phone?: string;
+    mrn?: string;
+    age?: string;
+    gender?: string;
+    address?: string;
+  };
+  rows: ReportRow[];
+  interpretation?: string;
+  printedBy?: string;
+  referringConsultant?: string;
+}) {
+  const s: any = await labApi.getSettings().catch(() => ({}));
+  const labName = s?.labName || "Laboratory";
+  const address = s?.address || "-";
+  const phone = s?.phone || "";
+  const email = s?.email || "";
+  const department = s?.department || "Department of Pathology";
+  const logo = s?.logoDataUrl || "";
+  const primaryConsultant = {
+    name: s?.consultantName || "",
+    degrees: s?.consultantDegrees || "",
+    title: s?.consultantTitle || "",
+  };
+  const extraConsultants: Array<{
+    name?: string;
+    degrees?: string;
+    title?: string;
+  }> = Array.isArray(s?.consultants) ? s.consultants : [];
   const consultantsList = [primaryConsultant, ...extraConsultants]
-    .filter(c => (c?.name||'').trim() || (c?.degrees||'').trim() || (c?.title||'').trim())
-
+    .filter(
+      (c) =>
+        (c?.name || "").trim() ||
+        (c?.degrees || "").trim() ||
+        (c?.title || "").trim(),
+    )
+    .slice(0, 3);
 
   const { nonEmptyRows, hasPrev, hasFlag, hasComment, hasNormal, hasUnit } = pickReportColumns(input.rows || [])
   const hasInterpretation = (input.interpretation || '').trim().length > 0
   const rowsHtml = (nonEmptyRows||[]).map(r => `
     <tr>
-      <td style="padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0">${esc(r.test||'')}</td>
-      ${hasNormal ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0\">${esc(r.normal||'')}</td>` : ''}
-      ${hasUnit ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0\">${esc(r.unit||'')}</td>` : ''}
-      ${hasPrev ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:700\">${esc(r.prevValue||'')}</td>` : ''}
-      <td style="padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0">${esc(r.value||'')}</td>
-      ${hasFlag ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:700\">${esc(r.flag||'')}</td>` : ''}
-      ${hasComment ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0\">${esc(r.comment||'')}</td>` : ''}
+      <td style="padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0">${esc(r.test || "")}</td>
+      ${hasNormal ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0\">${esc(r.normal || "")}</td>` : ""}
+      ${hasUnit ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0\">${esc(r.unit || "")}</td>` : ""}
+      ${hasPrev ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:700\">${esc(r.prevValue || "")}</td>` : ""}
+      <td style="padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0">${esc(r.value || "")}</td>
+      ${hasFlag ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:700\">${esc(r.flag || "")}</td>` : ""}
+      ${hasComment ? `<td style=\"padding:8px;background:#f8fafc;border-bottom:1px solid #e2e8f0\">${esc(r.comment || "")}</td>` : ""}
     </tr>
   `).join('')
 
-  const overlayId = 'lab-report-overlay'
-  const old = document.getElementById(overlayId); if (old) old.remove()
-  const overlay = document.createElement('div')
-  overlay.id = overlayId
-  overlay.style.position = 'fixed'
-  overlay.style.inset = '0'
-  overlay.style.background = 'rgba(15,23,42,0.5)'
-  overlay.style.zIndex = '9999'
-  overlay.style.display = 'flex'
-  overlay.style.alignItems = 'center'
-  overlay.style.justifyContent = 'center'
-  overlay.style.padding = '16px'
+  const overlayId = "lab-report-overlay";
+  const old = document.getElementById(overlayId);
+  if (old) old.remove();
+  const overlay = document.createElement("div");
+  overlay.id = overlayId;
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(15,23,42,0.5)";
+  overlay.style.zIndex = "9999";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.padding = "16px";
 
   const html = `
   <style>
@@ -659,6 +962,7 @@ export async function printLabReport(input: {
     .toolbar{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc}
     .toolbar-title{font-weight:700;color:#0f172a}
     .btn{border:1px solid #cbd5e1;border-radius:8px;padding:6px 10px;font-size:12px;color:#334155;background:#fff}
+    .btn-primary{border:1px solid #6366f1;border-radius:8px;padding:6px 10px;font-size:12px;color:#fff;background:#6366f1}
     .wrap{padding:16px 20px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#0f172a}
     .hdr{display:grid;grid-template-columns:96px 1fr 96px;align-items:center}
     .hdr .title{font-size:28px;font-weight:800;text-align:center}
@@ -680,6 +984,10 @@ export async function printLabReport(input: {
     .sign .left{font-size:14px}
     .sign .name{font-weight:800}
     .sign .title{font-weight:800}
+    /* Letterhead mode - hide header and footer for pre-printed stationery */
+    .letterhead-mode .hdr, .letterhead-mode .dept, .letterhead-mode .hr:first-of-type { display:none !important }
+    .letterhead-mode .footnote, .letterhead-mode .foot-hr, .letterhead-mode .sign { display:none !important }
+    .letterhead-mode .wrap { padding-top:8px !important }
     /* prevent awkward page breaks */
     .box, table, .hdr, .dept, .hr, .sign, .interp { break-inside: avoid }
     @media print{
@@ -689,82 +997,134 @@ export async function printLabReport(input: {
       #${overlayId}{ position:static !important; background:transparent !important; padding:0 !important }
       .toolbar{ display:none !important }
       .card{ box-shadow:none !important; width:auto !important }
+      .btn-hint { display:none !important }
     }
   </style>
-  <div class="card">
+  <div class="card" id="lab-report-card">
     <div class="toolbar">
       <div class="toolbar-title">Report Preview</div>
-      <div>
-        <button class="btn" id="lab-report-print">Print (Ctrl+P)</button>
-        <button class="btn" id="lab-report-close" style="margin-left:8px">Close (Ctrl+D)</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="btn-hint" style="font-size:11px;color:#64748b">For pre-printed letterhead:</span>
+        <button class="btn" id="lab-report-print-letterhead">Print (No Header/Footer)</button>
+        <button class="btn-primary" id="lab-report-print">Print Full Report</button>
+        <button class="btn" id="lab-report-close">Close (Ctrl+D)</button>
       </div>
     </div>
     <div class="wrap">
       <div class="hdr">
-        <div>${logo? `<img src="${esc(logo)}" alt="logo" style="height:70px;width:auto;object-fit:contain"/>` : ''}</div>
+        <div>${logo ? `<img src="${esc(logo)}" alt="logo" style="height:70px;width:auto;object-fit:contain"/>` : ""}</div>
         <div>
           <div class="title"><strong>${esc(labName)}</strong></div>
           <div class="muted"><strong>${esc(address)}</strong></div>
-          <div class="muted"><strong>Ph: ${esc(phone)} ${email? ' • '+esc(email): ''}</strong></div>
+          <div class="muted"><strong>Ph: ${esc(phone)} ${email ? " • " + esc(email) : ""}</strong></div>
         </div>
         <div></div>
       </div>
-      <div class="dept">${esc(department || 'Department of Pathology')}</div>
+      <div class="dept">${esc(department || "Department of Pathology")}</div>
       <div class="hr"></div>
       <div class="box">
         <div class="kv">
-          <div><strong>Medical Record No :</strong></div><div>${esc(input.patient.mrn || '-')}</div>
+          <div><strong>Medical Record No :</strong></div><div>${esc(input.patient.mrn || "-")}</div>
           <div><strong>Sample No / Lab No :</strong></div><div>${esc(input.tokenNo)}</div>
-          ${(input.barcode || '').trim() ? `<div><strong>Barcode :</strong></div><div>${esc(String(input.barcode || '-'))}</div>` : ''}
+          ${(input.barcode || "").trim() ? `<div><strong>Barcode :</strong></div><div>${esc(String(input.barcode || "-"))}</div>` : ""}
           <div>Patient Name :</div><div>${esc(input.patient.fullName)}</div>
-          <div>Age / Gender :</div><div>${esc(input.patient.age || '')} / ${esc(input.patient.gender || '')}</div>
+          <div>Age / Gender :</div><div>${esc(input.patient.age || "")} / ${esc(input.patient.gender || "")}</div>
           <div>Reg. & Sample Time :</div><div>${fmtDateTime(input.createdAt)}</div>
           <div>Reporting Time :</div><div>${fmtDateTime(input.approvedAt || input.reportingTime || new Date().toISOString())}</div>
-          <div>Approved At :</div><div>${input.approvedAt ? fmtDateTime(input.approvedAt) + (input.approvedBy ? ` by ${esc(input.approvedBy)}` : '') : '-'}</div>
-          <div>Report Printed At :</div><div>${input.reportPrintedAt ? fmtDateTime(input.reportPrintedAt) : '-'}</div>
-          <div>Contact No :</div><div>${esc(input.patient.phone || '-')}</div>
-          <div>Referring Consultant :</div><div>${esc(input.referringConsultant || '-')}</div>
-          <div>Address :</div><div>${esc(input.patient.address || '-')}</div>
+          <div>Contact No :</div><div>${esc(input.patient.phone || "-")}</div>
+          <div>Referring Consultant :</div><div>${esc(input.referringConsultant || "-")}</div>
+          <div>Address :</div><div>${esc(input.patient.address || "-")}</div>
         </div>
       </div>
       <table>
-        <thead><tr><th>Test</th>${hasNormal?'<th>Normal Value</th>':''}${hasUnit?'<th>Unit</th>':''}${hasPrev?'<th>Previous</th>':''}<th>Result</th>${hasFlag?'<th>Flag</th>':''}${hasComment?'<th>Comment</th>':''}</tr></thead>
+        <thead><tr><th>Test</th>${hasNormal ? "<th>Normal Value</th>" : ""}${hasUnit ? "<th>Unit</th>" : ""}${hasPrev ? "<th>Previous</th>" : ""}<th>Result</th>${hasFlag ? "<th>Flag</th>" : ""}${hasComment ? "<th>Comment</th>" : ""}</tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
-      ${hasInterpretation ? (()=>{ const pts = String(input.interpretation||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean); return `<div class=\"interp\"><strong>Clinical Interpretation:</strong>${pts.length? `<ul style=\"margin:6px 0 0 18px\">${pts.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>` : `<div style=\"margin-top:6px\">${esc(String(input.interpretation||''))}</div>`}</div>` })() : ''}
+      ${
+        hasInterpretation
+          ? (() => {
+              const pts = String(input.interpretation || "")
+                .split(/\r?\n/)
+                .map((s) => s.trim())
+                .filter(Boolean);
+              return `<div class=\"interp\"><strong>Clinical Interpretation:</strong>${pts.length ? `<ul style=\"margin:6px 0 0 18px\">${pts.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : `<div style=\"margin-top:6px\">${esc(String(input.interpretation || ""))}</div>`}</div>`;
+            })()
+          : ""
+      }
       <div class="footnote">System Generated Report, No Signature Required. Approved By Consultant. Not Valid For Any Court Of Law.</div>
       <div class="foot-hr"></div>
       <div class="sign">
         <div class="cols" style="grid-template-columns: repeat(${consultantsList.length || 1}, 1fr)">
-          ${consultantsList.map(c=>`
+          ${consultantsList
+            .map(
+              (c) => `
             <div class="left">
-              ${c.name? `<div class="name">${esc(c.name)}</div>`:''}
-              ${c.degrees? `<div>${esc(c.degrees)}</div>`:''}
-              ${c.title? `<div class="title">${esc(c.title)}</div>`:''}
+              ${c.name ? `<div class="name">${esc(c.name)}</div>` : ""}
+              ${c.degrees ? `<div>${esc(c.degrees)}</div>` : ""}
+              ${c.title ? `<div class="title">${esc(c.title)}</div>` : ""}
             </div>
-          `).join('')}
+          `,
+            )
+            .join("")}
         </div>
-        <div class="right" style="font-size:12px;color:#334155;margin-left:12px">${input.printedBy? 'User: '+esc(input.printedBy) : ''}</div>
+        <div class="right" style="font-size:12px;color:#334155;margin-left:12px">${input.printedBy ? "User: " + esc(input.printedBy) : ""}</div>
       </div>
     </div>
-  </div>`
+  </div>`;
 
-  overlay.innerHTML = html
-  document.body.appendChild(overlay)
-  const onClose = ()=> { try { document.removeEventListener('keydown', onKey); overlay.remove() } catch {} }
-  const onPrint = ()=> {
-    try{
-      const api = (window as any).electronAPI
-      if (api && typeof api.printPreviewCurrent === 'function') { api.printPreviewCurrent({}); return }
-    }catch{}
-    try { window.print() } catch {}
-  }
-  const onKey = (e: KeyboardEvent)=> {
-    if ((e.ctrlKey||e.metaKey) && (e.key==='d' || e.key==='D')) { e.preventDefault(); onClose() }
-    if ((e.ctrlKey||e.metaKey) && (e.key==='p' || e.key==='P')) { /* allow print */ }
-    if (e.key === 'Escape') onClose()
-  }
-  document.getElementById('lab-report-close')?.addEventListener('click', onClose)
-  document.getElementById('lab-report-print')?.addEventListener('click', onPrint)
-  document.addEventListener('keydown', onKey)
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+  const onClose = () => {
+    try {
+      document.removeEventListener("keydown", onKey);
+      overlay.remove();
+    } catch {}
+  };
+  const onPrint = () => {
+    try {
+      const api = (window as any).electronAPI;
+      if (api && typeof api.printPreviewCurrent === "function") {
+        api.printPreviewCurrent({});
+        return;
+      }
+    } catch {}
+    try {
+      window.print();
+    } catch {}
+  };
+  const onPrintLetterhead = () => {
+    // Toggle letterhead mode (hide header/footer for pre-printed paper)
+    const card = document.getElementById('lab-report-card');
+    if (card) {
+      card.classList.add('letterhead-mode');
+    }
+    // Small delay to ensure styles apply before print dialog opens
+    setTimeout(() => {
+      onPrint();
+      // Remove class after print dialog opens (cleanup)
+      setTimeout(() => {
+        if (card) card.classList.remove('letterhead-mode');
+      }, 1000);
+    }, 100);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
+      e.preventDefault();
+      onClose();
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === "p" || e.key === "P")) {
+      /* allow print */
+    }
+    if (e.key === "Escape") onClose();
+  };
+  document
+    .getElementById("lab-report-close")
+    ?.addEventListener("click", onClose);
+  document
+    .getElementById("lab-report-print")
+    ?.addEventListener("click", onPrint);
+  document
+    .getElementById("lab-report-print-letterhead")
+    ?.addEventListener("click", onPrintLetterhead);
+  document.addEventListener("keydown", onKey);
 }

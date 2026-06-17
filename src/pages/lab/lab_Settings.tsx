@@ -22,8 +22,9 @@ export default function Lab_Settings() {
   const [reportFooter, setReportFooter] = useState('')
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [department, setDepartment] = useState('')
-  const [reportTemplate, setReportTemplate] = useState<'classic'|'tealGradient'|'modern'|'adl'|'skmch'|'receiptStyle'|'clinicalPro'|'minimalist'|'royalBlue'>('classic')
+  const [reportTemplate, setReportTemplate] = useState<'classic'|'tealGradient'|'modern'|'adl'|'skmch'|'receiptStyle'|'clinicalPro'|'minimalist'|'royalBlue'|'letterhead'>('classic')
   const [slipTemplate, setSlipTemplate] = useState<'thermal'|'a4Bill'>('thermal')
+  const [labNumberFormat, setLabNumberFormat] = useState('{SERIAL}')
   const [consultantName, setConsultantName] = useState('')
   const [consultantDegrees, setConsultantDegrees] = useState('')
   const [consultantTitle, setConsultantTitle] = useState('')
@@ -72,9 +73,10 @@ export default function Lab_Settings() {
         setReportFooter(s.reportFooter || '')
         setLogoDataUrl(s.logoDataUrl || null)
         setDepartment(s.department || '')
-        const validTemplates = ['classic','tealGradient','modern','adl','skmch','receiptStyle','clinicalPro','minimalist','royalBlue']
+        const validTemplates = ['classic','tealGradient','modern','adl','skmch','receiptStyle','clinicalPro','minimalist','royalBlue','letterhead']
         setReportTemplate(validTemplates.includes(s.reportTemplate) ? s.reportTemplate : 'classic')
         setSlipTemplate((s.slipTemplate === 'a4Bill' ? 'a4Bill' : 'thermal'))
+        setLabNumberFormat(s.labNumberFormat || '{SERIAL}')
         setConsultantName(s.consultantName || '')
         setConsultantDegrees(s.consultantDegrees || '')
         setConsultantTitle(s.consultantTitle || '')
@@ -94,14 +96,16 @@ export default function Lab_Settings() {
         setReportFont(s.reportFont || 'poppins')
         setUseCustomHeaderFooter(!!s.useCustomHeaderFooter)
         setMergeReportsByPatient(!!s.mergeReportsByPatient)
+        setDateFormat(s.dateFormat || 'DD/MM/YYYY')
+        setCurrency(s.currency || 'PKR')
       } catch (e) { /* ignore */ }
     })()
     return ()=>{ mounted = false }
   }, [])
 
-  // System Settings form state
-  const [dateFormat, setDateFormat] = useState<string>(localStorage.getItem('lab.dateFormat') || 'DD/MM/YYYY')
-  const [currency, setCurrency] = useState<string>(localStorage.getItem('lab.currency') || 'PKR')
+  // System Settings form state (loaded from API, not localStorage)
+  const [dateFormat, setDateFormat] = useState<string>('DD/MM/YYYY')
+  const [currency, setCurrency] = useState<string>('PKR')
 
   const saveLab = async () => {
     setSaving(true)
@@ -125,6 +129,7 @@ export default function Lab_Settings() {
         department,
         reportTemplate,
         slipTemplate,
+        labNumberFormat,
         consultantName,
         consultantDegrees,
         consultantTitle,
@@ -145,6 +150,8 @@ export default function Lab_Settings() {
         reportFont,
         useCustomHeaderFooter,
         mergeReportsByPatient,
+        dateFormat,
+        currency,
       })
       setNotice('Lab settings saved')
       try { setTimeout(()=> setNotice(''), 2500) } catch {}
@@ -153,12 +160,8 @@ export default function Lab_Settings() {
   }
 
   const saveSystem = () => {
-    try {
-      localStorage.setItem('lab.dateFormat', dateFormat)
-      localStorage.setItem('lab.currency', currency)
-      setNotice('System settings saved')
-      try { setTimeout(()=> setNotice(''), 2500) } catch {}
-    } catch {}
+    // System settings (dateFormat, currency) are now saved via saveLab to MongoDB
+    saveLab()
   }
 
   function fileToBase64(file: File): Promise<string> {
@@ -317,6 +320,7 @@ export default function Lab_Settings() {
                 <option value="clinicalPro">Clinical Pro</option>
                 <option value="minimalist">Minimalist</option>
                 <option value="royalBlue">Royal Blue</option>
+                <option value="letterhead">Letterhead (No Header/Footer — for pre-printed paper)</option>
               </select>
             </div>
 
@@ -326,6 +330,18 @@ export default function Lab_Settings() {
                 <option value="thermal">Thermal (58mm)</option>
                 <option value="a4Bill">A4 Bill</option>
               </select>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Lab Number Format</label>
+                <input value={labNumberFormat} onChange={e=>setLabNumberFormat(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. LAB-{YYYY}-{SERIAL4}" />
+                <p className="mt-1 text-xs text-slate-500">Preview: {(() => {
+                  const d = new Date(); const YYYY = String(d.getFullYear()); const YY = YYYY.slice(-2); const MM = String(d.getMonth()+1).padStart(2,'0'); const DD = String(d.getDate()).padStart(2,'0'); const n = 123; const pad = (n: number, w: number) => String(n).padStart(w,'0');
+                  return (labNumberFormat || '{SERIAL}').replace(/\{YYYY\}/gi, YYYY).replace(/\{YY\}/g, YY).replace(/\{MM\}/gi, MM).replace(/\{DD\}/gi, DD).replace(/\{SERIAL6\}/gi, pad(n,6)).replace(/\{SERIAL4\}/gi, pad(n,4)).replace(/\{SERIAL3\}/gi, pad(n,3)).replace(/\{SERIAL2\}/gi, pad(n,2)).replace(/\{SERIAL\}/gi, String(n));
+                })()}</p>
+                <p className="text-[11px] text-slate-400">Tokens: {'{YYYY} {YY} {MM} {DD} {SERIAL} {SERIAL2} {SERIAL3} {SERIAL4} {SERIAL6}'}</p>
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -466,6 +482,17 @@ export default function Lab_Settings() {
 
       {activeTab === 'headerFooter' && (
         <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Custom Header / Footer</div>
+            <div className="space-y-3 p-4">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={useCustomHeaderFooter} onChange={e=>setUseCustomHeaderFooter(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600" />
+                <span>Use uploaded images instead of generated header/footer on reports</span>
+              </label>
+              <p className="text-xs text-slate-500">When enabled, uploaded header/footer images will replace the template-generated header and footer on printed reports.</p>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Report Header Image</div>
             <div className="space-y-3 p-4">

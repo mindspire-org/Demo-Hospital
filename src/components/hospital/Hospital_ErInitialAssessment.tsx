@@ -1,3 +1,4 @@
+import { Printer } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { erApi } from '../../features/hospital/er'
 
@@ -63,6 +64,10 @@ export default function Hospital_ErInitialAssessment({ encounterId }: { encounte
   }
 
   async function save(data: Partial<InitialAssessment>) {
+    if (!encounterId) {
+      alert('Encounter not loaded. Please wait or refresh the page.')
+      return
+    }
     try {
       await erApi.createErInitialAssessment(encounterId, {
         arrivalTime: data.arrivalTime,
@@ -94,7 +99,10 @@ export default function Hospital_ErInitialAssessment({ encounterId }: { encounte
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="mb-2 flex items-center justify-between">
         <div className="text-lg font-semibold text-slate-900">Initial Assessment</div>
-        <button onClick={() => setOpen(true)} className="btn">Add Initial Assessment</button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => window.print()} className="btn-outline-navy flex items-center gap-2 print:hidden"><Printer className="h-4 w-4"/> Print</button>
+          <button onClick={() => setOpen(true)} className="btn">Add Initial Assessment</button>
+        </div>
       </div>
 
       {loading ? (

@@ -23,6 +23,8 @@ export const salesQuerySchema = z.object({
   bill: z.string().optional(),
   customer: z.string().optional(),
   customerId: z.string().optional(),
+  patientId: z.string().optional(),
+  mrn: z.string().optional(),
   phone: z.string().optional(),
   payment: z.enum(['Any','Cash','Card','Credit']).default('Any').optional(),
   medicine: z.string().optional(),

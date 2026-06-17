@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, CheckCircle2, XCircle, Pencil, Search, Barcode, Clock, ListChecks, AlertTriangle, RefreshCw, Printer, FileCheck, User, FlaskConical, CalendarDays, Activity, ChevronRight } from 'lucide-react'
+import { CheckCircle2, XCircle, Pencil, Search, Barcode, Clock, ListChecks, AlertTriangle, RefreshCw, Printer, FileCheck, User, FlaskConical, CalendarDays, Activity, ChevronRight } from 'lucide-react'
 import { labApi } from '../../utils/api'
 import { previewLabReportPdf } from '../../utils/printLabReport'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
@@ -22,6 +22,7 @@ type Order = {
   reportingTime?: string
   referringConsultant?: string
   barcode?: string
+  sampleType?: 'normal' | 'urgent' | 'stat'
 }
 
 type Track = { status: 'received' | 'completed'; sampleTime?: string; reportingTime?: string; tokenNo: string }
@@ -265,7 +266,7 @@ export default function Lab_ReportApproval() {
     return String((result as any)?.reportStatus || 'pending') === 'approved'
   }, [result])
 
-  const preview = async () => {
+  const preview = async (skipHeaderFooter = false) => {
     if (!order || !result) return
     await previewLabReportPdf({
       tokenNo,
@@ -287,6 +288,7 @@ export default function Lab_ReportApproval() {
       interpretation: result.interpretation,
       referringConsultant: order.referringConsultant,
       profileLabel: testsStr,
+      skipHeaderFooter,
     })
     const tokenId = (order as any).tokenId || (order as any).tokenNo || tokenNo
     labApi.markReportPrinted(tokenId).catch(()=>{})
@@ -398,6 +400,7 @@ export default function Lab_ReportApproval() {
                 <th className="px-3 py-2">MR No</th>
                 <th className="px-3 py-2">Token</th>
                 <th className="px-3 py-2">Barcode</th>
+                <th className="px-3 py-2">Type</th>
                 <th className="px-3 py-2">Test(s)</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Actions</th>
@@ -423,6 +426,15 @@ export default function Lab_ReportApproval() {
                         <Barcode className="h-4 w-4 text-slate-400" />
                         <span className="font-mono">{order.barcode || genBarcode(order)}</span>
                       </div>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                        order.sampleType === 'urgent' ? 'bg-rose-100 text-rose-700' : 
+                        order.sampleType === 'stat' ? 'bg-orange-100 text-orange-700' : 
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {order.sampleType || 'normal'}
+                      </span>
                     </td>
                     <td className="px-3 py-2">{testsStr || '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
@@ -453,7 +465,7 @@ export default function Lab_ReportApproval() {
   }
 
   // Approve action should be restricted to admin / authorized roles
-  const canApprove = session.isAdmin || session.role.toLowerCase() === 'pathologist' || session.role.toLowerCase() === 'senior'
+  const canApprove = session.isAdmin || session.role?.toLowerCase() === 'pathologist' || session.role?.toLowerCase() === 'senior'
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -543,10 +555,18 @@ export default function Lab_ReportApproval() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={preview}
+                    onClick={() => preview(false)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                    title="Print full report with header and footer"
                   >
-                    <Eye className="h-3.5 w-3.5" /> Preview
+                    <Printer className="h-3.5 w-3.5" /> Print Full
+                  </button>
+                  <button
+                    onClick={() => preview(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 shadow-sm hover:bg-violet-100 transition-colors"
+                    title="Print without header/footer for pre-printed letterhead paper"
+                  >
+                    <Printer className="h-3.5 w-3.5" /> Print Letterhead
                   </button>
                   <button
                     onClick={() => navigate(`/lab/results?orderId=${encodeURIComponent(orderId)}&token=${encodeURIComponent(tokenNo)}`)}

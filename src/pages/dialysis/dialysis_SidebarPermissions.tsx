@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { dialysisSidebarNav } from '../../components/dialysis/dialysis_Sidebar'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import { dialysisApi } from '../../features/dialysis/dialysis.api'
 
 type Permission = {
   path: string
@@ -14,12 +15,6 @@ type RolePermissions = {
   role: string
   permissions: Permission[]
   updatedBy?: string
-}
-
-const API_BASE = (import.meta as any).env?.VITE_API_BASE || ''
-
-function getToken() {
-  try { return localStorage.getItem('dialysis.token') || '' } catch { return '' }
 }
 
 export default function Dialysis_SidebarPermissions() {
@@ -87,25 +82,17 @@ export default function Dialysis_SidebarPermissions() {
     setLoading(true)
     try {
       // Fetch roles
-      const rolesRes = await fetch(`${API_BASE}/api/dialysis/sidebar-permissions/roles`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      })
-      const rolesData = await rolesRes.json()
-      if (rolesRes.ok && rolesData.items?.length) {
+      const rolesData: any = await dialysisApi.listSidebarPermissionRoles()
+      if (rolesData.items?.length) {
         setRoles(rolesData.items)
       }
 
       // Fetch permissions
-      const res = await fetch(`${API_BASE}/api/dialysis/sidebar-permissions`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setPermissions((Array.isArray(data) ? data : []).map((p: any) => ({
-          ...p,
-          permissions: normalizePermissions(p.permissions || []),
-        })))
-      }
+      const data: any = await dialysisApi.getSidebarPermissions()
+      setPermissions((Array.isArray(data) ? data : []).map((p: any) => ({
+        ...p,
+        permissions: normalizePermissions(p.permissions || []),
+      })))
     } catch (error) {
       console.error('Failed to load permissions:', error)
     }
@@ -124,24 +111,12 @@ export default function Dialysis_SidebarPermissions() {
     setCreatingRole(true)
 
     try {
-      const res = await fetch(`${API_BASE}/api/dialysis/sidebar-permissions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ role }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setRoles(prev => Array.from(new Set([...prev, role])).sort())
-        setPermissions(prev => [...prev, { ...data, permissions: normalizePermissions(data.permissions || []) }])
-        setNewRoleName('')
-        setSelectedRole(role)
-        showToast('success', `Role created: ${role}`)
-      } else {
-        showToast('error', data.message || 'Failed to create role')
-      }
+      const data: any = await dialysisApi.createSidebarPermissionRole({ role })
+      setRoles(prev => Array.from(new Set([...prev, role])).sort())
+      setPermissions(prev => [...prev, { ...data, permissions: normalizePermissions(data.permissions || []) }])
+      setNewRoleName('')
+      setSelectedRole(role)
+      showToast('success', `Role created: ${role}`)
     } catch (error) {
       showToast('error', 'Failed to create role')
     }
@@ -186,20 +161,8 @@ export default function Dialysis_SidebarPermissions() {
 
     setSaving(true)
     try {
-      const res = await fetch(`${API_BASE}/api/dialysis/sidebar-permissions/${selectedRole}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ permissions: currentPermissions.permissions }),
-      })
-      if (res.ok) {
-        showToast('success', 'Permissions updated successfully')
-      } else {
-        const data = await res.json()
-        showToast('error', data.message || 'Failed to save permissions')
-      }
+      await dialysisApi.updateSidebarPermissions(selectedRole, { permissions: currentPermissions.permissions })
+      showToast('success', 'Permissions updated successfully')
     } catch (error) {
       console.error('Failed to save permissions:', error)
       showToast('error', 'Failed to save permissions. Please try again.')
@@ -217,17 +180,9 @@ export default function Dialysis_SidebarPermissions() {
     if (!role) return
     setSaving(true)
     try {
-      const res = await fetch(`${API_BASE}/api/dialysis/sidebar-permissions/${role}/reset`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}` },
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setPermissions(permissions.map(p => p.role === role ? { ...data, permissions: normalizePermissions(data.permissions || []) } : p))
-        showToast('success', 'Permissions reset to defaults')
-      } else {
-        showToast('error', data?.message || 'Failed to reset permissions')
-      }
+      const data: any = await dialysisApi.resetSidebarPermissions(role)
+      setPermissions(permissions.map(p => p.role === role ? { ...data, permissions: normalizePermissions(data.permissions || []) } : p))
+      showToast('success', 'Permissions reset to defaults')
     } catch (error) {
       console.error('Failed to reset permissions:', error)
       showToast('error', 'Failed to reset permissions. Please try again.')
@@ -363,56 +318,65 @@ export default function Dialysis_SidebarPermissions() {
               Last updated by: {currentPermissions.updatedBy || 'Unknown'}
             </div>
 
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
               {currentPermissions.permissions
                 .sort((a, b) => a.order - b.order)
                 .map((permission) => (
                   <div
                     key={permission.path}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 bg-white"
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:border-teal-600/30 ${
+                      permission.visible 
+                        ? 'border-teal-600/20 bg-teal-600/5' 
+                        : 'border-slate-200 bg-white opacity-60'
+                    }`}
+                    onClick={() => toggleVisibility(permission.path)}
                   >
-                    <div className="flex-1">
-                      <div className="font-medium text-slate-800">{permission.label}</div>
-                      <div className="text-xs text-slate-500">{permission.path}</div>
+                    <div className="flex items-center h-5">
+                      <input
+                        type="checkbox"
+                        checked={permission.visible}
+                        onChange={() => {}} // Handled by div onClick
+                        className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-600 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-slate-800 truncate" title={permission.label}>
+                        {permission.label}
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate" title={permission.path}>
+                        {permission.path}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-1">
                       <button
                         type="button"
-                        onClick={() => reorderItem(permission.path, 'up')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          reorderItem(permission.path, 'up');
+                        }}
                         disabled={permission.order === 1}
-                        className="p-1 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                        className="p-0.5 rounded text-slate-400 hover:bg-white disabled:opacity-30"
                         title="Move up"
                       >
-                        ↑
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
                       </button>
                       <button
                         type="button"
-                        onClick={() => reorderItem(permission.path, 'down')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          reorderItem(permission.path, 'down');
+                        }}
                         disabled={permission.order === currentPermissions.permissions.length}
-                        className="p-1 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                        className="p-0.5 rounded text-slate-400 hover:bg-white disabled:opacity-30"
                         title="Move down"
                       >
-                        ↓
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleVisibility(permission.path)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          permission.visible ? 'bg-teal-600' : 'bg-slate-300'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            permission.visible ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-
-                      <span className="text-sm text-slate-600 min-w-[60px]">
-                        {permission.visible ? 'Visible' : 'Hidden'}
-                      </span>
                     </div>
                   </div>
                 ))}

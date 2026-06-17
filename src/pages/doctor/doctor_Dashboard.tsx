@@ -2,15 +2,15 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
 import DatePickerModern from '../../components/DatePickerModern'
-import { 
-  Users, 
-  FileText, 
-  Activity, 
-  Bell, 
-  TrendingUp, 
-  Calendar, 
-  Clock, 
-  Plus, 
+import {
+  Users,
+  FileText,
+  Activity,
+  Bell,
+  TrendingUp,
+  Calendar,
+  Clock,
+  Plus,
   ArrowRight,
   ChevronRight,
   Stethoscope,
@@ -18,13 +18,13 @@ import {
   Microscope,
   CheckCircle2
 } from 'lucide-react'
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   Cell,
   PieChart,
@@ -38,14 +38,15 @@ type Notification = { id: string; doctorId: string; message: string; createdAt: 
 
 const apiBaseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000/api'
 
+
 // ── Stat Card ────────────────────────────────────────────────────────────────
 type StatTone = 'blue' | 'violet' | 'teal' | 'amber'
 
 const statConfig: Record<StatTone, { bar: string; label: string; val: string; icon: string; wrap: string; shadow: string }> = {
-  blue:   { bar: 'bg-blue-600',   label: 'text-blue-600',   val: 'text-blue-900 dark:text-blue-100', icon: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600', wrap: 'hover:border-blue-200 dark:border-slate-800', shadow: 'shadow-blue-200/50' },
+  blue:   { bar: 'bg-blue-600',   label: 'text-blue-600',   val: 'text-blue-900 dark:text-blue-100',   icon: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600',   wrap: 'hover:border-blue-200 dark:border-slate-800',   shadow: 'shadow-blue-200/50'   },
   violet: { bar: 'bg-violet-600', label: 'text-violet-600', val: 'text-violet-900 dark:text-violet-100', icon: 'bg-violet-100 dark:bg-violet-900/30 text-violet-600', wrap: 'hover:border-violet-200 dark:border-slate-800', shadow: 'shadow-violet-200/50' },
-  teal:   { bar: 'bg-teal-600',   label: 'text-teal-600',   val: 'text-teal-900 dark:text-teal-100', icon: 'bg-teal-100 dark:bg-teal-900/30 text-teal-600', wrap: 'hover:border-teal-200 dark:border-slate-800', shadow: 'shadow-teal-200/50' },
-  amber:  { bar: 'bg-amber-500',  label: 'text-amber-600',  val: 'text-amber-900 dark:text-amber-100', icon: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600', wrap: 'hover:border-amber-200 dark:border-slate-800', shadow: 'shadow-amber-200/50' },
+  teal:   { bar: 'bg-teal-600',   label: 'text-teal-600',   val: 'text-teal-900 dark:text-teal-100',   icon: 'bg-teal-100 dark:bg-teal-900/30 text-teal-600',   wrap: 'hover:border-teal-200 dark:border-slate-800',   shadow: 'shadow-teal-200/50'   },
+  amber:  { bar: 'bg-amber-500',  label: 'text-amber-600',  val: 'text-amber-900 dark:text-amber-100',  icon: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600',  wrap: 'hover:border-amber-200 dark:border-slate-800',  shadow: 'shadow-amber-200/50'  },
 }
 
 function StatCard({ title, value, tone, iconEl }: { title: string; value: number; tone: StatTone; iconEl: React.ReactNode }) {
@@ -64,9 +65,9 @@ function StatCard({ title, value, tone, iconEl }: { title: string; value: number
       </div>
       <div className="mt-4 flex items-center gap-2">
         <div className="flex h-5 items-center gap-0.5 rounded-full bg-emerald-50 px-2 text-[10px] font-bold text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
-          <TrendingUp size={10} /> +12%
+          <TrendingUp size={10} /> {value > 0 ? 'Active' : 'None'}
         </div>
-        <span className="text-[11px] font-medium text-slate-400">vs yesterday</span>
+        <span className="text-[11px] font-medium text-slate-400">today</span>
       </div>
     </div>
   )
@@ -208,7 +209,7 @@ export default function Doctor_Dashboard() {
     { name: '10:00', patients: 5 },
     { name: '12:00', patients: 8 },
     { name: '14:00', patients: 4 },
-    { name: '16:00', patients: 10 },
+    { name: '16:00', patients: queuedCount || 10 },
     { name: '18:00', patients: 6 },
     { name: '20:00', patients: 3 },
   ]
@@ -224,10 +225,9 @@ export default function Doctor_Dashboard() {
 
       {/* ── Top header card ── */}
       <div className="relative overflow-hidden rounded-[2.5rem] bg-linear-to-br from-[#0f172a] via-[#1e293b] to-[#334155] p-8 text-white shadow-2xl dark:shadow-none">
-        {/* Decorative elements */}
         <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
         <div className="absolute -bottom-20 -left-20 h-60 w-60 rounded-full bg-violet-500/10 blur-3xl" />
-        
+
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 backdrop-blur-md">
@@ -243,7 +243,6 @@ export default function Doctor_Dashboard() {
             <p className="max-w-md text-lg font-medium text-slate-400">
               You have <span className="text-white">{queuedCount} patients</span> waiting in your queue today.
             </p>
-            
             <div className="flex flex-wrap gap-3 pt-4">
               <Link
                 to="/doctor/prescription"
@@ -262,7 +261,6 @@ export default function Doctor_Dashboard() {
           </div>
 
           <div className="hidden lg:block">
-            {/* 2D Illustration placeholder - using SVG for doctor theme */}
             <div className="relative flex h-56 w-56 items-center justify-center rounded-[3rem] bg-linear-to-br from-violet-500/20 to-blue-500/20 ring-1 ring-white/10">
               <Stethoscope size={100} className="text-violet-400/50" />
               <div className="absolute -bottom-2 -left-2 flex h-20 w-20 items-center justify-center rounded-3xl bg-[#1e293b] shadow-xl ring-1 ring-white/10">
@@ -287,60 +285,37 @@ export default function Doctor_Dashboard() {
             <p className="text-xs font-medium text-slate-500">{rangeLabel}</p>
           </div>
         </div>
-        
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1 dark:bg-slate-800">
-            <DatePickerModern 
-              value={from} 
-              onChange={setFrom} 
-              placeholder="From"
-              className="border-none bg-transparent"
-            />
+            <DatePickerModern value={from} onChange={setFrom} placeholder="From" />
             <span className="text-slate-300 dark:text-slate-600">to</span>
-            <DatePickerModern 
-              value={to} 
-              onChange={setTo} 
-              placeholder="To"
-              className="border-none bg-transparent"
-            />
+            <DatePickerModern value={to} onChange={setTo} placeholder="To" />
           </div>
-          <button
-            onClick={() => { setFrom(''); setTo('') }}
-            className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
-          >
-            Clear
-          </button>
-          <button
-            onClick={() => { const t = new Date().toISOString().slice(0, 10); setFrom(t); setTo(t) }}
-            className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-black dark:bg-slate-700"
-          >
-            Today
-          </button>
+          <button onClick={() => { setFrom(''); setTo('') }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">Clear</button>
+          <button onClick={() => { const t = new Date().toISOString().slice(0, 10); setFrom(t); setTo(t) }} className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-black dark:bg-slate-700">Today</button>
         </div>
       </div>
 
       {/* ── Stat cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Patient Queue" value={queuedCount} tone="blue" iconEl={<Users size={24} />} />
-        <StatCard title="Prescriptions" value={prescCount} tone="violet" iconEl={<FileText size={24} />} />
-        <StatCard title="Total Referrals" value={totalRefs} tone="teal" iconEl={<TrendingUp size={24} />} />
-        <StatCard title="Notifications" value={unreadCount} tone="amber" iconEl={<Bell size={24} />} />
+        <StatCard title="Patient Queue"  value={queuedCount} tone="blue"   iconEl={<Users size={24} />} />
+        <StatCard title="Prescriptions" value={prescCount}  tone="violet" iconEl={<FileText size={24} />} />
+        <StatCard title="Total Referrals" value={totalRefs} tone="teal"   iconEl={<TrendingUp size={24} />} />
+        <StatCard title="Notifications" value={unreadCount} tone="amber"  iconEl={<Bell size={24} />} />
       </div>
 
-      {/* ── Charts & Visualizations ── */}
+      {/* ── Charts ── */}
       <div className="grid gap-6 lg:grid-cols-12">
-        {/* Patient Volume Area Chart */}
         <div className="lg:col-span-8 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-8 flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Patient Volume</h3>
-              <p className="text-xs font-medium text-slate-500">Real-time patient visits throughout the day</p>
+              <p className="text-xs font-medium text-slate-500">Visits throughout the day</p>
             </div>
             <div className="flex h-10 items-center gap-2 rounded-xl bg-blue-50 px-4 text-xs font-bold text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
               <Activity size={16} /> Live Data
             </div>
           </div>
-          
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -353,35 +328,21 @@ export default function Doctor_Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
-                  cursor={{ stroke: '#8b5cf6', strokeWidth: 2 }}
-                />
+                <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} cursor={{ stroke: '#8b5cf6', strokeWidth: 2 }} />
                 <Area type="monotone" dataKey="patients" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorPat)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Referral Breakdown Pie Chart */}
         <div className="lg:col-span-4 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Referral Split</h3>
           <p className="mb-6 text-xs font-medium text-slate-500">Distribution of patient referrals</p>
-          
-          <div className="flex h-72 flex-col items-center justify-center">
+          <div className="flex h-52 flex-col items-center justify-center">
             {referralData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={referralData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={85}
-                    paddingAngle={8}
-                    dataKey="value"
-                    stroke="none"
-                  >
+                  <Pie data={referralData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={8} dataKey="value" stroke="none">
                     {referralData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
@@ -395,22 +356,25 @@ export default function Doctor_Dashboard() {
                 <p className="text-xs font-bold">No referral data</p>
               </div>
             )}
-            
-            <div className="mt-4 grid w-full grid-cols-2 gap-3">
-              {referralData.map((d, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{d.name}</span>
-                </div>
-              ))}
-            </div>
+          </div>
+          <div className="mt-2 grid w-full grid-cols-3 gap-2">
+            {[
+              { label: 'Lab', color: '#8b5cf6', count: labRefCount },
+              { label: 'Pharmacy', color: '#10b981', count: phRefCount },
+              { label: 'Diagnostic', color: '#ef4444', count: diagRefCount },
+            ].map((d, i) => (
+              <div key={i} className="flex flex-col items-center gap-1">
+                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
+                <span className="text-[10px] font-bold text-slate-500 uppercase">{d.label}</span>
+                <span className="text-sm font-black text-slate-800 dark:text-white">{d.count}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* ── Queue + Recent Prescriptions ── */}
       <div className="grid gap-6 lg:grid-cols-2">
-
         {/* Queue */}
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800">
@@ -443,12 +407,12 @@ export default function Doctor_Dashboard() {
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-lg font-black text-blue-700 dark:bg-blue-900/30">
                       {q.patientName?.charAt(0)}
                     </div>
-                    <div className="flex-1 text-left min-w-0">
+                    <div className="flex-1 min-w-0 text-left">
                       <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600">{q.patientName || '-'}</h4>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{q.mrn || 'No MRN'}</span>
                         <span className="h-1 w-1 rounded-full bg-slate-300" />
-                        <span className="text-xs font-bold text-amber-500">Wait: {Math.floor(Math.random() * 20) + 5} min</span>
+                        <span className="text-xs font-bold text-amber-500">Queued</span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
@@ -471,7 +435,7 @@ export default function Doctor_Dashboard() {
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Recent Prescriptions</h3>
-                <p className="text-xs font-medium text-slate-500">Last {recentPres.length} issued documents</p>
+                <p className="text-xs font-medium text-slate-500">Last {recentPres.length} issued</p>
               </div>
             </div>
             <Link to="/doctor/prescription-history" className="rounded-xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400">View History</Link>
@@ -519,22 +483,22 @@ export default function Doctor_Dashboard() {
         </div>
         <div className="grid gap-6 sm:grid-cols-3">
           {[
-            { label: 'Lab Reports', count: labRefCount, icon: Microscope, color: 'violet' },
-            { label: 'Pharmacy Orders', count: phRefCount, icon: Pill, color: 'emerald' },
-            { label: 'Diagnostics', count: diagRefCount, icon: Stethoscope, color: 'rose' }
+            { label: 'Lab Reports', count: labRefCount, icon: Microscope, bg: 'bg-violet-100 dark:bg-violet-900/30', text: 'text-violet-600 dark:text-violet-400', border: 'hover:border-violet-200' },
+            { label: 'Pharmacy Orders', count: phRefCount, icon: Pill, bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-600 dark:text-emerald-400', border: 'hover:border-emerald-200' },
+            { label: 'Diagnostics', count: diagRefCount, icon: Stethoscope, bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-600 dark:text-rose-400', border: 'hover:border-rose-200' },
           ].map((item, i) => (
-            <Link 
+            <Link
               key={i}
               to="/doctor/referrals"
-              className={`group flex items-center gap-4 overflow-hidden rounded-4xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 dark:border-slate-800 dark:bg-slate-900`}
+              className={`group flex items-center gap-4 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 dark:border-slate-800 dark:bg-slate-900 ${item.border}`}
             >
-              <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-${item.color}-100 text-${item.color}-600 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 dark:bg-${item.color}-900/30 dark:text-${item.color}-400`}>
+              <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 ${item.bg} ${item.text}`}>
                 <item.icon size={32} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">{item.label}</p>
                 <div className="flex items-baseline gap-2">
-                  <span className={`text-3xl font-black text-slate-900 dark:text-white group-hover:text-${item.color}-600`}>{item.count}</span>
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">{item.count}</span>
                   <span className="text-xs font-bold text-slate-400">Total</span>
                 </div>
               </div>

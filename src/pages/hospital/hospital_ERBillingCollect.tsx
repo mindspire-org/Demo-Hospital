@@ -34,7 +34,7 @@ type BedLocation = {
 
 function formatBedLocation(bedLoc?: BedLocation) {
   if (!bedLoc) return '-'
-  return `${bedLoc.floor} / ${bedLoc.location} / Bed: ${bedLoc.bed}` 
+  return `${bedLoc.floor} / ${bedLoc.location} / Bed: ${bedLoc.bed}`
 }
 
 function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog: any[], onSelect: (svc: any) => void, initialValue?: string }) {
@@ -68,7 +68,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-70 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute z-[70] mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id}
@@ -92,19 +92,18 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
 
 export default function Reception_ERBillingCollect(){
   const [params] = useSearchParams()
-  const preTokenId = String(params.get('tokenId') || '')
+  const preEncounterId = String(params.get('encounterId') || '')
 
   const [q, setQ] = useState('')
   const [list, setList] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
-  // Date filters - default to today
-  const [fromDate, setFromDate] = useState<string>(() => getLocalDate())
-  const [toDate, setToDate] = useState<string>(() => getLocalDate())
+  // Date filters - default to empty (reset)
+  const [fromDate, setFromDate] = useState<string>('')
+  const [toDate, setToDate] = useState<string>('')
 
-  const [tokenId, setTokenId] = useState<string>(preTokenId)
-  const [token, setToken] = useState<any|null>(null)
-  const [encounterId, setEncounterId] = useState<string>('')
+  const [encounterId, setEncounterId] = useState<string>(preEncounterId)
+  const [encounter, setEncounter] = useState<any|null>(null)
 
   const [charges, setCharges] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
@@ -122,8 +121,21 @@ export default function Reception_ERBillingCollect(){
 
   const panelRef = useRef<HTMLDivElement|null>(null)
   const [flash, setFlash] = useState(false)
-  const [showPanel, setShowPanel] = useState<boolean>(!!preTokenId)
-  const tokenIdRef = useRef<string>(tokenId)
+  const [showPanel, setShowPanel] = useState<boolean>(!!preEncounterId)
+
+  // Use refs to keep track of latest state for background search (stale closure prevention)
+  const encounterIdRef = useRef<string>(encounterId)
+  const qRef = useRef<string>(q)
+  const fromDateRef = useRef<string>(fromDate)
+  const toDateRef = useRef<string>(toDate)
+
+  useEffect(() => {
+    encounterIdRef.current = encounterId
+    qRef.current = q
+    fromDateRef.current = fromDate
+    toDateRef.current = toDate
+  }, [encounterId, q, fromDate, toDate])
+
   const [openAdvance, setOpenAdvance] = useState(false)
   const [openReturnAdvance, setOpenReturnAdvance] = useState(false)
   const [openCharge, setOpenCharge] = useState(false)
@@ -148,19 +160,17 @@ export default function Reception_ERBillingCollect(){
     return ()=>{ cancelled = true }
   }, [])
 
-  useEffect(()=>{ if(preTokenId){ setTokenId(preTokenId); setShowPanel(true) } }, [preTokenId])
 
-  useEffect(()=>{ tokenIdRef.current = tokenId }, [tokenId])
 
-  useEffect(()=>{ if (tokenId) loadToken(tokenId) }, [tokenId])
+  useEffect(()=>{ if (encounterId) loadEncounter(encounterId) }, [encounterId])
 
   useEffect(()=>{
-    if (!token) return
+    if (!encounter) return
     try { panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch {}
     setFlash(true)
     const t = setTimeout(()=> setFlash(false), 1600)
     return ()=> clearTimeout(t)
-  }, [token])
+  }, [encounter])
 
   useEffect(()=>{
     let timer: any
@@ -174,14 +184,16 @@ export default function Reception_ERBillingCollect(){
   async function search(){
     setLoading(true)
     try{
-      const res: any = await hospitalApi.listEREncounters({ status: 'admitted' as any, limit: 500 })
+      const res: any = await hospitalApi.listEREncounters({ status: 'in-progress', limit: 500 })
       let rows: any[] = res?.encounters || []
 
       // Filter by date range only if dates are set
-      if (fromDate && toDate) {
-        const from = new Date(fromDate)
+      const fDate = fromDateRef.current
+      const tDate = toDateRef.current
+      if (fDate && tDate) {
+        const from = new Date(fDate)
         from.setHours(0, 0, 0, 0)
-        const to = new Date(toDate)
+        const to = new Date(tDate)
         to.setHours(23, 59, 59, 999)
         rows = rows.filter((enc: any) => {
           const encDate = new Date(enc.startAt || enc.createdAt || 0)
@@ -189,9 +201,10 @@ export default function Reception_ERBillingCollect(){
         })
       }
 
-      const filtered = q.trim()
+      const currentQ = qRef.current.trim()
+      const filtered = currentQ
         ? rows.filter(enc => {
-          const s = q.trim().toLowerCase()
+          const s = currentQ.toLowerCase()
           const pat = enc.patientId || {}
           const bedLoc = enc.bedLocation || enc.bedId
           const tokenNo = String(enc.tokenId?.tokenNo || enc.tokenNo || '')
@@ -203,7 +216,7 @@ export default function Reception_ERBillingCollect(){
         : rows
 
       setList(filtered.map(enc => ({
-        id: String(enc.tokenId?._id || enc.tokenId || enc._id),
+        id: String(enc._id),  // Use encounter ID as primary
         encounterId: String(enc._id),
         tokenNo: enc.tokenId?.tokenNo || enc.tokenNo || '-',
         patientName: enc.patientId?.fullName || enc.patientName || '-',
@@ -213,24 +226,24 @@ export default function Reception_ERBillingCollect(){
       })))
 
       // Only auto-select first patient on initial load when no patient is selected
-      if (!tokenIdRef.current && filtered.length){
-        setTokenId(String(filtered[0].tokenId?._id || filtered[0].tokenId || filtered[0]._id))
+      if (!encounterIdRef.current && filtered.length){
+        setEncounterId(String(filtered[0]._id))
       }
     }catch{ setList([]) }
     setLoading(false)
   }
 
   function openCart(id: string){
-    setTokenId(id)
+    setEncounterId(id)
     setShowPanel(true)
   }
 
-  async function loadToken(id: string){
+  async function loadEncounter(id: string){
     try{
-      const tRes: any = await hospitalApi.getToken(id)
-      const t = tRes?.token
-      setToken(t || null)
-      const encId = String(t?.encounterId?._id || t?.encounterId || '')
+      const res: any = await hospitalApi.getEREncounterById(id)
+      const enc = res?.encounter
+      setEncounter(enc || null)
+      const encId = String(enc?._id || '')
       setEncounterId(encId)
       if (encId){
         const [ch, pay, summary] = await Promise.all([
@@ -245,7 +258,7 @@ export default function Reception_ERBillingCollect(){
         setCharges([]); setPayments([]); setBillingSummary(null);
       }
     }catch{
-      setToken(null)
+      setEncounter(null)
       setEncounterId('')
       setCharges([])
       setPayments([])
@@ -263,10 +276,10 @@ export default function Reception_ERBillingCollect(){
   const pending = billingSummary?.pending ?? Math.max(0, total - totalPaidFromCharges)
   const paid = totalPaidFromCharges // Total allocated to charges (for backward compatibility)
 
-  useEffect(()=>{ setCollectAmount(pending.toFixed(2)) }, [tokenId, pending])
+  useEffect(()=>{ setCollectAmount(pending.toFixed(2)) }, [encounterId, pending])
 
   async function collect(){
-    if (!tokenId || !encounterId) return
+    if (!encounterId) return
     const amt = Math.max(0, parseFloat(String(collectAmount||'0')) || 0)
     if (amt <= 0) return
     if (amt > pending){ setToast({ type: 'error', message: 'Collect exceeds pending' }); return }
@@ -321,12 +334,12 @@ export default function Reception_ERBillingCollect(){
       // Get fresh totals - use API response or billing summary
       const apiTotals = res?.totals
       const freshTotals = apiTotals || summary?.totals
-      // Patient data from populated token
-      const patient = token?.patientId || token || {}
+      // Patient data from populated encounter
+      const patient = encounter?.patientId || encounter || {}
       setSlipData({
         encounterId,
-        patientName: patient?.fullName || token?.patientName || '-',
-        mrn: patient?.mrn || token?.mrn || '',
+        patientName: patient?.fullName || encounter?.patientName || '-',
+        mrn: patient?.mrn || encounter?.mrn || '',
         phone: patient?.phoneNormalized || patient?.phone || '',
         cnic: patient?.cnicNormalized || patient?.cnic || '',
         address: patient?.address || '',
@@ -334,7 +347,7 @@ export default function Reception_ERBillingCollect(){
         gender: patient?.gender || '',
         guardian: patient?.fatherName || patient?.guardianName || patient?.guardian || '',
         department: 'Emergency',
-        tokenNo: token?.tokenNo || '',
+        tokenNo: encounter?.tokenId?.tokenNo || encounter?.tokenNo || '',
         payment: { amount: Number(pay?.amount || amt), method: pay?.method || method, refNo: pay?.refNo || refNo, receivedAt: pay?.receivedAt || pay?.createdAt || new Date().toISOString() },
         totals: {
           total: typeof freshTotals?.grandTotal === 'number' ? freshTotals.grandTotal : (total || 0),
@@ -354,7 +367,7 @@ export default function Reception_ERBillingCollect(){
   }
 
   async function saveAdvance(d: { amount: number; method: string; refNo?: string; notes?: string }) {
-    if (!tokenId || !encounterId) return
+    if (!encounterId) return
     const amt = Number(d.amount || 0)
     if (amt <= 0) { setToast({ type: 'error', message: 'Advance amount must be greater than 0' }); return }
     try {
@@ -370,16 +383,16 @@ export default function Reception_ERBillingCollect(){
       } as any)
       const pay = res?.payment
       // Reload data to get fresh totals
-      await loadToken(tokenId)
+      await loadEncounter(encounterId)
       setOpenAdvance(false)
       // Open print slip for advance
       const apiTotals = res?.totals
       const freshTotals = apiTotals || billingSummary
-      const patient = token?.patientId || token || {}
+      const patient = encounter?.patientId || encounter || {}
       setSlipData({
         encounterId,
-        patientName: patient?.fullName || token?.patientName || '-',
-        mrn: patient?.mrn || token?.mrn || '',
+        patientName: patient?.fullName || encounter?.patientName || '-',
+        mrn: patient?.mrn || encounter?.mrn || '',
         phone: patient?.phoneNormalized || patient?.phone || '',
         cnic: patient?.cnicNormalized || patient?.cnic || '',
         address: patient?.address || '',
@@ -387,7 +400,7 @@ export default function Reception_ERBillingCollect(){
         gender: patient?.gender || '',
         guardian: patient?.fatherName || patient?.guardianName || patient?.guardian || '',
         department: 'Emergency',
-        tokenNo: token?.tokenNo || '',
+        tokenNo: encounter?.tokenId?.tokenNo || encounter?.tokenNo || '',
         isAdvance: true,
         payment: { amount: amt, method: 'Advance', refNo: d.refNo, receivedAt: pay?.receivedAt || new Date().toISOString() },
         totals: {
@@ -405,7 +418,7 @@ export default function Reception_ERBillingCollect(){
   }
 
   async function returnAdvance(d: { amount: number; method: string; refNo?: string; notes?: string }) {
-    if (!tokenId || !encounterId) return
+    if (!encounterId) return
     const amt = Number(d.amount || 0)
     if (amt <= 0) { setToast({ type: 'error', message: 'Return amount must be greater than 0' }); return }
     if (amt > advanceTotal) { setToast({ type: 'error', message: 'Return amount cannot exceed available advance' }); return }
@@ -423,16 +436,16 @@ export default function Reception_ERBillingCollect(){
       } as any)
       const pay = res?.payment
       // Reload data to get fresh totals
-      await loadToken(tokenId)
+      await loadEncounter(encounterId)
       setOpenReturnAdvance(false)
       // Open print slip for advance return
       const apiTotals = res?.totals
       const freshTotals = apiTotals || billingSummary
-      const patient = token?.patientId || token || {}
+      const patient = encounter?.patientId || encounter || {}
       setSlipData({
         encounterId,
-        patientName: patient?.fullName || token?.patientName || '-',
-        mrn: patient?.mrn || token?.mrn || '',
+        patientName: patient?.fullName || encounter?.patientName || '-',
+        mrn: patient?.mrn || encounter?.mrn || '',
         phone: patient?.phoneNormalized || patient?.phone || '',
         cnic: patient?.cnicNormalized || patient?.cnic || '',
         address: patient?.address || '',
@@ -440,7 +453,7 @@ export default function Reception_ERBillingCollect(){
         gender: patient?.gender || '',
         guardian: patient?.fatherName || patient?.guardianName || patient?.guardian || '',
         department: 'Emergency',
-        tokenNo: token?.tokenNo || '',
+        tokenNo: encounter?.tokenId?.tokenNo || encounter?.tokenNo || '',
         isAdvanceReturn: true,
         payment: { amount: amt, method: 'Advance Return', refNo: d.refNo, receivedAt: pay?.receivedAt || new Date().toISOString() },
         totals: {
@@ -457,8 +470,8 @@ export default function Reception_ERBillingCollect(){
     }
   }
 
-  const patientName = token?.patientId?.fullName || token?.patientName || '-'
-  const mrn = token?.patientId?.mrn || token?.mrn || ''
+  const patientName = encounter?.patientId?.fullName || encounter?.patientName || '-'
+  const mrn = encounter?.patientId?.mrn || encounter?.mrn || ''
   const pendingLabel = pending <= 0 ? 'Rs 0.00' : currency(pending)
 
   return (
@@ -485,6 +498,18 @@ export default function Reception_ERBillingCollect(){
               className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
+          <button
+            onClick={() => { setFromDate(getLocalDate()); setToDate(getLocalDate()); }}
+            className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+          >
+            Today
+          </button>
+          <button
+            onClick={() => { setFromDate(''); setToDate(''); }}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Reset
+          </button>
           <div className="flex-1 min-w-[200px]">
             <label className="text-xs font-medium text-slate-600">Search (Name, MR No, Token No)</label>
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by Token, MRN or Patient Name" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
@@ -521,10 +546,10 @@ export default function Reception_ERBillingCollect(){
       </div>
 
       <div ref={panelRef} className={`rounded-xl border border-slate-200 bg-white p-4 ${flash ? 'ring-2 ring-emerald-300' : ''}`}>
-        {!showPanel || !tokenId ? (
-          <div className="text-sm text-slate-500">Select a patient/token above to open billing.</div>
-        ) : !token ? (
-          <div className="text-sm text-slate-500">Loading token...</div>
+        {!showPanel || !encounterId ? (
+          <div className="text-sm text-slate-500">Select a patient/encounter above to open billing.</div>
+        ) : !encounter ? (
+          <div className="text-sm text-slate-500">Loading encounter...</div>
         ) : !encounterId ? (
           <div className="text-sm text-rose-600">No encounter found for this token.</div>
         ) : (
@@ -532,7 +557,7 @@ export default function Reception_ERBillingCollect(){
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <div className="text-lg font-semibold">{patientName}</div>
-                <div className="text-xs text-slate-500">{mrn ? `MRN: ${mrn} · ` : ''}Token: {token?.tokenNo || '-'}</div>
+                <div className="text-xs text-slate-500">{mrn ? `MRN: ${mrn} · ` : ''}Token: {encounter?.tokenId?.tokenNo || encounter?.tokenNo || '-'}</div>
               </div>
               <div className="flex gap-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center min-w-[100px]">
@@ -715,7 +740,7 @@ export default function Reception_ERBillingCollect(){
               if (res?.totals) {
                 setBillingSummary(res.totals)
               }
-              await loadToken(tokenId)
+              await loadEncounter(encounterId)
               setToast({ type: 'success', message: 'Charge added' })
             } catch (e: any) {
               setToast({ type: 'error', message: e?.message || 'Failed to add charge' })

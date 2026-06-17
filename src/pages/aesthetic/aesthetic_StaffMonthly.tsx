@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { aestheticApi } from '../../utils/api'
 import Aesthetic_StaffReportDialog from '../../components/aesthetic/aesthetic_StaffReportDialog'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 type Staff = { id: string; name: string; position?: string; shiftId?: string; salary?: number }
 type Attendance = { id?: string; staffId: string; date: string; shiftId?: string; status: 'present'|'absent'|'leave'; clockIn?: string; clockOut?: string; notes?: string }
@@ -115,9 +116,12 @@ export default function Aesthetic_StaffMonthly(){
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-sm text-slate-700">Staff</label>
-            <select value={selectedStaffId} onChange={e=>setSelectedStaffId(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[220px]">
-              {staff.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
-            </select>
+            <SearchableSelect
+              value={selectedStaffId} 
+              onChange={setSelectedStaffId} 
+              options={staff.map(s => ({ value: s.id, label: s.name }))}
+              className="min-w-[220px]"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-700">Month</label>

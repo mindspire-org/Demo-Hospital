@@ -10,6 +10,10 @@ export const settingsUpdateSchema = z.object({
 
   address: z.string().optional(),
 
+  email: z.string().optional(),
+
+  website: z.string().optional(),
+
   logoDataUrl: z.string().optional(),
 
   code: z.string().optional(),
@@ -17,6 +21,10 @@ export const settingsUpdateSchema = z.object({
   slipFooter: z.string().optional(),
 
   mrnFormat: z.string().optional(),
+
+  manualRxFields: z.record(z.boolean()).optional(),
+
+  eyeRxEnabled: z.boolean().optional(),
 
 })
 

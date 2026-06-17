@@ -126,7 +126,11 @@ export async function listBeds(req: Request, res: Response){
   const itemsAll = rows.map((b: any) => {
     const enc = b.occupiedByEncounterId
     const p = enc?.patientId
-    const statusNormalized = (b.status === 'occupied' && (!enc || enc.status !== 'admitted' || enc.type !== 'IPD')) ? 'available' : b.status
+    // Check if bed is truly occupied by active IPD or ER encounter
+    const isTrulyOccupied = enc && 
+      ((enc.type === 'IPD' && enc.status === 'admitted') || 
+       (enc.type === 'ER' && (enc.status === 'in-progress' || enc.status === 'admitted')))
+    const statusNormalized = (b.status === 'occupied' && !isTrulyOccupied) ? 'available' : b.status
     const floorName = floorMap.get(String(b.floorId)) || ''
     const locationName = b.locationType === 'room'
       ? (roomMap.get(String(b.locationId)) || '')
@@ -137,6 +141,7 @@ export async function listBeds(req: Request, res: Response){
       occupantName: p?.fullName,
       occupantMrn: p?.mrn,
       occupantEncounterId: enc?._id,
+      occupantEncounterType: enc?.type,
       floorName,
       locationName,
     }

@@ -7,6 +7,7 @@ import { HospitalDepartment } from '../models/Department'
 import { HospitalEncounter } from '../models/Encounter'
 import { HospitalToken } from '../models/Token'
 import { HospitalCounter } from '../models/Counter'
+import { HospitalBed } from '../models/Bed'
 import { createErReferralSchema, updateErReferralSchema, updateErReferralStatusSchema, startErVisitSchema } from '../validators/er_referral'
 
 async function nextErReferralSerial() {
@@ -166,6 +167,12 @@ export async function startVisit(req: Request, res: Response) {
     if (!doc) return res.status(400).json({ error: 'Invalid doctorId' })
   }
 
+  // Validate and update bed status
+  if (!isValidObjectId(data.bedId)) return res.status(400).json({ error: 'Invalid bedId' })
+  const bed = await HospitalBed.findById(data.bedId)
+  if (!bed) return res.status(400).json({ error: 'Bed not found' })
+  if (bed.status === 'occupied') return res.status(400).json({ error: 'Bed is already occupied' })
+
   // Create ER encounter
   const enc = await HospitalEncounter.create({
     patientId,
@@ -173,12 +180,21 @@ export async function startVisit(req: Request, res: Response) {
     status: 'in-progress',
     departmentId: data.departmentId,
     doctorId: data.doctorId,
+    bedId: data.bedId,
+    triage: data.triage,
+    arrivalMode: data.arrivalMode || 'referral',
+    erArrivalTime: new Date(),
+    erReferralId: id,
     startAt: new Date(),
   })
 
-  ;(ref as any).status = 'In-Progress'
+  // Update bed status to occupied
+  bed.status = 'occupied'
+  await bed.save()
+
+  ;(ref as any).status = 'Completed'
   ;(ref as any).erEncounterId = enc._id as any
-  ;(ref as any).statusHistory = ([...(ref as any).statusHistory || [], { at: new Date(), action: 'start-visit', note: '' }])
+  ;(ref as any).statusHistory = ([...(ref as any).statusHistory || [], { at: new Date(), action: 'admit-to-er', note: '' }])
   await ref.save()
 
   // Also generate a token so it appears in token history
@@ -194,7 +210,7 @@ export async function startVisit(req: Request, res: Response) {
       departmentId: data.departmentId,
       doctorId: data.doctorId,
       encounterId: enc._id as any,
-      status: 'in-progress',
+      status: 'admitted',
       type: 'ER',
     })
   } catch (e) {

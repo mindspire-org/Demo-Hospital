@@ -2,14 +2,40 @@ import { useEffect, useState } from 'react'
 import { logAudit } from '../../utils/hospital_audit'
 import { hospitalApi } from '../../utils/api'
 
+type ManualRxFields = {
+  tokenNo: boolean; mrn: boolean; patientName: boolean; fatherName: boolean
+  age: boolean; gender: boolean; phone: boolean; address: boolean; cnic: boolean
+  tokenType: boolean; dateTime: boolean; doctorName: boolean; qualification: boolean; departmentName: boolean
+  showRxSymbol: boolean
+}
+
+const DEFAULT_MANUAL_RX_FIELDS: ManualRxFields = {
+  tokenNo: true, mrn: true, patientName: true, fatherName: true,
+  age: true, gender: true, phone: true, address: true, cnic: true,
+  tokenType: true, dateTime: true, doctorName: true, qualification: true, departmentName: true,
+  showRxSymbol: true,
+}
+
+const MANUAL_RX_FIELD_LABELS: Record<keyof ManualRxFields, string> = {
+  tokenNo: 'Token No', mrn: 'MR Number', patientName: 'Patient Name', fatherName: 'Father / Guardian Name',
+  age: 'Age', gender: 'Gender', phone: 'Phone', address: 'Address', cnic: 'CNIC',
+  tokenType: 'Token Type', dateTime: 'Date & Time', doctorName: 'Doctor Name',
+  qualification: 'Qualification', departmentName: 'Department',
+  showRxSymbol: 'Rx Symbol',
+}
+
 type Settings = {
   name: string
   phone: string
   address: string
+  email?: string
+  website?: string
   logoDataUrl?: string
-  code?: string
   slipFooter?: string
   mrnFormat?: string
+  manualRxFields?: ManualRxFields
+  eyeRxEnabled?: boolean
+  icuLabel?: string
 }
 
 export default function Hospital_Settings() {
@@ -17,10 +43,14 @@ export default function Hospital_Settings() {
     name: 'Mindspire Hospital Management System',
     phone: '+92-320-4090604',
     address: 'Hospital Address, City, Country',
+    email: '',
+    website: '',
     logoDataUrl: undefined,
-    code: '',
     slipFooter: 'Powered by Hospital MIS',
     mrnFormat: '',
+    manualRxFields: { ...DEFAULT_MANUAL_RX_FIELDS },
+    eyeRxEnabled: true,
+    icuLabel: 'ICU',
   })
   const [savedBanner, setSavedBanner] = useState<string>('')
 
@@ -28,8 +58,22 @@ export default function Hospital_Settings() {
     let cancelled = false
     async function load(){
       try {
-        const s = await hospitalApi.getSettings() as any
-        if (!cancelled && s) setSettings(prev => ({ ...prev, ...s }))
+        const raw = await hospitalApi.getSettings() as any
+        if (!cancelled && raw) {
+          const s: any = raw?.settings || raw
+          const apiEyeRx = s?.eyeRxEnabled
+          const apiManualRx = s?.manualRxFields
+          setSettings(prev => ({
+            ...prev,
+            ...s,
+            manualRxFields: apiManualRx
+              ? { ...DEFAULT_MANUAL_RX_FIELDS, ...apiManualRx }
+              : (prev.manualRxFields || { ...DEFAULT_MANUAL_RX_FIELDS }),
+            eyeRxEnabled: (apiEyeRx === false || apiEyeRx === true)
+              ? apiEyeRx !== false
+              : true,
+          }))
+        }
       } catch {}
     }
     load()
@@ -38,12 +82,15 @@ export default function Hospital_Settings() {
 
   const update = (k: keyof Settings, v: string) => setSettings(s => ({ ...s, [k]: v }))
 
-  const mrnPresets = [
-    { label: 'HOSP-YYYY-001 (serial 3)', value: '{HOSP}-{YYYY}-{SERIAL3}' },
-    { label: 'HOSP-YYMM-000001 (serial 6)', value: '{HOSP}-{YY}{MM}-{SERIAL6}' },
-    { label: 'MR-000001 (serial 6)', value: 'MR-{SERIAL6}' },
-    { label: 'YYYYMM-000001 (serial 6)', value: '{YYYY}{MM}-{SERIAL6}' },
-  ]
+  const toggleRxField = (k: keyof ManualRxFields) =>
+    setSettings(s => ({
+      ...s,
+      manualRxFields: {
+        ...DEFAULT_MANUAL_RX_FIELDS,
+        ...(s.manualRxFields || {}),
+        [k]: !(s.manualRxFields?.[k] ?? DEFAULT_MANUAL_RX_FIELDS[k]),
+      },
+    }))
 
   const onUploadLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -53,7 +100,7 @@ export default function Hospital_Settings() {
     reader.readAsDataURL(file)
   }
 
-  const onRemoveLogo = () => setSettings(s => ({ ...s, logoDataUrl: undefined }))
+  const onRemoveLogo = () => setSettings(s => ({ ...s, logoDataUrl: '' }))
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -79,7 +126,7 @@ export default function Hospital_Settings() {
     const seq = 12345
     if (!fmt) return `MR-${seq}`
     let s = fmt
-    s = s.replace(/\{HOSP\}/gi, String(settings.code || '').trim())
+    s = s.replace(/\{HOSP\}/gi, '')
     s = s.replace(/\{YEAR\}|\{YYYY\}/gi, YYYY)
     s = s.replace(/\{YY\}/g, YY)
     s = s.replace(/\{MONTH\}|\{MM\}/gi, MM)
@@ -103,7 +150,6 @@ export default function Hospital_Settings() {
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-4 py-3">
             <div className="flex items-center gap-2 text-lg font-semibold text-slate-800">
-              <span>🏥</span>
               <span>Hospital Information</span>
             </div>
           </div>
@@ -122,6 +168,22 @@ export default function Hospital_Settings() {
               <input value={settings.address} onChange={e=>update('address', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
             </div>
 
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
+              <input value={settings.email || ''} onChange={e=>update('email', e.target.value)} placeholder="info@hospital.com" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Website</label>
+              <input value={settings.website || ''} onChange={e=>update('website', e.target.value)} placeholder="www.hospital.com" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">ICU / HDU Label</label>
+              <input value={settings.icuLabel || 'ICU'} onChange={e=>update('icuLabel', e.target.value)} placeholder="e.g., ICU or HDU" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+              <p className="mt-1 text-xs text-slate-500">Rename the ICU module label across the system (e.g., HDU, CCU, MICU).</p>
+            </div>
+
             <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-medium text-slate-700">Token Slip Footer</label>
               <input value={settings.slipFooter || ''} onChange={e=>update('slipFooter', e.target.value)} placeholder="e.g., Powered by Hospital MIS" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
@@ -130,40 +192,6 @@ export default function Hospital_Settings() {
 
             <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-medium text-slate-700">MR Number Format</label>
-              <div className="mb-2 grid gap-2 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Quick Formats</label>
-                  <select
-                    value={''}
-                    onChange={e => { const v = String(e.target.value || ''); if (v) update('mrnFormat', v) }}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
-                  >
-                    <option value="">Select a format…</option>
-                    {mrnPresets.map(p => (
-                      <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Tips</label>
-                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                    Use <span className="font-mono">{'{SERIAL3}'}</span>/<span className="font-mono">{'{SERIAL6}'}</span> for counter.
-                    Example: <span className="font-mono">{'{HOSP}'}-{'{YYYY}'}-{'{SERIAL3}'}</span>
-                  </div>
-                </div>
-              </div>
-              {String(settings.mrnFormat || '').toUpperCase().includes('{HOSP}') ? (
-                <div className="mb-2">
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Hospital Abbreviation (MR Prefix)</label>
-                  <input
-                    value={settings.code || ''}
-                    onChange={e=>update('code', e.target.value.toUpperCase())}
-                    placeholder="e.g., CHCH"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
-                  />
-                  <p className="mt-1 text-xs text-slate-500">Used when MR format contains <span className="font-mono">{'{HOSP}'}</span>.</p>
-                </div>
-              ) : null}
               <input
                 value={settings.mrnFormat || ''}
                 onChange={e=>update('mrnFormat', e.target.value)}
@@ -197,6 +225,71 @@ export default function Hospital_Settings() {
 
           <div className="border-t border-slate-200 px-4 py-3">
             <button type="submit" className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">Save Information</button>
+            {savedBanner && <span className="ml-3 text-sm text-emerald-600">{savedBanner}</span>}
+          </div>
+        </div>
+
+        {/* ── Manual Prescription Layout ─────────────────────────────── */}
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <div className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+              <span>Manual Prescription Layout</span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">Choose which fields print on the Hospital Rx and whether the Eye Rx button appears on the token slip.</p>
+          </div>
+
+          <div className="p-4 space-y-5">
+
+            {/* Eye Rx toggle */}
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Eye Prescription Button</p>
+                <p className="text-xs text-slate-500">Show "Print Eye Rx" button on the token slip modal</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettings(s => ({ ...s, eyeRxEnabled: !(s.eyeRxEnabled ?? true) }))}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                  (settings.eyeRxEnabled ?? true) ? 'bg-sky-500' : 'bg-slate-300'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  (settings.eyeRxEnabled ?? true) ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+
+            {/* Field checkboxes */}
+            <div>
+              <p className="mb-2 text-sm font-medium text-slate-700">Fields to include on printed Rx</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {(Object.keys(DEFAULT_MANUAL_RX_FIELDS) as (keyof ManualRxFields)[]).map(k => {
+                  const checked = settings.manualRxFields?.[k] ?? DEFAULT_MANUAL_RX_FIELDS[k]
+                  return (
+                    <label
+                      key={k}
+                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 transition-colors select-none ${
+                        checked ? 'border-sky-300 bg-sky-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleRxField(k)}
+                        className="h-4 w-4 accent-sky-600"
+                      />
+                      <span className={`text-sm ${checked ? 'font-medium text-sky-800' : 'text-slate-600'}`}>
+                        {MANUAL_RX_FIELD_LABELS[k]}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 px-4 py-3">
+            <button type="submit" className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">Save Settings</button>
             {savedBanner && <span className="ml-3 text-sm text-emerald-600">{savedBanner}</span>}
           </div>
         </div>

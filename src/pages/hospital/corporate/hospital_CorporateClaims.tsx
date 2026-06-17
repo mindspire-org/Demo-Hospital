@@ -45,7 +45,7 @@ export default function Hospital_CorporateClaims(){
   const [detailOrder, setDetailOrder] = useState<'asc'|'desc'>('asc')
 
   useEffect(()=>{ (async()=>{ try{ const r = await corporateApi.listCompanies() as any; setCompanies((r?.companies||[]).map((c:any)=>({ id: String(c._id||c.id), name: c.name })))}catch{} })() }, [])
-  useEffect(()=>{ (async()=>{ try{ const r:any = await hospitalApi.listDepartments(); const arr:any[] = (r?.departments || r?.data || []) as any[]; setDepartments(arr.map((d:any)=>({ id: String(d._id||d.id), name: d.name })))}catch{} })() }, [])
+  useEffect(()=>{ (async()=>{ try{ const r:any = await hospitalApi.listDepartments({ limit: 1000 }); const arr:any[] = (r?.departments || r?.data || []) as any[]; setDepartments(arr.map((d:any)=>({ id: String(d._id||d.id), name: d.name })))}catch{} })() }, [])
   useEffect(()=>{ (async()=>{ try{ const s:any = await hospitalApi.getSettings(); setBrand({ name: s?.name, address: s?.address, phone: s?.phone, logoDataUrl: s?.logoDataUrl }) }catch{} })() }, [])
 
   async function load(){
@@ -475,11 +475,7 @@ export default function Hospital_CorporateClaims(){
       await load()
       setSelectedTxIds(new Set())
       setToast({ type: 'success', message: `Claim generated with ${selectedTxIds.size} transactions` })
-    } catch (e: any){
-      let msg = e?.message || 'Failed to generate claim'
-      try { const j = JSON.parse(msg); if (j?.error) msg = j.error } catch {}
-      setToast({ type: 'error', message: msg })
-    }
+    } catch (e: any){ setToast({ type: 'error', message: e?.message || 'Failed to generate claim' }) }
   }
 
   function openEditClaim(c: ClaimRow){

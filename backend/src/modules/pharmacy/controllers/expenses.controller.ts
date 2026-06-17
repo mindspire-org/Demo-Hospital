@@ -42,7 +42,7 @@ export async function list(req: Request, res: Response) {
 
 export async function create(req: Request, res: Response) {
   const data = expenseCreateSchema.parse(req.body)
-  const date = String((data as any).date || '').slice(0,10) || new Date().toISOString().slice(0,10)
+  const now = new Date(); const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; const date = String((data as any).date || '').slice(0,10) || todayStr
   let datetime = (data as any).datetime as string | undefined
   if (!datetime) {
     const time = String((data as any).time || '')

@@ -10,6 +10,8 @@ import { HospitalIpdBillingItem } from '../models/IpdBillingItem'
 import { FinanceJournal } from '../../finance/models/FinanceJournal'
 import { HospitalDoctor } from '../models/Doctor'
 import { HospitalEncounter } from '../models/Encounter'
+import { HospitalDepartment } from '../models/Department'
+import { HospitalErCharge } from '../models/ErCharge'
 import { LabPatient } from '../../lab/models/Patient'
 
 function toMin(hhmm: string){
@@ -21,10 +23,14 @@ function shiftWindowForDate(shift: any, baseDateIso: string){
   const startMin = toMin(String(shift?.start || '00:00'))
   const endMin = toMin(String(shift?.end || '00:00'))
 
-  const start = new Date(`${baseDateIso}T00:00:00.000`)
+  // baseDateIso is Pakistan local date; convert midnight Pakistan -> UTC
+  const baseMidnight = new Date(`${baseDateIso}T00:00:00.000`)
+  const pakMidnight = new Date(baseMidnight.getTime() - (5 * 60 * 60 * 1000))
+
+  const start = new Date(pakMidnight.getTime())
   start.setMinutes(start.getMinutes() + startMin)
 
-  let end = new Date(`${baseDateIso}T00:00:00.000`)
+  let end = new Date(pakMidnight.getTime())
   end.setMinutes(end.getMinutes() + endMin)
 
   // Overnight shift
@@ -51,6 +57,97 @@ function fmtPakistanTime(d: Date): string {
   const ampm = hh >= 12 ? 'PM' : 'AM'
   hh = hh % 12 || 12
   return `${dd}/${mm}/${yyyy}, ${String(hh).padStart(2, '0')}:${min} ${ampm}`
+}
+
+export async function dashboardStats(req: Request, res: Response) {
+  try {
+    const { from, to } = req.query as any
+    const fromDate = from ? new Date(from) : new Date(new Date().setDate(new Date().getDate() - 30))
+    const toDate = to ? new Date(to) : new Date()
+
+    // 1. Active Patients (IPD and ER)
+    // ER encounters use status 'in-progress' (not 'active')
+    const [activeIpd, activeEr] = await Promise.all([
+      HospitalEncounter.countDocuments({ type: 'IPD', status: 'admitted' }),
+      HospitalEncounter.countDocuments({ type: 'ER', status: 'in-progress' })
+    ])
+
+    // 2. Advance Available and Pending Payments using per-encounter calculation logic
+    // This matches the Emergency Queue and IPD Patient List widgets which use computeTotals/computeIpdTotals
+    const [erEncounters, ipdEncounters] = await Promise.all([
+      HospitalEncounter.find({ type: 'ER', status: 'in-progress' }).select('_id').lean(),
+      HospitalEncounter.find({ type: 'IPD', status: 'admitted' }).select('_id').lean()
+    ])
+
+    // Import compute functions dynamically to avoid circular dependency
+    const { computeTotals: computeErTotals } = await import('./er_billing.controller')
+    const { computeIpdTotals } = await import('./ipd_records.controller')
+
+    // Calculate totals for each ER encounter
+    const erTotals = await Promise.all(
+      erEncounters.map((enc: any) => computeErTotals(String(enc._id)).catch(() => ({ unallocatedAdvance: 0, netOutstanding: 0 })))
+    )
+    const erAdv = erTotals.reduce((s: number, t: any) => s + (t.unallocatedAdvance || 0), 0)
+    const erPending = erTotals.reduce((s: number, t: any) => s + (t.netOutstanding || 0), 0)
+
+    // Calculate totals for each IPD encounter
+    const ipdTotals = await Promise.all(
+      ipdEncounters.map((enc: any) => computeIpdTotals(String(enc._id)).catch(() => ({ unallocatedAdvance: 0, netOutstanding: 0 })))
+    )
+    const ipdAdv = ipdTotals.reduce((s: number, t: any) => s + (t.unallocatedAdvance || 0), 0)
+    const ipdPending = ipdTotals.reduce((s: number, t: any) => s + (t.netOutstanding || 0), 0)
+
+    // 3. Department-wise Revenue
+    // Using encounters that started in range
+    const deptRevenue = await HospitalEncounter.aggregate([
+      { $match: { startAt: { $gte: fromDate, $lte: toDate } } },
+      { $lookup: { from: 'hospital_departments', localField: 'departmentId', foreignField: '_id', as: 'dept' } },
+      { $unwind: '$dept' },
+      {
+        $facet: {
+          ipd: [
+            { $match: { type: 'IPD' } },
+            { $lookup: { from: 'hospital_ipdbillingitems', localField: '_id', foreignField: 'encounterId', as: 'items' } },
+            { $unwind: '$items' },
+            { $group: { _id: '$dept.name', revenue: { $sum: '$items.amount' } } }
+          ],
+          er: [
+            { $match: { type: 'ER' } },
+            { $lookup: { from: 'hospital_ercharges', localField: '_id', foreignField: 'encounterId', as: 'items' } },
+            { $unwind: '$items' },
+            { $group: { _id: '$dept.name', revenue: { $sum: '$items.amount' } } }
+          ],
+          opd: [
+            { $match: { type: 'OPD' } },
+            { $lookup: { from: 'hospital_tokens', localField: '_id', foreignField: 'encounterId', as: 'token' } },
+            { $unwind: '$token' },
+            { $group: { _id: '$dept.name', revenue: { $sum: '$token.fee' } } }
+          ]
+        }
+      }
+    ])
+
+    // Merge results
+    const combined: Record<string, number> = {}
+    const { ipd, er, opd } = deptRevenue[0]
+    ;[...ipd, ...er, ...opd].forEach(r => {
+      combined[r._id] = (combined[r._id] || 0) + r.revenue
+    })
+
+    const deptStats = Object.keys(combined).map(name => ({
+      name,
+      revenue: combined[name]
+    })).sort((a,b) => b.revenue - a.revenue)
+
+    res.json({
+      activePatients: { ipd: activeIpd, er: activeEr },
+      advances: { ipd: ipdAdv, er: erAdv },
+      pending: { ipd: ipdPending, er: erPending },
+      deptRevenue: deptStats
+    })
+  } catch (e: any) {
+    res.status(500).json({ error: e.message })
+  }
 }
 
 export async function myActivity(req: Request, res: Response){
@@ -102,7 +199,8 @@ export async function myActivity(req: Request, res: Response){
       createdAt: { $gte: rangeStart, $lte: rangeEnd },
       portal: { $ne: 'reception' },
     })
-      .select('dateIso tokenNo fee discount status corporateId createdAt patientName mrn createdByUsername portal')
+      .select('dateIso tokenNo fee discount status corporateId createdAt patientName mrn createdByUsername portal serviceIds')
+      .populate('serviceIds', 'name')
       .sort({ createdAt: -1 })
       .lean(),
 
@@ -111,7 +209,7 @@ export async function myActivity(req: Request, res: Response){
       createdAt: { $gte: rangeStart, $lte: rangeEnd },
       portal: { $ne: 'reception' },
     })
-      .select('dateIso amount method ref note category createdAt createdBy portal')
+      .select('dateIso amount method ref note category createdAt createdBy createdByUsername portal')
       .sort({ createdAt: -1 })
       .lean(),
 

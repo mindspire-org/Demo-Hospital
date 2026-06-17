@@ -1,6 +1,6 @@
 import { labApi } from '../../api'
 
-export type LabReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'abnormal_low'|'abnormal_high'|'critical'|'critical_low'|'critical_high'; comment?: string }
+export type LabReportRow = { test: string; normal?: string; unit?: string; value?: string; prevValue?: string; flag?: 'normal'|'abnormal'|'critical'; comment?: string; isSection?: boolean }
 
 async function makeBarcodeDataUrl(text: string): Promise<string> {
   const value = String(text || '').trim()
@@ -151,21 +151,32 @@ async function make3DIllustrationPng(w = 520, h = 180): Promise<string> {
 
 function pickColumns(rows: LabReportRow[]) {
   // Filter out completely empty rows so they don't force columns to render
-  // Only include rows that have a result value — skip parameters with no value
   const nonEmptyRows = (rows||[]).filter(r =>
-    (r.value || '').trim().length > 0
+    r.isSection ||
+    (r.value || '').trim().length > 0 ||
+    (r.normal || '').trim().length > 0 ||
+    (r.unit || '').trim().length > 0 ||
+    (r.prevValue || '').trim().length > 0 ||
+    (r.flag || '').trim().length > 0 ||
+    (r.comment || '').trim().length > 0
   )
-  const hasPrev = nonEmptyRows.some(r => (r.prevValue || '').trim().length > 0)
-  const hasFlag = nonEmptyRows.some(r => (r.flag || '').length > 0)
-  const hasComment = nonEmptyRows.some(r => (r.comment || '').trim().length > 0)
-  const hasNormal = nonEmptyRows.some(r => (r.normal || '').trim().length > 0)
-  const hasUnit = nonEmptyRows.some(r => (r.unit || '').trim().length > 0)
+  const hasPrev = nonEmptyRows.some(r => !r.isSection && (r.prevValue || '').trim().length > 0)
+  const hasFlag = nonEmptyRows.some(r => !r.isSection && (r.flag || '').length > 0)
+  const hasComment = nonEmptyRows.some(r => !r.isSection && (r.comment || '').trim().length > 0)
+  const hasNormal = nonEmptyRows.some(r => !r.isSection && (r.normal || '').trim().length > 0)
+  const hasUnit = nonEmptyRows.some(r => !r.isSection && (r.unit || '').trim().length > 0)
   const head = [
     ['Test', ...(hasNormal? ['Reference Range'] : []), ...(hasUnit? ['Unit'] : []), ...(hasPrev? ['Previous'] : []), 'Result', ...(hasFlag? ['Flag'] : []), ...(hasComment? ['Comment'] : [])]
   ]
-  const body = nonEmptyRows.map(r => [
-    r.test||'', ...(hasNormal? [r.normal||''] : []), ...(hasUnit? [r.unit||''] : []), ...(hasPrev? [r.prevValue||''] : []), r.value||'', ...(hasFlag? [r.flag||''] : []), ...(hasComment? [r.comment||''] : [])
-  ])
+  const colCount = head[0].length
+  const body = nonEmptyRows.map(r => {
+    if (r.isSection) {
+      return [{ content: (r.test || '').toUpperCase(), colSpan: colCount, styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [15, 23, 42], halign: 'left' } }]
+    }
+    return [
+      r.test||'', ...(hasNormal? [r.normal||''] : []), ...(hasUnit? [r.unit||''] : []), ...(hasPrev? [r.prevValue||''] : []), r.value||'', ...(hasFlag? [r.flag||''] : []), ...(hasComment? [r.comment||''] : [])
+    ]
+  })
   let idx = 1
   if (hasNormal) idx++
   if (hasUnit) idx++

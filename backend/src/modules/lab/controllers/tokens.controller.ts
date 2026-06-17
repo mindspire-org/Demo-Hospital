@@ -4,15 +4,33 @@ import { LabOrder } from '../models/Order'
 import { LabOrderTest } from '../models/OrderTest'
 import { LabPayment } from '../models/Payment'
 import { LabTest } from '../models/Test'
+import { LabTestPackage } from '../models/TestPackage'
 import { LabResult } from '../models/Result'
 import { LabCounter } from '../models/Counter'
 import { LabAuditLog } from '../models/AuditLog'
-import { postUserRevenueJournal } from '../../finance/controllers/finance_ledger'
+import { LabSettings } from '../models/Settings'
+import { postLabOrderJournal } from '../../finance/controllers/finance_ledger'
 import { HospitalReferral } from '../../hospital/models/Referral'
+import { formatLabNumber } from '../../../common/utils/labNumberFormat'
 import { z } from 'zod'
 
 function resolveActor(req: Request) {
   return (req as any).user?.username || (req as any).user?.name || (req as any).user?.email || 'system'
+}
+
+function resolvePaidMethod(paymentMethod?: string): 'Cash' | 'Bank' | 'AR' {
+  const method = String(paymentMethod || '').trim().toLowerCase()
+  if (method === 'cash') return 'Cash'
+  if (method === 'bank' || method === 'card') return 'Bank'
+  return 'AR'
+}
+
+function mapPaymentMethodEnum(pm?: string): string {
+  if (!pm) return 'cash'
+  const lower = String(pm).trim().toLowerCase()
+  if (lower === 'corporate') return 'corporate_credit'
+  if (['cash', 'card', 'online', 'bank_transfer', 'corporate_credit'].includes(lower)) return lower
+  return 'cash'
 }
 
 // New: mark sample as received in the lab (image 9 — two-box icon)
@@ -61,10 +79,32 @@ async function nextTokenNo(date?: Date): Promise<string> {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
-  const key = 'lab_token_global'
-  const c: any = await LabCounter.findByIdAndUpdate(key, { $inc: { seq: 1 } }, { upsert: true, new: true, setDefaultsOnInsert: true })
-  const seq = String(c?.seq || 1).padStart(3, '0')
-  return `D${day}${m}${y}-${seq}`
+  const key = `lab_token_${y}${m}${day}`
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const c: any = await LabCounter.findByIdAndUpdate(
+      key,
+      { $inc: { seq: 1 } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    )
+    const candidate = String(c?.seq || 1)
+    const existing = await LabToken.findOne({ tokenNo: candidate }).lean()
+    if (!existing) return candidate
+  }
+
+  // Fallback: use a timestamp suffix to guarantee uniqueness
+  return `${y}${m}${day}-${Date.now().toString(36).toUpperCase()}`
+}
+
+// Load lab number format from settings and format the number
+async function getFormattedLabNumber(num?: number, date?: Date): Promise<string> {
+  if (!num) return ''
+  try {
+    const s: any = await LabSettings.findOne().lean()
+    return formatLabNumber(num, s?.labNumberFormat, date)
+  } catch {
+    return formatLabNumber(num, '{SERIAL}', date)
+  }
 }
 
 // Generate barcode
@@ -162,6 +202,8 @@ const tokenUpdateSchema = z.object({
   }).optional(),
   tests: z.array(z.string()).optional(),
   referringConsultant: z.string().optional(),
+  sampleType: z.enum(['normal', 'urgent', 'stat']).optional(),
+  packageIds: z.array(z.string()).optional(),
 })
 
 const convertToSampleSchema = z.object({
@@ -172,7 +214,8 @@ const convertToSampleSchema = z.object({
       testName: z.string(),
       price: z.number()
     })
-  ])).min(1),
+  ])).optional(),
+  packageIds: z.array(z.string()).optional(),
   subtotal: z.number().default(0),
   discount: z.number().default(0),
   net: z.number().default(0),
@@ -196,28 +239,49 @@ export async function create(req: Request, res: Response) {
   const labNumber = await nextLabNumber()
   const now = new Date().toISOString()
 
-  // Process tests to ensure they are all in snapshot format { testId, testName, price }
-  const tests: any[] = []
-  const testIdsToFetch: string[] = []
+  // Process package-selected tests first, then explicit tests, to build a deduped snapshot.
+  const packageTests: any[] = []
+  if (Array.isArray(data.packageIds) && data.packageIds.length > 0) {
+    const packages = await LabTestPackage.find({ _id: { $in: data.packageIds } }).lean()
+    for (const pkg of packages) {
+      const pkgTests = Array.isArray(pkg.tests) ? pkg.tests : []
+      for (const pt of pkgTests) {
+        if (!pt?.testId) continue
+        packageTests.push({
+          testId: String(pt.testId),
+          testName: pt.testName,
+          price: pt.price || 0,
+        })
+      }
+    }
+  }
 
+  const testsMap = new Map<string, any>()
+  for (const t of packageTests) {
+    testsMap.set(t.testId, t)
+  }
+
+  const testIdsToFetch: string[] = []
   for (const t of data.tests) {
     if (typeof t === 'string') {
       testIdsToFetch.push(t)
     } else {
-      tests.push(t)
+      testsMap.set(t.testId, t)
     }
   }
 
   if (testIdsToFetch.length > 0) {
     const fetchedTests = await LabTest.find({ _id: { $in: testIdsToFetch } }).lean()
     for (const ft of fetchedTests) {
-      tests.push({
+      testsMap.set(String(ft._id), {
         testId: String(ft._id),
         testName: ft.name,
-        price: ft.price || 0
+        price: ft.price || 0,
       })
     }
   }
+
+  const tests: any[] = Array.from(testsMap.values())
 
   const token = await LabToken.create({
     labNumber,
@@ -244,6 +308,7 @@ export async function create(req: Request, res: Response) {
     net: data.net,
     receivedAmount: data.receivedAmount,
     receivableAmount: Math.max(0, data.net - data.receivedAmount),
+    paymentMethod: (data as any).paymentMethod,
     // Registration extras
     sampleType: (data as any).sampleType || 'normal',
     sampleReceived: (data as any).sampleReceived ?? ((data as any).sampleReceivedAtRegistration ?? (portal === 'lab')),
@@ -280,13 +345,15 @@ export async function create(req: Request, res: Response) {
       patientId: data.patientId,
       type: 'payment',
       amount: data.receivedAmount,
-      method: (data as any).paymentMethod || 'cash',
+      method: mapPaymentMethodEnum((data as any).paymentMethod),
       note: 'Advance payment during token generation',
       createdBy: actor
     })
   }
 
-  res.status(201).json(token)
+  const formattedLabNumber = await getFormattedLabNumber(token.labNumber)
+  const tokenObj = token.toObject ? token.toObject() : token
+  res.status(201).json({ ...tokenObj, formattedLabNumber })
 }
 
 // List tokens with filters
@@ -325,21 +392,13 @@ export async function list(req: Request, res: Response) {
     }
   }
   if (from || to) {
-    // Use generatedAt string comparison instead of createdAt to avoid timezone issues
-    // generatedAt is stored as ISO string in local time context
+    // Use generatedAt string prefix comparison instead of Date objects to avoid timezone issues.
+    // generatedAt is stored as full ISO string (e.g. 2026-06-11T09:30:00.000Z).
+    // Comparing against the date prefix 'YYYY-MM-DD' and 'YYYY-MM-DDT23:59:59.999Z'
+    // correctly filters by calendar date regardless of server timezone.
     filter.generatedAt = {}
-    if (from) {
-      // Start of day in ISO format (YYYY-MM-DDT00:00:00.000Z equivalent for comparison)
-      const start = new Date(from)
-      start.setUTCHours(0, 0, 0, 0)
-      filter.generatedAt.$gte = start.toISOString()
-    }
-    if (to) {
-      // End of day in ISO format
-      const end = new Date(to)
-      end.setUTCHours(23, 59, 59, 999)
-      filter.generatedAt.$lte = end.toISOString()
-    }
+    if (from) filter.generatedAt.$gte = from  // e.g. '2026-06-11'
+    if (to) filter.generatedAt.$lte = `${to}T23:59:59.999Z`  // e.g. '2026-06-11T23:59:59.999Z'
   }
 
   console.log('[LAB TOKENS] Filter:', JSON.stringify(filter), '- from:', from, '- to:', to)
@@ -355,8 +414,14 @@ export async function list(req: Request, res: Response) {
 
   console.log('[LAB TOKENS] Found', items.length, 'of', total, 'tokens')
 
+  const fmt = await LabSettings.findOne().lean().then((s: any) => s?.labNumberFormat).catch(() => undefined)
+  const itemsWithFmt = items.map((t: any) => ({
+    ...t,
+    formattedLabNumber: formatLabNumber(t.labNumber, fmt),
+  }))
+
   const totalPages = Math.max(1, Math.ceil((total || 0) / lim))
-  res.json({ items, total, page: pg, totalPages })
+  res.json({ items: itemsWithFmt, total, page: pg, totalPages })
 }
 
 // Get single token by ID or tokenNo
@@ -367,7 +432,8 @@ export async function get(req: Request, res: Response) {
     doc = await LabToken.findOne({ tokenNo: id }).lean()
   }
   if (!doc) return res.status(404).json({ error: 'Token not found' })
-  res.json(doc)
+  const fmt = await LabSettings.findOne().lean().then((s: any) => s?.labNumberFormat).catch(() => undefined)
+  res.json({ ...doc, formattedLabNumber: formatLabNumber((doc as any).labNumber, fmt) })
 }
 
 // Get tracking timeline for a token
@@ -589,26 +655,66 @@ export async function convertToSample(req: Request, res: Response) {
   const barcode = generateBarcode(token.tokenNo, new Date())
 
   // Process tests to ensure they are all in snapshot format { testId, testName, price }
-  const tests: any[] = []
+  const testsById: Record<string, any> = {}
   const testIdsToFetch: string[] = []
+  const packageIds = Array.isArray(data.packageIds) ? data.packageIds : (Array.isArray(token.packageIds) ? token.packageIds.map(String) : [])
 
-  for (const t of data.tests) {
-    if (typeof t === 'string') {
-      testIdsToFetch.push(t)
-    } else {
-      tests.push(t)
+  if (Array.isArray(data.tests)) {
+    for (const t of data.tests) {
+      if (typeof t === 'string') {
+        testIdsToFetch.push(t)
+      } else if (t?.testId) {
+        testsById[String(t.testId)] = {
+          testId: String(t.testId),
+          testName: String(t.testName || ''),
+          price: Number(t.price || 0)
+        }
+      }
+    }
+  } else if (Array.isArray(token.tests)) {
+    const tokenTests = token.tests as any[]
+    for (const t of tokenTests) {
+      if (typeof t === 'string') {
+        testIdsToFetch.push(t)
+      } else if (t?.testId) {
+        testsById[String(t.testId)] = {
+          testId: String(t.testId),
+          testName: String(t.testName || ''),
+          price: Number(t.price || 0)
+        }
+      }
     }
   }
 
   if (testIdsToFetch.length > 0) {
     const fetchedTests = await LabTest.find({ _id: { $in: testIdsToFetch } }).lean()
     for (const ft of fetchedTests) {
-      tests.push({
+      testsById[String(ft._id)] = {
         testId: String(ft._id),
         testName: ft.name,
         price: ft.price || 0
-      })
+      }
     }
+  }
+
+  if (packageIds.length > 0) {
+    const packages = await LabTestPackage.find({ _id: { $in: packageIds } }).lean()
+    for (const pkg of packages) {
+      const pkgTests = Array.isArray(pkg.tests) ? pkg.tests : []
+      for (const t of pkgTests) {
+        if (!t?.testId) continue
+        testsById[String(t.testId)] = {
+          testId: String(t.testId),
+          testName: String(t.testName || ''),
+          price: Number(t.price || 0)
+        }
+      }
+    }
+  }
+
+  const tests = Object.values(testsById)
+  if (tests.length === 0) {
+    return res.status(400).json({ error: 'No tests found for sample conversion' })
   }
 
   // Create order with financial fields for reporting
@@ -672,7 +778,7 @@ export async function convertToSample(req: Request, res: Response) {
       patientId: token.patientId,
       type: 'payment',
       amount: receivedAmount,
-      method: data.paymentMethod || 'cash',
+      method: mapPaymentMethodEnum(data.paymentMethod),
       note: data.paymentNote || 'Payment during conversion to sample',
       createdBy: actor,
     }
@@ -704,6 +810,9 @@ export async function convertToSample(req: Request, res: Response) {
   token.net = net
   token.receivedAmount = receivedAmount
   token.receivableAmount = receivableAmount
+  if (data.paymentMethod) {
+    token.paymentMethod = data.paymentMethod
+  }
   await token.save()
 
   // If this token was created from a referral, link the referral with the order
@@ -723,14 +832,16 @@ export async function convertToSample(req: Request, res: Response) {
   try {
     if (!token.corporateId && net > 0) {
       const userAccount = `${actor}/lab`
-      await postUserRevenueJournal({
-        userAccountName: userAccount,
-        revenueAccount: 'LAB_REVENUE',
+      const methodToUse = data.paymentMethod || token.paymentMethod
+      await postLabOrderJournal({
+        orderId: orderId,
+        dateIso: now.slice(0, 10),
         amount: net,
-        refType: 'lab_order',
-        refId: orderId,
-        description: `Lab Order ${token.tokenNo}`,
-        dateIso: now
+        paidMethod: resolvePaidMethod(methodToUse),
+        patientName: token.patient?.fullName || token.patientName,
+        mrn: token.patient?.mrn || token.mrn,
+        tokenNo: token.tokenNo,
+        createdByUsername: actor,
       })
     }
   } catch (e) {
@@ -749,7 +860,13 @@ export async function convertToSample(req: Request, res: Response) {
     })
   } catch {}
 
-  res.json({ token, order })
+  const fmt = await LabSettings.findOne().lean().then((s: any) => s?.labNumberFormat).catch(() => undefined)
+  const tokenObj = token.toObject ? token.toObject() : token
+  const orderObj = order.toObject ? order.toObject() : order
+  res.json({
+    token: { ...tokenObj, formattedLabNumber: formatLabNumber(tokenObj.labNumber, fmt) },
+    order: { ...orderObj, formattedLabNumber: formatLabNumber(orderObj.labNumber, fmt) },
+  })
 }
 
 // Update token status (for sample received, result entered, approved)
@@ -840,14 +957,68 @@ export async function update(req: Request, res: Response) {
   }
   if (!token) return res.status(404).json({ error: 'Token not found' })
 
-  if (token.status !== 'token_generated') {
-    return res.status(400).json({ error: 'Only unconverted tokens can be edited' })
+  if (token.status !== 'token_generated' && patch.tests) {
+    return res.status(400).json({ error: 'Tests can only be edited before conversion' })
   }
 
   const set: any = {}
   if (patch.patient) set.patient = { ...(token.patient || {}), ...(patch.patient || {}) }
-  if (patch.tests) set.tests = patch.tests
+
+  let resolvedTests: any[] | null = null
+  const packageTests: any[] = []
+  if (Array.isArray(patch.packageIds) && patch.packageIds.length > 0) {
+    const packages = await LabTestPackage.find({ _id: { $in: patch.packageIds } }).lean()
+    for (const pkg of packages) {
+      const pkgTests = Array.isArray(pkg.tests) ? pkg.tests : []
+      for (const pt of pkgTests) {
+        if (!pt?.testId) continue
+        packageTests.push({
+          testId: String(pt.testId),
+          testName: pt.testName,
+          price: pt.price || 0,
+        })
+      }
+    }
+  }
+
+  const testsMap = new Map<string, any>()
+  for (const t of packageTests) {
+    testsMap.set(t.testId, t)
+  }
+
+  const testIdsToFetch: string[] = []
+  if (patch.tests) {
+    const patchTests = patch.tests as any[]
+    for (const t of patchTests) {
+      if (typeof t === 'string') {
+        testIdsToFetch.push(t)
+      } else if (t?.testId) {
+        testsMap.set(t.testId, t)
+      }
+    }
+  }
+
+  if (testIdsToFetch.length > 0) {
+    const fetchedTests = await LabTest.find({ _id: { $in: testIdsToFetch } }).lean()
+    for (const ft of fetchedTests) {
+      testsMap.set(String(ft._id), {
+        testId: String(ft._id),
+        testName: ft.name,
+        price: ft.price || 0,
+      })
+    }
+  }
+
+  if (testsMap.size > 0) {
+    resolvedTests = Array.from(testsMap.values())
+    set.tests = resolvedTests
+  } else if (patch.tests) {
+    set.tests = patch.tests
+  }
+
   if (patch.referringConsultant != null) set.referringConsultant = patch.referringConsultant
+  if (patch.sampleType != null) set.sampleType = patch.sampleType
+  if (patch.packageIds != null) set.packageIds = patch.packageIds
 
   const updated = await LabToken.findByIdAndUpdate(token._id, { $set: set }, { new: true })
 

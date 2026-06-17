@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { pharmacyApi } from '../../utils/api'
 import Pharmacy_SupplierReturnDialog from '../../components/pharmacy/pharmacy_SupplierReturnDialog'
 import Pharmacy_ReturnSlipDialog from '../../components/pharmacy/pharmacy_ReturnSlipDialog'
-import MiniDashboard from '../../components/common/MiniDashboard'
-import { RotateCcw, Package, DollarSign, Truck } from 'lucide-react'
 
 type Row = {
   id: string
@@ -68,52 +66,34 @@ export default function Pharmacy_SupplierReturns() {
 
   const filtered = useMemo(() => rows, [rows])
 
-  const stats = useMemo(() => {
-    const totalPurchases = rows.length
-    const totalBuyAmount = rows.reduce((s, r) => s + r.buyAmount, 0)
-    const uniqueSuppliers = new Set(rows.map(r => r.supplier)).size
-    const totalQty = rows.reduce((s, r) => s + r.qty, 0)
-    return { totalPurchases, totalBuyAmount, uniqueSuppliers, totalQty }
-  }, [rows])
-
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-100 text-orange-600"><RotateCcw className="h-5 w-5" /></div>
-        <h1 className="text-xl font-bold text-slate-800">Supplier Return</h1>
-      </div>
+    <div className="space-y-4">
+      <div className="text-xl font-bold text-slate-800">Supplier Return</div>
 
-      <MiniDashboard cards={[
-        { label: 'Purchases Found', value: stats.totalPurchases, icon: Package, color: 'bg-indigo-500' },
-        { label: 'Total Buy Amount', value: `Rs ${stats.totalBuyAmount.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' },
-        { label: 'Suppliers', value: stats.uniqueSuppliers, icon: Truck, color: 'bg-sky-500' },
-        { label: 'Total Qty', value: stats.totalQty, icon: Package, color: 'bg-amber-500' },
-      ]} />
-
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">Search Purchases</div>
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="mb-3 font-medium text-slate-800">Select Supplier</div>
         <div className="grid items-end gap-3 md:grid-cols-6">
           <div>
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Supplier</label>
-            <input value={supplier} onChange={e=>setSupplier(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" placeholder="e.g., zain" />
+            <label className="mb-1 block text-sm text-slate-700">Supplier</label>
+            <input value={supplier} onChange={e=>setSupplier(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g., zain" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Invoice</label>
-            <input value={invoice} onChange={e=>setInvoice(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" placeholder="Search invoice/bill" />
+            <label className="mb-1 block text-sm text-slate-700">Invoice</label>
+            <input value={invoice} onChange={e=>setInvoice(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search invoice/bill" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">From</label>
-            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" />
+            <label className="mb-1 block text-sm text-slate-700">From</label>
+            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">To</label>
-            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 outline-none" />
+            <label className="mb-1 block text-sm text-slate-700">To</label>
+            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </div>
           <div className="flex items-end gap-2">
-            <button onClick={()=>{ setPage(1); setSearchTick(t=>t+1) }} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">Search</button>
+            <button onClick={()=>{ setPage(1); setSearchTick(t=>t+1) }} className="btn">Search</button>
           </div>
           <div className="flex items-end">
-            <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-slate-700">
+            <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700">
               <option value={10}>10</option>
               <option value={20}>20</option>
               <option value={50}>50</option>

@@ -12,6 +12,8 @@ const LineSchema = new Schema({
   salePerPack: { type: Number, default: 0 },
   salePerUnit: { type: Number, default: 0 },
   expiry: { type: String }, // yyyy-mm-dd
+  expiryAlertDate: { type: String },
+  shelfNumber: { type: String },
   category: { type: String },
   minStock: { type: Number },
   lineTaxType: { type: String, enum: ['percent','fixed'] },
@@ -61,6 +63,8 @@ export type PurchaseDoc = {
     salePerPack: number
     salePerUnit: number
     expiry?: string
+    expiryAlertDate?: string
+    shelfNumber?: string
     category?: string
     minStock?: number
     lineTaxType?: 'percent'|'fixed'

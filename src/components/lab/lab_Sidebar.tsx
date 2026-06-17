@@ -20,8 +20,6 @@ import {
   Droplets,
   PackageOpen,
   UserPlus,
-  Users,
-  CalendarCheck,
   Settings as Cog,
   UserCog,
   ScrollText,
@@ -138,16 +136,7 @@ const bloodBankSection: Section = {
   ],
 }
 
-const staffSection: Section = {
-  label: 'Staff',
-  icon: Users,
-  items: [
-    { to: '/lab/staff-management', label: 'Staff Management', icon: Users },
-    { to: '/lab/staff-attendance', label: 'Staff Attendance', icon: CalendarCheck },
-    { to: '/lab/staff-monthly', label: 'Staff Monthly', icon: CalendarDays },
-    { to: '/lab/staff-settings', label: 'Staff Settings', icon: Cog },
-  ],
-}
+
 
 const adminSection: Section = {
   label: 'Admin',
@@ -168,7 +157,6 @@ const allSections: Section[] = [
   financeSection,
   inventorySection,
   bloodBankSection,
-  staffSection,
   adminSection,
 ]
 
@@ -193,36 +181,27 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
         const u = JSON.parse(raw)
         if (u?.role) setRole(String(u.role).toLowerCase())
       }
-    } catch {}
+    } catch { }
   }, [])
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const res: any = await labApi.listSidebarPermissions(role)
-        const doc = Array.isArray(res) ? res[0] : res
-        const map = new Map<string, any>()
-        const perms = (doc?.permissions || []) as Array<{ path: string; visible?: boolean; order?: number }>
-        for (const p of perms) map.set(p.path, p)
-        if (mounted) setPermMap(map)
-      } catch { if (mounted) setPermMap(new Map()) }
-    })()
+      ; (async () => {
+        try {
+          const res: any = await labApi.listSidebarPermissions(role)
+          const doc = Array.isArray(res) ? res[0] : res
+          const map = new Map<string, any>()
+          const perms = (doc?.permissions || []) as Array<{ path: string; visible?: boolean; order?: number }>
+          for (const p of perms) map.set(p.path, p)
+          if (mounted) setPermMap(map)
+        } catch { if (mounted) setPermMap(new Map()) }
+      })()
     return () => { mounted = false }
   }, [role])
 
-  const alwaysVisible = new Set([
-    '/lab',
-    '/lab/orders',
-    '/lab/today-tokens',
-    '/lab/appointments',
-  ])
-
-  const canShow = (path: string) => {
-    if (alwaysVisible.has(path)) return true
-    if (path === '/lab/sidebar-permissions' && String(role || '').toLowerCase() !== 'admin') return false
-    const perm = permMap.get(path)
-    return perm ? perm.visible !== false : true
+  const canShow = (_path: string) => {
+    // All modules visible — permissions disabled
+    return true
   }
 
   const byOrder = (a: NavItem, b: NavItem) => {
@@ -266,17 +245,15 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
         title={collapsed ? item.label : undefined}
         className={({ isActive }) => {
           if (collapsed) {
-            return `group relative flex items-center justify-center rounded-lg p-2.5 transition-all duration-150 ${
-              isActive
-                ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20'
-                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-            }`
+            return `group relative flex items-center justify-center rounded-lg p-2.5 transition-all duration-150 ${isActive
+                ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20 dark:bg-violet-600 dark:shadow-none'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200'
+              }`
           }
-          return `group relative flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] font-medium transition-all duration-150 ${
-            isActive
-              ? 'bg-slate-900 text-white shadow-sm shadow-slate-900/20'
-              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-          }`
+          return `group relative flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] font-medium transition-all duration-150 ${isActive
+              ? 'bg-slate-900 text-white shadow-sm shadow-slate-900/20 dark:bg-slate-800 dark:text-white dark:shadow-none'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200'
+            }`
         }}
         end={item.end}
       >
@@ -309,10 +286,10 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
     }
 
     return (
-      <div key={section.label} className="rounded-lg bg-slate-50/60">
+      <div key={section.label} className="rounded-lg bg-slate-50/60 dark:bg-slate-800/30">
         <button
           onClick={() => toggleSection(section.label)}
-          className="flex w-full items-center gap-2 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400 hover:text-slate-600 transition-colors"
+          className="flex w-full items-center gap-2 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400 hover:text-slate-600 transition-colors dark:text-slate-500 dark:hover:text-slate-300"
         >
           <SectionIcon className="h-3 w-3" />
           <span className="flex-1 text-left">{section.label}</span>
@@ -333,7 +310,7 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
 
   return (
     <aside
-      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col border-r border-slate-200/80 bg-white`}
+      className={`hidden md:flex ${width} md:flex-none md:shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:flex-col border-r border-slate-200/80 bg-white dark:bg-[#0b1220] dark:border-slate-800/80`}
     >
       <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2'}`}>
         {/* Dashboard — always visible, special styling */}
@@ -344,24 +321,23 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
         )}
 
         {/* Divider */}
-        <div className="mx-2 border-t border-slate-200/60" />
+        <div className="mx-2 border-t border-slate-200/60 dark:border-slate-800/60" />
 
         {/* All sections */}
         {allSections.map(renderSection)}
       </nav>
 
       {/* Footer */}
-      <div className={`border-t border-slate-200/60 ${collapsed ? 'p-2 space-y-1.5' : 'p-3 space-y-1.5'}`}>
+      <div className={`border-t border-slate-200/60 dark:border-slate-800/60 ${collapsed ? 'p-2 space-y-1.5' : 'p-3 space-y-1.5'}`}>
         <button
           onClick={async () => {
-            try { await labApi.logoutUser() } catch {}
-            try { localStorage.removeItem('lab.session') } catch {}
+            try { await labApi.logoutUser() } catch { }
+            try { localStorage.removeItem('lab.session') } catch { }
             navigate('/lab/login')
           }}
           title={collapsed ? 'Logout' : undefined}
-          className={`w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-500 transition-all duration-150 hover:bg-rose-50 hover:text-rose-600 ${
-            collapsed ? 'p-2.5' : ''
-          }`}
+          className={`w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-500 transition-all duration-150 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-rose-900/20 dark:hover:text-rose-400 ${collapsed ? 'p-2.5' : ''
+            }`}
           aria-label="Logout"
         >
           <LogOut className="h-4 w-4 shrink-0" />

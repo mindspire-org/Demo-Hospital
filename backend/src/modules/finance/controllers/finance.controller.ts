@@ -1,13 +1,8 @@
 import { Request, Response } from 'express'
 import { z } from 'zod'
 import { FinanceJournal } from '../models/FinanceJournal'
-import { FinanceAuditLog } from '../models/FinanceAuditLog'
+import { ChartOfAccount } from '../models/ChartOfAccount'
 import { createDoctorPayout, manualDoctorEarning, computeDoctorBalance, reverseJournalById } from './finance_ledger'
-
-function actorOf(req: Request) { return (req as any).user?.name || (req as any).user?.username || (req as any).user?.email || 'system' }
-async function audit(req: Request, action: string, label: string, detail?: string) {
-  try { await FinanceAuditLog.create({ actor: actorOf(req), action, label, method: req.method, path: req.originalUrl, at: new Date().toISOString(), detail }) } catch {}
-}
 
 const manualDoctorEarningSchema = z.object({
   doctorId: z.string().min(1),
@@ -29,14 +24,90 @@ const doctorPayoutSchema = z.object({
   amount: z.number().positive(),
   method: z.enum(['Cash','Bank']).default('Cash'),
   memo: z.string().optional(),
+  sourceAccount: z.string().optional(),
+  destinationAccount: z.string().optional(),
 })
+
+function round2(n: number) {
+  return Math.round((n + Number.EPSILON) * 100) / 100
+}
+
+export async function listCashBankAccounts(req: Request, res: Response) {
+  const includeBalance = String((req.query as any)?.includeBalance || '') === 'true'
+  const activeFilter = (req.query as any)?.active
+  const filter: any = { type: 'ASSETS', subType: { $in: ['CASH & BANK', 'Cash & Bank', 'CASH', 'BANK', 'Cash', 'Bank'] } }
+  if (activeFilter !== undefined) {
+    const wantsActive = typeof activeFilter === 'string' ? activeFilter !== 'false' : !!activeFilter
+    if (wantsActive) filter.active = { $ne: false }
+    else filter.active = false
+  }
+
+  const accounts = await ChartOfAccount.find(filter).sort({ code: 1, name: 1 }).lean()
+
+  const mapped = []
+  for (const acc of accounts as any[]) {
+    let balance = acc.balance || 0
+    if (includeBalance) {
+      balance = await computeAccountBalanceForDoc(acc)
+    }
+    mapped.push({
+      id: String(acc._id),
+      code: acc.code || acc.name,
+      name: acc.name,
+      systemNames: acc.systemNames || [],
+      active: acc.active,
+      balance,
+    })
+  }
+
+  res.json({ accounts: mapped })
+}
+
+export async function getCashBankAccountBalance(req: Request, res: Response) {
+  const id = String(req.params.id)
+  const account: any = await ChartOfAccount.findById(id).lean()
+  if (!account) return res.status(404).json({ error: 'Account not found' })
+
+  const balance = await computeAccountBalanceForDoc(account)
+  res.json({ balance, account: { id, name: account.name, code: account.code } })
+}
+
+async function computeAccountBalanceForDoc(account: any) {
+  if (!account) return 0
+  const searchTerms = [account.code, account.name, ...(account.systemNames || [])]
+    .filter(Boolean)
+    .map((s: string) => s.trim().toUpperCase())
+  if (!searchTerms.length) return 0
+
+  const journalLines = await FinanceJournal.aggregate([
+    { $unwind: '$lines' },
+    {
+      $match: {
+        'lines.account': {
+          $in: searchTerms.map((s: string) => new RegExp(`^${s}$`, 'i')),
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        debit: { $sum: { $ifNull: ['$lines.debit', 0] } },
+        credit: { $sum: { $ifNull: ['$lines.credit', 0] } },
+      },
+    },
+  ])
+
+  const debit = journalLines?.[0]?.debit || 0
+  const credit = journalLines?.[0]?.credit || 0
+  const isAssetOrExpense = ['ASSETS', 'EXPENSE'].includes(account.type)
+  return round2(isAssetOrExpense ? debit - credit : credit - debit)
+}
 
 export async function postManualDoctorEarning(req: Request, res: Response){
   const data = manualDoctorEarningSchema.parse(req.body)
   const createdByUsername = String((req as any).user?.username || (req as any).user?.name || '')
   const finalCreatedBy = createdByUsername || String((data as any)?.createdByUsername || '')
-  const j = await manualDoctorEarning({ ...(data as any), createdByUsername: finalCreatedBy })
-  await audit(req, 'Manual Doctor Earning', 'DOCTOR_EARNING', `doctorId=${data.doctorId} Rs.${data.amount}`)
+  const j = await manualDoctorEarning({ ...(data as any), createdByUsername: finalCreatedBy || undefined } as any)
   res.status(201).json({ journal: j })
 }
 
@@ -44,7 +115,6 @@ export async function reverseJournal(req: Request, res: Response){
   const id = String(req.params.id)
   const memo = String((req.body as any)?.memo || '')
   const r = await reverseJournalById(id, memo)
-  await audit(req, 'Reverse Journal', 'JOURNAL_REVERSE', `id=${id}`)
   if (!r) return res.status(404).json({ error: 'Journal not found' })
   res.json({ reversed: r })
 }
@@ -66,14 +136,39 @@ export async function listDoctorEarnings(req: Request, res: Response){
   const from = String((req.query as any)?.from || '')
   const to = String((req.query as any)?.to || '')
   const M = require('mongoose')
-  const matchDate = (from && to) ? { dateIso: { $gte: from, $lte: to } } : {}
+  const matchDateIso = (from && to) ? { dateIso: { $gte: from, $lte: to } } : {}
+
+  // Also match by createdAt using Pakistan-local day boundaries (UTC+5)
+  // This prevents after-midnight tokens (Pakistan time) from being counted in the previous UTC date.
+  const PAKISTAN_OFFSET_MS = 5 * 60 * 60 * 1000
+  const parseIsoYmd = (s: string) => {
+    const m = /^\d{4}-\d{2}-\d{2}$/.exec(String(s || ''))
+    if (!m) return null
+    const [y, mo, d] = s.split('-').map(n => Number(n))
+    if (!y || !mo || !d) return null
+    return { y, mo, d }
+  }
+  const fromYmd = parseIsoYmd(from)
+  const toYmd = parseIsoYmd(to)
+  const matchCreatedAt = (fromYmd && toYmd) ? (() => {
+    const fromStartUtcMs = Date.UTC(fromYmd.y, fromYmd.mo - 1, fromYmd.d, 0, 0, 0, 0) - PAKISTAN_OFFSET_MS
+    const toEndUtcMs = (Date.UTC(toYmd.y, toYmd.mo - 1, toYmd.d, 0, 0, 0, 0) - PAKISTAN_OFFSET_MS) + (24 * 60 * 60 * 1000) - 1
+    return { createdAt: { $gte: new Date(fromStartUtcMs), $lte: new Date(toEndUtcMs) } }
+  })() : {}
+
+  const matchDate = (from && to) ? { $or: [matchDateIso, matchCreatedAt] } : {}
   const matchDoctor = doctorId ? { 'lines.tags.doctorId': new M.Types.ObjectId(doctorId) } : {}
   const rows = await FinanceJournal.aggregate([
     // Only include active journals (not reversed)
     { $match: { ...matchDate, refType: { $in: ['opd_token','manual_doctor_earning'] }, status: { $ne: 'reversed' } } },
     { $addFields: { allLines: '$lines' } },
     { $unwind: '$lines' },
-    { $match: { 'lines.account': 'DOCTOR_PAYABLE', ...(doctorId? matchDoctor : {}) } },
+    { $match: { 
+        'lines.account': { $in: ['DOCTOR_PAYABLE','OPD_REVENUE','IPD_REVENUE','PROCEDURE_REVENUE','CASH','BANK','AR'] }, 
+        'lines.tags.doctorId': { $exists: true, $ne: null },
+        ...(doctorId? matchDoctor : {}) 
+      } 
+    },
     { $lookup: {
         from: 'hospital_finance_journals',
         let: { origId: '$_id' },
@@ -98,19 +193,30 @@ export async function listDoctorEarnings(req: Request, res: Response){
       }
     },
     { $addFields: { _lastRev: { $arrayElemAt: ['$revForToken', 0] } } },
-    { $addFields: { _keep: { $or: [ { $eq: ['$_lastRev', null] }, { $gt: ['$createdAt', '$_lastRev.createdAt'] } ] } } },
+    { $addFields: { _keep: { $or: [ { $eq: ['$_lastRev', null] }, { $gt: ['$updatedAt', '$_lastRev.createdAt'] } ] } } },
     { $match: { _keep: { $eq: true } } },
     { $lookup: {
         from: 'hospital_tokens',
         let: { tidStr: '$_tidStr' },
         pipeline: [
           { $match: { $expr: { $eq: [ { $toString: '$_id' }, '$$tidStr' ] } } },
-          { $project: { patientName: 1, mrn: 1, tokenNo: 1, fee: 1, discount: 1 } }
+          { $project: { patientName: 1, mrn: 1, tokenNo: 1, fee: 1, discount: 1, visitCategory: 1, departmentId: 1 } }
         ],
         as: 'tok'
       }
     },
     { $addFields: { token: { $arrayElemAt: ['$tok', 0] } } },
+    { $lookup: {
+        from: 'hospital_departments',
+        let: { deptId: { $ifNull: ['$token.departmentId', '$lines.tags.departmentId'] } },
+        pipeline: [
+          { $match: { $expr: { $eq: [ { $toString: '$_id' }, { $toString: '$$deptId' } ] } } },
+          { $project: { name: 1 } }
+        ],
+        as: 'dept'
+      }
+    },
+    { $addFields: { deptName: { $arrayElemAt: ['$dept.name', 0] } } },
     { $addFields: {
         revenueLine: {
           $arrayElemAt: [
@@ -121,43 +227,93 @@ export async function listDoctorEarnings(req: Request, res: Response){
       }
     },
     { $project: { 
-        _id: 1, dateIso: 1, refType: 1, refId: 1, memo: 1, line: '$lines', revenueAccount: '$revenueLine.account', revenueAccountFromTags: '$lines.tags.revenueAccount',
+        _id: 1, dateIso: 1, refType: 1, refId: 1, memo: 1, line: '$lines', allLines: 1, revenueAccount: '$revenueLine.account', revenueAccountFromTags: '$lines.tags.revenueAccount',
         createdAt: 1,
         patientName: { $ifNull: ['$token.patientName', '$lines.tags.patientName'] },
         mrn: { $ifNull: ['$token.mrn', '$lines.tags.mrn'] },
         tokenNo: '$token.tokenNo',
         fee: '$token.fee',
         discount: '$token.discount',
+        visitCategory: '$lines.tags.visitCategory',
         departmentId: '$lines.tags.departmentId',
-        departmentName: '$lines.tags.departmentName',
+        departmentName: { $ifNull: ['$lines.tags.departmentName', '$deptName'] },
         phone: '$lines.tags.phone'
       } 
     },
     { $sort: { dateIso: -1, _id: -1 } },
     { $limit: 500 },
   ])
-  const items = rows.map((r: any) => {
-    const doctorAmount = Number(r.line?.credit || 0)
+  // Deduplicate: a single journal may have both DOCTOR_PAYABLE and OPD_REVENUE lines
+  const seen = new Set<string>()
+  const deduped = rows.filter((r: any) => {
+    const key = String(r._id)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  // Look up doctor shares from Doctor collection
+  // Collect doctor IDs from both the matched line and all lines (for journals without DOCTOR_PAYABLE)
+  const doctorIds = Array.from(new Set(deduped.flatMap((r: any) => {
+    const ids: string[] = []
+    // From the matched line
+    if (r.line?.tags?.doctorId) ids.push(String(r.line.tags.doctorId))
+    // From all lines (for OPD_REVENUE lines that have doctorId)
+    if (r.allLines) {
+      for (const l of r.allLines) {
+        if (l?.tags?.doctorId) ids.push(String(l.tags.doctorId))
+      }
+    }
+    return ids
+  }).filter(Boolean)))
+  const doctorShares = new Map<string, number>()
+  const doctorNames = new Map<string, string>()
+  try {
+    if (doctorIds.length) {
+      const { HospitalDoctor } = await import('../../hospital/models/Doctor')
+      const docs: any[] = await HospitalDoctor.find({ _id: { $in: doctorIds } }).select('shares name').lean()
+      for (const d of docs) {
+        doctorShares.set(String(d._id), Number((d as any).shares ?? 100))
+        doctorNames.set(String(d._id), String((d as any).name || 'Doctor'))
+      }
+    }
+  } catch {}
+
+  const items = deduped.map((r: any) => {
+    // Find the DOCTOR_PAYABLE line within allLines to get the actual doctor amount
+    const payableLine = (r.allLines || []).find((l: any) => l.account === 'DOCTOR_PAYABLE')
+    const doctorAmount = Number(payableLine?.credit || 0)
     const isOpd = r.refType === 'opd_token'
     const fee = Number(r?.fee ?? 0)
     const discount = Number(r?.discount ?? 0)
     const gross = (Number.isFinite(fee) ? fee : 0) + (Number.isFinite(discount) ? discount : 0)
-    const sharePercent = (isOpd && fee > 0) ? ((doctorAmount / fee) * 100) : null
+    // Extract doctor ID from matched line or any line in allLines
+    let docId: string | undefined
+    if (r.line?.tags?.doctorId) {
+      docId = String(r.line.tags.doctorId)
+    } else if (r.allLines) {
+      for (const l of r.allLines) {
+        if (l?.tags?.doctorId) { docId = String(l.tags.doctorId); break }
+      }
+    }
+    const sharePercent = docId ? (doctorShares.get(docId) ?? 100) : (isOpd && fee > 0 ? ((doctorAmount / fee) * 100) : null)
     const revenueAccount = String(r.revenueAccount || r.revenueAccountFromTags || '')
     return ({
       id: String(r._id),
       dateIso: r.dateIso,
       createdAt: r.createdAt,
-      doctorId: r.line?.tags?.doctorId ? String(r.line.tags.doctorId) : undefined,
+      doctorId: docId,
+      doctorName: docId ? (doctorNames.get(docId) || 'Doctor') : 'Doctor',
       departmentId: r.line?.tags?.departmentId ? String(r.line.tags.departmentId) : undefined,
       tokenId: r.line?.tags?.tokenId ? String(r.line.tags.tokenId) : undefined,
-      type: r.refType === 'opd_token' ? 'OPD' : (revenueAccount === 'PROCEDURE_REVENUE' ? 'Procedure' : (revenueAccount === 'IPD_REVENUE' ? 'IPD' : 'OPD')),
+      type: r.refType === 'opd_token' ? 'OPD' : (revenueAccount === 'PROCEDURE_REVENUE' ? 'Procedure' : (revenueAccount === 'IPD_REVENUE' ? 'IPD' : (revenueAccount === 'OPD_REVENUE' ? 'OPD' : 'Other'))),
       amount: doctorAmount,
       memo: r.memo,
       patientName: r.patientName,
       mrn: r.mrn,
       tokenNo: r.tokenNo,
       departmentName: r.departmentName,
+      visitCategory: r.visitCategory,
       phone: r.phone,
       fee: Number.isFinite(fee) ? fee : undefined,
       discount: Number.isFinite(discount) ? discount : undefined,
@@ -173,7 +329,7 @@ export async function postDoctorPayout(req: Request, res: Response){
   let sessionId: string | undefined = undefined
   // Note: CashSession is in hospital module - will need cross-module import or pass as param
   // For now, remove session lookup to avoid circular dependency
-  const j: any = await createDoctorPayout(data.doctorId, data.amount, data.method, data.memo, sessionId)
+  const j: any = await createDoctorPayout(data.doctorId, data.amount, data.method, data.memo, sessionId, data.sourceAccount, data.destinationAccount)
   // Best-effort tagging of createdBy for reporting
   try {
     const createdByUserId = String((req as any).user?._id || (req as any).user?.id || '')
@@ -223,31 +379,71 @@ export async function listAllTransactions(req: Request, res: Response){
   const limit = Math.min(200, Math.max(1, parseInt(String((req.query as any)?.limit || '50'))))
   const skip = (page - 1) * limit
 
+  const doctorId = String((req.query as any)?.doctorId || '')
+  const departmentId = String((req.query as any)?.departmentId || '')
+  const serviceName = String((req.query as any)?.serviceName || '')
+  const username = String((req.query as any)?.username || '')
+
   const M = require('mongoose')
   const matchStage: any = {}
   
   if (from && to) {
-    matchStage.dateIso = { $gte: from, $lte: to }
+    // If 'to' is a date like '2026-05-03', we want to include everything up to the end of that day
+    const toDate = to.length === 10 ? `${to}T23:59:59.999Z` : to
+    matchStage.dateIso = { $gte: from, $lte: toDate }
   } else if (from) {
     matchStage.dateIso = { $gte: from }
   } else if (to) {
-    matchStage.dateIso = { $lte: to }
+    const toDate = to.length === 10 ? `${to}T23:59:59.999Z` : to
+    matchStage.dateIso = { $lte: toDate }
+  }
+
+  // Performed by filter
+  if (username) {
+    matchStage['lines.tags.createdByUsername'] = username
+  }
+  // Doctor filter
+  if (doctorId) {
+    matchStage['lines.tags.doctorId'] = new M.Types.ObjectId(doctorId)
+  }
+  // Department filter
+  if (departmentId) {
+    matchStage['lines.tags.departmentId'] = new M.Types.ObjectId(departmentId)
+  }
+  // Service filter
+  if (serviceName) {
+    matchStage['lines.tags.serviceNames'] = { $regex: serviceName, $options: 'i' }
   }
 
   // Type filter
   if (type !== 'All') {
     const refTypeMap: any = {
-      'OPD': 'opd_token',
-      'IPD': 'ipd_billing',
+      'General': 'opd_token',
+      'Private': 'opd_token',
+      'Subsidized': 'opd_token',
       'ER': 'er_billing',
-      'Expense': 'expense',
-      'Doctor Payout': 'doctor_payout',
-      'Manual Earning': 'manual_doctor_earning',
-      'Token Return': 'opd_token_reversal',
+      'IPD': 'ipd_payment',
+      'Lab': 'lab_order',
+      'Diagnostic': 'diagnostic_order',
+      'Pharmacy': 'pharmacy_sale',
+    }
+    const visitCategoryMap: any = {
+      'General': 'general',
+      'Private': 'private',
+      'Subsidized': 'subsidized',
     }
     if (refTypeMap[type]) {
       matchStage.refType = refTypeMap[type]
+      // For token visit category types, also filter by visitCategory in tags
+      if (visitCategoryMap[type]) {
+        matchStage['lines.tags.visitCategory'] = visitCategoryMap[type]
+      }
+    } else if (type === 'Doctor Payout') {
+      matchStage.refType = 'doctor_payout'
     }
+  } else {
+    // Show all system-generated transactions in 'All' view
+    matchStage.refType = { $in: ['opd_token', 'er_billing', 'ipd_payment', 'lab_order', 'diagnostic_order', 'pharmacy_sale', 'doctor_payout'] }
   }
 
   // Method filter - look in lines.tags.method or derive from accounts
@@ -262,7 +458,13 @@ export async function listAllTransactions(req: Request, res: Response){
           $map: {
             input: '$lines',
             as: 'line',
-            in: { $cond: [{ $in: ['$$line.account', ['CASH', 'BANK']] }, '$$line.credit', 0] }
+            in: {
+              $cond: [
+                { $in: ['$$line.account', ['CASH', 'BANK']] },
+                { $max: ['$$line.credit', '$$line.debit'] },
+                0
+              ]
+            }
           }
         }
       },
@@ -270,13 +472,13 @@ export async function listAllTransactions(req: Request, res: Response){
       // For reversal journals, the revenue line will be a DEBIT.
       feeFromRevenueCredit: {
         $arrayElemAt: [
-          { $filter: { input: '$lines', as: 'l', cond: { $in: ['$$l.account', ['OPD_REVENUE', 'IPD_REVENUE', 'ER_REVENUE', 'PROCEDURE_REVENUE']] } } },
+          { $filter: { input: '$lines', as: 'l', cond: { $in: ['$$l.account', ['OPD_REVENUE', 'IPD_REVENUE', 'ER_REVENUE', 'PROCEDURE_REVENUE', 'LAB_REVENUE', 'DIAGNOSTIC_REVENUE', 'PHARMACY_REVENUE']] } } },
           0
         ]
       },
       feeFromRevenueDebit: {
         $arrayElemAt: [
-          { $filter: { input: '$lines', as: 'l', cond: { $in: ['$$l.account', ['OPD_REVENUE', 'IPD_REVENUE', 'ER_REVENUE', 'PROCEDURE_REVENUE']] } } },
+          { $filter: { input: '$lines', as: 'l', cond: { $in: ['$$l.account', ['OPD_REVENUE', 'IPD_REVENUE', 'ER_REVENUE', 'PROCEDURE_REVENUE', 'LAB_REVENUE', 'DIAGNOSTIC_REVENUE', 'PHARMACY_REVENUE']] } } },
           0
         ]
       },
@@ -326,7 +528,9 @@ export async function listAllTransactions(req: Request, res: Response){
       tokenId: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.tokenId', null] } } }, as: 'x', in: '$$x.tags.tokenId' } }, 0] },
       encounterId: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.encounterId', null] } } }, as: 'x', in: '$$x.tags.encounterId' } }, 0] },
       tokenNoFromTags: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.tokenNo', null] } } }, as: 'x', in: '$$x.tags.tokenNo' } }, 0] },
+      serviceNames: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.serviceNames', null] } } }, as: 'x', in: '$$x.tags.serviceNames' } }, 0] },
       createdByUsername: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.createdByUsername', null] } } }, as: 'x', in: '$$x.tags.createdByUsername' } }, 0] },
+      visitCategory: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.visitCategory', null] } } }, as: 'x', in: '$$x.tags.visitCategory' } }, 0] },
     }
   })
 
@@ -351,6 +555,7 @@ export async function listAllTransactions(req: Request, res: Response){
           { memo: { $regex: q, $options: 'i' } },
           { patientName: { $regex: q, $options: 'i' } },
           { mrn: { $regex: q, $options: 'i' } },
+          { serviceNames: { $regex: q, $options: 'i' } },
           { refId: { $regex: q, $options: 'i' } }
         ]
       }
@@ -358,37 +563,49 @@ export async function listAllTransactions(req: Request, res: Response){
   }
 
   // Lookup for doctor name
-  pipeline.push({
-    $lookup: {
-      from: 'hospital_doctors',
-      let: { docId: '$doctorId' },
-      pipeline: [{ $match: { $expr: { $eq: ['$_id', { $toObjectId: '$$docId' }] } } }, { $project: { name: 1 } }],
-      as: 'doctor'
-    }
-  })
+  if (type === 'All' || type === 'General' || type === 'Private' || type === 'Subsidized') {
+    pipeline.push({
+      $lookup: {
+        from: 'hospital_doctors',
+        let: { docId: '$doctorId' },
+        pipeline: [{ $match: { $expr: { $eq: ['$_id', { $toObjectId: '$$docId' }] } } }, { $project: { name: 1 } }],
+        as: 'doctor'
+      }
+    })
+  } else {
+    pipeline.push({ $addFields: { doctor: [] } })
+  }
 
   // Lookup for department name
-  pipeline.push({
-    $lookup: {
-      from: 'hospital_departments',
-      let: { depId: '$departmentId' },
-      pipeline: [{ $match: { $expr: { $eq: ['$_id', { $toObjectId: '$$depId' }] } } }, { $project: { name: 1 } }],
-      as: 'department'
-    }
-  })
+  if (type === 'All' || type === 'General' || type === 'Private' || type === 'Subsidized') {
+    pipeline.push({
+      $lookup: {
+        from: 'hospital_departments',
+        let: { depId: '$departmentId' },
+        pipeline: [{ $match: { $expr: { $eq: ['$_id', { $toObjectId: '$$depId' }] } } }, { $project: { name: 1 } }],
+        as: 'department'
+      }
+    })
+  } else {
+    pipeline.push({ $addFields: { department: [] } })
+  }
 
   // Lookup for token to get fee/discount info
-  pipeline.push({
-    $lookup: {
-      from: 'hospital_tokens',
-      let: { tid: '$tokenId' },
-      pipeline: [
-        { $match: { $expr: { $eq: [{ $toString: '$_id' }, '$$tid'] } } },
-        { $project: { fee: 1, discount: 1, status: 1, tokenNo: 1 } }
-      ],
-      as: 'token'
-    }
-  })
+  if (type === 'All' || type === 'General' || type === 'Private' || type === 'Subsidized') {
+    pipeline.push({
+      $lookup: {
+        from: 'hospital_tokens',
+        let: { tid: '$tokenId' },
+        pipeline: [
+          { $match: { $expr: { $eq: [{ $toString: '$_id' }, '$$tid'] } } },
+          { $project: { fee: 1, discount: 1, status: 1, tokenNo: 1, serviceNames: 1 } }
+        ],
+        as: 'token'
+      }
+    })
+  } else {
+    pipeline.push({ $addFields: { token: [] } })
+  }
 
   // Lookup for token by encounterId (ER/IPD payments may not have tokenId tagged)
   pipeline.push({
@@ -435,6 +652,7 @@ export async function listAllTransactions(req: Request, res: Response){
         token: { $arrayElemAt: ['$token', 0] },
         tokenByEncounter: { $arrayElemAt: ['$tokenByEncounter', 0] },
         tokenNoFromTags: 1,
+        serviceNames: { $ifNull: ['$serviceNames', { $arrayElemAt: ['$token.serviceNames', 0] }] },
         createdByUsername: 1,
         doctorPayableLine: 1,
         // Extract fee from revenue line (credit for normal, debit for reversals)
@@ -449,16 +667,14 @@ export async function listAllTransactions(req: Request, res: Response){
         type: {
           $switch: {
             branches: [
-              // Show reversed OPD tokens as 'Token Return'
-              { case: { $and: [{ $eq: ['$refType', 'opd_token'] }, { $eq: ['$status', 'reversed'] }] }, then: 'Token Return' },
-              { case: { $eq: ['$refType', 'opd_token'] }, then: 'OPD' },
-              { case: { $eq: ['$refType', 'opd_token_reversal'] }, then: 'Token Return' },
-              { case: { $eq: ['$refType', 'ipd_billing'] }, then: 'IPD' },
+              { case: { $and: [{ $eq: ['$refType', 'opd_token'] }, { $eq: ['$visitCategory', 'private'] }] }, then: 'Private' },
+              { case: { $and: [{ $eq: ['$refType', 'opd_token'] }, { $eq: ['$visitCategory', 'subsidized'] }] }, then: 'Subsidized' },
+              { case: { $eq: ['$refType', 'opd_token'] }, then: 'General' },
+              { case: { $eq: ['$refType', 'lab_order'] }, then: 'Lab' },
+              { case: { $eq: ['$refType', 'diagnostic_order'] }, then: 'Diagnostic' },
+              { case: { $eq: ['$refType', 'pharmacy_sale'] }, then: 'Pharmacy' },
               { case: { $eq: ['$refType', 'ipd_payment'] }, then: 'IPD' },
               { case: { $eq: ['$refType', 'er_billing'] }, then: 'ER' },
-              { case: { $eq: ['$refType', 'expense'] }, then: 'Expense' },
-              { case: { $eq: ['$refType', 'doctor_payout'] }, then: 'Doctor Payout' },
-              { case: { $eq: ['$refType', 'manual_doctor_earning'] }, then: 'Manual Earning' },
             ],
             default: 'Other'
           }
@@ -501,13 +717,12 @@ export async function listAllTransactions(req: Request, res: Response){
 
   res.json({
     transactions: items,
-    total,
+    total: items.length,
     page,
-    totalPages: Math.ceil(total / limit),
+    totalPages: Math.ceil(items.length / limit),
     summary: {
-      totalRevenue: items.filter((x: any) => ['OPD', 'IPD', 'ER', 'Manual Earning'].includes(x.type)).reduce((s: number, x: any) => s + (x.fee || 0), 0),
+      totalRevenue: items.reduce((s: number, x: any) => s + (x.fee || 0), 0),
       totalDiscount: items.reduce((s: number, x: any) => s + (x.tokenDiscount || 0), 0),
-      totalExpenses: items.filter((x: any) => x.type === 'Expense').reduce((s: number, x: any) => s + (x.totalAmount || 0), 0),
       netIncome: 0, // calculated below
     }
   })

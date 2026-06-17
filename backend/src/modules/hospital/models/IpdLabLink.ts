@@ -6,6 +6,8 @@ const IpdLabLinkSchema = new Schema({
   externalLabOrderId: { type: String },
   testIds: [{ type: String }],
   status: { type: String },
+  doctorId: { type: Schema.Types.ObjectId, ref: 'Hospital_Doctor' },
+  referredBy: { type: String },
 }, { timestamps: true })
 
 IpdLabLinkSchema.index({ encounterId: 1, createdAt: -1 })
@@ -17,6 +19,8 @@ export type HospitalIpdLabLinkDoc = {
   externalLabOrderId?: string
   testIds?: string[]
   status?: string
+  doctorId?: string
+  referredBy?: string
 }
 
 export const HospitalIpdLabLink = models.Hospital_IpdLabLink || model('Hospital_IpdLabLink', IpdLabLinkSchema)

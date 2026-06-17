@@ -1,182 +1,167 @@
-import { useEffect, useMemo, useState } from 'react'
-import { financeApi } from '../../utils/api'
-import { fmtRs, firstOfMonth, todayIso } from '../../components/finance/finance_ui'
-import { RefreshCw, Printer, TrendingUp, TrendingDown, DollarSign, Percent, LineChart } from 'lucide-react'
-import DateRangeFilter from '../../components/finance/finance_DateRange'
-import { printFinanceReport } from '../../components/finance/finance_print'
-import { HeroHeader, HeroButton, KpiCard, Toolbar, SectionCard, ModernTable } from '../../components/finance/finance_modern'
+import { useEffect, useState } from 'react'
+import { financeApi } from '../../features/finance/finance.api'
+import Toast, { type ToastState } from '../../components/ui/Toast'
+import { exportToPdf } from '../../utils/financeExportPdf'
 
-export default function Finance_ProfitLoss(){
-  const [from, setFrom] = useState(firstOfMonth())
-  const [to, setTo] = useState(todayIso())
-  const [data, setData] = useState<any>(null)
+type PnLRow = {
+  code: string
+  name: string
+  subType: string
+  module?: string | null
+  debit: number
+  credit: number
+  balance: number
+}
+
+export default function Finance_ProfitLoss() {
+  const [incomeRows, setIncomeRows] = useState<PnLRow[]>([])
+  const [expenseRows, setExpenseRows] = useState<PnLRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [toast, setToast] = useState<ToastState>(null)
 
-  async function load(){ setLoading(true); try { setData(await financeApi.profitLoss({ from, to })) } finally { setLoading(false) } }
-  useEffect(() => { load() /* eslint-disable-next-line */ }, [from, to])
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [totalIncome, setTotalIncome] = useState(0)
+  const [totalExpense, setTotalExpense] = useState(0)
+  const [netProfit, setNetProfit] = useState(0)
+  const [moduleRevenue, setModuleRevenue] = useState<Record<string, number>>({})
 
-  const income = Number(data?.totals?.income || 0)
-  const expense = Number(data?.totals?.expense || 0)
-  const net = Number(data?.totals?.net || 0)
-  const margin = income > 0 ? (net / income) * 100 : 0
-  const profitable = net >= 0
+  useEffect(() => {
+    loadReport()
+  }, [dateFrom, dateTo])
 
-  // Simple bar viz for income vs expense
-  const max = Math.max(income, expense, 1)
-  const incomePct = (income / max) * 100
-  const expensePct = (expense / max) * 100
+  async function loadReport() {
+    setLoading(true)
+    try {
+      const res: any = await financeApi.profitLoss({ from: dateFrom || undefined, to: dateTo || undefined })
+      setIncomeRows(res.income || [])
+      setExpenseRows(res.expenses || [])
+      setTotalIncome(res.totalIncome || 0)
+      setTotalExpense(res.totalExpense || 0)
+      setNetProfit(res.netProfit || 0)
+      setModuleRevenue(res.moduleRevenue || {})
+    } catch (e: any) {
+      setToast({ type: 'error', message: e?.message || 'Failed to load profit & loss' })
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const incomeRows = useMemo(() => (data?.income || []).slice().sort((a: any, b: any) => b.amount - a.amount), [data])
-  const expenseRows = useMemo(() => (data?.expense || []).slice().sort((a: any, b: any) => b.amount - a.amount), [data])
+  function handleExportPdf() {
+    const rows = [
+      ...incomeRows.map(r => [r.code, r.name, r.balance.toFixed(2)]),
+      ['', 'TOTAL INCOME', totalIncome.toFixed(2)],
+      ['', '', ''],
+      ...expenseRows.map(r => [r.code, r.name, r.balance.toFixed(2)]),
+      ['', 'TOTAL EXPENSES', totalExpense.toFixed(2)],
+      ['', '', ''],
+      ['', netProfit >= 0 ? 'NET PROFIT' : 'NET LOSS', Math.abs(netProfit).toFixed(2)]
+    ]
+
+    exportToPdf({
+      title: 'Profit & Loss Statement',
+      subtitle: `Period: ${dateFrom || 'Start'} to ${dateTo || 'Today'}`,
+      filename: `profit-loss-${dateFrom || 'all'}-${dateTo || 'all'}`,
+      headers: ['Code', 'Account Name', 'Balance'],
+      rows: rows
+    })
+  }
 
   return (
-    <div className="min-h-[calc(100dvh-3.5rem)] bg-slate-50 dark:bg-slate-950">
-      <HeroHeader
-        icon={LineChart}
-        title="Profit & Loss"
-        subtitle={<span>Revenue vs. expenses from <strong>{from}</strong> to <strong>{to}</strong></span>}
-        gradient={profitable ? 'from-emerald-600 via-teal-600 to-cyan-600' : 'from-rose-600 via-red-600 to-orange-600'}
-        actions={
-          <>
-            <HeroButton icon={RefreshCw} onClick={load} disabled={loading}>
-              {loading ? 'Loading…' : 'Refresh'}
-            </HeroButton>
-            <HeroButton icon={Printer} variant="solid" onClick={() => printFinanceReport({
-              title: 'Profit & Loss',
-              subtitle: `Period ${from || '—'} → ${to || '—'}`,
-              columns: [
-                { header: 'Section',  render: (r: any) => r._section },
-                { header: 'Code', key: 'code' },
-                { header: 'Account', key: 'name' },
-                { header: 'Amount', render: (r: any) => fmtRs(r.amount), align: 'right' },
-              ],
-              rows: [
-                ...(data?.income || []).map((r: any) => ({ ...r, _section: 'Income' })),
-                ...(data?.expense || []).map((r: any) => ({ ...r, _section: 'Expense' })),
-              ],
-              totals: data ? [
-                { label: 'Total Income',  value: fmtRs(data.totals.income) },
-                { label: 'Total Expense', value: fmtRs(data.totals.expense) },
-                { label: 'Net Income',    value: fmtRs(data.totals.net) },
-              ] : [],
-            })}>
-              Print
-            </HeroButton>
-          </>
-        }
-      />
+    <div className="p-6">
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
-      <Toolbar>
-        <DateRangeFilter value={{ from, to }} onChange={r => { setFrom(r.from); setTo(r.to) }} />
-      </Toolbar>
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow p-5 mb-6 flex items-center justify-between text-white">
+        <div>
+          <h1 className="text-2xl font-semibold">Profit & Loss Statement</h1>
+          <p className="text-sm text-blue-100 mt-1">Income and Expense summary for the selected period</p>
+        </div>
+        <button onClick={handleExportPdf} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg">
+          Export PDF
+        </button>
+      </div>
 
-      <div className="mx-auto max-w-7xl space-y-6 p-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard icon={TrendingUp} label="Total Income" value={loading ? '…' : fmtRs(income)} gradient="from-emerald-500 to-teal-600" tone="good" />
-          <KpiCard icon={TrendingDown} label="Total Expense" value={loading ? '…' : fmtRs(expense)} gradient="from-rose-500 to-pink-600" tone="bad" />
-          <KpiCard
-            icon={DollarSign}
-            label="Net Income"
-            value={loading ? '…' : fmtRs(net)}
-            tone={profitable ? 'good' : 'bad'}
-            gradient={profitable ? 'from-emerald-500 to-teal-600' : 'from-rose-500 to-red-600'}
-            hint={profitable ? 'Profit' : 'Loss'}
-          />
-          <KpiCard
-            icon={Percent}
-            label="Net Margin"
-            value={loading ? '…' : `${margin.toFixed(1)}%`}
-            tone={profitable ? 'good' : 'bad'}
-            gradient="from-violet-500 to-purple-600"
-            hint={income > 0 ? 'Net / Income' : 'No income'}
-          />
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <div className="flex gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">From Date</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 border rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">To Date</label>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 border rounded-lg" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-green-50 px-4 py-3 font-semibold text-green-800">INCOME</div>
+          {loading ? <div className="p-4 text-center">Loading...</div> : (
+            <table className="w-full text-sm">
+              <tbody className="divide-y">
+                {incomeRows.map((r, i) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-4 py-2">{r.code}</td>
+                    <td className="px-4 py-2">{r.name}</td>
+                    <td className="px-4 py-2">
+                      {r.module ? <span className="px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-800">{r.module}</span> : '—'}
+                    </td>
+                    <td className="px-4 py-2 text-right">{r.balance.toFixed(2)}</td>
+                  </tr>
+                ))}
+                <tr className="bg-green-100 font-bold">
+                  <td colSpan={3} className="px-4 py-2">Total Income</td>
+                  <td className="px-4 py-2 text-right">{totalIncome.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {/* Income vs Expense visual bars */}
-        <SectionCard title="Income vs. Expense" subtitle="Relative scale of the period">
-          <div className="space-y-5 p-6">
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400"><TrendingUp className="h-4 w-4" />Income</span>
-                <span className="tabular-nums font-bold text-emerald-700 dark:text-emerald-400">{fmtRs(income)}</span>
-              </div>
-              <div className="h-4 w-full overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/30">
-                <div className="h-full rounded-full bg-linear-to-r from-emerald-500 to-teal-600 transition-all" style={{ width: `${incomePct}%` }} />
-              </div>
-            </div>
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2 font-medium text-rose-700 dark:text-rose-400"><TrendingDown className="h-4 w-4" />Expenses</span>
-                <span className="tabular-nums font-bold text-rose-700 dark:text-rose-400">{fmtRs(expense)}</span>
-              </div>
-              <div className="h-4 w-full overflow-hidden rounded-full bg-rose-100 dark:bg-rose-950/30">
-                <div className="h-full rounded-full bg-linear-to-r from-rose-500 to-pink-600 transition-all" style={{ width: `${expensePct}%` }} />
-              </div>
-            </div>
-          </div>
-        </SectionCard>
-
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <SectionCard
-            title={<span className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-emerald-600" />Income Accounts</span>}
-            right={<span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{fmtRs(income)}</span>}
-          >
-            <ModernTable
-              columns={[
-                { key: 'code', header: 'Code', render: (r: any) => <span className="font-mono text-xs text-slate-500">{r.code}</span> },
-                { key: 'name', header: 'Account', render: (r: any) => <span className="font-medium">{r.name}</span> },
-                { key: 'amount', header: 'Amount', render: (r: any) => {
-                  const pct = income > 0 ? (r.amount / income) * 100 : 0
-                  return (
-                    <div className="text-right">
-                      <div className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{fmtRs(r.amount)}</div>
-                      <div className="text-[10px] text-slate-400">{pct.toFixed(1)}%</div>
-                    </div>
-                  )
-                }, className: 'text-right' },
-              ]}
-              rows={incomeRows.map((r: any, i: number) => ({ ...r, id: `i-${r.code}-${i}` }))}
-              empty={loading ? 'Loading…' : 'No income in the period.'}
-            />
-          </SectionCard>
-
-          <SectionCard
-            title={<span className="flex items-center gap-2"><TrendingDown className="h-4 w-4 text-rose-600" />Expense Accounts</span>}
-            right={<span className="rounded-full bg-rose-50 px-3 py-1 text-sm font-bold text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">{fmtRs(expense)}</span>}
-          >
-            <ModernTable
-              columns={[
-                { key: 'code', header: 'Code', render: (r: any) => <span className="font-mono text-xs text-slate-500">{r.code}</span> },
-                { key: 'name', header: 'Account', render: (r: any) => <span className="font-medium">{r.name}</span> },
-                { key: 'amount', header: 'Amount', render: (r: any) => {
-                  const pct = expense > 0 ? (r.amount / expense) * 100 : 0
-                  return (
-                    <div className="text-right">
-                      <div className="tabular-nums font-semibold text-rose-600 dark:text-rose-400">{fmtRs(r.amount)}</div>
-                      <div className="text-[10px] text-slate-400">{pct.toFixed(1)}%</div>
-                    </div>
-                  )
-                }, className: 'text-right' },
-              ]}
-              rows={expenseRows.map((r: any, i: number) => ({ ...r, id: `e-${r.code}-${i}` }))}
-              empty={loading ? 'Loading…' : 'No expenses in the period.'}
-            />
-          </SectionCard>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-red-50 px-4 py-3 font-semibold text-red-800">EXPENSES</div>
+          {loading ? <div className="p-4 text-center">Loading...</div> : (
+            <table className="w-full text-sm">
+              <tbody className="divide-y">
+                {expenseRows.map((r, i) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-4 py-2">{r.code}</td>
+                    <td className="px-4 py-2">{r.name}</td>
+                    <td className="px-4 py-2">
+                      {r.module ? <span className="px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-800">{r.module}</span> : '—'}
+                    </td>
+                    <td className="px-4 py-2 text-right">{r.balance.toFixed(2)}</td>
+                  </tr>
+                ))}
+                <tr className="bg-red-100 font-bold">
+                  <td colSpan={3} className="px-4 py-2">Total Expenses</td>
+                  <td className="px-4 py-2 text-right">{totalExpense.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
         </div>
+      </div>
 
-        {/* NET INCOME banner */}
-        <div className={`relative overflow-hidden rounded-2xl p-8 text-white shadow-xl ${profitable ? 'bg-linear-to-br from-emerald-600 via-teal-600 to-cyan-700' : 'bg-linear-to-br from-rose-600 via-red-600 to-orange-700'}`}>
-          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
-          <div className="relative flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-medium uppercase tracking-widest text-white/80">Net {profitable ? 'Profit' : 'Loss'}</div>
-              <div className="mt-1 text-4xl font-bold tracking-tight md:text-5xl tabular-nums">{fmtRs(net)}</div>
-              <div className="mt-1 text-sm text-white/80">Margin: {margin.toFixed(2)}%</div>
-            </div>
-            <div className={`flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm ring-1 ring-white/20`}>
-              {profitable ? <TrendingUp className="h-10 w-10" /> : <TrendingDown className="h-10 w-10" />}
-            </div>
+      {/* Module-wise Revenue Breakdown */}
+      {Object.keys(moduleRevenue).length > 0 && (
+        <div className="mt-6 bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-purple-50 px-4 py-3 font-semibold text-purple-800">REVENUE BY MODULE</div>
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-4 p-4">
+            {Object.entries(moduleRevenue).map(([mod, amount]) => (
+              <div key={mod} className="bg-purple-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-purple-600 font-medium uppercase">{mod}</p>
+                <p className="text-lg font-bold text-purple-900">{Number(amount).toFixed(2)}</p>
+              </div>
+            ))}
           </div>
+        </div>
+      )}
+
+      <div className={`mt-6 rounded-lg shadow p-6 text-center ${netProfit >= 0 ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+        <div className="text-2xl font-bold">
+          {netProfit >= 0 ? 'Net Profit' : 'Net Loss'}: {Math.abs(netProfit).toFixed(2)}
         </div>
       </div>
     </div>

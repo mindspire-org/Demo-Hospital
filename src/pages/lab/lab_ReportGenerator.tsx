@@ -6,7 +6,7 @@ import { previewLabReportPdf, downloadLabReportPdf, type ReportRow } from '../..
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
 import { useLabSession } from '../../hooks/useLabSession'
 
-type ResultRow = { id: string; test: string; normal?: string; unit?: string; value?: string; comment?: string; flag?: 'normal'|'abnormal'|'critical' }
+type ResultRow = { id: string; test: string; normal?: string; unit?: string; value?: string; comment?: string; flag?: 'normal'|'abnormal'|'critical'; sectionKey?: string; profile?: string }
 
 type ResultRecord = { id: string; orderId: string; testId?: string; testName?: string; rows: ResultRow[]; interpretation?: string; createdAt: string; submittedBy?: string; approvedBy?: string; approvedAt?: string; reportStatus?: 'pending' | 'approved' }
 
@@ -21,11 +21,17 @@ type Order = {
   reportingTime?: string
   referringConsultant?: string
   barcode?: string
+  sampleType?: 'normal' | 'urgent' | 'stat'
+  billingType?: 'Cash' | 'Card' | 'Corporate' | 'Free' | string
+  discount?: number
+  net?: number
+  receivedAmount?: number
+  receivableAmount?: number
 }
 
 type Track = { status: 'received' | 'completed'; sampleTime?: string; reportingTime?: string; tokenNo: string }
 
-type LabTest = { id: string; name: string; category?: string }
+type LabTest = { id: string; name: string; category?: string; sections?: any[] }
 
 function parseRange(r?: string) {
   if (!r) return null
@@ -48,6 +54,43 @@ function rowFlag(r: ResultRow) {
 }
 
 function formatDateTime(iso: string) { const d = new Date(iso); return d.toLocaleDateString() + ', ' + d.toLocaleTimeString() }
+
+function buildPrintRows(sourceRows: any[], testDef: any) {
+  const sections = testDef?.sections || []
+  const unsectioned: any[] = []
+  const sectionGroups: Record<string, any[]> = {}
+  for (const r of sourceRows) {
+    const sk = r.sectionKey || ''
+    if (!sk) unsectioned.push(r)
+    else {
+      if (!sectionGroups[sk]) sectionGroups[sk] = []
+      sectionGroups[sk].push(r)
+    }
+  }
+
+  const out: any[] = []
+  const mapRow = (r:any) => ({
+    test: r.test,
+    normal: r.normal,
+    unit: r.unit,
+    value: r.value,
+    prevValue: r.prevValue,
+    flag: r.flag,
+    comment: r.comment,
+    profile: r.profile,
+  })
+  
+  unsectioned.forEach(r => out.push(mapRow(r)))
+  
+  sections.forEach((sec: any) => {
+    const secRows = sectionGroups[sec.key] || []
+    if (secRows.length > 0) {
+      out.push({ isSection: true, test: sec.title })
+      secRows.forEach(r => out.push(mapRow(r)))
+    }
+  })
+  return out
+}
 
 function genBarcode(order?: Order) {
   if (!order) return '-'
@@ -92,19 +135,26 @@ export default function Lab_ReportGenerator() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const reqSeq = useRef(0)
+
+  // Filters/search
+  const [q, setQ] = useState('')
+  const [flag, setFlag] = useState<'all'|'normal'|'abnormal'|'critical'|'unknown'>('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [paymentStatus, setPaymentStatus] = useState<'all'|'paid'|'partial'|'free'|'discounted'>('all')
+
   useEffect(()=>{
     let mounted = true
     ;(async()=>{
       try {
         const my = ++reqSeq.current
         const [resRes, ordRes, tstRes] = await Promise.all([
-          labApi.listResults({ page, limit: rowsPer, reportStatus: 'approved' }),
+          labApi.listResults({ page, limit: rowsPer, reportStatus: 'approved', from: fromDate || undefined, to: toDate || undefined }),
           labApi.listOrders({ limit: 500 }),
           labApi.listTests({ limit: 1000 }),
         ])
         if (!mounted || my !== reqSeq.current) return
         const list = (resRes.items||[])
-          .filter((r: any) => String(r.reportStatus || 'pending') === 'approved')
           .map((r:any)=>({
             id: r._id,
             orderId: r.orderId,
@@ -131,14 +181,19 @@ export default function Lab_ReportGenerator() {
           sampleTime: x.sampleTime, 
           reportingTime: x.reportingTime, 
           referringConsultant: x.referringConsultant, 
-          barcode: x.barcode 
+          barcode: x.barcode,
+          billingType: x.billingType,
+          discount: Number(x.discount || 0),
+          net: Number(x.net || 0),
+          receivedAmount: Number(x.receivedAmount || 0),
+          receivableAmount: Number(x.receivableAmount || 0),
         }))
         setOrders(o)
-        setTests((tstRes.items||[]).map((t:any)=>({ id: t._id, name: t.name, category: t.category||'' })))
+        setTests((tstRes.items||[]).map((t:any)=>({ id: t._id, name: t.name, category: t.category||'', sections: t.sections||[] })))
       } catch (e){ console.error(e); setResults([]); setOrders([]); setTests([]) }
     })()
     return ()=>{ mounted = false }
-  }, [page, rowsPer])
+  }, [page, rowsPer, fromDate, toDate])
 
   useEffect(()=>{
     let mounted = true
@@ -150,6 +205,7 @@ export default function Lab_ReportGenerator() {
 
   const ordersMap = useMemo(() => Object.fromEntries(orders.map(o => [o.id, o])), [orders])
   const testsMap = useMemo(() => Object.fromEntries(tests.map(t => [t.id, t.name])), [tests])
+  const testDefMap = useMemo(() => Object.fromEntries(tests.map(t => [t.id, t])), [tests])
   const track = useMemo<Record<string, Track>>(()=> Object.fromEntries(orders.map(o=> [o.id, { status: o.status, tokenNo: o.tokenNo || `D${new Date(o.createdAt).getDate().toString().padStart(2,'0')}${(new Date(o.createdAt).getMonth()+1).toString().padStart(2,'0')}${new Date(o.createdAt).getFullYear()}_${o.id.slice(-3)}`, sampleTime: o.sampleTime, reportingTime: o.reportingTime } as Track ])), [orders])
 
   type Enriched = { r: ResultRecord; order: Order | undefined; track: Track | undefined; flag: 'normal'|'abnormal'|'critical'|'unknown'; testsStr: string }
@@ -183,20 +239,18 @@ export default function Lab_ReportGenerator() {
     return { r, order, track: tr, flag: flagAgg, testsStr }
   }), [results, ordersMap, track, testsMap])
 
-  // Filters/search
-  const [q, setQ] = useState('')
-  const [flag, setFlag] = useState<'all'|'normal'|'abnormal'|'critical'|'unknown'>('all')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-
   const filtered = useMemo(() => enriched.filter(e => {
     if (flag !== 'all' && e.flag !== flag) return false
-    // Date filtering
-    if (fromDate || toDate) {
-      const resultDate = new Date(e.r.createdAt)
-      const resultDateStr = resultDate.toISOString().split('T')[0]
-      if (fromDate && resultDateStr < fromDate) return false
-      if (toDate && resultDateStr > toDate) return false
+    if (paymentStatus !== 'all') {
+      const o = e.order
+      const net = o?.net || 0
+      const received = o?.receivedAmount || 0
+      const discount = o?.discount || 0
+      const billingType = (o?.billingType || '').toLowerCase()
+      if (paymentStatus === 'free' && billingType !== 'free') return false
+      if (paymentStatus === 'discounted' && discount <= 0) return false
+      if (paymentStatus === 'paid' && (received < net || net === 0)) return false
+      if (paymentStatus === 'partial' && (received >= net || received === 0)) return false
     }
     const term = q.trim().toLowerCase()
     if (!term) return true
@@ -208,13 +262,60 @@ export default function Lab_ReportGenerator() {
       (e.order?.barcode || '').toLowerCase().includes(term) ||
       e.testsStr.toLowerCase().includes(term)
     )
-  }), [enriched, q, flag, fromDate, toDate])
+  }), [enriched, q, flag, paymentStatus])
 
   const pageCount = totalPages
   const curPage = Math.min(page, pageCount)
   const start = Math.min((curPage - 1) * rowsPer + 1, total)
   const end = Math.min((curPage - 1) * rowsPer + filtered.length, total)
   const items = filtered
+
+  const printCollectiveReport = async (orderId: string) => {
+    const o = ordersMap[orderId]
+    if (!o) return
+    const tr = track[orderId]
+    try {
+      const res: any = await labApi.listResults({ orderId: o.id, reportStatus: 'approved', limit: 100 })
+      const allResults: ResultRecord[] = (res?.items || []).filter((r: any) => String(r.reportStatus) === 'approved')
+      
+      if (allResults.length === 0) {
+        alert('No approved results found for this order.')
+        return
+      }
+
+      // Merge rows from all results
+      const mergedRows: ReportRow[] = allResults.flatMap(r => buildPrintRows(r.rows || [], testDefMap[r.testId || '']))
+      
+      // Combined test list for header
+      const combinedTests = allResults.map(r => r.testName).filter(Boolean).join(', ')
+      
+      await previewLabReportPdf({
+        tokenNo: tr?.tokenNo || '-',
+        barcode: o.barcode,
+        createdAt: o.createdAt,
+        sampleTime: tr?.sampleTime,
+        reportingTime: tr?.reportingTime,
+        approvedAt: allResults[0].approvedAt,
+        patient: {
+          fullName: o.patient.fullName,
+          phone: o.patient.phone,
+          mrn: o.patient.mrn,
+          age: o.patient.age,
+          gender: o.patient.gender,
+          address: o.patient.address,
+        },
+        rows: mergedRows,
+        interpretation: allResults.map(r => r.interpretation).filter(Boolean).join('\n---\n'),
+        referringConsultant: o.referringConsultant,
+        submittedBy: allResults[0].submittedBy,
+        approvedBy: allResults[0].approvedBy,
+        profileLabel: combinedTests || 'Collective Report',
+      })
+    } catch (err) {
+      console.error('Failed to generate collective report:', err)
+      alert('Failed to generate collective report.')
+    }
+  }
 
   const printRow = async (e: Enriched) => {
     const o = e.order; if (!o) return
@@ -272,6 +373,9 @@ export default function Lab_ReportGenerator() {
     }
 
     // Default: Print single report
+    const testDef = testDefMap[e.r.testId || '']
+    const printRows = buildPrintRows(e.r.rows || [], testDef)
+    
     await previewLabReportPdf({
       tokenNo: e.track?.tokenNo || '-',
       barcode: o.barcode,
@@ -287,15 +391,7 @@ export default function Lab_ReportGenerator() {
         gender: o.patient.gender,
         address: o.patient.address,
       },
-      rows: (e.r.rows||[]).map((row: ResultRow)=>({
-        test: row.test,
-        normal: row.normal,
-        unit: row.unit,
-        value: row.value,
-        prevValue: (row as any).prevValue,
-        flag: row.flag,
-        comment: row.comment,
-      })),
+      rows: printRows,
       interpretation: e.r.interpretation,
       referringConsultant: o.referringConsultant,
       submittedBy: e.r.submittedBy,
@@ -360,6 +456,9 @@ export default function Lab_ReportGenerator() {
     }
 
     // Default: Download single report
+    const testDef = testDefMap[e.r.testId || '']
+    const printRows = buildPrintRows(e.r.rows || [], testDef)
+    
     await downloadLabReportPdf({
       tokenNo: e.track?.tokenNo || '-',
       barcode: o.barcode,
@@ -375,15 +474,7 @@ export default function Lab_ReportGenerator() {
         gender: o.patient.gender,
         address: o.patient.address,
       },
-      rows: (e.r.rows||[]).map((row: ResultRow)=>({
-        test: row.test,
-        normal: row.normal,
-        unit: row.unit,
-        value: row.value,
-        prevValue: (row as any).prevValue,
-        flag: row.flag,
-        comment: row.comment,
-      })),
+      rows: printRows,
       interpretation: e.r.interpretation,
       referringConsultant: o.referringConsultant,
       submittedBy: e.r.submittedBy,
@@ -511,148 +602,251 @@ export default function Lab_ReportGenerator() {
     win.document.write('</body></html>'); win.document.close(); win.focus(); win.print();
   }
 
+  const flagBadge = (f: string) => {
+    const cls = f === 'critical' ? 'bg-rose-100 text-rose-700' : f === 'abnormal' ? 'bg-amber-100 text-amber-700' : f === 'normal' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+    return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${cls}`}>{f}</span>
+  }
+
+  const payBadge = (o: Order | undefined) => {
+    if (!o) return null
+    const bt = (o.billingType || '').toLowerCase()
+    const net = o.net || 0; const received = o.receivedAmount || 0; const discount = o.discount || 0
+    if (bt === 'free') return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-violet-100 text-violet-700">Free</span>
+    if (discount > 0 && received >= net) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-sky-100 text-sky-700">Discounted</span>
+    if (net > 0 && received >= net) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">Paid</span>
+    if (received > 0 && received < net) return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-100 text-amber-700">Partial</span>
+    return <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-slate-100 text-slate-500">{o.billingType || '-'}</span>
+  }
+
+  const typeBadge = (o: Order | undefined) => {
+    const st = o?.sampleType || 'normal'
+    const cls = st === 'urgent' ? 'bg-rose-100 text-rose-700' : st === 'stat' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+    return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${cls}`}>{st}</span>
+  }
+
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      {/* Header */}
-      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="mx-auto max-w-[1600px] space-y-4 p-4 md:p-6">
+
+      {/* ── Header ── */}
+      <div className="rounded-2xl bg-linear-to-r from-violet-600 via-sky-600 to-emerald-500 p-5 text-white shadow-lg shadow-sky-200/40">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-bold">Report Generator</h2>
-            <div className="mt-0.5 text-sm text-sky-100">Search, preview, and print lab reports</div>
-          </div>
-          <span className="rounded-full border border-white/30 bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">{session.role}</span>
-        </div>
-      </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[240px] flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }} placeholder="Search by name, token, barcode, MR number, test.." className="w-full rounded-md border border-slate-300 pl-9 pr-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+            <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">Report Generator</h2>
+            <p className="mt-0.5 text-sm text-sky-100">Search, preview and print approved lab reports</p>
           </div>
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-slate-400" />
-            <input type="date" value={fromDate} onChange={e=>{ setFromDate(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="From" />
-            <span className="text-slate-400">-</span>
-            <input type="date" value={toDate} onChange={e=>{ setToDate(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm" placeholder="To" />
+            <span className="rounded-full border border-white/30 bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">{session.role}</span>
+            <button onClick={()=>{ flag==='critical' ? printCriticalList() : printList() }} className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 border border-white/30 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm hover:bg-white/30 transition-colors">
+              <FileDown className="h-3.5 w-3.5" /> Export PDF
+            </button>
           </div>
-          <select value={flag} onChange={e=>{ setFlag(e.target.value as any); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
-            <option value="all">All Flags</option>
-            <option value="normal">normal</option>
-            <option value="abnormal">abnormal</option>
-            <option value="critical">critical</option>
-            <option value="unknown">unknown</option>
-          </select>
-          <button onClick={()=>{ setFromDate(''); setToDate(''); setQ(''); setFlag('all'); setPage(1) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Clear</button>
-          <button onClick={()=>{ flag==='critical' ? printCriticalList() : printList() }} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><FileDown className="h-4 w-4" /> PDF</button>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
-            <tr className="text-left">
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">SR.NO</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Date</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Patient</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">MR No</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Token No</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Barcode</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Test</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Flag</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Status</th>
-              <th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((e, idx) => (
-              <tr key={e.r.id} className={`border-b border-slate-100 ${e.flag==='critical'?'bg-rose-50':''}`}>
-                <td className="px-3 py-2">{start + idx + 1}</td>
-                <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(e.r.createdAt)}</td>
-                <td className="px-3 py-2 whitespace-nowrap">{e.order?.patient.fullName}</td>
-                <td className="px-3 py-2 whitespace-nowrap">{e.order?.patient.mrn || '-'}</td>
-                <td className="px-3 py-2 whitespace-nowrap">{e.track?.tokenNo || '-'}</td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="flex items-center gap-1 text-xs">
-                    <Barcode className="h-4 w-4 text-slate-400" />
-                    <span className="font-mono">{e.order?.barcode || genBarcode(e.order)}</span>
-                  </div>
-                </td>
-                <td className="px-3 py-2">{e.testsStr || '-'}</td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${e.flag==='critical'?'bg-rose-100 text-rose-700': e.flag==='abnormal'?'bg-amber-100 text-amber-700': e.flag==='normal'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-700'}`}>{e.flag}</span>
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${e.r.reportStatus === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {e.r.reportStatus || 'pending'}{e.r.reportStatus === 'approved' && e.r.approvedBy ? ` by ${e.r.approvedBy}` : ''}
-                  </span>
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const token = String(e.track?.tokenNo || '').trim()
-                        if (!token) return
-                        setTrackTokenNo(token)
-                        setTrackOpen(true)
-                      }}
-                      title="Test Tracking"
-                      aria-label="Test Tracking"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
-                      <Clock className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={()=>downloadRowPdf(e)}
-                      title="Download PDF"
-                      aria-label="Download PDF"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
-                      <FileDown className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={()=>printRow(e)}
-                      title="Print"
-                      aria-label="Print"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
-                      <Printer className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={()=> navigate(`/lab/results?orderId=${e.r.orderId}`)}
-                      title="Edit Result"
-                      aria-label="Edit Result"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <div className="p-6 text-sm text-slate-500">No reports</div>
+      {/* ── Filter bar ── */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-wrap items-end gap-3 p-4">
+          {/* Search */}
+          <div className="relative min-w-0 flex-1 basis-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={q}
+              onChange={e => { setQ(e.target.value); setPage(1) }}
+              placeholder="Name, token, barcode, MR, test…"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+          </div>
+          {/* Date range */}
+          <div className="flex items-center gap-1.5 basis-auto shrink-0">
+            <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
+            <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }}
+              className="w-36 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+            <span className="text-slate-300 font-medium">–</span>
+            <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1) }}
+              className="w-36 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+          </div>
+          {/* Flag filter */}
+          <select value={flag} onChange={e => { setFlag(e.target.value as any); setPage(1) }}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+            <option value="all">All Flags</option>
+            <option value="normal">Normal</option>
+            <option value="abnormal">Abnormal</option>
+            <option value="critical">Critical</option>
+            <option value="unknown">Unknown</option>
+          </select>
+          {/* Payment filter */}
+          <select value={paymentStatus} onChange={e => { setPaymentStatus(e.target.value as any); setPage(1) }}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+            <option value="all">All Payments</option>
+            <option value="paid">Paid</option>
+            <option value="partial">Partial / Pending</option>
+            <option value="discounted">Discounted</option>
+            <option value="free">Free</option>
+          </select>
+          <button onClick={() => { setFromDate(''); setToDate(''); setQ(''); setFlag('all'); setPaymentStatus('all'); setPage(1) }}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 shrink-0">
+            Clear
+          </button>
+        </div>
+        {/* Active filter chips */}
+        {(q || fromDate || toDate || flag !== 'all' || paymentStatus !== 'all') && (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-4 py-2 dark:border-slate-800">
+            <span className="text-xs text-slate-400 font-medium">Active:</span>
+            {q && <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Search: {q}</span>}
+            {(fromDate || toDate) && <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700"><Calendar className="h-3 w-3" />{fromDate || '…'} – {toDate || '…'}</span>}
+            {flag !== 'all' && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Flag: {flag}</span>}
+            {paymentStatus !== 'all' && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Payment: {paymentStatus}</span>}
+            <span className="ml-auto text-xs text-slate-500 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+          </div>
         )}
       </div>
 
-      <div className="flex items-center justify-between text-sm text-slate-600">
-        <div>{total === 0 ? '0' : `${start}-${end} of ${total}`}</div>
+      {/* ── Table (desktop) / Cards (mobile) ── */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b-2 border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
+              <tr className="text-left">
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">#</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">Date</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">Patient</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">MR / Token</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">Barcode</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">Type</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">Payment</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500 max-w-[180px]">Test</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">Flag</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">Status</th>
+                <th className="px-3 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {items.map((e, idx) => (
+                <tr key={e.r.id} className={`transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/40 ${e.flag === 'critical' ? 'bg-rose-50/60 dark:bg-rose-900/10' : ''}`}>
+                  <td className="px-3 py-2.5 text-xs font-medium text-slate-400">{start + idx}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">{formatDateTime(e.r.createdAt)}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <div className="font-semibold text-slate-900 dark:text-white">{e.order?.patient.fullName || '-'}</div>
+                    {e.order?.patient.phone && <div className="text-xs text-slate-400">{e.order.patient.phone}</div>}
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <div className="text-xs font-mono text-slate-700 dark:text-slate-300">{e.order?.patient.mrn || '-'}</div>
+                    <div className="text-xs text-slate-400">{e.track?.tokenNo || '-'}</div>
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <div className="flex items-center gap-1 text-xs font-mono text-slate-600 dark:text-slate-400">
+                      <Barcode className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {e.order?.barcode || genBarcode(e.order)}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">{typeBadge(e.order)}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">{payBadge(e.order)}</td>
+                  <td className="px-3 py-2.5 max-w-[180px]">
+                    <div className="line-clamp-2 text-xs text-slate-700 dark:text-slate-300">{e.testsStr || '-'}</div>
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">{flagBadge(e.flag)}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${e.r.reportStatus === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {e.r.reportStatus || 'pending'}
+                      {e.r.reportStatus === 'approved' && e.r.approvedBy ? ` · ${e.r.approvedBy}` : ''}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => { const t = String(e.track?.tokenNo || '').trim(); if (!t) return; setTrackTokenNo(t); setTrackOpen(true) }} title="Tracking" aria-label="Tracking" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-violet-600 transition-colors dark:border-slate-700 dark:hover:bg-slate-800"><Clock className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => downloadRowPdf(e)} title="Download PDF" aria-label="Download PDF" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-sky-600 transition-colors dark:border-slate-700 dark:hover:bg-slate-800"><FileDown className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => printRow(e)} title="Print" aria-label="Print" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-emerald-600 transition-colors dark:border-slate-700 dark:hover:bg-slate-800"><Printer className="h-3.5 w-3.5" /></button>
+                      {(e.order?.tests?.length || 0) > 1 && (
+                        <button type="button" onClick={() => printCollectiveReport(e.r.orderId)} title="Collective Report" aria-label="Collective Report" className="inline-flex h-7 items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-1.5 text-[9px] font-black uppercase tracking-wider text-violet-700 hover:bg-violet-100 transition-colors dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300"><FileDown className="h-3 w-3" />All</button>
+                      )}
+                      <button type="button" onClick={() => navigate(`/lab/results?orderId=${e.r.orderId}`)} title="Edit" aria-label="Edit" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-amber-600 transition-colors dark:border-slate-700 dark:hover:bg-slate-800"><Pencil className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {items.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400">
+              <svg className="h-12 w-12 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              <p className="text-sm font-medium">No reports match your filters</p>
+              <button onClick={() => { setQ(''); setFlag('all'); setPaymentStatus('all'); setFromDate(''); setToDate(''); setPage(1) }} className="text-xs font-semibold text-violet-600 hover:underline">Clear filters</button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile card list */}
+        <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+          {items.length === 0 && (
+            <div className="flex flex-col items-center gap-3 py-12 text-slate-400">
+              <svg className="h-10 w-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              <p className="text-sm font-medium">No reports found</p>
+            </div>
+          )}
+          {items.map((e, idx) => (
+            <div key={e.r.id} className={`p-4 space-y-3 ${e.flag === 'critical' ? 'bg-rose-50/60 dark:bg-rose-900/10' : ''}`}>
+              {/* Row 1: number + patient + flag */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 text-xs font-bold text-slate-400 w-5 shrink-0">{start + idx}</span>
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-white text-sm">{e.order?.patient.fullName || '-'}</div>
+                    <div className="text-xs text-slate-500">{e.order?.patient.phone || ''}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">{flagBadge(e.flag)}{payBadge(e.order)}</div>
+              </div>
+              {/* Row 2: meta chips */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{e.order?.patient.mrn || '-'}</span>
+                <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{e.track?.tokenNo || '-'}</span>
+                {typeBadge(e.order)}
+                <span>{formatDateTime(e.r.createdAt)}</span>
+              </div>
+              {/* Row 3: tests */}
+              {e.testsStr && <div className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">{e.testsStr}</div>}
+              {/* Row 4: action buttons */}
+              <div className="flex items-center gap-2 pt-1">
+                <button type="button" onClick={() => { const t = String(e.track?.tokenNo || '').trim(); if (!t) return; setTrackTokenNo(t); setTrackOpen(true) }} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors dark:border-slate-700"><Clock className="h-3.5 w-3.5" />Track</button>
+                <button type="button" onClick={() => printRow(e)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors dark:border-slate-700"><Printer className="h-3.5 w-3.5" />Print</button>
+                <button type="button" onClick={() => downloadRowPdf(e)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors dark:border-slate-700"><FileDown className="h-3.5 w-3.5" />PDF</button>
+                <button type="button" onClick={() => navigate(`/lab/results?orderId=${e.r.orderId}`)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors dark:border-slate-700"><Pencil className="h-3.5 w-3.5" />Edit</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Pagination ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          {total === 0 ? 'No results' : <><span className="font-semibold text-slate-900 dark:text-white">{start}–{end}</span> of <span className="font-semibold text-slate-900 dark:text-white">{total}</span> results</>}
+        </div>
         <div className="flex items-center gap-2">
-          <span>Page</span>
-          <span>{page} / {Math.ceil(total / rowsPer)}</span>
-          <select value={rowsPer} onChange={e=>{ setRowsPer(Number(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <span className="min-w-[80px] text-center text-sm font-semibold text-slate-700 dark:text-slate-300">
+            {page} / {Math.max(1, pageCount)}
+          </span>
+          <button onClick={() => setPage(p => Math.min(pageCount, p + 1))} disabled={page >= pageCount}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+          </button>
+          <select value={rowsPer} onChange={e => { setRowsPer(Number(e.target.value)); setPage(1) }}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+            <option value={10}>10 / page</option>
+            <option value={20}>20 / page</option>
+            <option value={50}>50 / page</option>
           </select>
         </div>
       </div>
 
+      </div>
       <Lab_TrackDialog open={trackOpen} onClose={() => setTrackOpen(false)} tokenNo={trackTokenNo || undefined} />
     </div>
   )

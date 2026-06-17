@@ -9,8 +9,7 @@ const defaultSidebarItems = [
   { path: '/finance/staff-dashboard', label: 'Staff Dashboard', order: 4 },
   { path: '/finance/hospital-dashboard', label: 'Hospital Dashboard', order: 5 },
   { path: '/finance/chart-of-accounts', label: 'Chart of Accounts', order: 6 },
-  { path: '/finance/cash-handover', label: 'Cash Handover', order: 7 },
-  { path: '/finance/pending-handovers', label: 'Pending Handovers', order: 8 },
+  { path: '/finance/pending-handovers', label: 'Pending Handovers', order: 7 },
   { path: '/finance/sidebar-permissions', label: 'Sidebar Permissions', order: 15 },
   { path: '/finance/user-management', label: 'User Management', order: 16 },
 ]

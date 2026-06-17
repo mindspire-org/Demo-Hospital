@@ -17,6 +17,7 @@ function resolveOPDFee({ department, doctor, visitType, visitCategory }: any){
   if (doctor){
     if (!isFollowup && visitCategory === 'general' && (doctor as any).opdPublicFee != null) return { fee: (doctor as any).opdPublicFee, source: 'doctor-general' }
     if (!isFollowup && visitCategory === 'private' && (doctor as any).opdPrivateFee != null) return { fee: (doctor as any).opdPrivateFee, source: 'doctor-private' }
+    if (!isFollowup && visitCategory === 'subsidized' && (doctor as any).opdSubsidizedFee != null) return { fee: (doctor as any).opdSubsidizedFee, source: 'doctor-subsidized' }
     if (isFollowup && doctor.opdFollowupFee != null) return { fee: doctor.opdFollowupFee, source: 'followup-doctor' }
     if (doctor.opdBaseFee != null) return { fee: doctor.opdBaseFee, source: 'doctor' }
   }

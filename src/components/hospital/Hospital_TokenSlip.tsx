@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { hospitalApi } from '../../utils/api'
+import { hospitalApi, opdApi } from '../../utils/api'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 import { previewHospitalRxPdf } from '../../utils/hospitalRxPdf'
+import { previewEyePrescriptionPdf } from '../../utils/prescription/templates/eyePrescriptionPdf'
 
 export type TokenSlipData = {
   tokenNo: string
   departmentName: string
   doctorName?: string
+  serviceName?: string
   patientName: string
   phone?: string
   age?: string
@@ -28,6 +31,12 @@ export type TokenSlipData = {
   isReprint?: boolean
   doctorQualification?: string
   doctorSpecialization?: string
+  packageAmount?: number
+  advancedAmount?: number
+  pendingAmount?: number
+  bedFeeIncludedInPackage?: boolean
+  bedCharges?: number
+  encounterId?: string
 }
 
 let settingsCache: any | null = null
@@ -57,8 +66,13 @@ export default function Hospital_TokenSlip({
   autoPrint?: boolean
   user?: string
 }) {
-  const [settings, setSettings] = useState({
-    name: 'Hospital Name', phone: '', address: '', logoDataUrl: '', slipFooter: 'Powered by Hospital MIS'
+  const [settings, setSettings] = useState<{
+    name: string; phone: string; address: string; logoDataUrl: string; slipFooter: string
+    eyeRxEnabled?: boolean
+    manualRxFields?: Record<string, boolean>
+  }>({
+    name: 'Hospital Name', phone: '', address: '', logoDataUrl: '', slipFooter: 'Powered by Hospital MIS',
+    eyeRxEnabled: true, manualRxFields: undefined,
   })
   const printedRef = useRef(false)
 
@@ -70,18 +84,21 @@ export default function Hospital_TokenSlip({
       try {
         if (!settingsCache) settingsCache = await hospitalApi.getSettings()
         if (!cancelled && settingsCache) {
-          const s: any = settingsCache
+          const raw: any = settingsCache
+          const s: any = raw?.settings || raw
           setSettings({
             name: s.name || 'Hospital Name',
             phone: s.phone || '',
             address: s.address || '',
             logoDataUrl: s.logoDataUrl || '',
             slipFooter: s.slipFooter || 'Powered by Hospital MIS',
+            eyeRxEnabled: s.eyeRxEnabled !== false,
+            manualRxFields: s.manualRxFields,
           })
         }
       } catch {}
     }
-    if (open) load()
+    if (open) { settingsCache = null; load() }
     return () => { cancelled = true }
   }, [open])
 
@@ -93,7 +110,49 @@ export default function Hospital_TokenSlip({
 
   if (!open) return null
 
-  async function handlePrintRx() {
+  async function handlePrintEyeRx() {
+    try {
+      const s = await hospitalApi.getSettings()
+
+      let eyePrescriptionItems: any[] = []
+      if (data.encounterId) {
+        try {
+          const presRes: any = await opdApi.getPrescriptionByEncounterId(data.encounterId)
+          eyePrescriptionItems = presRes?.prescription?.items || []
+        } catch {}
+      }
+      await previewEyePrescriptionPdf({
+        settings: {
+          name: s?.name || s?.settings?.name || 'Hospital',
+          address: s?.address || s?.settings?.address || '',
+          phone: s?.phone || s?.settings?.phone || '',
+          email: s?.email || s?.settings?.email || '',
+          website: s?.website || s?.settings?.website || '',
+          logoDataUrl: s?.logoDataUrl || s?.settings?.logoDataUrl || '',
+        },
+        patient: {
+          name: data.patientName || '-',
+          mrn: data.mrn || '-',
+          fatherName: data.guardianName,
+          age: data.age,
+          gender: data.gender,
+          phone: data.phone,
+          address: data.address,
+          cnic: data.cnic,
+        },
+        tokenNo: data.tokenNo,
+        mrn: data.mrn,
+        tokenType: data.tokenType,
+        items: eyePrescriptionItems,
+        createdAt: data.createdAt || new Date().toISOString(),
+        isReprint: data.isReprint,
+      } as any)
+    } catch (e: any) {
+      alert('Failed to print Eye Rx: ' + (e?.message || 'Unknown error'))
+    }
+  }
+
+  async function handlePrintHospitalRx() {
     try {
       const s = await hospitalApi.getSettings()
 
@@ -108,6 +167,17 @@ export default function Hospital_TokenSlip({
         } catch {}
       }
 
+      let prescriptionItems: any[] = []
+      if (data.encounterId) {
+        try {
+          const presRes: any = await opdApi.getPrescriptionByEncounterId(data.encounterId)
+          prescriptionItems = presRes?.prescription?.items || []
+        } catch {}
+      }
+      const hasUrduChars = (text: string) => /[\u0600-\u06FF]/.test(text)
+      const rxLanguage = prescriptionItems.some((it: any) =>
+        hasUrduChars(it.name || '') || hasUrduChars(it.dose || '') || hasUrduChars(it.frequency || '') || hasUrduChars(it.instruction || '') || hasUrduChars(it.route || '')
+      ) ? 'urdu' : 'english'
       await previewHospitalRxPdf({
         settings: {
           name: s?.name || s?.settings?.name || 'Hospital',
@@ -136,18 +206,21 @@ export default function Hospital_TokenSlip({
         visitCategory: data.tokenType === 'Private' ? 'private' : 'public',
         corporatePanelName: data.corporateCompanyName,
         corporatePreAuthNo: data.corporatePreAuthNo,
-        items: [],
+        items: prescriptionItems,
         createdAt: data.createdAt || new Date().toISOString(),
         isReprint: data.isReprint,
+        manualRxFields: settings.manualRxFields,
+        language: rxLanguage,
       } as any)
     } catch (e: any) {
-      alert('Failed to print Rx: ' + (e?.message || 'Unknown error'))
+      alert('Failed to print Hospital Rx: ' + (e?.message || 'Unknown error'))
     }
   }
 
-  const dt = data.createdAt ? new Date(data.createdAt) : new Date()
   const fbrStatus = String(data?.fbr?.status || '').toUpperCase().trim()
   const isFbrSuccess = fbrStatus === 'SUCCESS' && Boolean(data?.fbr?.qrCode)
+  const isFbrDisabled = !data?.fbr || !fbrStatus
+  const showFbrSection = !isFbrDisabled
 
   const slip = (
     <>
@@ -158,12 +231,15 @@ export default function Hospital_TokenSlip({
           onClick={e => e.stopPropagation()}
         >
           <SlipBody
-            data={data} settings={settings} dt={dt}
-            isFbrSuccess={isFbrSuccess}
-            user={user}
+            data={data} settings={settings}
+            showFbrSection={showFbrSection} isFbrSuccess={isFbrSuccess}
+            user={user} manualRxFields={settings.manualRxFields}
           />
           <div className="mt-3 flex items-center justify-end gap-2">
-            <button onClick={handlePrintRx} className="rounded-md bg-violet-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-800">Print Rx</button>
+            {(settings.eyeRxEnabled !== false) && (
+              <button onClick={handlePrintEyeRx} className="rounded-md bg-violet-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-800">Print Eye Rx</button>
+            )}
+            <button onClick={handlePrintHospitalRx} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800">Print Hospital Rx</button>
             <button onClick={() => window.print()} className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white">Print</button>
             <button onClick={onClose} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs">Close</button>
           </div>
@@ -174,9 +250,9 @@ export default function Hospital_TokenSlip({
       <div id="hospital-print-portal">
         <div id="hospital-receipt">
           <SlipBody
-            data={data} settings={settings} dt={dt}
-            isFbrSuccess={isFbrSuccess}
-            user={user}
+            data={data} settings={settings}
+            showFbrSection={showFbrSection} isFbrSuccess={isFbrSuccess}
+            user={user} manualRxFields={settings.manualRxFields}
           />
         </div>
       </div>
@@ -253,13 +329,15 @@ export default function Hospital_TokenSlip({
 }
 
 /* ── Shared slip body (rendered twice: modal + print portal) ── */
-function SlipBody({ data, settings, dt, isFbrSuccess, user }: {
+function SlipBody({ data, settings, showFbrSection, isFbrSuccess, user, manualRxFields }: {
   data: TokenSlipData
-  settings: any
-  dt: Date
+  settings: { name: string; phone: string; address: string; logoDataUrl: string; slipFooter: string }
+  showFbrSection: boolean
   isFbrSuccess: boolean
   user?: string
+  manualRxFields?: Record<string, boolean>
 }) {
+  const show = (k: string) => !manualRxFields || manualRxFields[k] !== false
   return (
     <>
       <div className="text-center">
@@ -279,30 +357,33 @@ function SlipBody({ data, settings, dt, isFbrSuccess, user }: {
       </div>
 
       <div className="mt-2 flex flex-col gap-0.5 text-xs text-slate-700">
-        <div>{dt.toLocaleDateString()} {dt.toLocaleTimeString()}</div>
+        {show('dateTime') && <div>{fmtDateTime12(data.createdAt || new Date().toISOString())}</div>}
         <div>User: {user || getCurrentUser()}</div>
       </div>
 
       <hr className="my-2 border-dashed" />
 
-      <div className="my-2 rounded border border-slate-800 p-3 text-center text-xl font-extrabold tracking-widest">
-        {data.tokenNo}
-      </div>
+      {show('tokenNo') && (
+        <div className="my-2 rounded border border-slate-800 p-3 text-center text-xl font-extrabold tracking-widest">
+          {data.tokenNo}
+        </div>
+      )}
 
       <div className="space-y-1 text-sm text-slate-800">
-        {data.mrn && <Row label="MR #:" value={data.mrn} />}
-        <Row label="Patient Name:" value={data.patientName || '-'} />
-        {(data.guardianName || data.guardianRel) && (
+        {show('mrn') && data.mrn && <Row label="MR #:" value={data.mrn} />}
+        {show('patientName') && <Row label="Patient Name:" value={data.patientName || '-'} />}
+        {show('fatherName') && (data.guardianName || data.guardianRel) && (
           <Row label="Guardian:" value={`${data.guardianRel ? data.guardianRel + ' ' : ''}${data.guardianName || ''}`.trim()} />
         )}
-        {data.tokenType && <Row label="Token Type:" value={data.tokenType} />}
-        {data.age && <Row label="Age:" value={data.age} />}
-        {data.gender && <Row label="Gender:" value={data.gender} />}
-        {data.cnic && <Row label="CNIC:" value={data.cnic} />}
-        {data.address && <Row label="Address:" value={data.address} />}
-        {data.phone && <Row label="Mobile #:" value={data.phone} boldValue />}
-        {data.doctorName && <Row label="Doctor Name:" value={data.doctorName} />}
-        {data.departmentName && <Row label="Department:" value={data.departmentName} />}
+        {show('tokenType') && data.tokenType && <Row label="Token Type:" value={data.tokenType} />}
+        {show('age') && data.age && <Row label="Age:" value={data.age} />}
+        {show('gender') && data.gender && <Row label="Gender:" value={data.gender} />}
+        {show('cnic') && data.cnic && <Row label="CNIC:" value={data.cnic} />}
+        {show('address') && data.address && <Row label="Address:" value={data.address} />}
+        {show('phone') && data.phone && <Row label="Mobile #:" value={data.phone} boldValue />}
+        {show('doctorName') && data.doctorName && <Row label="Doctor Name:" value={data.doctorName} />}
+        {data.serviceName && <Row label="Service Name:" value={data.serviceName} />}
+        {show('departmentName') && data.departmentName && <Row label="Department:" value={data.departmentName} />}
         {data.corporateCompanyName && <Row label="Panel:" value={data.corporateCompanyName} />}
         {data.corporatePreAuthNo && <Row label="Pre-Auth #:" value={data.corporatePreAuthNo} />}
         {typeof data.corporateCoPayPercent === 'number' && (
@@ -310,24 +391,47 @@ function SlipBody({ data, settings, dt, isFbrSuccess, user }: {
         )}
       </div>
 
+      {/* IPD Package Details */}
+      {typeof data.packageAmount === 'number' && data.packageAmount > 0 && (
+        <>
+          <hr className="my-2 border-dashed" />
+          <div className="space-y-1 text-sm text-slate-800">
+            <Row label="Package Amount:" value={`Rs ${data.packageAmount.toFixed(2)}`} boldValue />
+            {typeof data.bedCharges === 'number' && (
+              <Row label="Bed Charges:" value={`Rs ${data.bedCharges.toFixed(2)} ${data.bedFeeIncludedInPackage ? '(Included)' : ''}`} />
+            )}
+            {typeof data.advancedAmount === 'number' && (
+              <Row label="Advance Paid:" value={`Rs ${data.advancedAmount.toFixed(2)}`} />
+            )}
+            {typeof data.pendingAmount === 'number' && (
+              <Row label="Pending Amount:" value={`Rs ${data.pendingAmount.toFixed(2)}`} boldValue />
+            )}
+          </div>
+        </>
+      )}
+
+      <hr className="my-2 border-dashed" />
       <div className="space-y-1 text-sm text-slate-800">
         <Row label="Total Amount:" value={data.amount.toFixed(2)} />
-        {Number(data.discount || 0) > 0 ? (
-          <Row label="Discount:" value={(data.discount || 0).toFixed(2)} />
-        ) : null}
+        <Row label="Discount:" value={(data.discount || 0).toFixed(2)} />
         <Row label="Net Amount:" value={data.payable.toFixed(2)} boldValue />
       </div>
 
-      {isFbrSuccess && (
+      {showFbrSection && (
         <>
           <hr className="my-2 border-dashed" />
           <div className="text-center text-sm font-semibold underline">FBR</div>
           <div className="mt-2 text-center">
-            <img src={data.fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
+            {isFbrSuccess ? (
+              <img src={data.fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
+            ) : (
+              <div className="text-sm font-semibold text-rose-600">FBR FAILED</div>
+            )}
           </div>
           <div className="mt-1 space-y-0.5 text-[11px] text-slate-700">
             <div>FBR No: {data?.fbr?.fbrInvoiceNo || '—'}</div>
             <div>Mode: {data?.fbr?.mode || '—'}</div>
+            <div>Error: {data?.fbr?.error || '—'}</div>
           </div>
         </>
       )}
@@ -345,7 +449,7 @@ function Row({ label, value, boldValue }: { label: string; value: string; boldVa
   return (
     <div className="grid grid-cols-[100px_1fr] gap-2">
       <div className="text-slate-700">{label}</div>
-      <div className={`row-value break-words text-left${boldValue ? ' font-semibold' : ''}`}>{value}</div>
+      <div className={`row-value wrap-break-word text-left${boldValue ? ' font-semibold' : ''}`}>{value}</div>
     </div>
   )
 }

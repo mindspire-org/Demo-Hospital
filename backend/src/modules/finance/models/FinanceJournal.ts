@@ -8,12 +8,13 @@ const JournalLineSchema = new Schema({
 }, { _id: false })
 
 const JournalSchema = new Schema({
-  dateIso: { type: String, required: true },
-  refType: { type: String },
-  refId: { type: String },
+  dateIso: { type: String, required: true, index: true },
+  module: { type: String, index: true },                        // 'opd'|'er'|'ipd'|'lab'|'pharmacy'|'diagnostic'|'dialysis'|'aesthetic'|'general'
+  refType: { type: String, index: true },
+  refId: { type: String, index: true },
   memo: { type: String },
   lines: { type: [JournalLineSchema], default: [] },
-  status: { type: String, default: 'active' }, // 'active' or 'reversed'
+  status: { type: String, default: 'active', index: true }, // 'active' or 'reversed'
   reversedAt: { type: String }, // ISO timestamp when reversed
 }, { timestamps: true })
 
@@ -27,6 +28,7 @@ export type JournalLine = {
 export type JournalDoc = {
   _id: string
   dateIso: string
+  module?: string
   refType?: string
   refId?: string
   memo?: string

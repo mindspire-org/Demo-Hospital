@@ -11,7 +11,6 @@ export default function Finance_UserManagement() {
   const [newUsername, setNewUsername] = useState('')
   const [newRole, setNewRole] = useState<User['role']>('admin')
   const [newPassword, setNewPassword] = useState('')
-  const [createFinanceAccount, setCreateFinanceAccount] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<{ _id: string; username: string; role: User['role']; password?: string } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -75,24 +74,10 @@ export default function Finance_UserManagement() {
     try {
       const created = await financeApi.createUser({ username: newUsername, role: newRole, password: newPassword }) as any
       
-      // Create finance account if checkbox is checked
-      if (createFinanceAccount && created?._id) {
-        try {
-          await financeApi.createUserAccount({
-            portal: 'finance',
-            userId: String(created._id),
-            username: created.username
-          })
-        } catch (e) {
-          console.error('Failed to create finance account:', e)
-        }
-      }
-      
       setUsers(prev => [...prev, created as User])
       setNewUsername('')
       setNewPassword('')
       setNewRole('admin')
-      setCreateFinanceAccount(false)
     } catch (e: any) {
       let msg = e?.message || 'Failed to add user'
       try {
@@ -304,16 +289,6 @@ export default function Finance_UserManagement() {
                     className="w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-200/60"
                     placeholder="Password (min 4 chars)"
                   />
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={createFinanceAccount}
-                      onChange={e => setCreateFinanceAccount(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700 dark:text-slate-300">Create Finance Account</span>
-                  </label>
 
                   <button
                     type="button"

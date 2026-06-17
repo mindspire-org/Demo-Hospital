@@ -39,11 +39,19 @@ async function ensurePngDataUrl(src: string): Promise<string> {
 
 export async function previewModernGradientPdf(data: ModernGradientPdfData & Extras) {
   const { jsPDF } = await import('jspdf')
+  const { ensureUrduNastaleeq, drawUrduText } = await import('../ensureUrduNastaleeq')
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true })
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
 
-  // Palette - vibrant violet-to-sky gradient simulation
+  const urduOk = await ensureUrduNastaleeq(pdf)
+  const hasUrdu = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrduText = (text: string, x: number, y: number, opts?: any) => {
+    drawUrduText(pdf, text, x, y, opts)
+  }
+  const wantsUrdu = (data as any).language === 'urdu'
+  const isUrdu = wantsUrdu && urduOk
+
   const violet   = { r: 124, g: 58,  b: 237 }
   const sky      = { r: 56,  g: 189, b: 248 }
   const indigo   = { r: 99,  g: 102, b: 241 }
@@ -62,14 +70,9 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
   const mx = 10
   let y = 10
 
-  // ══════════════════════════════════════════════════════════════
-  // 1. GRADIENT HEADER (simulated with overlapping rectangles)
-  // ══════════════════════════════════════════════════════════════
   const headerH = 42
   const headerY = 8
   const headerW = W - 2 * mx
-
-  // Simulate gradient: violet → indigo → sky with 6 strips
   const strips = 6
   for (let i = 0; i < strips; i++) {
     const t = i / (strips - 1)
@@ -81,16 +84,13 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     pdf.rect(mx + i * stripW, headerY, stripW + 0.5, headerH, 'F')
   }
 
-  // Rounded overlay on top to smooth edges
   pdf.setFillColor(violet.r, violet.g, violet.b)
   roundedRect(pdf, mx, headerY, headerW, 4, 2)
   pdf.setFillColor(sky.r, sky.g, sky.b)
   roundedRect(pdf, mx, headerY + headerH - 4, headerW, 4, 2)
 
-  // White text on gradient
   pdf.setTextColor(white.r, white.g, white.b)
 
-  // Logo
   let nameX = mx + 8
   const logoSrc = String(settings.logoDataUrl || '')
   if (logoSrc) {
@@ -101,7 +101,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     } catch {}
   }
 
-  // Hospital name
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(18)
   pdf.text(String(settings.name || 'Hospital'), nameX, headerY + 16)
@@ -110,7 +109,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
   pdf.text(String(settings.address || ''), nameX, headerY + 22)
   pdf.text(`Tel: ${settings.phone || ''}`, nameX, headerY + 27)
 
-  // Doctor info right side
   const drX = W - mx - 8
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(14)
@@ -127,16 +125,12 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
 
   y = headerY + headerH + 8
 
-  // ══════════════════════════════════════════════════════════════
-  // 2. PATIENT CARD (rounded, soft violet bg)
-  // ══════════════════════════════════════════════════════════════
   const patCardH = 22
   pdf.setFillColor(softViolet.r, softViolet.g, softViolet.b)
   pdf.setDrawColor(violet.r, violet.g, violet.b)
   pdf.setLineWidth(0.4)
   roundedRect(pdf, mx, y, headerW, patCardH, 4)
 
-  // Left accent bar
   pdf.setFillColor(violet.r, violet.g, violet.b)
   pdf.rect(mx, y + 2, 3, patCardH - 4, 'F')
 
@@ -166,9 +160,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
 
   y += patCardH + 6
 
-  // ══════════════════════════════════════════════════════════════
-  // 3. VITALS BADGES (pill-shaped)
-  // ══════════════════════════════════════════════════════════════
   const v: any = (data as any).vitals || {}
   const vitalsList: Array<{ label: string; value: string; color: { r: number; g: number; b: number } }> = []
   if (v.bloodPressureSys != null && v.bloodPressureDia != null) vitalsList.push({ label: 'BP', value: `${v.bloodPressureSys}/${v.bloodPressureDia}`, color: violet })
@@ -183,8 +174,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     const badgeY = y
     for (const vit of vitalsList) {
       const textW = pdf.getStringUnitWidth(`${vit.label}: ${vit.value}`) * 0.35 + 8
-      // Badge bg
-      pdf.setFillColor(vit.color.r, vit.color.g, vit.color.b)
       pdf.setFillColor(Math.min(255, vit.color.r + 160), Math.min(255, vit.color.g + 160), Math.min(255, vit.color.b + 160))
       roundedRect(pdf, badgeX, badgeY, textW, 7, 3)
       pdf.setFont('helvetica', 'bold')
@@ -199,9 +188,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     y += 12
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 4. CLINICAL SECTIONS (card-based)
-  // ══════════════════════════════════════════════════════════════
   const addCard = (title: string, value: string | undefined, accent: { r: number; g: number; b: number }) => {
     if (!value || !String(value).trim()) return
     const text = String(value).trim()
@@ -213,7 +199,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     pdf.setLineWidth(0.3)
     roundedRect(pdf, mx, y, headerW, cardH, 3)
 
-    // Left accent
     pdf.setFillColor(accent.r, accent.g, accent.b)
     pdf.rect(mx, y + 2, 2.5, cardH - 4, 'F')
 
@@ -237,13 +222,9 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
   addCard('ALLERGIES', data.allergyHistory, rose)
   addCard('ADVICE / REFERRAL', data.advice, emerald)
 
-  // ══════════════════════════════════════════════════════════════
-  // 5. Rx TABLE (modern styled)
-  // ══════════════════════════════════════════════════════════════
   const meds = (data.items || []).filter(m => String(m?.name || '').trim())
   if (meds.length > 0) {
     y += 2
-    // Rx header with gradient bar
     pdf.setFillColor(violet.r, violet.g, violet.b)
     roundedRect(pdf, mx, y, headerW, 8, 2)
     pdf.setTextColor(white.r, white.g, white.b)
@@ -252,7 +233,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     pdf.text('Rx  PRESCRIPTION', mx + 6, y + 6)
     y += 10
 
-    // Table header
     const cols = [6, 40, 20, 20, 24, 16, 20]
     const headers = ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction']
     const colX = mx + 2
@@ -269,35 +249,36 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(7.5)
     pdf.setTextColor(dark.r, dark.g, dark.b)
+    const { translateRxItem } = await import('../../prescriptionUrdu')
     meds.forEach((m, i) => {
-      cx = colX
-      pdf.text(String(i + 1), cx + 1, y); cx += cols[0]
-      pdf.text(String(m?.name || '').trim(), cx + 1, y); cx += cols[1]
-      pdf.text(String(m?.dose || '').trim(), cx + 1, y); cx += cols[2]
-      pdf.text(String(m?.duration || '').trim(), cx + 1, y); cx += cols[3]
-      pdf.text(String(m?.frequency || '').trim(), cx + 1, y); cx += cols[4]
-      pdf.text(String(m?.route || '').trim(), cx + 1, y); cx += cols[5]
-      pdf.text(String(m?.instruction || '').trim(), cx + 1, y)
-      // Alternating row bg
+      const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
       if (i % 2 === 0) {
         pdf.setFillColor(248, 246, 255)
         pdf.rect(colX, y - 3.5, headerW - 4, 5, 'F')
-        // Re-draw text on top
-        pdf.setTextColor(dark.r, dark.g, dark.b)
-        cx = colX
-        pdf.text(String(i + 1), cx + 1, y); cx += cols[0]
-        pdf.text(String(m?.name || '').trim(), cx + 1, y); cx += cols[1]
-        pdf.text(String(m?.dose || '').trim(), cx + 1, y); cx += cols[2]
-        pdf.text(String(m?.duration || '').trim(), cx + 1, y); cx += cols[3]
-        pdf.text(String(m?.frequency || '').trim(), cx + 1, y); cx += cols[4]
-        pdf.text(String(m?.route || '').trim(), cx + 1, y); cx += cols[5]
-        pdf.text(String(m?.instruction || '').trim(), cx + 1, y)
       }
+      cx = colX
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5)
+      pdf.text(String(i + 1), cx + 1, y); cx += cols[0]
+      const mName = String(m?.name || '').trim()
+      const mInstr = String(t?.instruction || '').trim()
+      if (hasUrdu(mName)) { pdf.setFontSize(9); safeUrduText(mName, cx + cols[1] - 1, y, { align: 'right' }) }
+      else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mName, cx + 1, y) }
+      cx += cols[1]
+      pdf.setTextColor(dark.r, dark.g, dark.b)
+      const mDose = String(t?.dose || '').trim()
+      const mDur  = String(t?.duration || '').trim()
+      const mFreq = String(t?.frequency || '').trim()
+      const mRoute = String(t?.route || '').trim()
+      if (hasUrdu(mDose))  { pdf.setFontSize(9); safeUrduText(mDose,  cx + cols[2] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mDose,  cx + 1, y) }; cx += cols[2]
+      if (hasUrdu(mDur))   { pdf.setFontSize(9); safeUrduText(mDur,   cx + cols[3] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mDur,   cx + 1, y) }; cx += cols[3]
+      if (hasUrdu(mFreq))  { pdf.setFontSize(9); safeUrduText(mFreq,  cx + cols[4] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mFreq,  cx + 1, y) }; cx += cols[4]
+      if (hasUrdu(mRoute)) { pdf.setFontSize(9); safeUrduText(mRoute, cx + cols[5] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mRoute, cx + 1, y) }; cx += cols[5]
+      if (hasUrdu(mInstr)) { pdf.setFontSize(9); safeUrduText(mInstr, cx + cols[6] - 1, y, { align: 'right' }) }
+      else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mInstr, cx + 1, y) }
       y += 5
     })
   }
 
-  // ── Lab/Diag Tests ──
   const labTests = (data.labTests || []).filter(Boolean)
   const diagTests = (data.diagnosticTests || []).filter(Boolean)
   if (labTests.length || diagTests.length) {
@@ -316,9 +297,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     y += 14
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // 6. SIGNATURE + FOOTER
-  // ══════════════════════════════════════════════════════════════
   const signY = H - 32
   pdf.setDrawColor(violet.r, violet.g, violet.b)
   pdf.setLineWidth(0.3)
@@ -331,7 +309,6 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
   pdf.setTextColor(dark.r, dark.g, dark.b)
   pdf.text(`Dr. ${doctor.name || ''}`, mx + 4, signY + 8)
 
-  // Footer gradient bar
   for (let i = 0; i < strips; i++) {
     const t = i / (strips - 1)
     const r = Math.round(violet.r + (sky.r - violet.r) * t)
@@ -346,11 +323,9 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
   pdf.setFontSize(7)
   pdf.text(`${settings.name || ''}  •  ${settings.phone || ''}  •  ${settings.address || ''}`, W / 2, H - 10, { align: 'center' })
 
-  // ── Overlay (header/footer/watermark) ──
   const { applyOverlayBeforeOutput } = await import('./applyOverlay')
   await applyOverlayBeforeOutput(pdf)
 
-  // ── Output ──
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {

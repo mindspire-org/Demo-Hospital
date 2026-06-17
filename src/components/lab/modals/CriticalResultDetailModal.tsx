@@ -42,12 +42,22 @@ export default function CriticalResultDetailModal({ events, onClose, onDone }: P
     setBusy(true); setErr('')
     try {
       const ev = events[activeIdx]
+      const normalizedInfoMode = (() => {
+        const v = String(infoMode || '').trim().toLowerCase()
+        if (!v) return ''
+        if (v.startsWith('verbal')) return 'verbal'
+        if (v.startsWith('phone')) return 'phone'
+        if (v.startsWith('text')) return 'sms'
+        if (v.startsWith('sms')) return 'sms'
+        if (v.startsWith('email')) return 'email'
+        return v
+      })()
       await api(`/lab/critical-events/${ev._id}/resolve`, {
         method: 'POST',
         body: JSON.stringify({
           doctor: doctor.trim(),
           comment: comment.trim(),
-          infoMode: infoMode.toLowerCase().split(' ')[0], // verbally→verbal, phone call→phone, text message→text, email→email
+          infoMode: normalizedInfoMode,
           date: new Date(date).toISOString(),
         }),
       })

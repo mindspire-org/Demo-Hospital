@@ -19,11 +19,6 @@ function fmtTime(t?: string){
   try { const x = new Date(s); if (!isNaN(x.getTime())) return x.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) } catch {}
   return s
 }
-function fmtDateTime(d?: string, t?: string){
-  const a = fmtDate(d)
-  const b = fmtTime(t)
-  return [a,b].filter(Boolean).join(' ')
-}
 function esc(s?:string){ return String(s??'').replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'} as any)[c]) }
 function vRow(lbl?:string, val?:string){ return `<div style="display:grid;grid-template-columns:80px 1fr"><div style="padding:4px 6px;font-weight:700;border-right:1px solid #222;border-bottom:1px solid #222">${esc(lbl)}<\/div><div style="border-bottom:1px solid #222;padding:4px 6px">${esc(val)}<\/div><\/div>` }
 function tRow(lbl?:string, val?:string){ return `<div style="display:grid;grid-template-columns:1fr 120px"><div style="border-right:1px solid #222;border-bottom:1px solid #222;padding:4px 6px">${esc(lbl)}<\/div><div style="border-bottom:1px solid #222;padding:4px 6px">${esc(val)}<\/div><\/div>` }
@@ -133,8 +128,26 @@ export default function Hospital_ShortStayList(){
       <div class="page">
         ${hdr}
         <div class="title">SHORT STAY FORM</div>
-        <div class="grid" style="grid-template-columns:auto 1fr auto 160px auto 100px auto 100px;margin-top:8px"><div class="lbl">Patient's Name:</div><div class="line">${esc(F.patientName||patient?.fullName)}</div><div class="lbl">MR#</div><div class="line">${esc(F.mrn||patient?.mrn)}</div><div class="lbl">Age:</div><div class="line">${esc(F.age||patient?.age)}</div><div class="lbl">Sex:</div><div class="line">${esc(F.sex||patient?.gender)}</div></div>
-        <div class="grid" style="grid-template-columns:auto 1fr auto 160px auto 160px;margin-top:8px"><div class="lbl">Address:</div><div class="line">${esc(F.address||patient?.address)}</div><div class="lbl">Date & Time in</div><div class="line">${esc(fmtDateTime(F.dateIn,F.timeIn))}</div><div class="lbl">Date & time out</div><div class="line">${esc(fmtDateTime(F.dateOut,F.timeOut))}</div></div>
+        <!-- Patient info row - name takes remaining space -->
+        <div class="grid" style="grid-template-columns:85px 1fr auto 140px auto 60px auto 60px;margin-top:8px;align-items:end;">
+          <div class="lbl">Name:</div>
+          <div class="line" style="min-width:0;">${esc(F.patientName||patient?.fullName)}</div>
+          <div class="lbl">MR#</div>
+          <div class="line">${esc(F.mrn||patient?.mrn)}</div>
+          <div class="lbl">Age:</div>
+          <div class="line">${esc(F.age||patient?.age)}</div>
+          <div class="lbl">Sex:</div>
+          <div class="line">${esc(F.sex||patient?.gender)}</div>
+        </div>
+        <!-- Address on its own row -->
+        <div class="grid" style="grid-template-columns:85px 1fr;margin-top:6px;align-items:end;"><div class="lbl">Address:</div><div class="line">${esc(F.address||patient?.address)}</div></div>
+        <!-- Date and Time - compact layout to fit on one line -->
+        <div class="grid" style="grid-template-columns:55px 90px 38px 65px 60px 90px 38px 65px;margin-top:6px;align-items:end;">
+          <div class="lbl" style="white-space:nowrap;font-size:12px;">Date In:</div><div class="line" style="font-size:12px;">${esc(fmtDate(F.dateIn))}</div>
+          <div class="lbl" style="font-size:12px;">Time:</div><div class="line" style="font-size:12px;">${esc(fmtTime(F.timeIn))}</div>
+          <div class="lbl" style="white-space:nowrap;font-size:12px;">Date Out:</div><div class="line" style="font-size:12px;">${esc(fmtDate(F.dateOut))}</div>
+          <div class="lbl" style="font-size:12px;">Time:</div><div class="line" style="font-size:12px;">${esc(fmtTime(F.timeOut))}</div>
+        </div>
         <div class="grid" style="grid-template-columns:auto 1fr auto 1fr auto 1fr;align-items:center;column-gap:10px;margin-top:8px"><div class="lbl">OPD ${F.isOpd?'☑':'☐'}</div><div></div><div class="lbl">Short Stay ${F.isShortStay?'☑':'☐'}</div><div></div><div class="lbl">Referred ${F.isReferred?'☑':'☐'}</div></div>
         ${lv('Admission to:', F.admissionTo)}${lv('Presenting Complains:', F.presentingComplaints)}${lv('Brief History:', F.briefHistory)}${lv('Any procedure:', F.anyProcedure)}
         <div class="grid" style="grid-template-columns:auto 1fr auto 200px;margin-top:8px"><div class="lbl">Final diagnosis:</div><div class="line">${esc(F.finalDiagnosis)}</div><div class="lbl">Consultant:</div><div class="line">${esc(F.consultant)}</div></div>

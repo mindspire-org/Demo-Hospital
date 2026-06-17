@@ -1,24 +1,114 @@
-import { useNavigate } from 'react-router-dom'
-import { ScanLine } from 'lucide-react'
-import PortalHeader from '../PortalHeader'
+import { Link, useNavigate } from 'react-router-dom'
+import { Menu, Sun, Moon, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import LiveClock from '../common/LiveClock'
 
-export default function Diagnostic_Header({ onToggleSidebar, onToggleTheme, theme }: { onToggleSidebar?: ()=>void; onToggleTheme?: ()=>void; theme?: 'light'|'dark' }){
+function useUserRole(storageKey: string) {
+  const [role, setRole] = useState<string>('Admin')
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (raw) {
+        const u = JSON.parse(raw)
+        if (u?.role) setRole(String(u.role))
+        else if (u?.username) setRole(String(u.username))
+      }
+    } catch {}
+  }, [storageKey])
+  return role
+}
+
+export default function Diagnostic_Header({ onToggleSidebar, onToggleTheme, theme }: { onToggleSidebar?: ()=>void; onToggleTheme?: ()=>void; theme?: 'light'|'dark' }) {
   const navigate = useNavigate()
-  function logout(){
-    try { localStorage.removeItem('diagnostic.session') } catch {}
+  const userRole = useUserRole('diagnostic.session')
+  const showThemeToggle = !!onToggleTheme && (theme === 'light' || theme === 'dark')
+
+  function handleLogout(){
+    try { localStorage.removeItem('diagnostic.session'); localStorage.removeItem('diagnostic.user') } catch {}
     navigate('/diagnostic/login')
   }
+
+  function handleToggleTheme(){
+    const next = theme === 'dark' ? 'light' : 'dark'
+    try { localStorage.setItem('diagnostic.theme', next) } catch {}
+    try { const scope = document.querySelector('.diagnostic-scope'); if (scope) scope.classList.toggle('dark', next === 'dark') } catch {}
+    onToggleTheme?.()
+  }
+
+  const btnCls = 'inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200/80 bg-white text-slate-600 shadow-sm hover:shadow hover:text-slate-800 hover:border-slate-300 transition-all duration-200 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
+  const chipWrapCls = 'hidden sm:flex items-center rounded-full border border-slate-200/80 bg-white/90 shadow-md shadow-slate-200/50 backdrop-blur overflow-hidden dark:border-slate-700 dark:bg-slate-800/70 dark:shadow-none'
+  const chipBtnCls = 'inline-flex items-center gap-2 px-3 py-2 text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition dark:text-slate-300 dark:hover:bg-slate-700'
+  const chipDivCls = 'h-6 w-px bg-slate-200 dark:bg-slate-600'
+  const chipTextCls = 'px-3 py-2 text-slate-600 capitalize dark:text-slate-300'
+  const chipLogoutCls = 'inline-flex items-center gap-2 px-3 py-2 text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition dark:text-slate-300 dark:hover:bg-rose-900/30 dark:hover:text-rose-400'
+  const mobileBtnCls = 'inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200/80 bg-white text-slate-600 shadow-sm hover:shadow hover:text-slate-800 hover:border-slate-300 transition-all sm:hidden dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
+
   return (
-    <PortalHeader
-      brand="Diagnostic ERP"
-      subtitle="Radiology & diagnostic services"
-      logo={<ScanLine className="h-5 w-5" />}
-      to="/diagnostic"
-      onToggleSidebar={onToggleSidebar}
-      onToggleTheme={onToggleTheme}
-      theme={theme}
-      onLogout={logout}
-      sessionKey="diagnostic.session"
-    />
+    <header className="h-14 w-full">
+      <div className="flex h-full items-center gap-3 px-3 sm:px-5">
+        {onToggleSidebar ? (
+          <button type="button" onClick={onToggleSidebar} aria-label="Toggle sidebar" className={btnCls}>
+            <Menu className="h-5 w-5" />
+          </button>
+        ) : null}
+        <Link to="/diagnostic" className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-violet-600 shadow-inner">
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' className='h-5 w-5'><path d='M4.5 12a5.5 5.5 0 0 1 9.9-3.3l.4.5 3 3a5.5 5.5 0 0 1-7.8 7.8l-3-3-.5-.4A5.48 5.48 0 0 1 4.5 12Zm4.9-3.6L7.1 10l6.9 6.9 2.3-2.3-6.9-6.9Z'/></svg>
+          </div>
+          <div className="flex flex-col leading-tight">
+            <div className="font-bold text-slate-800 dark:text-slate-100">Diagnostic Portal</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Imaging & Diagnostic Services</div>
+          </div>
+          <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 border border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">Online</span>
+        </Link>
+
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          <div className="hidden items-center gap-2 sm:flex">
+             <div className="flex items-center gap-2 rounded-lg bg-white border border-slate-200/80 shadow-sm px-3 py-1.5 dark:border-slate-700 dark:bg-slate-800/70">
+                <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='h-4 w-4 text-sky-500'><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Today</span>
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                </div>
+             </div>
+             <div className="flex items-center gap-2 rounded-lg bg-white border border-slate-200/80 shadow-sm px-3 py-1.5 dark:border-slate-700 dark:bg-slate-800/70">
+                <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='h-4 w-4 text-emerald-500'><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Local Time</span>
+                  <LiveClock className="text-xs font-semibold text-slate-700 dark:text-slate-200" showSeconds={true} showTimezone={false} showDate={false} compact />
+                </div>
+             </div>
+          </div>
+
+          {showThemeToggle ? (
+            <button type="button" onClick={handleToggleTheme} className={mobileBtnCls} title="Toggle theme" aria-label="Toggle theme">
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          ) : null}
+
+          <div className={chipWrapCls}>
+            {showThemeToggle ? (
+              <button type="button" onClick={handleToggleTheme} className={chipBtnCls} title="Toggle theme">
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                <span className="text-sm font-medium">Theme</span>
+              </button>
+            ) : null}
+            {showThemeToggle ? <div className={chipDivCls} /> : null}
+            <div className={chipTextCls}>
+              <span className="text-sm font-medium">{userRole}</span>
+            </div>
+            <div className={chipDivCls} />
+            <button type="button" onClick={handleLogout} className={chipLogoutCls} title="Logout">
+              <LogOut className="h-4 w-4" />
+              <span className="text-sm font-medium">Logout</span>
+            </button>
+          </div>
+
+          <button type="button" onClick={handleLogout} className={mobileBtnCls} aria-label="Logout" title="Logout">
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </header>
   )
 }

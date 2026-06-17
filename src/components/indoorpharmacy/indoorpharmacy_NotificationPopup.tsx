@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Bell, CheckCircle, Trash2, Clock } from 'lucide-react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 
 type Notification = {
   _id: string
@@ -32,7 +32,7 @@ export default function Pharmacy_NotificationPopup({ open, onClose, onViewAll }:
   const fetchNotifications = async () => {
     try {
       setLoading(true)
-      const res: any = await pharmacyApi.getNotifications()
+      const res: any = await indoorPharmacyApi.getNotifications()
       const allNotifications = res?.notifications || []
       // Show only unread or latest 5
       const unread = allNotifications.filter((n: Notification) => !n.read)
@@ -47,7 +47,7 @@ export default function Pharmacy_NotificationPopup({ open, onClose, onViewAll }:
 
   const markAsRead = async (id: string) => {
     try {
-      await pharmacyApi.markNotificationRead(id)
+      await indoorPharmacyApi.markNotificationRead(id)
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, read: true } : n))
     } catch (error) {
       console.error('Error marking notification as read:', error)
@@ -56,7 +56,7 @@ export default function Pharmacy_NotificationPopup({ open, onClose, onViewAll }:
 
   const deleteNotification = async (id: string) => {
     try {
-      await pharmacyApi.deleteNotification(id)
+      await indoorPharmacyApi.deleteNotification(id)
       setNotifications(prev => prev.filter(n => n._id !== id))
     } catch (error) {
       console.error('Error deleting notification:', error)

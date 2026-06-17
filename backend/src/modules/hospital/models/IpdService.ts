@@ -4,7 +4,7 @@ const IpdServiceSchema = new Schema({
   name: { type: String, required: true },
   category: { type: String },
   price: { type: Number, default: 0 },
-  active: { type: Boolean, default: true, index: true },
+  active: { type: Boolean, default: true },
 }, { timestamps: true })
 
 IpdServiceSchema.index({ name: 1 }, { unique: true })

@@ -8,6 +8,15 @@ const resultRowSchema = z.object({
   flag: z.enum(['normal','abnormal','abnormal_low','abnormal_high','critical','critical_low','critical_high']).optional(),
   value: z.string().optional(),
   comment: z.string().optional(),
+  sectionKey: z.string().optional(),
+  kind: z.enum(['quantitative', 'qualitative']).optional(),
+  qualitativeValue: z.string().optional(),
+  numericValue: z.number().optional(),
+  reference: z.string().optional(),
+  drugSensitivities: z.array(z.object({
+    drug: z.string(),
+    result: z.enum(['Sensitive', 'Resistant', 'Intermediate', '']).optional()
+  })).optional(),
 })
 
 export const resultCreateSchema = z.object({

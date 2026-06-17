@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { diagnosticApi } from '../../utils/api'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 
 export type DiagnosticTokenSlipData = {
   tokenNo: string
@@ -214,7 +215,7 @@ function SlipBody({ data, settings, dt, user }: {
 
       <div className="mt-2 flex flex-wrap justify-between gap-1 text-xs text-slate-700">
         <div>User: {user || getCurrentUser()}</div>
-        <div>{dt.toLocaleDateString()} {dt.toLocaleTimeString()}</div>
+        <div>{fmtDateTime12(dt)}</div>
       </div>
 
       <hr className="my-2 border-dashed" />

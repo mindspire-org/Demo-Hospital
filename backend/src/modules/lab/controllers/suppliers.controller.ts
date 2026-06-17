@@ -6,7 +6,6 @@ import { ApiError } from '../../../common/errors/ApiError'
 import { LabPurchase } from '../models/Purchase'
 import { LabSupplierPayment } from '../models/SupplierPayment'
 import { LabAuditLog } from '../models/AuditLog'
-import { createSupplierAccount } from '../../finance/services/accountAutoCreate'
 
 function rxEscape(s: string){
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -65,10 +64,6 @@ export async function list(req: Request, res: Response) {
 export async function create(req: Request, res: Response) {
   const data = supplierCreateSchema.parse(req.body)
   const s = await LabSupplier.create(data)
-  // Auto-create account in Chart of Accounts
-  try {
-    await createSupplierAccount(String(s._id), s.name || 'Lab Supplier', 'lab')
-  } catch {}
   try {
     const actor = (req as any).user?.name || (req as any).user?.email || 'system'
     await LabAuditLog.create({

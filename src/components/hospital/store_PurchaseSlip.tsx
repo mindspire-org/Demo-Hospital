@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
+import { fmtDate } from '../../utils/timeFormat'
 
 type Supplier = { id: string; name: string; company?: string; phone?: string; address?: string }
 
@@ -46,8 +47,7 @@ export function printPurchaseSlipA4(purchase: any, supplier?: Supplier, settings
 
   const formatDateLong = (d: any) => {
     try {
-      const x = d ? new Date(d) : new Date()
-      return x.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      return fmtDate(d)
     } catch {
       return String(d || '')
     }

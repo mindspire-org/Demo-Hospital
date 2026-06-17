@@ -1,7 +1,6 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { FinanceUser } from '../models/finance_User'
-import { createUserAccount } from '../services/accountAutoCreate'
 
 export async function list(_req: Request, res: Response){
   const items = await FinanceUser.find().sort({ username: 1 }).lean()
@@ -14,8 +13,6 @@ export async function create(req: Request, res: Response){
   if (exists) return res.status(400).json({ error: 'Username already exists' })
   const passwordHash = await bcrypt.hash(password, 10)
   const u = await FinanceUser.create({ username, role, passwordHash })
-  // Auto-create Chart of Accounts entry for this user
-  try { await createUserAccount(String(u._id), u.username, 'finance') } catch {}
   res.status(201).json(u)
 }
 

@@ -60,6 +60,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
 export default function Billing({ encounterId }: { encounterId: string }){
   const [charges, setCharges] = useState<Array<{ id: string; label: string; amount: number; paidAmount: number; remaining: number }>>([])
   const [payments, setPayments] = useState<Array<{ id: string; amount: number; method?: string; refNo?: string; receivedAt?: string; notes?: string }>>([])
+  const [enc, setEnc] = useState<any>(null)
   const [open, setOpen] = useState(false)
   const [openAdvance, setOpenAdvance] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
@@ -68,10 +69,12 @@ export default function Billing({ encounterId }: { encounterId: string }){
 
   async function reload(){
     try{
-      const [bi, pay] = await Promise.all([
+      const [e, bi, pay] = await Promise.all([
+        hospitalApi.getIPDAdmissionById(encounterId) as any,
         hospitalApi.listIpdBillingItems(encounterId, { limit: 500 }) as any,
         hospitalApi.listIpdPayments(encounterId, { limit: 500 }) as any,
       ])
+      setEnc(e?.encounter || null)
       const crows = (bi.items || []).map((i: any)=>({ id: String(i._id), label: i.description || '', amount: Number(i.amount || 0), paidAmount: Number(i.paidAmount || 0), remaining: Number(i.remaining != null ? i.remaining : Math.max(0, Number(i.amount||0)-Number(i.paidAmount||0))) }))
       const prows = (pay.payments || []).map((p: any)=>({
         id: String(p._id),
@@ -150,6 +153,16 @@ export default function Billing({ encounterId }: { encounterId: string }){
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
+      {Number(enc?.packageAmount || 0) > 0 && (
+        <div className="mb-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-semibold text-violet-800">Package: Rs {Number(enc.packageAmount).toFixed(0)}</span>
+            <span className="text-xs text-violet-600">Advance: Rs {Number(enc?.advancedAmount || 0).toFixed(0)}</span>
+            <span className="text-xs text-violet-600">Pending: Rs {Number(enc?.pendingAmount || 0).toFixed(0)}</span>
+            <span className="text-xs text-violet-600">Bed: {enc?.bedFeeIncludedInPackage ? 'Included' : 'Separate'}</span>
+          </div>
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
           <div className="text-xs font-medium text-slate-700">Total</div>
@@ -272,6 +285,7 @@ export default function Billing({ encounterId }: { encounterId: string }){
 }
 
 function ChargeDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>void; onSave: (d: { label: string; amount: number })=>void }){
+  if(!open) return null
   const [svcCatalog, setSvcCatalog] = useState<any[]>([])
 
   useEffect(() => {
@@ -289,8 +303,6 @@ function ChargeDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>v
     loadSvc()
     return ()=>{ cancelled = true }
   }, [])
-
-  if(!open) return null
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

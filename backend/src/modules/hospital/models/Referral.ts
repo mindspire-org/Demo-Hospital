@@ -2,7 +2,8 @@ import { Schema, model, models } from 'mongoose'
 
 const ReferralSchema = new Schema({
   type: { type: String, enum: ['lab', 'pharmacy', 'diagnostic'], required: true, index: true },
-  status: { type: String, enum: ['pending','completed','cancelled'], default: 'pending', index: true },
+  source: { type: String, enum: ['OPD', 'IPD', 'ER'], default: 'OPD', index: true },
+  status: { type: String, enum: ['pending', 'completed', 'cancelled'], default: 'pending', index: true },
   tokenNo: { type: String, index: true },
   linkedOrderId: { type: String, index: true },
   reportStatus: { type: String, enum: ['pending', 'result_entered', 'approved', 'final'], default: 'pending', index: true },
@@ -19,8 +20,9 @@ ReferralSchema.index({ doctorId: 1, createdAt: -1 })
 
 export type HospitalReferralDoc = {
   _id: string
-  type: 'lab'|'pharmacy'|'diagnostic'
-  status: 'pending'|'completed'|'cancelled'
+  type: 'lab' | 'pharmacy' | 'diagnostic'
+  source: 'OPD' | 'IPD' | 'ER'
+  status: 'pending' | 'completed' | 'cancelled'
   tokenNo?: string
   linkedOrderId?: string
   reportStatus?: 'pending' | 'result_entered' | 'approved' | 'final'

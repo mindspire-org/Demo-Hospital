@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { hospitalApi } from '../utils/api'
+import { fmtDateTime12 } from '../utils/timeFormat'
 
-export type EncounterDefaults = {
+export interface EncounterDefaults {
   patientName: string
   mrn: string
   age: string
@@ -49,13 +50,13 @@ export function useEncounterDefaults(encounterId: string) {
           address: String(p.address || ''),
           fatherName: String(p.fatherName || ''),
           guardianRel: String(p.guardianRel || ''),
-          bedLabel: String(enc?.bedLabel || enc?.bedId || ''),
+          bedLabel: String(enc?.bedFullInfo || enc?.bedLabel || enc?.bedId || ''),
           doctorName: String(enc?.doctorId?.name || ''),
           doctorId: String(enc?.doctorId?._id || enc?.doctorId || ''),
           cnic: String(p.cnicNormalized || ''),
           contact: String(p.phoneNormalized || ''),
           panel: String(enc?.corporateCompanyName || enc?.panel || ''),
-          doa: String(enc?.startAt ? new Date(String(enc.startAt)).toLocaleString() : ''),
+          doa: String(enc?.startAt ? fmtDateTime12(enc.startAt) : ''),
           encounter: enc,
         })
       } catch {

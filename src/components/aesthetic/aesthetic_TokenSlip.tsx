@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { aestheticApi } from '../../utils/api'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 
 export type TokenSlipData = {
   tokenNo: string
@@ -82,10 +83,11 @@ export default function Aesthetic_TokenSlip({ open, onClose, data, autoPrint = f
   }, [open, autoPrint, settings.name, settings.address, settings.phone, settings.logoDataUrl, settings.slipFooter])
 
   if (!open) return null
-  const dt = data.createdAt ? new Date(data.createdAt) : new Date()
 
   const fbrStatus = String(data?.fbr?.status || '').toUpperCase().trim()
   const isFbrSuccess = fbrStatus === 'SUCCESS' && Boolean(data?.fbr?.qrCode)
+  const isFbrDisabled = !data?.fbr || !fbrStatus
+  const showFbrSection = !isFbrDisabled
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:bg-white print:static">
@@ -104,7 +106,7 @@ export default function Aesthetic_TokenSlip({ open, onClose, data, autoPrint = f
 
         <div className="mt-2 flex flex-wrap justify-between gap-1 text-xs text-slate-700">
           <div>User: {user || getCurrentUser()}</div>
-          <div>{dt.toLocaleDateString()} {dt.toLocaleTimeString()}</div>
+          <div>{fmtDateTime12(data.createdAt || new Date().toISOString())}</div>
         </div>
 
         <hr className="my-2 border-dashed" />
@@ -140,17 +142,22 @@ export default function Aesthetic_TokenSlip({ open, onClose, data, autoPrint = f
           </div>
         )}
 
-        {isFbrSuccess ? (
+        {showFbrSection ? (
           <>
             <hr className="my-2 border-dashed" />
 
             <div className="text-center text-sm font-semibold underline">FBR</div>
             <div className="mt-2 text-center">
-              <img src={data.fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
+              {isFbrSuccess ? (
+                <img src={data.fbr!.qrCode} alt="FBR QR" className="mx-auto h-24 w-24 object-contain" />
+              ) : (
+                <div className="text-sm font-semibold text-rose-600 print:text-black">FBR FAILED</div>
+              )}
             </div>
             <div className="mt-1 space-y-0.5 text-[11px] text-slate-700 print:text-black">
               <div>FBR No: {data?.fbr?.fbrInvoiceNo || '—'}</div>
               <div>Mode: {data?.fbr?.mode || '—'}</div>
+              <div>Error: {data?.fbr?.error || '—'}</div>
             </div>
           </>
         ) : null}

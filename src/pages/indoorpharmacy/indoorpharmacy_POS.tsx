@@ -4,11 +4,13 @@ import IndoorPharmacy_POSCart from '../../components/indoorpharmacy/indoorpharma
 import IndoorPharmacy_ProcessPaymentDialog from '../../components/indoorpharmacy/indoorpharmacy_ProcessPaymentDialog'
 import IndoorPharmacy_POSReceiptDialog from '../../components/indoorpharmacy/indoorpharmacy_POSReceiptDialog'
 import { indoorPharmacyApi } from '../../utils/api'
+import { indoorPharmacyIntegrationApi } from '../../features/hospital/indoorpharmacy'
 
 type Product = {
   id: string
   name: string
   genericName?: string
+  company?: string
   salePerPack: number
   unitsPerPack: number
   unitPrice: number
@@ -46,7 +48,7 @@ export default function IndoorPharmacy_POS() {
   const [cart, setCart] = useState<CartLine[]>([])
   const [payOpen, setPayOpen] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
-  const [payment, setPayment] = useState<{ method: 'cash' | 'credit'; customer?: string; customerId?: string; customerPhone?: string } | null>(null)
+  const [payment, setPayment] = useState<{ method: 'cash' | 'credit' | 'patient'; customer?: string; customerId?: string; customerPhone?: string; encounterId?: string; encounterType?: string } | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [productIndex, setProductIndex] = useState<Record<string, Product>>({})
   const [busy, setBusy] = useState(false)
@@ -60,13 +62,13 @@ export default function IndoorPharmacy_POS() {
   // Current pharmacy username to stamp sales
   const currentUser = useMemo(() => {
     try {
-      const raw = localStorage.getItem('pharmacy.user')
+      const raw = localStorage.getItem('indoorpharmacy.user')
       if (raw) {
         const u = JSON.parse(raw)
         if (u && typeof u.username === 'string') return u.username
       }
     } catch {}
-    try { return localStorage.getItem('pharma_user') || '' } catch { return '' }
+    try { return localStorage.getItem('indoorpharma_user') || '' } catch { return '' }
   }, [])
 
   // Held bills (server-side persistence)
@@ -156,6 +158,7 @@ export default function IndoorPharmacy_POS() {
           id: it._id || it.key || it.name,
           name: it.name,
           genericName: it.genericName || it.lastGenericName || undefined,
+          company: it.lastCompany || undefined,
           salePerPack: Number(it.lastSalePerPack || 0),
           unitsPerPack: Number(it.unitsPerPack || 1),
           unitPrice: Number(it.lastSalePerUnit || ((it.unitsPerPack && it.lastSalePerPack) ? it.lastSalePerPack/it.unitsPerPack : 0)),
@@ -358,7 +361,7 @@ export default function IndoorPharmacy_POS() {
   }
 
   const openPayment = () => { try { searchInputRef.current?.blur() } catch {}; setPayOpen(true) }
-  const confirmPayment = async (data: { method: 'cash' | 'credit'; customer?: string; customerId?: string; customerPhone?: string }) => {
+  const confirmPayment = async (data: { method: 'cash' | 'credit' | 'patient'; customer?: string; customerId?: string; customerPhone?: string; encounterId?: string; encounterType?: string }) => {
     setPayment(data)
     setPayOpen(false)
     try {
@@ -390,33 +393,65 @@ export default function IndoorPharmacy_POS() {
         const lineDisc = Math.max(0, Math.min(100, Number(l.discountPct||0))) * lineSub / 100
         return { medicineId: l.productId, name: l.name, unitPrice: Number(l.unitPrice || 0), qty: unitsQty, discountRs: Number(lineDisc.toFixed(2)) }
       })
-      const payload = {
-        customer: data.customer,
-        customerId: data.customerId,
-        customerPhone: data.customerPhone,
-        payment: data.method === 'cash' ? 'Cash' : 'Credit',
-        discountPct: Number(billDiscountPct||0),
-        lineDiscountTotal: cart.reduce((s,l)=> {
-          const sub = Number(l.unitPrice||0) * Number(lineUnits(l) || 0)
-          const disc = Math.max(0, Math.min(100, Number(l.discountPct||0))) * sub / 100
-          return s + disc
-        }, 0),
-        lines,
-        createdBy: currentUser || undefined,
+
+      if (data.method === 'patient' && data.encounterId) {
+        try {
+          const created: any = await indoorPharmacyIntegrationApi.dispenseAndAddToBill({
+            encounterId: data.encounterId,
+            patientName: data.customer,
+            lines,
+            discountPct: Number(billDiscountPct||0),
+            payment: 'Credit',
+            dispensedBy: currentUser || undefined,
+          })
+          setReceiptNo(created?.dispense?.billNo || '')
+          setReceiptFbr({
+            status: created?.dispense?.fbrStatus || created?.dispense?.fbr?.status,
+            qrCode: created?.dispense?.fbrQrCode || created?.dispense?.qrCode || created?.dispense?.fbr?.qrCode,
+            fbrInvoiceNo: created?.dispense?.fbrInvoiceNo || created?.dispense?.fbr?.fbrInvoiceNo || created?.dispense?.fbr?.invoiceNumber,
+            mode: created?.dispense?.fbrMode || created?.dispense?.fbr?.mode,
+            error: created?.dispense?.fbrError || created?.dispense?.fbr?.error,
+          })
+          setReceiptItems(itemsForReceipt)
+          setReceiptOpen(true)
+          setCart([])
+          try { window.dispatchEvent(new CustomEvent('indoor-pharmacy:sale', { detail: created?.dispense })) } catch {}
+        } catch (err: any) {
+          console.error('[dispenseAndAddToBill] Error:', err)
+          console.error('[dispenseAndAddToBill] Request payload:', { encounterId: data.encounterId, patientName: data.customer, lines, discountPct: Number(billDiscountPct||0), payment: 'Credit' })
+          const msg = err?.message || err?.error || 'Server error while adding bill'
+          showToast('error', `Billing failed: ${msg}`)
+          throw err // re-throw so outer catch handles setBusy(false)
+        }
+      } else {
+        const payload = {
+          customer: data.customer,
+          customerId: data.customerId,
+          customerPhone: data.customerPhone,
+          payment: data.method === 'cash' ? 'Cash' : 'Credit',
+          discountPct: Number(billDiscountPct||0),
+          lineDiscountTotal: cart.reduce((s,l)=> {
+            const sub = Number(l.unitPrice||0) * Number(lineUnits(l) || 0)
+            const disc = Math.max(0, Math.min(100, Number(l.discountPct||0))) * sub / 100
+            return s + disc
+          }, 0),
+          lines,
+          createdBy: currentUser || undefined,
+        }
+        const created = await indoorPharmacyApi.createSale(payload)
+        setReceiptNo(created.billNo)
+        setReceiptFbr({
+          status: created?.fbrStatus || created?.fbr?.status,
+          qrCode: created?.fbrQrCode || created?.qrCode || created?.fbr?.qrCode,
+          fbrInvoiceNo: created?.fbrInvoiceNo || created?.fbr?.fbrInvoiceNo || created?.fbr?.invoiceNumber,
+          mode: created?.fbrMode || created?.fbr?.mode,
+          error: created?.fbrError || created?.fbr?.error,
+        })
+        setReceiptItems(itemsForReceipt)
+        setReceiptOpen(true)
+        setCart([])
+        try { window.dispatchEvent(new CustomEvent('indoor-pharmacy:sale', { detail: created })) } catch {}
       }
-      const created = await indoorPharmacyApi.createSale(payload)
-      setReceiptNo(created.billNo)
-      setReceiptFbr({
-        status: created?.fbrStatus || created?.fbr?.status,
-        qrCode: created?.fbrQrCode || created?.qrCode || created?.fbr?.qrCode,
-        fbrInvoiceNo: created?.fbrInvoiceNo || created?.fbr?.fbrInvoiceNo || created?.fbr?.invoiceNumber,
-        mode: created?.fbrMode || created?.fbr?.mode,
-        error: created?.fbrError || created?.fbr?.error,
-      })
-      setReceiptItems(itemsForReceipt)
-      setReceiptOpen(true)
-      setCart([])
-      try { window.dispatchEvent(new CustomEvent('pharmacy:sale', { detail: created })) } catch {}
       // Refresh inventory so stock reflects the sale
       try {
         const res: any = await indoorPharmacyApi.listInventory({ search: query || undefined, page, limit: rowsPerPage })
@@ -424,6 +459,7 @@ export default function IndoorPharmacy_POS() {
           id: it._id || it.key || it.name,
           name: it.name,
           genericName: it.genericName || it.lastGenericName || undefined,
+          company: it.lastCompany || undefined,
           salePerPack: Number(it.lastSalePerPack || 0),
           unitsPerPack: Number(it.unitsPerPack || 1),
           unitPrice: Number(it.lastSalePerUnit || ((it.unitsPerPack && it.lastSalePerPack) ? it.lastSalePerPack/it.unitsPerPack : 0)),
@@ -522,12 +558,12 @@ export default function IndoorPharmacy_POS() {
       } catch {}
     }
     window.addEventListener('keydown', onKeyDown as any, true)
-    window.addEventListener('pharmacy:pos:pay' as any, onPay as any)
-    window.addEventListener('pharmacy:pos:add' as any, onAdd as any)
+    window.addEventListener('indoor-pharmacy:pos:pay' as any, onPay as any)
+    window.addEventListener('indoor-pharmacy:pos:add' as any, onAdd as any)
     return () => {
       window.removeEventListener('keydown', onKeyDown as any, true)
-      window.removeEventListener('pharmacy:pos:pay' as any, onPay as any)
-      window.removeEventListener('pharmacy:pos:add' as any, onAdd as any)
+      window.removeEventListener('indoor-pharmacy:pos:pay' as any, onPay as any)
+      window.removeEventListener('indoor-pharmacy:pos:add' as any, onAdd as any)
     }
   }, [visible, sel, cart, products, searchOpen, suggestions, suggestionSel, payOpen, receiptOpen])
 
@@ -538,7 +574,7 @@ export default function IndoorPharmacy_POS() {
       if (!raw) return
       localStorage.removeItem('indoorpharmacy.pos.pendingAddLines')
       const lines = JSON.parse(raw) as Array<{ name: string; productId?: string; qty: number }>
-      const ev = new CustomEvent('pharmacy:pos:add', { detail: { lines } })
+      const ev = new CustomEvent('indoor-pharmacy:pos:add', { detail: { lines } })
       window.dispatchEvent(ev)
     } catch {}
   }, [])
@@ -698,7 +734,7 @@ export default function IndoorPharmacy_POS() {
                       {i === suggestionSel ? <span className="absolute left-0 top-0 h-full w-1 bg-sky-600" /> : null}
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-semibold text-slate-900">{p.name}</div>
-                        <div className="truncate text-xs text-slate-500">{p.genericName || ''}</div>
+                        <div className="truncate text-xs text-slate-500">{p.genericName || ''}{p.genericName && p.company ? ' · ' : ''}{p.company || ''}</div>
                       </div>
                       <div className="shrink-0 text-right">
                         <div className="text-xs font-semibold text-slate-700">PKR {p.unitPrice.toFixed(2)}</div>
@@ -747,7 +783,7 @@ export default function IndoorPharmacy_POS() {
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="font-semibold text-slate-800 capitalize">{p.name}</div>
-                        {p.genericName ? <div className="text-xs text-slate-500 capitalize">{p.genericName}</div> : null}
+                        {p.genericName || p.company ? <div className="text-xs text-slate-500 capitalize">{p.genericName || ''}{p.genericName && p.company ? ' · ' : ''}{p.company || ''}</div> : null}
                       </div>
                       <div className={`rounded-full px-2 py-1 text-xs font-medium ${
                         isOutOfStock ? 'bg-rose-100 text-rose-800' :

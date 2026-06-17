@@ -13,8 +13,8 @@
  * - Sidebar Roles & Permissions
  */
 
-import { api, cachedApi, withQuery } from '@/api'
-import type { CachedApiOptions } from '@/api'
+import { api, cachedApi, withQuery } from '../../api'
+import type { CachedApiOptions } from '../../api'
 
 export const pharmacyApi = {
   // -------------------------------------------------------------------------
@@ -106,9 +106,14 @@ export const pharmacyApi = {
     return { suggestions: items.map((it: any) => ({ id: String(it._id || it.key || it.name || ''), name: String(it.name || '') })) }
   },
   getAllMedicines: async () => {
+    const { fetchMedicinesFromExcel } = await import('../../utils/medicineExcel')
+    const excelItems = await fetchMedicinesFromExcel()
+    if (excelItems.length > 0) {
+      return { medicines: excelItems.map((it: any) => ({ id: String(it.name || ''), name: String(it.name || ''), genericName: String(it.genericName || ''), company: String(it.company || '') })) }
+    }
     const res: any = await api(withQuery('/pharmacy/inventory', { limit: 2000 }))
     const items: any[] = res?.items ?? res ?? []
-    return { medicines: items.map((it: any) => ({ id: String(it._id || it.key || it.name || ''), name: String(it.name || '') })) }
+    return { medicines: items.map((it: any) => ({ id: String(it._id || it.key || it.name || ''), name: String(it.name || ''), genericName: String(it.genericName || it.lastGenericName || ''), company: String(it.lastCompany || '') })) }
   },
   createMedicine: (data: any) => api('/pharmacy/medicines', { method: 'POST', body: JSON.stringify(data) }),
 
@@ -211,19 +216,19 @@ export const pharmacyApi = {
   // -------------------------------------------------------------------------
   listInventory: (params?: { search?: string; page?: number; limit?: number }) =>
     api(withQuery('/pharmacy/inventory', params)),
-  listInventoryFiltered: (params: { status: 'low' | 'out' | 'expiring'; search?: string; page?: number; limit?: number }) =>
+  listInventoryFiltered: (params: { status: 'low' | 'out' | 'expiring' | 'dead'; search?: string; page?: number; limit?: number }) =>
     api(withQuery('/pharmacy/inventory/filter', params)),
   inventorySummary: (params?: { search?: string; limit?: number }) =>
     api(withQuery('/pharmacy/inventory/summary', params)),
-  deleteInventoryItem: (key: string) => api(`/pharmacy/inventory/${encodeURIComponent(key)}`, { method: 'DELETE' }),
-  updateInventoryItem: (key: string, data: any) => api(`/pharmacy/inventory/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteInventoryItem: (key: string) => api(withQuery('/pharmacy/inventory/item', { key }), { method: 'DELETE' }),
+  updateInventoryItem: (key: string, data: any) => api(withQuery('/pharmacy/inventory/item', { key }), { method: 'PUT', body: JSON.stringify(data) }),
   manualReceipt: (data: any) => api('/pharmacy/inventory/manual-receipt', { method: 'POST', body: JSON.stringify(data) }),
   adjustInventory: (data: any) => api('/pharmacy/inventory/adjust', { method: 'POST', body: JSON.stringify(data) }),
 
   // Cached inventory methods
   listInventoryCached: (params?: { search?: string; page?: number; limit?: number }, opts?: CachedApiOptions) =>
     cachedApi(withQuery('/pharmacy/inventory', params), undefined, opts),
-  listInventoryFilteredCached: (params: { status: 'low' | 'out' | 'expiring'; search?: string; page?: number; limit?: number }, opts?: CachedApiOptions) =>
+  listInventoryFilteredCached: (params: { status: 'low' | 'out' | 'expiring' | 'dead'; search?: string; page?: number; limit?: number }, opts?: CachedApiOptions) =>
     cachedApi(withQuery('/pharmacy/inventory/filter', params), undefined, opts),
   inventorySummaryCached: (params?: { search?: string; limit?: number }, opts?: CachedApiOptions) =>
     cachedApi(withQuery('/pharmacy/inventory/summary', params), undefined, opts),

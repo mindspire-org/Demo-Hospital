@@ -1,0 +1,25 @@
+{
+  "hash": "b75d9b39",
+  "configHash": "eafcb50c",
+  "lockfileHash": "435f6b1d",
+  "browserHash": "592c5acc",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "f157a60d",
+      "needsInterop": true
+    },
+    "xlsx": {
+      "src": "../../node_modules/xlsx/xlsx.mjs",
+      "file": "xlsx.js",
+      "fileHash": "bab704b6",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-BUSYA2B4": {
+      "file": "chunk-BUSYA2B4.js"
+    }
+  }
+}

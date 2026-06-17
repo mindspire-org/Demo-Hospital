@@ -149,20 +149,28 @@ export default function DiagnosticTests({ encounterId }: { encounterId: string }
 }
 
 function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId, testOptions }: { open: boolean; onClose: ()=>void; onSave: (d: { doctorId: string; test: string; date: string })=>void; doctors: Array<{ _id: string; name: string }>; defaultDoctorId?: string; testOptions: string[] }){
-  if(!open) return null
-
   const [testName, setTestName] = useState('')
   const [suggestions, setSuggestions] = useState<string[]>(testOptions || [])
+  const [date, setDate] = useState('')
+  const [time, setTime] = useState('')
+  const [selectedDoctor, setSelectedDoctor] = useState<{ _id: string; name: string } | null>(null)
   const searchTimer = useRef<any>(null)
 
   useEffect(() => {
     if (open) {
       setTestName('')
       setSuggestions(testOptions || [])
+      const now = new Date()
+      setDate(now.toISOString().split('T')[0])
+      setTime(now.toTimeString().slice(0, 5))
+      const defaultDoc = doctors.find(d => d._id === defaultDoctorId)
+      setSelectedDoctor(defaultDoc || null)
     }
-  }, [open, testOptions])
+  }, [open, testOptions, doctors, defaultDoctorId])
 
   const mergedSuggestions = useMemo(() => suggestions, [suggestions])
+
+  if(!open) return null
 
   const onTestChange = (v: string) => {
     setTestName(v)
@@ -181,7 +189,8 @@ function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId, testOpti
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    onSave({ doctorId: String(fd.get('doctorId')||''), test: String(fd.get('test')||''), date: String(fd.get('date')||'') })
+    const dateTime = date && time ? `${date}T${time}` : date
+    onSave({ doctorId: String(selectedDoctor?._id||''), test: String(fd.get('test')||''), date: dateTime })
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -189,12 +198,18 @@ function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId, testOpti
         <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Refer to Diagnostic</div>
         <div className="space-y-3 px-5 py-4 text-sm">
           <label htmlFor="diag-doctor" className="block text-xs font-medium text-slate-600">Doctor</label>
-          <select id="diag-doctor" name="doctorId" defaultValue={defaultDoctorId||''} required className="w-full rounded-md border border-slate-300 px-3 py-2">
-            <option value="">Select doctor</option>
-            {doctors.map(d => (
-              <option key={d._id} value={d._id}>{d.name}</option>
-            ))}
-          </select>
+          <SuggestField
+            as="input"
+            value={selectedDoctor?.name || ''}
+            onChange={(v) => {
+              const found = doctors.find(d => d.name.toLowerCase() === v.toLowerCase())
+              setSelectedDoctor(found || null)
+            }}
+            suggestions={doctors.map(d => d.name)}
+            placeholder="Select doctor"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+          <input type="hidden" name="doctorId" value={selectedDoctor?._id || ''} />
           <label htmlFor="diag-test" className="block text-xs font-medium text-slate-600">Diagnostic Test</label>
           <SuggestField
             as="input"
@@ -206,7 +221,9 @@ function OrderDialog({ open, onClose, onSave, doctors, defaultDoctorId, testOpti
           />
           <input type="hidden" name="test" value={testName} />
           <label htmlFor="diag-date" className="block text-xs font-medium text-slate-600">Date</label>
-          <input id="diag-date" name="date" type="date" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+          <input id="diag-date" name="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" />
+          <label htmlFor="diag-time" className="block text-xs font-medium text-slate-600">Time</label>
+          <input id="diag-time" name="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2" />
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
           <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>

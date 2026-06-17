@@ -9,33 +9,78 @@ export default function Pharmacy_PrescriptionIntake(){
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [header, setHeader] = useState<{ patient?: string; mrn?: string; doctor?: string; date?: string } | null>(null)
-  const [items, setItems] = useState<Array<{ name: string; frequency?: string; duration?: string; qty: number }>>([])
+  const [items, setItems] = useState<Array<{ name: string; frequency?: string; duration?: string; notes?: string; qty: number }>>([])
   const [toast, setToast] = useState<{type: 'success'|'error', message: string} | null>(null)
 
   useEffect(() => { (async () => {
     if (!id) { setError('Missing id'); setLoading(false); return }
     try {
-      const { prescription } = await hospitalApi.getPrescription(id) as any
-      const dt = new Date(prescription?.createdAt || Date.now())
-      let patName = prescription?.encounterId?.patientId?.fullName || '-'
-      let mrn = prescription?.encounterId?.patientId?.mrn || ''
+      let prescriptionData: any = null
+      let itemsData: any[] = []
+      let doctorName = '-'
+      let patientData: any = null
+      let createdAt = Date.now()
+
+      try {
+        const res = await hospitalApi.getPrescription(id) as any
+        if (res?.prescription) {
+          prescriptionData = res.prescription
+          itemsData = prescriptionData.items || []
+          doctorName = prescriptionData.encounterId?.doctorId?.name || '-'
+          patientData = prescriptionData.encounterId?.patientId
+          createdAt = prescriptionData.createdAt
+        }
+      } catch (e) {
+        // If prescription not found, try fetching as a referral
+        const res = await hospitalApi.getReferral(id) as any
+        if (res?.referral) {
+          const ref = res.referral
+          doctorName = ref.doctorId?.name || ref.encounterId?.doctorId?.name || '-'
+          patientData = ref.patientId || ref.encounterId?.patientId
+          createdAt = ref.createdAt
+          
+          // Map referral "tests" or "notes" to medicine items if it's a pharmacy referral
+          if (ref.type === 'pharmacy') {
+            itemsData = (ref.tests || []).map((t: string) => ({
+              name: t,
+              notes: ref.notes
+            }))
+          }
+        }
+      }
+
+      if (!patientData && !itemsData.length) {
+        throw new Error('Record not found or has no medicines')
+      }
+
+      const dt = new Date(createdAt || Date.now())
+      let patName = patientData?.fullName || '-'
+      let mrn = patientData?.mrn || ''
+      
       try {
         if (mrn) {
           const resp: any = await labApi.getPatientByMrn(mrn)
           patName = resp?.patient?.fullName || patName
         }
       } catch {}
-      setHeader({ patient: patName, mrn, doctor: prescription?.encounterId?.doctorId?.name || '-', date: dt.toLocaleString() })
-      const mapped = (prescription?.items || []).map((m: any) => ({
+
+      setHeader({ patient: patName, mrn, doctor: doctorName, date: dt.toLocaleString() })
+      
+      const mapped = itemsData.map((m: any) => ({
         name: String(m.name||'').trim(),
         frequency: m.frequency || undefined,
         duration: m.duration || undefined,
-        qty: (()=>{ const n = parseInt(String(m.dose||'').replace(/[^\d]/g,'')); return isNaN(n) || n<=0 ? 1 : n })(),
+        notes: m.notes || undefined,
+        qty: (()=>{ 
+          const doseStr = String(m.dose || '').replace(/[^\d]/g,'')
+          const n = parseInt(doseStr)
+          return isNaN(n) || n<=0 ? 1 : n 
+        })(),
       }))
       setItems(mapped)
       setError('')
     } catch (e: any) {
-      setError(e?.message || 'Failed to load prescription')
+      setError(e?.message || 'Failed to load record')
     } finally {
       setLoading(false)
     }
@@ -86,7 +131,10 @@ export default function Pharmacy_PrescriptionIntake(){
               <tbody>
                 {items.map((m, i) => (
                   <tr key={i}>
-                    <td className="border border-slate-200 px-2 py-1 align-top">{m.name}</td>
+                    <td className="border border-slate-200 px-2 py-1 align-top">
+                      <div>{m.name}</div>
+                      {m.notes && <div className="text-[10px] text-slate-500 italic">Note: {m.notes}</div>}
+                    </td>
                     <td className="border border-slate-200 px-2 py-1 text-center align-top">{m.frequency || '-'}</td>
                     <td className="border border-slate-200 px-2 py-1 text-center align-top">{m.duration || '-'}</td>
                     <td className="border border-slate-200 px-2 py-1 text-center align-top">

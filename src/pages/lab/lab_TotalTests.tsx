@@ -18,6 +18,7 @@ type LabToken = {
   }
   tests: string[]
   status: TokenStatus
+  sampleType?: 'normal' | 'urgent' | 'stat'
   barcode?: string
   generatedAt: string
   generatedBy: string
@@ -362,6 +363,7 @@ export default function Lab_TotalTests() {
                 <tr className="text-left">
                   <th className="px-3 py-2 text-xs font-extrabold uppercase tracking-wider">Token</th>
                   <th className="px-3 py-2 text-xs font-extrabold uppercase tracking-wider">Patient</th>
+                  <th className="px-3 py-2 text-xs font-extrabold uppercase tracking-wider">Type</th>
                   <th className="px-3 py-2 text-xs font-extrabold uppercase tracking-wider">Test</th>
                   <th className="px-3 py-2 text-xs font-extrabold uppercase tracking-wider">Expected TAT</th>
                   <th className="px-3 py-2 text-xs font-extrabold uppercase tracking-wider">Status</th>
@@ -383,6 +385,15 @@ export default function Lab_TotalTests() {
                   <tr key={idx} className="border-b border-rose-100">
                     <td className="px-3 py-2 font-mono font-medium text-slate-900">{r.token.tokenNo}</td>
                     <td className="px-3 py-2 text-slate-800">{r.token.patient?.fullName || '-'}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                        r.token.sampleType === 'urgent' ? 'bg-rose-100 text-rose-700' : 
+                        r.token.sampleType === 'stat' ? 'bg-orange-100 text-orange-700' : 
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {r.token.sampleType || 'normal'}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-slate-800">{testsMap[String(r.tid)] || r.tid}</td>
                     <td className="px-3 py-2 text-slate-600">{fmtTAT(r.tat)}</td>
                     <td className="px-3 py-2">

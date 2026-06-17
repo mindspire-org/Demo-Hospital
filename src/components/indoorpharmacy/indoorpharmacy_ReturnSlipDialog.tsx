@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 
 type Props = {
   open: boolean
@@ -18,7 +18,7 @@ export default function Pharmacy_ReturnSlipDialog({ open, onClose, billNo, custo
     let mounted = true
     ;(async () => {
       try {
-        const s = await pharmacyApi.getSettings()
+        const s = await indoorPharmacyApi.getSettings()
         if (!mounted) return
         setInfo({
           name: s.pharmacyName || 'PHARMACY',

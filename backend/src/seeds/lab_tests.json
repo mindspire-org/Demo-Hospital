@@ -1,0 +1,6628 @@
+[{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d56"
+  },
+  "Name": "Serum Methotrexate Level",
+  "Parameter": "Methotrexate",
+  "Unit": "µmol/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d57"
+  },
+  "Name": "Serum Sirolimus Level",
+  "Parameter": "Sirolimus",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d58"
+  },
+  "Name": "Serum Tacrolimus Level",
+  "Parameter": "Tacrolimus",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d59"
+  },
+  "Name": "Serum Cyclosporine Level",
+  "Parameter": "Cyclosporine",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d5a"
+  },
+  "Name": "Serum Amikacin Level (Peak)",
+  "Parameter": "Amikacin (Peak)",
+  "Unit": "µg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d5b"
+  },
+  "Name": "Serum Amikacin Level (Trough)",
+  "Parameter": "Amikacin (Trough)",
+  "Unit": "µg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d5c"
+  },
+  "Name": "Serum Gentamicin Level (Peak)",
+  "Parameter": "Gentamicin (Peak)",
+  "Unit": "µg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d5d"
+  },
+  "Name": "Serum Gentamicin Level (Trough)",
+  "Parameter": "Gentamicin (Trough)",
+  "Unit": "µg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d5e"
+  },
+  "Name": "Serum Vancomycin Level (Peak)",
+  "Parameter": "Vancomycin (Peak)",
+  "Unit": "µg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d5f"
+  },
+  "Name": "Serum Vancomycin Level (Trough)",
+  "Parameter": "Vancomycin (Trough)",
+  "Unit": "µg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d60"
+  },
+  "Name": "Serum Theophylline Level",
+  "Parameter": "Theophylline",
+  "Unit": "µg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d61"
+  },
+  "Name": "Serum Lithium Level",
+  "Parameter": "Lithium",
+  "Unit": "mmol/L",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d62"
+  },
+  "Name": "Serum Phenobarbital Level",
+  "Parameter": "Phenobarbital",
+  "Unit": "µg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d63"
+  },
+  "Name": "Serum Valproic Acid Level",
+  "Parameter": "Valproic Acid",
+  "Unit": "µg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d64"
+  },
+  "Name": "Serum Carbamazepine Level",
+  "Parameter": "Carbamazepine",
+  "Unit": "µg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d65"
+  },
+  "Name": "Serum Phenytoin Level",
+  "Parameter": "Phenytoin",
+  "Unit": "µg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d66"
+  },
+  "Name": "Serum Digoxin Level",
+  "Parameter": "Digoxin",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d67"
+  },
+  "Name": "Red Cell Folate",
+  "Parameter": "RBC Folate",
+  "Unit": "ng/mL RBC",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d68"
+  },
+  "Name": "Serum Iodine",
+  "Parameter": "Iodine",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d69"
+  },
+  "Name": "Vitamin K",
+  "Parameter": "Vitamin K",
+  "Unit": "ng/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d6a"
+  },
+  "Name": "Vitamin E (Tocopherol)",
+  "Parameter": "Vitamin E",
+  "Unit": "mg/L",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d6b"
+  },
+  "Name": "Vitamin C (Ascorbic Acid)",
+  "Parameter": "Vitamin C",
+  "Unit": "mg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d6c"
+  },
+  "Name": "Vitamin B9 (Folate)",
+  "Parameter": "Folate",
+  "Unit": "ng/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d6d"
+  },
+  "Name": "Vitamin B7 (Biotin)",
+  "Parameter": "Biotin",
+  "Unit": "ng/dL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d6e"
+  },
+  "Name": "Vitamin B6 (Pyridoxine)",
+  "Parameter": "Vitamin B6",
+  "Unit": "nmol/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d6f"
+  },
+  "Name": "Vitamin B5 (Pantothenic Acid)",
+  "Parameter": "Pantothenic Acid",
+  "Unit": "µg/dL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d70"
+  },
+  "Name": "Vitamin B3 (Niacin)",
+  "Parameter": "Niacin",
+  "Unit": "nmol/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d71"
+  },
+  "Name": "Vitamin B2 (Riboflavin)",
+  "Parameter": "Riboflavin",
+  "Unit": "nmol/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d72"
+  },
+  "Name": "Vitamin B1 (Thiamine)",
+  "Parameter": "Thiamine",
+  "Unit": "nmol/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d73"
+  },
+  "Name": "Vitamin A (Retinol)",
+  "Parameter": "Vitamin A",
+  "Unit": "µg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d74"
+  },
+  "Name": "Beta-2 Microglobulin (Serum)",
+  "Parameter": "Beta-2 Microglobulin",
+  "Unit": "mg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d75"
+  },
+  "Name": "Serum Free Light Chains",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d76"
+  },
+  "Name": "Serum Immunofixation",
+  "Parameter": "Immunofixation",
+  "Unit": "Report",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d77"
+  },
+  "Name": "Urine Protein Electrophoresis (UPEP)",
+  "Parameter": "Urine Protein Electrophoresis",
+  "Unit": "Report",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d78"
+  },
+  "Name": "Serum Protein Electrophoresis (SPEP)",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d79"
+  },
+  "Name": "Flow Cytometry (Paroxysmal Nocturnal Hemoglobinuria)",
+  "Price": 4000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d7a"
+  },
+  "Name": "Flow Cytometry (CD Markers)",
+  "Parameter": "CD Marker Analysis",
+  "Unit": "Report",
+  "Price": 3000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d7b"
+  },
+  "Name": "Flow Cytometry (Lymphoma Panel)",
+  "Parameter": "Lymphoma Immunophenotyping",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d7c"
+  },
+  "Name": "Flow Cytometry (Leukemia Panel)",
+  "Parameter": "Leukemia Immunophenotyping",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d7d"
+  },
+  "Name": "HLA Typing (High Resolution)",
+  "Parameter": "HLA Typing",
+  "Unit": "Report",
+  "Price": 10000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d7e"
+  },
+  "Name": "HLA Typing (Low Resolution)",
+  "Parameter": "HLA Typing",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d7f"
+  },
+  "Name": "HLA-B5701",
+  "Parameter": "HLA-B5701",
+  "Unit": "Report",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d80"
+  },
+  "Name": "HLA-B27",
+  "Parameter": "HLA-B27",
+  "Unit": "Report",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d81"
+  },
+  "Name": "MTHFR Mutation Analysis",
+  "Parameter": "MTHFR Mutation",
+  "Unit": "Report",
+  "Price": 3000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d82"
+  },
+  "Name": "Prothrombin G20210A Mutation",
+  "Parameter": "Prothrombin Mutation",
+  "Unit": "Report",
+  "Price": 3000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d83"
+  },
+  "Name": "Factor V Leiden Mutation",
+  "Parameter": "Factor V Leiden",
+  "Unit": "Report",
+  "Price": 3000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d84"
+  },
+  "Name": "Cystic Fibrosis Mutation Panel",
+  "Parameter": "CFTR Mutations",
+  "Unit": "Report",
+  "Price": 8000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d85"
+  },
+  "Name": "TP53 Mutation Analysis",
+  "Parameter": "TP53 Mutation",
+  "Unit": "Report",
+  "Price": 6000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d86"
+  },
+  "Name": "IDH1/IDH2 Mutation Analysis",
+  "Parameter": "IDH Mutation",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d87"
+  },
+  "Name": "CEBPA Mutation Analysis",
+  "Parameter": "CEBPA Mutation",
+  "Unit": "Report",
+  "Price": 4000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d88"
+  },
+  "Name": "NPM1 Mutation Analysis",
+  "Parameter": "NPM1 Mutation",
+  "Unit": "Report",
+  "Price": 4000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d89"
+  },
+  "Name": "FLT3 Mutation Analysis",
+  "Parameter": "FLT3 Mutation",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d8a"
+  },
+  "Name": "MPL Mutation Analysis",
+  "Parameter": "MPL Mutation",
+  "Unit": "Report",
+  "Price": 4000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d8b"
+  },
+  "Name": "CALR Mutation Analysis",
+  "Parameter": "CALR Mutation",
+  "Unit": "Report",
+  "Price": 4000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d8c"
+  },
+  "Name": "JAK2 V617F Mutation",
+  "Parameter": "JAK2 Mutation",
+  "Unit": "Report",
+  "Price": 4000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d8d"
+  },
+  "Name": "BCR-ABL Quantitative (RT-PCR)",
+  "Parameter": "BCR-ABL %",
+  "Unit": "%",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d8e"
+  },
+  "Name": "BCR-ABL (Philadelphia Chromosome)",
+  "Parameter": "BCR-ABL",
+  "Unit": "Report",
+  "Price": 4000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d8f"
+  },
+  "Name": "MMR (Mismatch Repair) IHC Panel",
+  "Price": 6000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d90"
+  },
+  "Name": "MSI (Microsatellite Instability) Testing",
+  "Parameter": "MSI Status",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d91"
+  },
+  "Name": "PDL1 Expression (IHC)",
+  "Parameter": "PDL1",
+  "Unit": "TPS/CPS Score",
+  "Price": 6000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d92"
+  },
+  "Name": "HER2 Gene Amplification (FISH)",
+  "Parameter": "HER2 FISH",
+  "Unit": "Report",
+  "Price": 8000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d93"
+  },
+  "Name": "NTRK Gene Fusion",
+  "Parameter": "NTRK Fusion",
+  "Unit": "Report",
+  "Price": 8000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d94"
+  },
+  "Name": "ROS1 Gene Rearrangement",
+  "Parameter": "ROS1 Rearrangement",
+  "Unit": "Report",
+  "Price": 6000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d95"
+  },
+  "Name": "ALK Gene Rearrangement",
+  "Parameter": "ALK Rearrangement",
+  "Unit": "Report",
+  "Price": 6000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d96"
+  },
+  "Name": "BRAF V600E Mutation Analysis",
+  "Parameter": "BRAF Mutation",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d97"
+  },
+  "Name": "EGFR Mutation Analysis",
+  "Parameter": "EGFR Mutation",
+  "Unit": "Report",
+  "Price": 6000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d98"
+  },
+  "Name": "NRAS Mutation Analysis",
+  "Parameter": "NRAS Mutation",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d99"
+  },
+  "Name": "KRAS Mutation Analysis",
+  "Parameter": "KRAS Mutation",
+  "Unit": "Report",
+  "Price": 5000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d9a"
+  },
+  "Name": "BRCA1/BRCA2 Mutation Analysis",
+  "Parameter": "BRCA Mutation",
+  "Unit": "Report",
+  "Price": 15000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d9b"
+  },
+  "Name": "IHC - NSE",
+  "Parameter": "NSE",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d9c"
+  },
+  "Name": "IHC - GFAP",
+  "Parameter": "GFAP",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d9d"
+  },
+  "Name": "IHC - MyoD1",
+  "Parameter": "MyoD1",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d9e"
+  },
+  "Name": "IHC - SMA (Smooth Muscle Actin)",
+  "Parameter": "SMA",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037d9f"
+  },
+  "Name": "IHC - Myogenin",
+  "Parameter": "Myogenin",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da0"
+  },
+  "Name": "IHC - Desmin",
+  "Parameter": "Desmin",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da1"
+  },
+  "Name": "IHC - Calcitonin",
+  "Parameter": "Calcitonin",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da2"
+  },
+  "Name": "IHC - Thyroglobulin",
+  "Parameter": "Thyroglobulin",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da3"
+  },
+  "Name": "IHC - TTF-1",
+  "Parameter": "TTF-1",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da4"
+  },
+  "Name": "IHC - PSA",
+  "Parameter": "PSA",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da5"
+  },
+  "Name": "IHC - Chromogranin",
+  "Parameter": "Chromogranin",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da6"
+  },
+  "Name": "IHC - Synaptophysin",
+  "Parameter": "Synaptophysin",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da7"
+  },
+  "Name": "IHC - Melan-A",
+  "Parameter": "Melan-A",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da8"
+  },
+  "Name": "IHC - HMB-45",
+  "Parameter": "HMB-45",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037da9"
+  },
+  "Name": "IHC - S-100",
+  "Parameter": "S-100",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037daa"
+  },
+  "Name": "IHC - Vimentin",
+  "Parameter": "Vimentin",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dab"
+  },
+  "Name": "IHC - EMA (Epithelial Membrane Antigen)",
+  "Parameter": "EMA",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dac"
+  },
+  "Name": "IHC - CK20",
+  "Parameter": "CK20",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dad"
+  },
+  "Name": "IHC - CK7",
+  "Parameter": "CK7",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dae"
+  },
+  "Name": "IHC - Cytokeratin (AE1/AE3)",
+  "Parameter": "Cytokeratin",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037daf"
+  },
+  "Name": "IHC - CD31",
+  "Parameter": "CD31",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db0"
+  },
+  "Name": "IHC - CD34",
+  "Parameter": "CD34",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db1"
+  },
+  "Name": "IHC - CD56",
+  "Parameter": "CD56",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db2"
+  },
+  "Name": "IHC - CD30",
+  "Parameter": "CD30",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db3"
+  },
+  "Name": "IHC - CD10",
+  "Parameter": "CD10",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db4"
+  },
+  "Name": "IHC - CD5",
+  "Parameter": "CD5",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db5"
+  },
+  "Name": "IHC - CD8",
+  "Parameter": "CD8",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db6"
+  },
+  "Name": "IHC - CD4",
+  "Parameter": "CD4",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db7"
+  },
+  "Name": "IHC - CD3",
+  "Parameter": "CD3",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db8"
+  },
+  "Name": "IHC - CD20",
+  "Parameter": "CD20",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037db9"
+  },
+  "Name": "IHC - CD45 (LCA)",
+  "Parameter": "CD45",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dba"
+  },
+  "Name": "IHC - p53",
+  "Parameter": "p53 Status",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dbb"
+  },
+  "Name": "IHC - Ki-67",
+  "Parameter": "Ki-67 Index",
+  "Unit": "%",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dbc"
+  },
+  "Name": "IHC - HER2/neu",
+  "Parameter": "HER2 Status",
+  "Unit": "Report",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dbd"
+  },
+  "Name": "IHC - PR (Progesterone Receptor)",
+  "Parameter": "PR Status",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dbe"
+  },
+  "Name": "IHC - ER (Estrogen Receptor)",
+  "Parameter": "ER Status",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dbf"
+  },
+  "Name": "Synovial Fluid Cytology",
+  "Parameter": "Synovial Fluid Cytology",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc0"
+  },
+  "Name": "Pericardial Fluid Cytology",
+  "Parameter": "Pericardial Fluid Cytology",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc1"
+  },
+  "Name": "Ascitic Fluid Cytology",
+  "Parameter": "Ascitic Fluid Cytology",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc2"
+  },
+  "Name": "Nipple Discharge Cytology",
+  "Parameter": "Nipple Discharge Cytology",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc3"
+  },
+  "Name": "Bronchial Brushing Cytology",
+  "Parameter": "Bronchial Brushing Cytology",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc4"
+  },
+  "Name": "Bronchial Washing Cytology",
+  "Parameter": "Bronchial Washing Cytology",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc5"
+  },
+  "Name": "CSF Cytology",
+  "Parameter": "CSF Cytology",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc6"
+  },
+  "Name": "Peritoneal Fluid Cytology",
+  "Parameter": "Peritoneal Fluid Cytology",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc7"
+  },
+  "Name": "Pleural Fluid Cytology",
+  "Parameter": "Pleural Fluid Cytology",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc8"
+  },
+  "Name": "Urine Cytology",
+  "Parameter": "Urine Cytology",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dc9"
+  },
+  "Name": "Pap Smear (Liquid Based Cytology)",
+  "Parameter": "LBC Pap Smear",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dca"
+  },
+  "Name": "Pap Smear (Conventional)",
+  "Parameter": "Pap Smear",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dcb"
+  },
+  "Name": "FNAC Salivary Gland",
+  "Parameter": "Salivary Gland FNAC",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dcc"
+  },
+  "Name": "FNAC Lymph Node",
+  "Parameter": "Lymph Node FNAC",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dcd"
+  },
+  "Name": "FNAC Breast",
+  "Parameter": "Breast FNAC",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dce"
+  },
+  "Name": "FNAC Thyroid",
+  "Parameter": "Thyroid FNAC",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dcf"
+  },
+  "Name": "Fine Needle Aspiration Cytology (FNAC)",
+  "Parameter": "FNAC Report",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd0"
+  },
+  "Name": "Oral Biopsy",
+  "Parameter": "Oral Histopathology",
+  "Unit": "Report",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd1"
+  },
+  "Name": "Gastric Biopsy",
+  "Parameter": "Gastric Histopathology",
+  "Unit": "Report",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd2"
+  },
+  "Name": "Colon Biopsy",
+  "Parameter": "Colon Histopathology",
+  "Unit": "Report",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd3"
+  },
+  "Name": "Gastrointestinal Biopsy",
+  "Parameter": "GI Histopathology",
+  "Unit": "Report",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd4"
+  },
+  "Name": "Lung Biopsy",
+  "Parameter": "Lung Histopathology",
+  "Unit": "Report",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd5"
+  },
+  "Name": "Nerve Biopsy",
+  "Parameter": "Nerve Histopathology",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd6"
+  },
+  "Name": "Muscle Biopsy",
+  "Parameter": "Muscle Histopathology",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd7"
+  },
+  "Name": "Bone Biopsy",
+  "Parameter": "Bone Histopathology",
+  "Unit": "Report",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd8"
+  },
+  "Name": "Lymph Node Biopsy",
+  "Parameter": "Lymph Node Histopathology",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dd9"
+  },
+  "Name": "Thyroid Biopsy",
+  "Parameter": "Thyroid Histopathology",
+  "Unit": "Report",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dda"
+  },
+  "Name": "Breast Biopsy",
+  "Parameter": "Breast Histopathology",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ddb"
+  },
+  "Name": "Prostate Biopsy",
+  "Parameter": "Prostate Histopathology",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ddc"
+  },
+  "Name": "Cervical Biopsy",
+  "Parameter": "Cervical Histopathology",
+  "Unit": "Report",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ddd"
+  },
+  "Name": "Endometrial Biopsy",
+  "Parameter": "Endometrial Histopathology",
+  "Unit": "Report",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dde"
+  },
+  "Name": "Kidney Biopsy",
+  "Parameter": "Kidney Histopathology",
+  "Unit": "Report",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ddf"
+  },
+  "Name": "Liver Biopsy",
+  "Parameter": "Liver Histopathology",
+  "Unit": "Report",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de0"
+  },
+  "Name": "Skin Biopsy",
+  "Parameter": "Skin Histopathology",
+  "Unit": "Report",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de1"
+  },
+  "Name": "Histopathology (Whole Organ)",
+  "Parameter": "Histopathology Report",
+  "Unit": "Report",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de2"
+  },
+  "Name": "Histopathology (Large Biopsy)",
+  "Parameter": "Histopathology Report",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de3"
+  },
+  "Name": "Histopathology (Small Biopsy)",
+  "Parameter": "Histopathology Report",
+  "Unit": "Report",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de4"
+  },
+  "Name": "NTx (N-Terminal Telopeptide)",
+  "Parameter": "NTx",
+  "Unit": "nmol BCE/mmol Creatinine",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de5"
+  },
+  "Name": "P1NP (Procollagen Type 1 N-Terminal Propeptide)",
+  "Parameter": "P1NP",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de6"
+  },
+  "Name": "Beta-CTx (C-Terminal Telopeptide)",
+  "Parameter": "Beta-CTx",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de7"
+  },
+  "Name": "Plasma Catecholamines",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de8"
+  },
+  "Name": "Plasma Free Metanephrines",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037de9"
+  },
+  "Name": "Resistin",
+  "Parameter": "Resistin",
+  "Unit": "ng/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dea"
+  },
+  "Name": "Adiponectin",
+  "Parameter": "Adiponectin",
+  "Unit": "µg/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037deb"
+  },
+  "Name": "Leptin",
+  "Parameter": "Leptin",
+  "Unit": "ng/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dec"
+  },
+  "Name": "Ghrelin",
+  "Parameter": "Ghrelin",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ded"
+  },
+  "Name": "Proinsulin",
+  "Parameter": "Proinsulin",
+  "Unit": "pmol/L",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dee"
+  },
+  "Name": "C-Peptide (Stimulated)",
+  "Parameter": "C-Peptide (Stimulated)",
+  "Unit": "ng/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037def"
+  },
+  "Name": "C-Peptide (Fasting)",
+  "Parameter": "C-Peptide",
+  "Unit": "ng/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df0"
+  },
+  "Name": "Atrial Natriuretic Peptide (ANP)",
+  "Parameter": "ANP",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df1"
+  },
+  "Name": "Brain Natriuretic Peptide (BNP)",
+  "Parameter": "BNP",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df2"
+  },
+  "Name": "Renin (Direct)",
+  "Parameter": "Direct Renin",
+  "Unit": "µIU/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df3"
+  },
+  "Name": "Erythropoietin (EPO)",
+  "Parameter": "Erythropoietin",
+  "Unit": "mU/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df4"
+  },
+  "Name": "Neuron Specific Enolase (NSE)",
+  "Parameter": "NSE",
+  "Unit": "ng/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df5"
+  },
+  "Name": "Chromogranin A",
+  "Parameter": "Chromogranin A",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df6"
+  },
+  "Name": "PAPP-A (Pregnancy Associated Plasma Protein A)",
+  "Parameter": "PAPP-A",
+  "Unit": "mIU/L",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df7"
+  },
+  "Name": "Quadruple Marker Test",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df8"
+  },
+  "Name": "Triple Marker Test",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037df9"
+  },
+  "Name": "Double Marker Test (First Trimester Screening)",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dfa"
+  },
+  "Name": "Beta HCG (Quantitative)",
+  "Parameter": "Beta HCG",
+  "Unit": "mIU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dfb"
+  },
+  "Name": "Beta HCG (Qualitative)",
+  "Parameter": "Beta HCG",
+  "Unit": "Report",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dfc"
+  },
+  "Name": "Calcitonin",
+  "Parameter": "Calcitonin",
+  "Unit": "pg/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dfd"
+  },
+  "Name": "PTH (Whole Molecule)",
+  "Parameter": "PTH Whole",
+  "Unit": "pg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dfe"
+  },
+  "Name": "PTH Intact",
+  "Parameter": "PTH Intact",
+  "Unit": "pg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037dff"
+  },
+  "Name": "VIP (Vasoactive Intestinal Peptide)",
+  "Parameter": "VIP",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e00"
+  },
+  "Name": "Somatostatin",
+  "Parameter": "Somatostatin",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e01"
+  },
+  "Name": "Pancreatic Polypeptide",
+  "Parameter": "Pancreatic Polypeptide",
+  "Unit": "pg/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e02"
+  },
+  "Name": "Glucagon",
+  "Parameter": "Glucagon",
+  "Unit": "pg/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e03"
+  },
+  "Name": "Secretin Stimulation Test",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e04"
+  },
+  "Name": "Gastrin",
+  "Parameter": "Gastrin",
+  "Unit": "pg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e05"
+  },
+  "Name": "GH Stimulation Test (Glucagon)",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e06"
+  },
+  "Name": "GH Stimulation Test (Clonidine)",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e07"
+  },
+  "Name": "GH Stimulation Test (Insulin Tolerance)",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e08"
+  },
+  "Name": "Water Deprivation Test",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e09"
+  },
+  "Name": "Osmolality (Urine)",
+  "Parameter": "Urine Osmolality",
+  "Unit": "mOsm/kg",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e0a"
+  },
+  "Name": "Osmolality (Serum)",
+  "Parameter": "Osmolality",
+  "Unit": "mOsm/kg",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e0b"
+  },
+  "Name": "ADH (Anti-Diuretic Hormone/Vasopressin)",
+  "Parameter": "ADH",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e0c"
+  },
+  "Name": "IGF-BP3 (IGF Binding Protein 3)",
+  "Parameter": "IGF-BP3",
+  "Unit": "µg/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e0d"
+  },
+  "Name": "IGF-1 (Insulin-like Growth Factor 1)",
+  "Parameter": "IGF-1",
+  "Unit": "ng/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e0e"
+  },
+  "Name": "Growth Hormone (GH)",
+  "Parameter": "GH",
+  "Unit": "ng/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e0f"
+  },
+  "Name": "Menopause Profile",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e10"
+  },
+  "Name": "PCOS Profile",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e11"
+  },
+  "Name": "Female Fertility Profile",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e12"
+  },
+  "Name": "Male Fertility Profile",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e13"
+  },
+  "Name": "Total Estrogens",
+  "Parameter": "Total Estrogens",
+  "Unit": "pg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e14"
+  },
+  "Name": "17-Beta Estradiol",
+  "Parameter": "17-Beta Estradiol",
+  "Unit": "pg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e15"
+  },
+  "Name": "Progesterone",
+  "Parameter": "Progesterone",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e16"
+  },
+  "Name": "Estriol (E3)",
+  "Parameter": "Estriol",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e17"
+  },
+  "Name": "Estradiol (E2)",
+  "Parameter": "Estradiol",
+  "Unit": "pg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e18"
+  },
+  "Name": "Anti-Mullerian Hormone (AMH)",
+  "Parameter": "AMH",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e19"
+  },
+  "Name": "Inhibin B",
+  "Parameter": "Inhibin B",
+  "Unit": "pg/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e1a"
+  },
+  "Name": "Prolactin",
+  "Parameter": "Prolactin",
+  "Unit": "ng/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e1b"
+  },
+  "Name": "LH (Luteinizing Hormone)",
+  "Parameter": "LH",
+  "Unit": "mIU/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e1c"
+  },
+  "Name": "FSH (Follicle Stimulating Hormone)",
+  "Parameter": "FSH",
+  "Unit": "mIU/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e1d"
+  },
+  "Name": "Dihydrotestosterone (DHT)",
+  "Parameter": "DHT",
+  "Unit": "pg/mL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e1e"
+  },
+  "Name": "SHBG (Sex Hormone Binding Globulin)",
+  "Parameter": "SHBG",
+  "Unit": "nmol/L",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e1f"
+  },
+  "Name": "Free Androgen Index",
+  "Parameter": "FAI",
+  "Unit": "ratio",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e20"
+  },
+  "Name": "Testosterone (Bioavailable)",
+  "Parameter": "Bioavailable Testosterone",
+  "Unit": "ng/dL",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e21"
+  },
+  "Name": "Serum Testosterone (Free)",
+  "Parameter": "Free Testosterone",
+  "Unit": "pg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e22"
+  },
+  "Name": "Serum Testosterone (Total)",
+  "Parameter": "Total Testosterone",
+  "Unit": "ng/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e23"
+  },
+  "Name": "Aldosterone/Renin Ratio",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e24"
+  },
+  "Name": "Renin Activity",
+  "Parameter": "Plasma Renin Activity",
+  "Unit": "ng/mL/hr",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e25"
+  },
+  "Name": "Aldosterone (24-Hour Urine)",
+  "Parameter": "Aldosterone",
+  "Unit": "µg/24hr",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e26"
+  },
+  "Name": "Aldosterone (Serum)",
+  "Parameter": "Aldosterone",
+  "Unit": "ng/dL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e27"
+  },
+  "Name": "Androstenedione",
+  "Parameter": "Androstenedione",
+  "Unit": "ng/dL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e28"
+  },
+  "Name": "17-Hydroxyprogesterone",
+  "Parameter": "17-OHP",
+  "Unit": "ng/dL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e29"
+  },
+  "Name": "DHEA-S (Dehydroepiandrosterone Sulfate)",
+  "Parameter": "DHEA-S",
+  "Unit": "µg/dL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e2a"
+  },
+  "Name": "ACTH (Adrenocorticotropic Hormone)",
+  "Parameter": "ACTH",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e2b"
+  },
+  "Name": "24-Hour Urine Free Cortisol",
+  "Parameter": "Urine Free Cortisol",
+  "Unit": "µg/24hr",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e2c"
+  },
+  "Name": "Salivary Cortisol",
+  "Parameter": "Salivary Cortisol",
+  "Unit": "nmol/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e2d"
+  },
+  "Name": "Midnight Cortisol",
+  "Parameter": "Cortisol (Midnight)",
+  "Unit": "µg/dL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e2e"
+  },
+  "Name": "Serum Cortisol (Evening)",
+  "Parameter": "Cortisol (4 PM)",
+  "Unit": "µg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e2f"
+  },
+  "Name": "Serum Cortisol (Morning)",
+  "Parameter": "Cortisol (8 AM)",
+  "Unit": "µg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e30"
+  },
+  "Name": "Anti-Sperm Antibody (ASA)",
+  "Parameter": "Anti-Sperm Antibody",
+  "Unit": "Report",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e31"
+  },
+  "Name": "Sperm DNA Fragmentation Index (DFI)",
+  "Parameter": "DFI",
+  "Unit": "%",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e32"
+  },
+  "Name": "Semen Fructose",
+  "Parameter": "Fructose",
+  "Unit": "mg/dL",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e33"
+  },
+  "Name": "Post-Coital Test",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e34"
+  },
+  "Name": "Semen Analysis",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e35"
+  },
+  "Name": "Pericardial Fluid Analysis",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e36"
+  },
+  "Name": "Synovial Fluid Analysis",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e37"
+  },
+  "Name": "Peritoneal Fluid Analysis",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e38"
+  },
+  "Name": "Pleural Fluid Analysis",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e39"
+  },
+  "Name": "CSF Routine Examination",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e3a"
+  },
+  "Name": "KOH Preparation (Hair)",
+  "Parameter": "KOH Mount",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e3b"
+  },
+  "Name": "KOH Preparation (Nail)",
+  "Parameter": "KOH Mount",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e3c"
+  },
+  "Name": "KOH Preparation (Skin Scraping)",
+  "Parameter": "KOH Mount",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e3d"
+  },
+  "Name": "Fungal Culture (Hair)",
+  "Parameter": "Fungal Culture",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e3e"
+  },
+  "Name": "Fungal Culture (Skin/Nail)",
+  "Parameter": "Fungal Culture",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e3f"
+  },
+  "Name": "Ascitic Fluid Culture and Sensitivity",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e40"
+  },
+  "Name": "Synovial Fluid Culture and Sensitivity",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e41"
+  },
+  "Name": "Peritoneal Fluid Culture and Sensitivity",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e42"
+  },
+  "Name": "Pleural Fluid Culture and Sensitivity",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e43"
+  },
+  "Name": "CSF Culture and Sensitivity",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e44"
+  },
+  "Name": "Prostatic Secretion Culture",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e45"
+  },
+  "Name": "Seminal Fluid Culture and Sensitivity",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e46"
+  },
+  "Name": "Cervical Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e47"
+  },
+  "Name": "Urethral Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e48"
+  },
+  "Name": "High Vaginal Swab (HVS) Culture",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e49"
+  },
+  "Name": "Vaginal Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e4a"
+  },
+  "Name": "Eye Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e4b"
+  },
+  "Name": "MRSA Screen (Nasal)",
+  "Parameter": "MRSA",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e4c"
+  },
+  "Name": "Nasal Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e4d"
+  },
+  "Name": "Ear Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e4e"
+  },
+  "Name": "Wound Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e4f"
+  },
+  "Name": "Pus Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e50"
+  },
+  "Name": "Throat Swab for Diphtheria",
+  "Parameter": "Corynebacterium diphtheriae",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e51"
+  },
+  "Name": "Throat Swab Culture and Sensitivity",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e52"
+  },
+  "Name": "Blood Culture (Paediatric Bottle)",
+  "Parameter": "Culture",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e53"
+  },
+  "Name": "Blood Culture (Aerobic + Anaerobic)",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e54"
+  },
+  "Name": "Blood Culture (Anaerobic)",
+  "Parameter": "Anaerobic Culture",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e55"
+  },
+  "Name": "Blood Culture (Aerobic)",
+  "Parameter": "Aerobic Culture",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e56"
+  },
+  "Name": "Sputum Cytology",
+  "Parameter": "Sputum Cytology",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e57"
+  },
+  "Name": "Sputum TB Culture (LJ Medium)",
+  "Parameter": "Mycobacterium tuberculosis",
+  "Unit": "Report",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e58"
+  },
+  "Name": "Sputum TB Culture (Liquid)",
+  "Parameter": "Mycobacterium tuberculosis",
+  "Unit": "Report",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e59"
+  },
+  "Name": "Sputum CBNAAT (GeneXpert MTB)",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e5a"
+  },
+  "Name": "Sputum for AFB (3 Samples)",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e5b"
+  },
+  "Name": "Sputum for AFB (Acid Fast Bacilli)",
+  "Parameter": "AFB",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e5c"
+  },
+  "Name": "Sputum Culture and Sensitivity",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e5d"
+  },
+  "Name": "Sputum Routine Examination",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e5e"
+  },
+  "Name": "Stool C. difficile Glutamate Dehydrogenase (GDH)",
+  "Parameter": "GDH Antigen",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e5f"
+  },
+  "Name": "Stool Clostridium difficile Toxin",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e60"
+  },
+  "Name": "Stool Adenovirus Antigen",
+  "Parameter": "Adenovirus Antigen",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e61"
+  },
+  "Name": "Stool Rotavirus Antigen",
+  "Parameter": "Rotavirus Antigen",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e62"
+  },
+  "Name": "Stool Giardia Antigen",
+  "Parameter": "Giardia Antigen",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e63"
+  },
+  "Name": "Stool Calprotectin",
+  "Parameter": "Calprotectin",
+  "Unit": "µg/g",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e64"
+  },
+  "Name": "Stool Elastase",
+  "Parameter": "Elastase",
+  "Unit": "µg/g",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e65"
+  },
+  "Name": "Stool Fat (Quantitative - 72hr)",
+  "Parameter": "Fat",
+  "Unit": "g/24hr",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e66"
+  },
+  "Name": "Stool Fat (Qualitative)",
+  "Parameter": "Fat",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e67"
+  },
+  "Name": "Stool pH",
+  "Parameter": "pH",
+  "Unit": "pH units",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e68"
+  },
+  "Name": "Stool for Reducing Substances",
+  "Parameter": "Reducing Substances",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e69"
+  },
+  "Name": "Stool Culture and Sensitivity",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e6a"
+  },
+  "Name": "Stool for Ova and Parasites",
+  "Parameter": "Ova and Parasites",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e6b"
+  },
+  "Name": "Stool Occult Blood",
+  "Parameter": "Occult Blood",
+  "Unit": "Report",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e6c"
+  },
+  "Name": "Stool Routine Examination",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e6d"
+  },
+  "Name": "Urine Delta-Aminolevulinic Acid (ALA)",
+  "Parameter": "ALA",
+  "Unit": "mg/24hr",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e6e"
+  },
+  "Name": "Urine Porphyrins",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e6f"
+  },
+  "Name": "Urine Porphobilinogen",
+  "Parameter": "Porphobilinogen",
+  "Unit": "mg/24hr",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e70"
+  },
+  "Name": "Urine Hemoglobin",
+  "Parameter": "Hemoglobin",
+  "Unit": "Report",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e71"
+  },
+  "Name": "Urine Myoglobin",
+  "Parameter": "Myoglobin",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e72"
+  },
+  "Name": "Urine ACR (Albumin/Creatinine Ratio)",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e73"
+  },
+  "Name": "Urine NAG (N-Acetylglucosaminidase)",
+  "Parameter": "NAG",
+  "Unit": "U/g Creatinine",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e74"
+  },
+  "Name": "Urine Beta-2 Microglobulin",
+  "Parameter": "Beta-2 Microglobulin",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e75"
+  },
+  "Name": "Urine Immunofixation",
+  "Parameter": "Immunofixation",
+  "Unit": "Report",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e76"
+  },
+  "Name": "Urine Bence Jones Protein",
+  "Parameter": "Bence Jones Protein",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e77"
+  },
+  "Name": "Urine Protein Electrophoresis",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e78"
+  },
+  "Name": "24-Hour Urine Cadmium",
+  "Parameter": "Cadmium",
+  "Unit": "µg/24hr",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e79"
+  },
+  "Name": "24-Hour Urine Arsenic",
+  "Parameter": "Arsenic",
+  "Unit": "µg/24hr",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e7a"
+  },
+  "Name": "24-Hour Urine Mercury",
+  "Parameter": "Mercury",
+  "Unit": "µg/24hr",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e7b"
+  },
+  "Name": "24-Hour Urine Lead",
+  "Parameter": "Lead",
+  "Unit": "µg/24hr",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e7c"
+  },
+  "Name": "24-Hour Urine Copper",
+  "Parameter": "Copper",
+  "Unit": "µg/24hr",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e7d"
+  },
+  "Name": "24-Hour Urine 5-HIAA (5-Hydroxyindoleacetic Acid)",
+  "Parameter": "5-HIAA",
+  "Unit": "mg/24hr",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e7e"
+  },
+  "Name": "24-Hour Urine Catecholamines",
+  "Parameter": "Catecholamines",
+  "Unit": "µg/24hr",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e7f"
+  },
+  "Name": "24-Hour Urine Metanephrines",
+  "Parameter": "Metanephrines",
+  "Unit": "µg/24hr",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e80"
+  },
+  "Name": "24-Hour Urine VMA (Vanillylmandelic Acid)",
+  "Parameter": "VMA",
+  "Unit": "mg/24hr",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e81"
+  },
+  "Name": "24-Hour Urine Potassium",
+  "Parameter": "Potassium",
+  "Unit": "mmol/24hr",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e82"
+  },
+  "Name": "24-Hour Urine Sodium",
+  "Parameter": "Sodium",
+  "Unit": "mmol/24hr",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e83"
+  },
+  "Name": "24-Hour Urine Magnesium",
+  "Parameter": "Magnesium",
+  "Unit": "mg/24hr",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e84"
+  },
+  "Name": "24-Hour Urine Citrate",
+  "Parameter": "Citrate",
+  "Unit": "mg/24hr",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e85"
+  },
+  "Name": "24-Hour Urine Oxalate",
+  "Parameter": "Oxalate",
+  "Unit": "mg/24hr",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e86"
+  },
+  "Name": "24-Hour Urine Phosphorus",
+  "Parameter": "Phosphorus",
+  "Unit": "g/24hr",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e87"
+  },
+  "Name": "24-Hour Urine Calcium",
+  "Parameter": "Calcium",
+  "Unit": "mg/24hr",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e88"
+  },
+  "Name": "24-Hour Urine Uric Acid",
+  "Parameter": "Uric Acid",
+  "Unit": "mg/24hr",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e89"
+  },
+  "Name": "24-Hour Urine Creatinine",
+  "Parameter": "Creatinine",
+  "Unit": "mg/24hr",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e8a"
+  },
+  "Name": "24-Hour Urine Analysis",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e8b"
+  },
+  "Name": "Urine Culture and Sensitivity",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e8c"
+  },
+  "Name": "Urine Pregnancy Test (Beta HCG)",
+  "Parameter": "Urine Beta HCG",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e8d"
+  },
+  "Name": "Urine Pregnancy Test",
+  "Parameter": "HCG",
+  "Unit": "Report",
+  "Price": 100,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e8e"
+  },
+  "Name": "Urine Routine Examination",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e8f"
+  },
+  "Name": "Complete Urine Examination",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e90"
+  },
+  "Name": "NK Cell Count (CD16/CD56)",
+  "Parameter": "NK Cells",
+  "Unit": "cells/µL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e91"
+  },
+  "Name": "B-Cell Count (CD19)",
+  "Parameter": "CD19+ B Cells",
+  "Unit": "cells/µL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e92"
+  },
+  "Name": "Lymphocyte Subset Panel",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e93"
+  },
+  "Name": "Cryofibrinogen",
+  "Parameter": "Cryofibrinogen",
+  "Unit": "Report",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e94"
+  },
+  "Name": "Anti-Gliadin Antibody",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e95"
+  },
+  "Name": "Anti-Endomysial Antibody (EMA)",
+  "Parameter": "EMA IgA",
+  "Unit": "Titre",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e96"
+  },
+  "Name": "Anti-Tissue Transglutaminase (tTG) IgA",
+  "Parameter": "Anti-tTG IgA",
+  "Unit": "U/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e97"
+  },
+  "Name": "Celiac Disease Panel",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e98"
+  },
+  "Name": "Cryoglobulins",
+  "Parameter": "Cryoglobulins",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e99"
+  },
+  "Name": "Specific IgE (Single Allergen)",
+  "Parameter": "Specific IgE",
+  "Unit": "kU/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e9a"
+  },
+  "Name": "Allergy Profile (Food)",
+  "Price": 3000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e9b"
+  },
+  "Name": "Allergy Profile (Inhalant)",
+  "Price": 3000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e9c"
+  },
+  "Name": "Schistosoma Antibody",
+  "Parameter": "Schistosoma Ab",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e9d"
+  },
+  "Name": "Cysticercosis Antibody",
+  "Parameter": "Cysticercosis Ab",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e9e"
+  },
+  "Name": "Echinococcus Antibody",
+  "Parameter": "Echinococcus Ab",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037e9f"
+  },
+  "Name": "Entamoeba histolytica Antibody",
+  "Parameter": "E. histolytica Ab",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea0"
+  },
+  "Name": "Leishmania Antibody",
+  "Parameter": "Leishmania Ab",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea1"
+  },
+  "Name": "Malaria Parasite (Microscopy)",
+  "Parameter": "Malaria Parasite",
+  "Unit": "Report",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea2"
+  },
+  "Name": "Malaria Antigen (Rapid)",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea3"
+  },
+  "Name": "1,3-Beta-D-Glucan",
+  "Parameter": "BDG",
+  "Unit": "pg/mL",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea4"
+  },
+  "Name": "Cryptococcal Antigen (CrAg)",
+  "Parameter": "Cryptococcal Antigen",
+  "Unit": "Titre",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea5"
+  },
+  "Name": "Galactomannan Antigen",
+  "Parameter": "Galactomannan",
+  "Unit": "Index",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea6"
+  },
+  "Name": "Aspergillus IgE",
+  "Parameter": "Aspergillus IgE",
+  "Unit": "kU/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea7"
+  },
+  "Name": "Aspergillus IgG",
+  "Parameter": "Aspergillus IgG",
+  "Unit": "mg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea8"
+  },
+  "Name": "Streptococcus pneumoniae Urinary Antigen",
+  "Parameter": "S. pneumoniae Antigen",
+  "Unit": "Report",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ea9"
+  },
+  "Name": "Legionella Urinary Antigen",
+  "Parameter": "Legionella Antigen",
+  "Unit": "Report",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eaa"
+  },
+  "Name": "Mycoplasma pneumoniae IgM",
+  "Parameter": "M. pneumoniae IgM",
+  "Unit": "U/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eab"
+  },
+  "Name": "Mycoplasma pneumoniae IgG",
+  "Parameter": "M. pneumoniae IgG",
+  "Unit": "U/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eac"
+  },
+  "Name": "Chlamydia trachomatis IgM",
+  "Parameter": "C. trachomatis IgM",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ead"
+  },
+  "Name": "Chlamydia trachomatis IgG",
+  "Parameter": "C. trachomatis IgG",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eae"
+  },
+  "Name": "H. pylori Stool Antigen",
+  "Parameter": "H. pylori Antigen",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eaf"
+  },
+  "Name": "Helicobacter Pylori IgA",
+  "Parameter": "H. pylori IgA",
+  "Unit": "U/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb0"
+  },
+  "Name": "Helicobacter Pylori IgG",
+  "Parameter": "H. pylori IgG",
+  "Unit": "U/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb1"
+  },
+  "Name": "FTA-ABS",
+  "Parameter": "FTA-ABS",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb2"
+  },
+  "Name": "TPHA (Treponema Pallidum Hemagglutination)",
+  "Parameter": "TPHA",
+  "Unit": "Titre",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb3"
+  },
+  "Name": "TPPA (Treponema Pallidum Particle Agglutination)",
+  "Parameter": "TPPA",
+  "Unit": "Titre",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb4"
+  },
+  "Name": "Syphilis (RPR)",
+  "Parameter": "RPR",
+  "Unit": "Titre",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb5"
+  },
+  "Name": "Syphilis (VDRL)",
+  "Parameter": "VDRL",
+  "Unit": "Titre",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb6"
+  },
+  "Name": "Anti-DNase B",
+  "Parameter": "Anti-DNase B",
+  "Unit": "U/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb7"
+  },
+  "Name": "ASO Titre (Anti-Streptolysin O)",
+  "Parameter": "ASO",
+  "Unit": "IU/mL",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb8"
+  },
+  "Name": "Leptospira IgG",
+  "Parameter": "Leptospira IgG",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eb9"
+  },
+  "Name": "Leptospira IgM",
+  "Parameter": "Leptospira IgM",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eba"
+  },
+  "Name": "Weil-Felix Test",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ebb"
+  },
+  "Name": "Brucella Agglutination Test",
+  "Parameter": "Brucella Titre",
+  "Unit": "Titre",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ebc"
+  },
+  "Name": "Brucella IgM",
+  "Parameter": "Brucella IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ebd"
+  },
+  "Name": "Brucella IgG",
+  "Parameter": "Brucella IgG",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ebe"
+  },
+  "Name": "Typhoid IgM",
+  "Parameter": "Typhoid IgM",
+  "Unit": "Index",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ebf"
+  },
+  "Name": "Widal Test",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec0"
+  },
+  "Name": "COVID-19 RT-PCR",
+  "Parameter": "SARS-CoV-2 RNA",
+  "Unit": "Report",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec1"
+  },
+  "Name": "SARS-CoV-2 IgM",
+  "Parameter": "COVID-19 IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec2"
+  },
+  "Name": "SARS-CoV-2 IgG",
+  "Parameter": "COVID-19 IgG",
+  "Unit": "AU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec3"
+  },
+  "Name": "Chikungunya IgM",
+  "Parameter": "Chikungunya IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec4"
+  },
+  "Name": "Chikungunya IgG",
+  "Parameter": "Chikungunya IgG",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec5"
+  },
+  "Name": "Dengue NS1 Antigen",
+  "Parameter": "Dengue NS1",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec6"
+  },
+  "Name": "Dengue IgM",
+  "Parameter": "Dengue IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec7"
+  },
+  "Name": "Dengue IgG",
+  "Parameter": "Dengue IgG",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec8"
+  },
+  "Name": "Mumps IgG",
+  "Parameter": "Mumps IgG",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ec9"
+  },
+  "Name": "Measles IgG",
+  "Parameter": "Measles IgG",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eca"
+  },
+  "Name": "Varicella Zoster Virus (VZV) IgM",
+  "Parameter": "VZV IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ecb"
+  },
+  "Name": "Varicella Zoster Virus (VZV) IgG",
+  "Parameter": "VZV IgG",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ecc"
+  },
+  "Name": "Parvovirus B19 IgM",
+  "Parameter": "Parvovirus B19 IgM",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ecd"
+  },
+  "Name": "Parvovirus B19 IgG",
+  "Parameter": "Parvovirus B19 IgG",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ece"
+  },
+  "Name": "EBV EBNA IgG",
+  "Parameter": "EBNA IgG",
+  "Unit": "U/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ecf"
+  },
+  "Name": "EBV VCA IgM",
+  "Parameter": "VCA IgM",
+  "Unit": "U/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed0"
+  },
+  "Name": "EBV VCA IgG",
+  "Parameter": "VCA IgG",
+  "Unit": "U/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed1"
+  },
+  "Name": "Epstein-Barr Virus (EBV) Profile",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed2"
+  },
+  "Name": "HSV-2 IgG",
+  "Parameter": "HSV-2 IgG",
+  "Unit": "Index",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed3"
+  },
+  "Name": "HSV-1 IgG",
+  "Parameter": "HSV-1 IgG",
+  "Unit": "Index",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed4"
+  },
+  "Name": "Herpes Simplex Virus (HSV) IgG",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed5"
+  },
+  "Name": "CMV IgM",
+  "Parameter": "CMV IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed6"
+  },
+  "Name": "CMV IgG",
+  "Parameter": "CMV IgG",
+  "Unit": "AU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed7"
+  },
+  "Name": "Rubella IgM",
+  "Parameter": "Rubella IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed8"
+  },
+  "Name": "Rubella IgG",
+  "Parameter": "Rubella IgG",
+  "Unit": "IU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ed9"
+  },
+  "Name": "Toxoplasma IgM",
+  "Parameter": "Toxoplasma IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eda"
+  },
+  "Name": "Toxoplasma IgG",
+  "Parameter": "Toxoplasma IgG",
+  "Unit": "IU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037edb"
+  },
+  "Name": "TORCH Panel",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037edc"
+  },
+  "Name": "CD8 Count",
+  "Parameter": "CD8+ Count",
+  "Unit": "cells/µL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037edd"
+  },
+  "Name": "CD4 Count",
+  "Parameter": "CD4+ Count",
+  "Unit": "cells/µL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ede"
+  },
+  "Name": "CD4/CD8 Count",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037edf"
+  },
+  "Name": "HIV-1 RNA Quantitative (Viral Load)",
+  "Parameter": "HIV-1 RNA",
+  "Unit": "copies/mL",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee0"
+  },
+  "Name": "HIV 1 & 2 Antibodies + p24 Antigen (4th Gen)",
+  "Parameter": "HIV Ag/Ab Combo",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee1"
+  },
+  "Name": "HIV 1 & 2 Antibodies",
+  "Parameter": "HIV 1/2 Ab",
+  "Unit": "Index",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee2"
+  },
+  "Name": "Hepatitis E - Anti-HEV IgG",
+  "Parameter": "Anti-HEV IgG",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee3"
+  },
+  "Name": "Hepatitis E - Anti-HEV IgM",
+  "Parameter": "Anti-HEV IgM",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee4"
+  },
+  "Name": "HDV RNA Quantitative",
+  "Parameter": "HDV RNA",
+  "Unit": "copies/mL",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee5"
+  },
+  "Name": "Hepatitis D - Anti-HDV",
+  "Parameter": "Anti-HDV",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee6"
+  },
+  "Name": "HCV Genotyping",
+  "Parameter": "HCV Genotype",
+  "Unit": "Report",
+  "Price": 3000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee7"
+  },
+  "Name": "HCV RNA Quantitative (Viral Load)",
+  "Parameter": "HCV RNA",
+  "Unit": "IU/mL",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee8"
+  },
+  "Name": "Hepatitis C - Anti-HCV",
+  "Parameter": "Anti-HCV",
+  "Unit": "Index",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ee9"
+  },
+  "Name": "HBV DNA Quantitative (Viral Load)",
+  "Parameter": "HBV DNA",
+  "Unit": "IU/mL",
+  "Price": 2500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eea"
+  },
+  "Name": "Anti-HBe",
+  "Parameter": "Anti-HBe",
+  "Unit": "Index",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eeb"
+  },
+  "Name": "HBeAg",
+  "Parameter": "HBeAg",
+  "Unit": "Index",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eec"
+  },
+  "Name": "Anti-HBc IgM",
+  "Parameter": "Anti-HBc IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eed"
+  },
+  "Name": "Anti-HBc Total",
+  "Parameter": "Anti-HBc Total",
+  "Unit": "Index",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eee"
+  },
+  "Name": "Anti-HBs (Hepatitis B Surface Antibody)",
+  "Parameter": "Anti-HBs",
+  "Unit": "mIU/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eef"
+  },
+  "Name": "HBsAg (Hepatitis B Surface Antigen)",
+  "Parameter": "HBsAg",
+  "Unit": "Index",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef0"
+  },
+  "Name": "Hepatitis B Profile",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef1"
+  },
+  "Name": "Hepatitis A - Anti HAV Total",
+  "Parameter": "Anti-HAV Total",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef2"
+  },
+  "Name": "Hepatitis A - Anti HAV IgM",
+  "Parameter": "Anti-HAV IgM",
+  "Unit": "Index",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef3"
+  },
+  "Name": "TNF-Alpha",
+  "Parameter": "TNF-Alpha",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef4"
+  },
+  "Name": "Interleukin-6 (IL-6)",
+  "Parameter": "IL-6",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef5"
+  },
+  "Name": "Serum Amyloid A (SAA)",
+  "Parameter": "SAA",
+  "Unit": "mg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef6"
+  },
+  "Name": "Procalcitonin",
+  "Parameter": "Procalcitonin",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef7"
+  },
+  "Name": "Ferritin",
+  "Parameter": "Ferritin",
+  "Unit": "ng/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef8"
+  },
+  "Name": "ESR (Erythrocyte Sedimentation Rate)",
+  "Parameter": "ESR",
+  "Unit": "mm/hr",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ef9"
+  },
+  "Name": "High Sensitivity CRP (hs-CRP)",
+  "Parameter": "hs-CRP",
+  "Unit": "mg/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037efa"
+  },
+  "Name": "C-Reactive Protein (CRP)",
+  "Parameter": "CRP",
+  "Unit": "mg/L",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037efb"
+  },
+  "Name": "Anti-Nuclear Cytoplasmic Antibody (ANCA)",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037efc"
+  },
+  "Name": "Anti-Liver Kidney Microsomal (Anti-LKM)",
+  "Parameter": "Anti-LKM",
+  "Unit": "Index",
+  "Price": 700,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037efd"
+  },
+  "Name": "Anti-Smooth Muscle Antibody (ASMA)",
+  "Parameter": "ASMA",
+  "Unit": "Titre",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037efe"
+  },
+  "Name": "Anti-Mitochondrial Antibody (AMA)",
+  "Parameter": "AMA",
+  "Unit": "Titre",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037eff"
+  },
+  "Name": "Anti-Cardiolipin Antibody",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f00"
+  },
+  "Name": "Anti-Phospholipid Antibody Panel",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f01"
+  },
+  "Name": "ANCA (Anti-Neutrophil Cytoplasmic Antibodies)",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f02"
+  },
+  "Name": "Anti-GBM (Glomerular Basement Membrane)",
+  "Parameter": "Anti-GBM",
+  "Unit": "U/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f03"
+  },
+  "Name": "Rheumatoid Arthritis Profile",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f04"
+  },
+  "Name": "Rheumatoid Factor (RF)",
+  "Parameter": "RF",
+  "Unit": "IU/mL",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f05"
+  },
+  "Name": "Anti-CCP (Cyclic Citrullinated Peptide)",
+  "Parameter": "Anti-CCP",
+  "Unit": "U/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f06"
+  },
+  "Name": "Anti-Centromere Antibody",
+  "Parameter": "Anti-Centromere",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f07"
+  },
+  "Name": "Anti-Jo-1",
+  "Parameter": "Anti-Jo-1",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f08"
+  },
+  "Name": "Anti-Scl-70",
+  "Parameter": "Anti-Scl-70",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f09"
+  },
+  "Name": "Anti-SS-B (La)",
+  "Parameter": "Anti-SS-B",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f0a"
+  },
+  "Name": "Anti-SS-A (Ro)",
+  "Parameter": "Anti-SS-A",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f0b"
+  },
+  "Name": "Anti-Sm Antibody",
+  "Parameter": "Anti-Sm",
+  "Unit": "Index",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f0c"
+  },
+  "Name": "Anti-dsDNA",
+  "Parameter": "Anti-dsDNA",
+  "Unit": "IU/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f0d"
+  },
+  "Name": "ANA Profile",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f0e"
+  },
+  "Name": "ANA (Antinuclear Antibody)",
+  "Parameter": "ANA",
+  "Unit": "Titre",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f0f"
+  },
+  "Name": "Complement Profile",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f10"
+  },
+  "Name": "Total Complement (CH50)",
+  "Parameter": "CH50",
+  "Unit": "U/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f11"
+  },
+  "Name": "Complement C4",
+  "Parameter": "C4",
+  "Unit": "mg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f12"
+  },
+  "Name": "Complement C3",
+  "Parameter": "C3",
+  "Unit": "mg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f13"
+  },
+  "Name": "IgG Subclasses",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f14"
+  },
+  "Name": "Total IgE",
+  "Parameter": "Total IgE",
+  "Unit": "IU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f15"
+  },
+  "Name": "Immunoglobulin E (IgE)",
+  "Parameter": "IgE",
+  "Unit": "IU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f16"
+  },
+  "Name": "Immunoglobulin D (IgD)",
+  "Parameter": "IgD",
+  "Unit": "mg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f17"
+  },
+  "Name": "Immunoglobulin M (IgM)",
+  "Parameter": "IgM",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f18"
+  },
+  "Name": "Immunoglobulin A (IgA)",
+  "Parameter": "IgA",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f19"
+  },
+  "Name": "Immunoglobulin G (IgG)",
+  "Parameter": "IgG",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f1a"
+  },
+  "Name": "Immunoglobulin Profile (IgG, IgA, IgM)",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f1b"
+  },
+  "Name": "Pyruvate Kinase",
+  "Parameter": "Pyruvate Kinase",
+  "Unit": "U/g Hb",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f1c"
+  },
+  "Name": "Glucose-6-Phosphate Dehydrogenase (G6PD)",
+  "Parameter": "G6PD",
+  "Unit": "U/g Hb",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f1d"
+  },
+  "Name": "Aldolase",
+  "Parameter": "Aldolase",
+  "Unit": "U/L",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f1e"
+  },
+  "Name": "Lipase",
+  "Parameter": "Lipase",
+  "Unit": "U/L",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f1f"
+  },
+  "Name": "Angiotensin Converting Enzyme (ACE)",
+  "Parameter": "ACE",
+  "Unit": "U/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f20"
+  },
+  "Name": "5'-Nucleotidase",
+  "Parameter": "5'-NT",
+  "Unit": "U/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f21"
+  },
+  "Name": "Pseudocholinesterase",
+  "Parameter": "Pseudocholinesterase",
+  "Unit": "U/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f22"
+  },
+  "Name": "Cholinesterase (Serum)",
+  "Parameter": "Cholinesterase",
+  "Unit": "U/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f23"
+  },
+  "Name": "Prostatic Acid Phosphatase (PAP)",
+  "Parameter": "PAP",
+  "Unit": "ng/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f24"
+  },
+  "Name": "Acid Phosphatase",
+  "Parameter": "Acid Phosphatase",
+  "Unit": "U/L",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f25"
+  },
+  "Name": "Serum Retinol Binding Protein",
+  "Parameter": "RBP",
+  "Unit": "mg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f26"
+  },
+  "Name": "Serum Prealbumin",
+  "Parameter": "Prealbumin",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f27"
+  },
+  "Name": "Serum Nickel",
+  "Parameter": "Nickel",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f28"
+  },
+  "Name": "Serum Cobalt",
+  "Parameter": "Cobalt",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f29"
+  },
+  "Name": "Serum Molybdenum",
+  "Parameter": "Molybdenum",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f2a"
+  },
+  "Name": "Serum Manganese",
+  "Parameter": "Manganese",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f2b"
+  },
+  "Name": "Serum Aluminum",
+  "Parameter": "Aluminum",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f2c"
+  },
+  "Name": "Serum Cadmium",
+  "Parameter": "Cadmium",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f2d"
+  },
+  "Name": "Serum Arsenic",
+  "Parameter": "Arsenic",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:05"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f2e"
+  },
+  "Name": "Serum Mercury",
+  "Parameter": "Mercury",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f2f"
+  },
+  "Name": "Serum Lead",
+  "Parameter": "Lead",
+  "Unit": "µg/dL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f30"
+  },
+  "Name": "Serum Chromium",
+  "Parameter": "Chromium",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f31"
+  },
+  "Name": "Ceruloplasmin",
+  "Parameter": "Ceruloplasmin",
+  "Unit": "mg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f32"
+  },
+  "Name": "Serum Selenium",
+  "Parameter": "Selenium",
+  "Unit": "µg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f33"
+  },
+  "Name": "Serum Zinc",
+  "Parameter": "Zinc",
+  "Unit": "µg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f34"
+  },
+  "Name": "Serum Copper",
+  "Parameter": "Copper",
+  "Unit": "µg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f35"
+  },
+  "Name": "Serum Lactate",
+  "Parameter": "Lactate",
+  "Unit": "mmol/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f36"
+  },
+  "Name": "Serum Ammonia",
+  "Parameter": "Ammonia",
+  "Unit": "µmol/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f37"
+  },
+  "Name": "Bone Profile",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f38"
+  },
+  "Name": "Beta CrossLaps (CTX)",
+  "Parameter": "Beta-CTx",
+  "Unit": "ng/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f39"
+  },
+  "Name": "Osteocalcin",
+  "Parameter": "Osteocalcin",
+  "Unit": "ng/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f3a"
+  },
+  "Name": "Vitamin D (1,25-Dihydroxy)",
+  "Parameter": "1,25-(OH)2 Vitamin D",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f3b"
+  },
+  "Name": "Vitamin D (25-OH)",
+  "Parameter": "25-OH Vitamin D",
+  "Unit": "ng/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f3c"
+  },
+  "Name": "Parathyroid Hormone (PTH)",
+  "Parameter": "PTH Intact",
+  "Unit": "pg/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f3d"
+  },
+  "Name": "Serum Calcium (Total)",
+  "Parameter": "Calcium",
+  "Unit": "mg/dL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f3e"
+  },
+  "Name": "LDH (Lactate Dehydrogenase)",
+  "Parameter": "LDH",
+  "Unit": "U/L",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f3f"
+  },
+  "Name": "Serum Beta HCG (Pregnancy)",
+  "Parameter": "Beta HCG",
+  "Unit": "mIU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f40"
+  },
+  "Name": "Beta HCG",
+  "Parameter": "Beta HCG",
+  "Unit": "mIU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f41"
+  },
+  "Name": "PSA Ratio (Free/Total)",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f42"
+  },
+  "Name": "Free PSA",
+  "Parameter": "Free PSA",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f43"
+  },
+  "Name": "PSA (Prostate Specific Antigen)",
+  "Parameter": "Total PSA",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f44"
+  },
+  "Name": "CA 15-3",
+  "Parameter": "CA 15-3",
+  "Unit": "U/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f45"
+  },
+  "Name": "CA 19-9",
+  "Parameter": "CA 19-9",
+  "Unit": "U/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f46"
+  },
+  "Name": "CA-125",
+  "Parameter": "CA-125",
+  "Unit": "U/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f47"
+  },
+  "Name": "CEA (Carcinoembryonic Antigen)",
+  "Parameter": "CEA",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f48"
+  },
+  "Name": "Alpha Feto Protein (AFP)",
+  "Parameter": "AFP",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f49"
+  },
+  "Name": "TSH Receptor Antibodies (TRAb)",
+  "Parameter": "TRAb",
+  "Unit": "IU/L",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f4a"
+  },
+  "Name": "Anti-Thyroglobulin Antibodies",
+  "Parameter": "Anti-Tg",
+  "Unit": "IU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f4b"
+  },
+  "Name": "Anti-TPO (Thyroid Peroxidase Antibodies)",
+  "Parameter": "Anti-TPO",
+  "Unit": "IU/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f4c"
+  },
+  "Name": "Thyroglobulin",
+  "Parameter": "Thyroglobulin",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f4d"
+  },
+  "Name": "Reverse T3",
+  "Parameter": "Reverse T3",
+  "Unit": "ng/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f4e"
+  },
+  "Name": "Free T4",
+  "Parameter": "Free T4",
+  "Unit": "ng/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f4f"
+  },
+  "Name": "Free T3",
+  "Parameter": "Free T3",
+  "Unit": "pg/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f50"
+  },
+  "Name": "Total T4",
+  "Parameter": "Total T4",
+  "Unit": "µg/dL",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f51"
+  },
+  "Name": "Total T3",
+  "Parameter": "Total T3",
+  "Unit": "ng/dL",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f52"
+  },
+  "Name": "TSH (Thyroid Stimulating Hormone)",
+  "Parameter": "TSH",
+  "Unit": "mIU/L",
+  "Price": 250,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f53"
+  },
+  "Name": "Thyroid Profile Free (FT3, FT4, TSH)",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f54"
+  },
+  "Name": "Thyroid Profile (T3, T4, TSH)",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f55"
+  },
+  "Name": "Pancreatic Amylase",
+  "Parameter": "Pancreatic Amylase",
+  "Unit": "U/L",
+  "Price": 350,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f56"
+  },
+  "Name": "Serum Lipase",
+  "Parameter": "Lipase",
+  "Unit": "U/L",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f57"
+  },
+  "Name": "Serum Amylase",
+  "Parameter": "Amylase",
+  "Unit": "U/L",
+  "Price": 250,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f58"
+  },
+  "Name": "Venous Blood Gas (VBG)",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f59"
+  },
+  "Name": "Arterial Blood Gas (ABG)",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f5a"
+  },
+  "Name": "Electrolyte Panel Comprehensive",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f5b"
+  },
+  "Name": "Anion Gap",
+  "Parameter": "Anion Gap",
+  "Unit": "mmol/L",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f5c"
+  },
+  "Name": "Serum Magnesium",
+  "Parameter": "Magnesium",
+  "Unit": "mg/dL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f5d"
+  },
+  "Name": "Serum Phosphorus",
+  "Parameter": "Phosphorus",
+  "Unit": "mg/dL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f5e"
+  },
+  "Name": "Ionized Calcium",
+  "Parameter": "Ionized Calcium",
+  "Unit": "mmol/L",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f5f"
+  },
+  "Name": "Serum Calcium",
+  "Parameter": "Calcium (Total)",
+  "Unit": "mg/dL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f60"
+  },
+  "Name": "Serum Bicarbonate",
+  "Parameter": "HCO3",
+  "Unit": "mmol/L",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f61"
+  },
+  "Name": "Serum Chloride",
+  "Parameter": "Chloride",
+  "Unit": "mmol/L",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f62"
+  },
+  "Name": "Serum Potassium",
+  "Parameter": "Potassium",
+  "Unit": "mmol/L",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f63"
+  },
+  "Name": "Serum Sodium",
+  "Parameter": "Sodium",
+  "Unit": "mmol/L",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f64"
+  },
+  "Name": "Insulin Resistance (HOMA-IR)",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f65"
+  },
+  "Name": "Insulin (Fasting)",
+  "Parameter": "Insulin",
+  "Unit": "µIU/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f66"
+  },
+  "Name": "C-Peptide",
+  "Parameter": "C-Peptide",
+  "Unit": "ng/mL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f67"
+  },
+  "Name": "Fructosamine",
+  "Parameter": "Fructosamine",
+  "Unit": "µmol/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f68"
+  },
+  "Name": "GTT (Extended 5-Sample)",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f69"
+  },
+  "Name": "GTT (3-Sample)",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f6a"
+  },
+  "Name": "Oral Glucose Tolerance Test (OGTT)",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f6b"
+  },
+  "Name": "Post Prandial Blood Sugar (PPBS)",
+  "Parameter": "Glucose (2hr PP)",
+  "Unit": "mg/dL",
+  "Price": 100,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f6c"
+  },
+  "Name": "Random Blood Sugar (RBS)",
+  "Parameter": "Glucose (Random)",
+  "Unit": "mg/dL",
+  "Price": 100,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f6d"
+  },
+  "Name": "Fasting Blood Sugar (FBS)",
+  "Parameter": "Glucose (Fasting)",
+  "Unit": "mg/dL",
+  "Price": 100,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f6e"
+  },
+  "Name": "BNP (B-type Natriuretic Peptide)",
+  "Parameter": "BNP",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f6f"
+  },
+  "Name": "Myoglobin",
+  "Parameter": "Myoglobin",
+  "Unit": "ng/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f70"
+  },
+  "Name": "LDH Isoenzymes",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f71"
+  },
+  "Name": "Lactate Dehydrogenase (LDH)",
+  "Parameter": "LDH",
+  "Unit": "U/L",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f72"
+  },
+  "Name": "CK Isoenzymes",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f73"
+  },
+  "Name": "Creatine Kinase (CK Total)",
+  "Parameter": "CK Total",
+  "Unit": "U/L",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f74"
+  },
+  "Name": "CK-MB",
+  "Parameter": "CK-MB",
+  "Unit": "U/L",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f75"
+  },
+  "Name": "Troponin T",
+  "Parameter": "Troponin T",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f76"
+  },
+  "Name": "Troponin I",
+  "Parameter": "Troponin I",
+  "Unit": "ng/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f77"
+  },
+  "Name": "Cardiac Profile",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f78"
+  },
+  "Name": "hs-CRP (High Sensitivity C-Reactive Protein)",
+  "Parameter": "hs-CRP",
+  "Unit": "mg/L",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f79"
+  },
+  "Name": "Homocysteine",
+  "Parameter": "Homocysteine",
+  "Unit": "µmol/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f7a"
+  },
+  "Name": "Lipoprotein (a) [Lp(a)]",
+  "Parameter": "Lp(a)",
+  "Unit": "mg/dL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f7b"
+  },
+  "Name": "Apo B/Apo A1 Ratio",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f7c"
+  },
+  "Name": "Apolipoprotein B (Apo B)",
+  "Parameter": "Apo B",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f7d"
+  },
+  "Name": "Apolipoprotein A1 (Apo A1)",
+  "Parameter": "Apo A1",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f7e"
+  },
+  "Name": "LDL Cholesterol (Direct)",
+  "Parameter": "LDL-C (Direct)",
+  "Unit": "mg/dL",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f7f"
+  },
+  "Name": "HDL Cholesterol",
+  "Parameter": "HDL-C",
+  "Unit": "mg/dL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f80"
+  },
+  "Name": "Serum Triglycerides",
+  "Parameter": "Triglycerides",
+  "Unit": "mg/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f81"
+  },
+  "Name": "Total Cholesterol",
+  "Parameter": "Total Cholesterol",
+  "Unit": "mg/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f82"
+  },
+  "Name": "Lipid Profile",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f83"
+  },
+  "Name": "Protein Electrophoresis (Serum)",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f84"
+  },
+  "Name": "Serum Albumin",
+  "Parameter": "Albumin",
+  "Unit": "g/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f85"
+  },
+  "Name": "Serum Total Protein",
+  "Parameter": "Total Protein",
+  "Unit": "g/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f86"
+  },
+  "Name": "Gamma Glutamyl Transferase (GGT)",
+  "Parameter": "GGT",
+  "Unit": "U/L",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f87"
+  },
+  "Name": "Alkaline Phosphatase (ALP)",
+  "Parameter": "ALP",
+  "Unit": "U/L",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f88"
+  },
+  "Name": "SGOT (AST)",
+  "Parameter": "AST",
+  "Unit": "U/L",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f89"
+  },
+  "Name": "SGPT (ALT)",
+  "Parameter": "ALT",
+  "Unit": "U/L",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f8a"
+  },
+  "Name": "Serum Bilirubin (Direct)",
+  "Parameter": "Direct Bilirubin",
+  "Unit": "mg/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f8b"
+  },
+  "Name": "Serum Bilirubin (Total)",
+  "Parameter": "Total Bilirubin",
+  "Unit": "mg/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f8c"
+  },
+  "Name": "Cystatin C",
+  "Parameter": "Cystatin C",
+  "Unit": "mg/L",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f8d"
+  },
+  "Name": "Microalbumin/Creatinine Ratio",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f8e"
+  },
+  "Name": "Creatinine Clearance",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f8f"
+  },
+  "Name": "24-Hour Urine Protein",
+  "Parameter": "Total Protein",
+  "Unit": "mg/24hr",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f90"
+  },
+  "Name": "Serum Uric Acid",
+  "Parameter": "Uric Acid",
+  "Unit": "mg/dL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f91"
+  },
+  "Name": "Blood Urea Nitrogen (BUN)",
+  "Parameter": "BUN",
+  "Unit": "mg/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f92"
+  },
+  "Name": "Blood Urea",
+  "Parameter": "Urea",
+  "Unit": "mg/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f93"
+  },
+  "Name": "Serum Creatinine",
+  "Parameter": "Creatinine",
+  "Unit": "mg/dL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f94"
+  },
+  "Name": "Kidney Function Test (KFT) Comprehensive",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f95"
+  },
+  "Name": "Renal Function Test (RFT)",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f96"
+  },
+  "Name": "Alpha Thalassemia Screening",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f97"
+  },
+  "Name": "Beta Thalassemia Screening",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f98"
+  },
+  "Name": "Plasma Viscosity",
+  "Parameter": "Plasma Viscosity",
+  "Unit": "mPa.s",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f99"
+  },
+  "Name": "Splenectomy Effect Test",
+  "Parameter": "Howell-Jolly Bodies",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f9a"
+  },
+  "Name": "Heinz Body Preparation",
+  "Parameter": "Heinz Bodies",
+  "Unit": "Report",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f9b"
+  },
+  "Name": "Absolute Basophil Count",
+  "Parameter": "ABC",
+  "Unit": "×10³/µL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f9c"
+  },
+  "Name": "Absolute Monocyte Count",
+  "Parameter": "AMC",
+  "Unit": "×10³/µL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f9d"
+  },
+  "Name": "Absolute Eosinophil Count",
+  "Parameter": "AEC",
+  "Unit": "×10³/µL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f9e"
+  },
+  "Name": "Absolute Lymphocyte Count (ALC)",
+  "Parameter": "ALC",
+  "Unit": "×10³/µL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037f9f"
+  },
+  "Name": "Absolute Neutrophil Count (ANC)",
+  "Parameter": "ANC",
+  "Unit": "×10³/µL",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa0"
+  },
+  "Name": "Nucleated RBC Count (NRBC)",
+  "Parameter": "NRBC",
+  "Unit": "/100 WBC",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa1"
+  },
+  "Name": "Activated Protein C Resistance (APCR)",
+  "Parameter": "APCR Ratio",
+  "Unit": "ratio",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa2"
+  },
+  "Name": "Factor XIII Activity",
+  "Parameter": "Factor XIII",
+  "Unit": "%",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa3"
+  },
+  "Name": "Factor XII Activity",
+  "Parameter": "Factor XII",
+  "Unit": "%",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa4"
+  },
+  "Name": "Factor XI Activity",
+  "Parameter": "Factor XI",
+  "Unit": "%",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa5"
+  },
+  "Name": "Factor X Activity",
+  "Parameter": "Factor X",
+  "Unit": "%",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa6"
+  },
+  "Name": "Factor VII Activity",
+  "Parameter": "Factor VII",
+  "Unit": "%",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa7"
+  },
+  "Name": "Factor V Activity",
+  "Parameter": "Factor V",
+  "Unit": "%",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa8"
+  },
+  "Name": "Factor IX Activity",
+  "Parameter": "Factor IX",
+  "Unit": "%",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fa9"
+  },
+  "Name": "Factor VIII Activity",
+  "Parameter": "Factor VIII",
+  "Unit": "%",
+  "Price": 1200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037faa"
+  },
+  "Name": "Lupus Anticoagulant Screen",
+  "Parameter": "Lupus Anticoagulant",
+  "Unit": "Report",
+  "Price": 1000,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fab"
+  },
+  "Name": "Antithrombin III Activity",
+  "Parameter": "Antithrombin III",
+  "Unit": "%",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fac"
+  },
+  "Name": "Protein S Activity",
+  "Parameter": "Protein S",
+  "Unit": "%",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fad"
+  },
+  "Name": "Protein C Activity",
+  "Parameter": "Protein C",
+  "Unit": "%",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fae"
+  },
+  "Name": "Serum Transferrin",
+  "Parameter": "Transferrin",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037faf"
+  },
+  "Name": "Plasma Hemoglobin",
+  "Parameter": "Plasma Hemoglobin",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb0"
+  },
+  "Name": "Haptoglobin",
+  "Parameter": "Haptoglobin",
+  "Unit": "mg/dL",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb1"
+  },
+  "Name": "Cold Agglutinins",
+  "Parameter": "Cold Agglutinins",
+  "Unit": "Titre",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb2"
+  },
+  "Name": "Sucrose Hemolysis Test",
+  "Parameter": "Sucrose Hemolysis",
+  "Unit": "%",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb3"
+  },
+  "Name": "Ham's Test (Acidified Serum Lysis Test)",
+  "Parameter": "Ham's Test",
+  "Unit": "Report",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb4"
+  },
+  "Name": "Osmotic Fragility Test",
+  "Parameter": "Osmotic Fragility",
+  "Unit": "% hemolysis",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb5"
+  },
+  "Name": "Cross Match (Minor)",
+  "Parameter": "Cross Match",
+  "Unit": "Report",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb6"
+  },
+  "Name": "Cross Match (Major)",
+  "Parameter": "Cross Match",
+  "Unit": "Report",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb7"
+  },
+  "Name": "Indirect Coombs Test",
+  "Parameter": "Indirect Coombs Test",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb8"
+  },
+  "Name": "Direct Coombs Test",
+  "Parameter": "Direct Coombs Test",
+  "Unit": "Report",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fb9"
+  },
+  "Name": "Rh Antibody Titre",
+  "Parameter": "Anti-D Antibody Titre",
+  "Unit": "Titre",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fba"
+  },
+  "Name": "Blood Group (ABO & Rh)",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fbb"
+  },
+  "Name": "Bone Marrow Biopsy",
+  "Parameter": "Bone Marrow Biopsy",
+  "Unit": "Report",
+  "Price": 2000,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fbc"
+  },
+  "Name": "Bone Marrow Aspiration",
+  "Price": 1500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fbd"
+  },
+  "Name": "Methylmalonic Acid (MMA)",
+  "Parameter": "MMA",
+  "Unit": "nmol/L",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fbe"
+  },
+  "Name": "RBC Folate",
+  "Parameter": "RBC Folate",
+  "Unit": "ng/mL RBC",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fbf"
+  },
+  "Name": "Serum Folate",
+  "Parameter": "Folate",
+  "Unit": "ng/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc0"
+  },
+  "Name": "Vitamin B12",
+  "Parameter": "Vitamin B12",
+  "Unit": "pg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc1"
+  },
+  "Name": "Transferrin Saturation",
+  "Parameter": "Transferrin Saturation",
+  "Unit": "%",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc2"
+  },
+  "Name": "Iron Studies Panel",
+  "Price": 900,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc3"
+  },
+  "Name": "Serum Ferritin",
+  "Parameter": "Ferritin",
+  "Unit": "ng/mL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc4"
+  },
+  "Name": "Total Iron Binding Capacity (TIBC)",
+  "Parameter": "TIBC",
+  "Unit": "µg/dL",
+  "Price": 350,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc5"
+  },
+  "Name": "Serum Iron",
+  "Parameter": "Iron",
+  "Unit": "µg/dL",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc6"
+  },
+  "Name": "G6PD Deficiency Test",
+  "Parameter": "G6PD Activity",
+  "Unit": "U/g Hb",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc7"
+  },
+  "Name": "Sickle Cell Test",
+  "Parameter": "Sickle Cell Screen",
+  "Unit": "Report",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc8"
+  },
+  "Name": "HbA1c with eAG",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fc9"
+  },
+  "Name": "HbA1c (Glycated Hemoglobin)",
+  "Parameter": "HbA1c",
+  "Unit": "%",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fca"
+  },
+  "Name": "Hemoglobin Electrophoresis",
+  "Price": 800,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fcb"
+  },
+  "Name": "Fibrin Degradation Products (FDP)",
+  "Parameter": "FDP",
+  "Unit": "µg/mL",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fcc"
+  },
+  "Name": "D-Dimer",
+  "Parameter": "D-Dimer",
+  "Unit": "ng/mL FEU",
+  "Price": 600,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fcd"
+  },
+  "Name": "Fibrinogen Level",
+  "Parameter": "Fibrinogen",
+  "Unit": "mg/dL",
+  "Price": 400,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fce"
+  },
+  "Name": "Thrombin Time (TT)",
+  "Parameter": "Thrombin Time",
+  "Unit": "seconds",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fcf"
+  },
+  "Name": "Activated Partial Thromboplastin Time (APTT)",
+  "Parameter": "APTT",
+  "Unit": "seconds",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd0"
+  },
+  "Name": "PT/INR",
+  "Price": 300,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd1"
+  },
+  "Name": "Prothrombin Time (PT)",
+  "Parameter": "PT",
+  "Unit": "seconds",
+  "Price": 250,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd2"
+  },
+  "Name": "Clotting Time",
+  "Parameter": "Clotting Time",
+  "Unit": "minutes",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd3"
+  },
+  "Name": "Bleeding Time",
+  "Parameter": "Bleeding Time",
+  "Unit": "minutes",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd4"
+  },
+  "Name": "ESR (Westergren Method)",
+  "Parameter": "ESR",
+  "Unit": "mm/hr",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd5"
+  },
+  "Name": "Erythrocyte Sedimentation Rate (ESR)",
+  "Parameter": "ESR",
+  "Unit": "mm/hr",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd6"
+  },
+  "Name": "Reticulocyte Count",
+  "Parameter": "Reticulocyte Count",
+  "Unit": "%",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd7"
+  },
+  "Name": "Peripheral Blood Smear",
+  "Price": 200,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd8"
+  },
+  "Name": "Platelet Count",
+  "Parameter": "Platelet Count",
+  "Unit": "×10³/µL",
+  "Price": 150,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fd9"
+  },
+  "Name": "White Blood Cell Count",
+  "Parameter": "WBC Count",
+  "Unit": "×10³/µL",
+  "Price": 100,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fda"
+  },
+  "Name": "Red Blood Cell Count",
+  "Parameter": "RBC Count",
+  "Unit": "million/µL",
+  "Price": 100,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fdb"
+  },
+  "Name": "Hematocrit (Hct)",
+  "Parameter": "Hematocrit",
+  "Unit": "%",
+  "Price": 100,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fdc"
+  },
+  "Name": "Hemoglobin (Hb)",
+  "Parameter": "Hemoglobin",
+  "Unit": "g/dL",
+  "Price": 100,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fdd"
+  },
+  "Name": "CBC with Differential",
+  "Price": 500,
+  "Created At": "20/04/2026, 10:21:04"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fde"
+  },
+  "Name": "CA 125",
+  "Parameter": "CA 125",
+  "Unit": "U/ml",
+  "Price": 0,
+  "Created At": "26/03/2026, 11:37:14"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fdf"
+  },
+  "Name": "Serum Prolactin",
+  "Parameter": "Serum Prolactin",
+  "Unit": "ng/ml",
+  "Price": 0,
+  "Created At": "26/03/2026, 11:37:14"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe0"
+  },
+  "Name": "Follicle Stimulating Hormone (FSH)",
+  "Parameter": "FSH",
+  "Unit": "mIU/ml",
+  "Price": 0,
+  "Created At": "26/03/2026, 11:37:14"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe1"
+  },
+  "Name": "Arterial Blood Gases (ABGS)",
+  "Price": 0,
+  "Created At": "26/03/2026, 11:37:14"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe2"
+  },
+  "Name": "Liver Function Test (LFT)",
+  "Price": 600,
+  "Created At": "26/03/2026, 11:37:14"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe3"
+  },
+  "Name": "Blood Glucose (Fasting)",
+  "Parameter": "Blood Glucose (Fasting)",
+  "Unit": "mg/dl",
+  "Price": 0,
+  "Created At": "26/03/2026, 11:37:13"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe4"
+  },
+  "Name": "Complete Blood Count (CBC)",
+  "Price": 350,
+  "Created At": "26/03/2026, 11:37:13"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe5"
+  },
+  "Name": "RA Factor",
+  "Parameter": "RA Factor (serum)",
+  "Unit": "IU/ml",
+  "Price": 0,
+  "Created At": "26/03/2026, 11:17:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe6"
+  },
+  "Name": "Amylase",
+  "Parameter": "Amylase",
+  "Unit": "U/L",
+  "Price": 250,
+  "Created At": "26/03/2026, 11:15:57"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe7"
+  },
+  "Name": "Sputum for AFB ZN stain",
+  "Price": 0,
+  "Created At": "26/03/2026, 11:03:23"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe8"
+  },
+  "Name": "blood group",
+  "Price": 0,
+  "Created At": "26/03/2026, 10:40:16"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fe9"
+  },
+  "Name": "Microbiology Report - Culture & Sensitivity (Urine)",
+  "Parameter": "Culture Report (Urine)",
+  "Price": 0,
+  "Created At": "26/03/2026, 10:17:49"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fea"
+  },
+  "Name": "Microbiology Report - Culture & Sensitivity (Pus)",
+  "Parameter": "Culture Report (Pus)",
+  "Price": 0,
+  "Created At": "26/03/2026, 10:17:49"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037feb"
+  },
+  "Name": "HBV PCR (Quantitative)",
+  "Price": 7500,
+  "Created At": "25/03/2026, 14:36:37"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fec"
+  },
+  "Name": "HCV PCR Qualitative",
+  "Price": 8500,
+  "Created At": "25/03/2026, 14:36:37"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fed"
+  },
+  "Name": "HCV PCR (Quantitative)",
+  "Price": 5500,
+  "Created At": "25/03/2026, 14:36:37"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fee"
+  },
+  "Name": "Blood Culture",
+  "Price": 2500,
+  "Created At": "25/03/2026, 11:47:00"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fef"
+  },
+  "Name": "H pylori Elisa and anti ccp",
+  "Price": 3000,
+  "Created At": "25/03/2026, 11:47:00"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff0"
+  },
+  "Name": "Glucose  random & CRP",
+  "Price": 1200,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff1"
+  },
+  "Name": "Hep b and c ELISA",
+  "Price": 1800,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff2"
+  },
+  "Name": "Thyroid Function Test (TFT)",
+  "Price": 2200,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff3"
+  },
+  "Name": "Fasting Lipid Profile",
+  "Price": 1800,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff4"
+  },
+  "Name": "FDPs (D-Dimer)",
+  "Price": 2500,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff5"
+  },
+  "Name": "Coagulation Profile (APTT/PT/INR)",
+  "Price": 1500,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff6"
+  },
+  "Name": "ESR (Hematology)",
+  "Price": 200,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff7"
+  },
+  "Name": "Special Chemistry (Folate & B12)",
+  "Price": 2500,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff8"
+  },
+  "Name": "Iron level Vit B 12  Folic Acid",
+  "Price": 1200,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ff9"
+  },
+  "Name": "Hematology (Reticulocytes & CBC)",
+  "Price": 1500,
+  "Created At": "25/03/2026, 11:20:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ffa"
+  },
+  "Name": "Anti-HCV ELISA",
+  "Price": 2000,
+  "Created At": "25/03/2026, 11:03:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ffb"
+  },
+  "Name": "Stool for H.Pylori Antigen ELISA",
+  "Price": 1800,
+  "Created At": "25/03/2026, 11:03:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ffc"
+  },
+  "Name": "Malarial Parasite ICT",
+  "Price": 500,
+  "Created At": "25/03/2026, 11:03:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ffd"
+  },
+  "Name": "Magnesium & Calcium",
+  "Price": 800,
+  "Created At": "25/03/2026, 11:03:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037ffe"
+  },
+  "Name": "Liver Function Test",
+  "Price": 1500,
+  "Created At": "25/03/2026, 11:03:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9037fff"
+  },
+  "Name": "NT-proBNP",
+  "Parameter": "NT-proBNP",
+  "Unit": "pg/mL",
+  "Price": 800,
+  "Created At": "25/03/2026, 11:03:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038000"
+  },
+  "Name": "HbA1C",
+  "Price": 1200,
+  "Created At": "25/03/2026, 11:03:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038001"
+  },
+  "Name": "RFT Hba1c",
+  "Price": 1000,
+  "Created At": "25/03/2026, 11:03:35"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038002"
+  },
+  "Name": "Serum Electrolytes",
+  "Price": 400,
+  "Created At": "25/03/2026, 10:47:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038003"
+  },
+  "Name": "Trop i",
+  "Price": 2500,
+  "Created At": "25/03/2026, 10:47:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038004"
+  },
+  "Name": "PT with INR",
+  "Price": 800,
+  "Created At": "25/03/2026, 10:47:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038005"
+  },
+  "Name": "Hep B and C screening",
+  "Price": 1500,
+  "Created At": "25/03/2026, 10:47:42"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038006"
+  },
+  "Name": "Blood (Complete,CBC)",
+  "Price": 1200,
+  "Created At": "25/03/2026, 10:47:41"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038007"
+  },
+  "Name": "Urine Examination",
+  "Price": 500,
+  "Created At": "25/03/2026, 10:34:34"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038008"
+  },
+  "Name": "gluscose",
+  "Price": 1000,
+  "Created At": "31/01/2026, 15:07:40"
+},
+{
+  "_id": {
+    "$oid": "69f21428133c5683c9038009"
+  },
+  "Name": "CBC",
+  "Parameter": "WBC",
+  "Unit": "g/ml",
+  "Price": 500,
+  "Created At": "31/01/2026, 14:21:16"
+}]

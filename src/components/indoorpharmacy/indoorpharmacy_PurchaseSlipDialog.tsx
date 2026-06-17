@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 
 type PurchaseRow = {
   id: string
@@ -28,7 +28,7 @@ export default function Pharmacy_PurchaseSlipDialog({ open, onClose, row }: Prop
 
   useEffect(()=>{
     if (!open) return
-    pharmacyApi.getSettings().then(setSettings).catch(()=>{})
+    indoorPharmacyApi.getSettings().then(setSettings).catch(()=>{})
   }, [open])
 
   if (!open || !row) return null

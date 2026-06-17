@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { diagnosticApi, corporateApi } from '../../utils/api'
 import { DiagnosticTemplateRegistry } from '../../components/diagnostic/registry'
 import type { ReportRendererProps } from '../../components/diagnostic/registry'
 import Toast from '../../components/ui/Toast'
-import { Building2, FileText, Printer, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Building2, Printer as PrinterIcon, Save as SaveIcon } from 'lucide-react'
 
 type Order = { 
   id: string; 
@@ -26,12 +26,6 @@ function formatDateTime(iso?: string) {
   return d.toLocaleDateString() + ', ' + d.toLocaleTimeString()
 }
 
-function toTextFormData(fd: any){
-  if (fd == null) return ''
-  if (typeof fd === 'string') return fd
-  try { return JSON.stringify(fd, null, 2) } catch { return String(fd) }
-}
-
 export default function Diagnostic_ResultEntry(){
   const [searchParams] = useSearchParams()
   const [orders, setOrders] = useState<Order[]>([])
@@ -44,7 +38,6 @@ export default function Diagnostic_ResultEntry(){
   const [value, setValue] = useState('')
   const [resultId, setResultId] = useState<string | null>(null)
   const [orderFromResult, setOrderFromResult] = useState<Order | null>(null)
-  const formRef = useRef<HTMLDivElement | null>(null)
   const selectedOrder = useMemo(()=> orders.find(o=>o.id===selectedOrderId) || orderFromResult || null, [orders, selectedOrderId, orderFromResult])
   const selectedTestName = useMemo(()=> testsMap[selectedTestId] || '', [testsMap, selectedTestId])
   const [templateMappings, setTemplateMappings] = useState<Array<{ testId: string; templateKey: string }>>([])
@@ -52,7 +45,6 @@ export default function Diagnostic_ResultEntry(){
 
   // Toast notifications
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
-  const [saving, setSaving] = useState(false)
 
   // Filters & pagination (aligned with Sample Tracking)
   const [q, setQ] = useState('')
@@ -124,7 +116,8 @@ export default function Diagnostic_ResultEntry(){
       const item = (r?.items||[])[0]
       if (item){
         setResultId(String(item._id))
-        setValue(toTextFormData((item as any)?.formData))
+        const fd = (item as any)?.formData
+        setValue(typeof fd === 'string' ? fd : JSON.stringify(fd || ''))
       }
     } catch {}
   })() }, [selectedOrderId, selectedTestId])
@@ -141,7 +134,8 @@ export default function Diagnostic_ResultEntry(){
         const r = await diagnosticApi.getResult(rid) as any
         if (r){
           setResultId(String(r._id))
-          setValue(toTextFormData((r as any)?.formData))
+          const fd = (r as any)?.formData
+          setValue(typeof fd === 'string' ? fd : JSON.stringify(fd || ''))
           if (r.orderId) setSelectedOrderId(String(r.orderId))
           if (r.testId) setSelectedTestId(String(r.testId))
           // Provide snapshot so Print/Finalize works even if the order is not in the received list
@@ -155,75 +149,170 @@ export default function Diagnostic_ResultEntry(){
     }
   })() }, [searchParams])
 
-  const FormComp = useMemo(()=>{
+  // Rich text templates from settings
+  const [richTextTemplates, setRichTextTemplates] = useState<Array<{ name: string; content: string }>>([])
+
+  useEffect(()=>{ (async()=>{
+    try {
+      const s = await diagnosticApi.getSettings() as any
+      const arr = Array.isArray(s?.reportTemplates) ? s.reportTemplates : []
+      setRichTextTemplates(arr.map((x:any)=> ({ name: String(x.name||''), content: String(x.content||'') })).filter((t:any)=> t.name && t.content))
+    } catch { setRichTextTemplates([]) }
+  })() }, [])
+
+  const formMeta = useMemo(()=>{
     const key = templateKeyByTestId[selectedTestId]
-    return key ? (DiagnosticTemplateRegistry as any)[key]?.Form as React.ComponentType<ReportRendererProps> : undefined
+    if (key && (DiagnosticTemplateRegistry as any)[key]) {
+      return { type: 'mapped' as const, Component: (DiagnosticTemplateRegistry as any)[key]?.Form as React.ComponentType<ReportRendererProps> }
+    }
+    // Fallback to generic rich text editor for unmapped tests
+    return { type: 'richtext' as const, Component: (DiagnosticTemplateRegistry as any)['GenericParagraph'] as React.ComponentType<ReportRendererProps> }
   }, [selectedTestId, templateKeyByTestId])
 
   async function save(){
     if (!selectedOrder || !selectedTestId) return
-    if (!String(value || '').trim()) {
-      setToast({ type: 'error', message: 'Please enter the report result before finalizing.' })
-      return
+    const payload = {
+      orderId: selectedOrder.id,
+      testId: selectedTestId,
+      testName: selectedTestName,
+      tokenNo: selectedOrder.tokenNo,
+      patient: selectedOrder.patient,
+      formData: value,
+      status: 'final',
+      reportedAt: new Date().toISOString(),
     }
-
-    setSaving(true)
-    const reportedAt = new Date().toISOString()
-    try {
-      const payload = {
-        orderId: selectedOrder.id,
-        testId: selectedTestId,
-        testName: selectedTestName,
-        tokenNo: selectedOrder.tokenNo,
-        patient: selectedOrder.patient,
-        formData: value,
-        status: 'final',
-        reportedAt,
-      }
-      if (resultId){
-        await diagnosticApi.updateResult(resultId, { formData: value, status: 'final', reportedAt })
-      } else {
-        const created = await diagnosticApi.createResult(payload as any) as any
-        setResultId(String(created?._id))
-      }
-
-      // Persist completion on the order item so it disappears from the "Received" queue on next fetch.
-      await diagnosticApi.updateOrderItemTrack(selectedOrder.id, selectedTestId, { status: 'completed', reportingTime: reportedAt } as any)
-
-      // Optimistically update current table view.
-      setOrders(prev => prev.map(o => {
-        if (o.id !== selectedOrder.id) return o
-        const items = Array.isArray(o.items) ? o.items.slice() : []
-        const idx = items.findIndex(i=> i.testId===selectedTestId)
-        if (idx>=0) items[idx] = { ...items[idx], status: 'completed', reportingTime: reportedAt }
-        else items.push({ testId: selectedTestId, status: 'completed', reportingTime: reportedAt })
-        return { ...o, items }
-      }))
-
-      // Clear selection
-      setSelectedOrderId(''); setSelectedTestId(''); setValue(''); setResultId(null); setOrderFromResult(null)
-      setToast({ type: 'success', message: 'Result finalized successfully' })
-    } catch (e: any) {
-      setToast({ type: 'error', message: e?.message || 'Failed to finalize result' })
-    } finally {
-      setSaving(false)
+    if (resultId){
+      await diagnosticApi.updateResult(resultId, { formData: value, status: 'final', reportedAt: payload.reportedAt })
+    } else {
+      const created = await diagnosticApi.createResult(payload as any) as any
+      setResultId(String(created?._id))
     }
+    // Optimistically mark this test as completed so it disappears from the list (received filter)
+    setOrders(prev => prev.map(o => {
+      if (o.id !== selectedOrder.id) return o
+      const items = Array.isArray(o.items) ? o.items.slice() : []
+      const idx = items.findIndex(i=> i.testId===selectedTestId)
+      const now = new Date().toISOString()
+      if (idx>=0) items[idx] = { ...items[idx], status: 'completed', reportingTime: now }
+      else items.push({ testId: selectedTestId, status: 'completed', reportingTime: now })
+      return { ...o, items }
+    }))
+    // Clear selection
+    setSelectedOrderId(''); setSelectedTestId(''); setValue(''); setResultId(null); setOrderFromResult(null)
+    setToast({ type: 'success', message: 'Result finalized successfully' })
   }
 
   async function printNow(){
     if (!selectedOrder || !selectedTestId) return
     const key = templateKeyByTestId[selectedTestId]
     const tpl = key ? (DiagnosticTemplateRegistry as any)[key] : null
-    if (tpl?.print){
+    if (tpl && tpl.print) {
       await tpl.print({ tokenNo: selectedOrder.tokenNo, createdAt: selectedOrder.createdAt, reportedAt: new Date().toISOString(), patient: selectedOrder.patient, value, referringConsultant: selectedOrder.referringConsultant })
     } else {
-      // Fallback: open a simple print window with the raw text
-      const w = window.open('', '_blank')
-      if (w){
-        w.document.write(`<html><head><title>Report - ${selectedTestName}</title><style>body{font-family:sans-serif;padding:40px}h1{font-size:18px}pre{white-space:pre-wrap}</style></head><body><h1>${selectedTestName}</h1><p>Patient: ${selectedOrder?.patient?.fullName||'-'}</p><p>Token: ${selectedOrder?.tokenNo||'-'}</p><hr/><pre>${String(value||'').replace(/</g,'&lt;')}</pre></body></html>`)
-        w.document.close(); w.print()
-      }
+      // Generic rich text print
+      await printGenericReport({ tokenNo: selectedOrder.tokenNo, createdAt: selectedOrder.createdAt, reportedAt: new Date().toISOString(), patient: selectedOrder.patient, value, referringConsultant: selectedOrder.referringConsultant, testName: selectedTestName })
     }
+  }
+
+  async function printGenericReport(input: { tokenNo?: string; createdAt?: string; reportedAt?: string; patient: any; value: string; referringConsultant?: string; testName: string }){
+    const s: any = await diagnosticApi.getSettings().catch(()=>({}))
+    const name = s?.diagnosticName || 'Diagnostic Center'
+    const address = s?.address || '-'
+    const phone = s?.phone || ''
+    const email = s?.email || ''
+    const department = s?.department || 'Department of Diagnostics'
+    const logo = s?.logoDataUrl || ''
+    const footer = s?.reportFooter || 'System Generated Report. No Signature Required.'
+    const esc = (str: string) => str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+    const fmt = (iso?: string)=>{ const d = iso? new Date(iso): new Date(); return d.toLocaleDateString()+' '+d.toLocaleTimeString() }
+    // Strip empty sections from rich text HTML
+    const stripEmptySections = (html: string) => {
+      const div = document.createElement('div')
+      div.innerHTML = html
+      // Remove empty paragraphs, empty list items, empty headings
+      div.querySelectorAll('p,li,h1,h2,h3,h4').forEach(el => {
+        if (!el.textContent?.trim()) el.remove()
+      })
+      // Remove empty ul/ol
+      div.querySelectorAll('ul,ol').forEach(el => {
+        if (!el.querySelector('li')) el.remove()
+      })
+      return div.innerHTML || '<p>No findings recorded.</p>'
+    }
+    const content = stripEmptySections(input.value || '')
+    const html = `<!doctype html><html><head><meta charset="utf-8"/>
+    <style>
+      @page { size: A4 portrait; margin: 12mm }
+      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+      body{ font-family: 'Poppins', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#1e293b; }
+      .wrap{ padding: 0 6mm; min-height: 100vh; display:flex; flex-direction:column }
+      @media print { .wrap{ min-height: calc(100vh - 36mm) } }
+      .hdr{display:grid;grid-template-columns:80px 1fr 80px;align-items:center;padding-bottom:10px;border-bottom:3px solid #0f172a;margin-bottom:8px}
+      .hdr .title{font-size:26px;font-weight:800;text-align:center;letter-spacing:0.5px;color:#0f172a}
+      .hdr .muted{color:#64748b;font-size:11px;text-align:center;margin-top:3px}
+      .dept{font-style:italic;text-align:center;margin:6px 0 2px 0;font-size:13px;color:#334155;font-weight:500}
+      .hr{border-bottom:1px solid #cbd5e1;margin:4px 0}
+      .box{border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin:8px 0;background:#fafafa}
+      .kv{display:grid;grid-template-columns: 130px minmax(0,1fr) 130px minmax(0,1fr) 130px minmax(0,1fr);gap:5px 12px;font-size:11.5px;align-items:start}
+      .kv > div{line-height:1.3;color:#475569}
+      .kv > div:nth-child(odd){font-weight:600;color:#334155}
+      .kv > div:nth-child(2n){word-break:break-word;color:#0f172a}
+      .title-mid{font-size:17px;font-weight:700;text-align:center;margin-top:6px;color:#0f172a;letter-spacing:0.3px}
+      .sec{margin-top:10px}
+      .sec-title{font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid #e2e8f0}
+      .sec-text{white-space:normal;font-size:12.5px;line-height:1.6;color:#1e293b}
+      .sec-text p{margin:0 0 6px 0}
+      .sec-text ul,.sec-text ol{margin:0 0 6px 16px;padding:0}
+      .sec-text li{margin-bottom:2px}
+      .footnote{margin-top:20px;text-align:center;color:#64748b;font-size:10.5px}
+      .foot-hr{border-bottom:1px solid #94a3b8;margin:10px 0}
+      .spacer{flex:1}
+      .footer-block{ page-break-inside: avoid; break-inside: avoid }
+      .consult-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 20px;margin-top:8px}
+      .consult .name{font-weight:700;text-transform:uppercase;font-size:12px;color:#0f172a}
+      .consult .deg{font-size:11px;color:#475569}
+      .consult .title{font-weight:600;font-size:11px;color:#334155}
+    </style></head><body>
+    <div class="wrap">
+      <div class="hdr">
+        <div>${logo? `<img src="${esc(logo)}" alt="logo" style="height:70px;width:auto;object-fit:contain"/>` : ''}</div>
+        <div>
+          <div class="title">${esc(name)}</div>
+          <div class="muted">${esc(address)}</div>
+          <div class="muted">Ph: ${esc(phone)} ${email? ' • '+esc(email): ''}</div>
+        </div>
+        <div></div>
+      </div>
+      <div class="dept">${esc(department)}</div>
+      <div class="hr"></div>
+      <div class="box">
+        <div class="kv">
+          <div>Medical Record No :</div><div>${esc(input.patient?.mrn || '-')}</div>
+          <div>Sample No / Lab No :</div><div>${esc(input.tokenNo || '-')}</div>
+          <div>Patient Name :</div><div>${esc(input.patient?.fullName || '-')}</div>
+          <div>Age / Gender :</div><div>${esc(input.patient?.age || '')} / ${esc(input.patient?.gender || '')}</div>
+          <div>Reg. & Sample Time :</div><div>${fmt(input.createdAt)}</div>
+          <div>Reporting Time :</div><div>${fmt(input.reportedAt || new Date().toISOString())}</div>
+          <div>Contact No :</div><div>${esc(input.patient?.phone || '-')}</div>
+          <div>Referring Consultant :</div><div>${esc(input.referringConsultant || '-')}</div>
+          <div>Address :</div><div>${esc(input.patient?.address || '-')}</div>
+        </div>
+      </div>
+      <div class="title-mid">DIAGNOSTIC REPORT</div>
+      <div class="box"><div class="sec-text">${content}</div></div>
+      <div class="spacer"></div>
+      <div class="footer-block">
+        <div class="footnote">${esc(footer)}</div>
+        <div class="foot-hr"></div>
+      </div>
+    </div>
+    </body></html>`
+    const w = window.open('', '_blank')
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    setTimeout(()=>{ w.print() }, 300)
   }
 
   // Pagination helpers
@@ -234,25 +323,30 @@ export default function Diagnostic_ResultEntry(){
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="text-2xl font-bold text-slate-900">Result Entry</div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1 h-6 rounded-full bg-violet-600" />
+          <h1 className="text-xl font-bold text-slate-900">Result Entry</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-[260px] flex-1">
-            <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }} placeholder="Search by token, patient, or test..." className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+            <input value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }} placeholder="Search by token, patient, or test..." className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 transition-all" />
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <input type="date" value={from} onChange={e=>{ setFrom(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1" />
-            <input type="date" value={to} onChange={e=>{ setTo(e.target.value); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1" />
+            <input type="date" value={from} onChange={e=>{ setFrom(e.target.value); setPage(1) }} className="rounded-lg border border-slate-300 px-2.5 py-2 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none transition-all" />
+            <span className="text-slate-400">→</span>
+            <input type="date" value={to} onChange={e=>{ setTo(e.target.value); setPage(1) }} className="rounded-lg border border-slate-300 px-2.5 py-2 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none transition-all" />
           </div>
-          <div className="flex items-center gap-1 text-sm">
-            <button onClick={()=>{ setStatus('all'); setPage(1) }} className={`rounded-md px-3 py-1.5 border ${status==='all'?'bg-slate-900 text-white border-slate-900':'border-slate-300 text-slate-700'}`}>All</button>
-            <button onClick={()=>{ setStatus('received'); setPage(1) }} className={`rounded-md px-3 py-1.5 border ${status==='received'?'bg-slate-900 text-white border-slate-900':'border-slate-300 text-slate-700'}`}>Received</button>
-            <button onClick={()=>{ setStatus('completed'); setPage(1) }} className={`rounded-md px-3 py-1.5 border ${status==='completed'?'bg-slate-900 text-white border-slate-900':'border-slate-300 text-slate-700'}`}>Completed</button>
-            <button onClick={()=>{ setStatus('returned'); setPage(1) }} className={`rounded-md px-3 py-1.5 border ${status==='returned'?'bg-slate-900 text-white border-slate-900':'border-slate-300 text-slate-700'}`}>Returned</button>
+          <div className="flex items-center gap-1.5 text-sm">
+            {(['all','received','completed','returned'] as const).map(st => (
+              <button key={st} onClick={()=>{ setStatus(st); setPage(1) }} className={`rounded-lg px-3 py-2 text-xs font-medium border transition-colors ${status===st?'bg-violet-600 text-white border-violet-600 shadow-sm':'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
+                {st==='all'?'All':st.charAt(0).toUpperCase()+st.slice(1)}
+              </button>
+            ))}
           </div>
           <div className="ml-auto flex items-center gap-2 text-sm">
-            <span>Rows</span>
-            <select value={rows} onChange={e=>{ setRows(Number(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1">
+            <span className="text-xs text-slate-500">Rows</span>
+            <select value={rows} onChange={e=>{ setRows(Number(e.target.value)); setPage(1) }} className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-violet-500 outline-none">
               <option value={10}>10</option>
               <option value={20}>20</option>
               <option value={50}>50</option>
@@ -261,18 +355,18 @@ export default function Diagnostic_ResultEntry(){
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
+          <thead className="border-b border-slate-200 bg-linear-to-r from-slate-50 to-slate-100 text-left text-slate-600">
             <tr>
-              <th className="px-4 py-2">Date</th>
-              <th className="px-4 py-2">Patient</th>
-              <th className="px-4 py-2">Token No</th>
-              <th className="px-4 py-2">Test</th>
-              <th className="px-4 py-2">Billing</th>
-              <th className="px-4 py-2">MR No</th>
-              <th className="px-4 py-2">Phone</th>
-              <th className="px-4 py-2">Action</th>
+              <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Date</th>
+              <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Patient</th>
+              <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Token No</th>
+              <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Test</th>
+              <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Billing</th>
+              <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">MR No</th>
+              <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Phone</th>
+              <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -306,7 +400,7 @@ export default function Diagnostic_ResultEntry(){
                     <td className="px-4 py-2 whitespace-nowrap">{o.patient?.mrn || '-'}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{o.patient?.phone || '-'}</td>
                     <td className="px-4 py-2 whitespace-nowrap">
-                      <button onClick={()=>{ setOrderFromResult(null); setSelectedOrderId(o.id); setSelectedTestId(String(tid)); setTimeout(()=> formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100) }} className="rounded-md bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-700">Enter Result</button>
+                      <button onClick={()=>{ setOrderFromResult(null); setSelectedOrderId(o.id); setSelectedTestId(String(tid)) }} className="rounded-md bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-700">Enter Result</button>
                     </td>
                   </tr>
                 )
@@ -329,61 +423,39 @@ export default function Diagnostic_ResultEntry(){
         </div>
       </div>
 
-      {/* Result Form Area */}
-      <div ref={formRef} className={`rounded-xl border bg-white p-5 transition-all ${selectedOrderId && selectedTestId ? 'border-violet-300 shadow-lg shadow-violet-100/30' : 'border-slate-200'}`}>
-        {/* Form header when a test is selected */}
-        {selectedOrderId && selectedTestId && (
-          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-slate-900">{selectedTestName || 'Unknown Test'}</div>
-                <div className="text-xs text-slate-500">{selectedOrder?.patient?.fullName || '-'} · Token #{selectedOrder?.tokenNo || '-'}</div>
-              </div>
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+        {!formMeta.Component && (
+          <div className="flex items-center gap-2 text-sm text-slate-500 py-8 justify-center">
+            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={printNow} disabled={saving || !selectedOrderId || !selectedTestId} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40">
-                <Printer className="h-3.5 w-3.5" /> Print
-              </button>
-              <button onClick={()=>save()} disabled={saving || !selectedOrderId || !selectedTestId} className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-40">
-                <CheckCircle2 className="h-3.5 w-3.5" /> {saving ? 'Saving…' : 'Finalize'}
-              </button>
-            </div>
+            <span>Select a sample row and click <strong>Enter Result</strong> to load the form.</span>
           </div>
         )}
-
-        {/* No test selected */}
-        {!selectedOrderId && !selectedTestId && (
-          <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-            <FileText className="mb-2 h-8 w-8 opacity-30" />
-            <p className="text-sm font-medium">Click "Enter Result" on a row above to begin</p>
-          </div>
+        {formMeta.Component && formMeta.type === 'richtext' && (
+          <formMeta.Component
+            value={value}
+            onChange={setValue}
+            templates={richTextTemplates}
+            onPrint={printNow}
+            onSave={save}
+          />
         )}
-
-        {/* Test selected but no template mapping — show fallback textarea */}
-        {selectedOrderId && selectedTestId && !FormComp && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>No report template mapped for this test. You can still enter results as free text below. Map a template in <strong>Diagnostic Settings</strong> for structured forms.</span>
-            </div>
-            <textarea
-              value={value}
-              onChange={e => setValue(e.target.value)}
-              rows={10}
-              placeholder="Enter report findings, impression, and notes here..."
-              className="w-full rounded-lg border border-slate-200 p-3 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200"
-            />
-          </div>
-        )}
-
-        {/* Template-mapped form — key forces remount on test change */}
-        {FormComp && selectedOrderId && selectedTestId && (
-          <FormComp key={`${selectedOrderId}-${selectedTestId}`} value={value} onChange={setValue} />
+        {formMeta.Component && formMeta.type === 'mapped' && (
+          <formMeta.Component value={value} onChange={setValue} />
         )}
       </div>
+
+      {formMeta.type !== 'richtext' && (
+        <div className="flex items-center justify-end gap-3">
+          <button onClick={printNow} disabled={!formMeta.Component || !selectedOrderId || !selectedTestId} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40">
+            <PrinterIcon className="w-4 h-4" /> Print
+          </button>
+          <button onClick={()=>save()} disabled={!formMeta.Component || !selectedOrderId || !selectedTestId} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors disabled:opacity-40 shadow-sm">
+            <SaveIcon className="w-4 h-4" /> Finalize
+          </button>
+        </div>
+      )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>

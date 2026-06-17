@@ -1,3 +1,4 @@
+
 import express, { Request, Response } from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
@@ -14,8 +15,6 @@ const allowedOrigins = [
   'http://127.0.0.1:8080',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
   env.CORS_ORIGIN,
 ].filter(Boolean)
 
@@ -23,10 +22,6 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, or server-to-server)
     if (!origin) return callback(null, true)
-    // Allow null origin (sent by file:// protocol in Electron)
-    if (origin === 'null') return callback(null, true)
-    // Allow file:// protocol (Electron packaged app)
-    if (origin.startsWith('file://')) return callback(null, true)
     
     // In development, allow all localhost origins
     if (env.NODE_ENV === 'development') {
@@ -44,13 +39,33 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Master-Key'],
 }))
 app.use(express.json({ limit: '100mb' }))
-app.use(express.urlencoded({ extended: true }))
+app.use(express.urlencoded({ limit: '100mb', extended: true }))
 app.use(morgan('dev'))
 
-app.get('/health', (_req: Request, res: Response) => res.json({ ok: true }))
+let setupRequiredCache: boolean | null = null
+let setupCacheTime = 0
+
+app.get('/health', async (_req: Request, res: Response) => {
+  let setupRequired = false
+  try {
+    // Cache for 5 seconds to avoid DB hit on every health poll
+    if (setupRequiredCache !== null && Date.now() - setupCacheTime < 5000) {
+      setupRequired = setupRequiredCache
+    } else {
+      const { SuperAdminUser } = await import('./modules/admin/models/SuperAdminUser')
+      const count = await SuperAdminUser.countDocuments()
+      setupRequired = count === 0
+      setupRequiredCache = setupRequired
+      setupCacheTime = Date.now()
+    }
+  } catch {
+    setupRequired = true
+  }
+  res.json({ ok: true, setupRequired })
+})
 
 app.use('/api', apiRouter)
 
@@ -72,9 +87,30 @@ for (const p of possiblePaths) {
   } catch {}
 }
 
-app.use(express.static(publicDir, { index: false }))
+// IMPORTANT: Serve static files FIRST (without index.html fallback)
+// so that assets like /assets/index-xxx.js are served correctly
+app.use(express.static(publicDir, { 
+  index: false,
+  // Set proper MIME types for module scripts
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+    } else if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8')
+    }
+  }
+}))
+
+// SPA catch-all: serve index.html for ALL non-API routes
+// This must come AFTER static file serving
 app.get('*', (req: Request, res: Response, next) => {
+  // Skip API routes and file requests that have extensions
   if (req.path.startsWith('/api')) return next()
+  
+  // If request has a file extension (e.g., .js, .css, .png), don't serve index.html
+  // Let it 404 if static file wasn't found
+  if (req.path.match(/\.[a-zA-Z0-9]+$/)) return next()
+  
   const indexPath = path.join(publicDir, 'index.html')
   if (require('fs').existsSync(indexPath)) {
     return res.sendFile(indexPath)

@@ -14,6 +14,32 @@ export default function Dialysis_Layout() {
   
   useEffect(()=>{ try { localStorage.setItem('dialysis.theme', theme) } catch {} }, [theme])
 
+  useEffect(()=>{
+    const html = document.documentElement
+    const hadDark = (() => {
+      try { return html.classList.contains('dark') } catch { return false }
+    })()
+    const forceRemove = () => {
+      try {
+        if (html.classList.contains('dark')) html.classList.remove('dark')
+      } catch {}
+    }
+    forceRemove()
+
+    let obs: MutationObserver | null = null
+    try {
+      obs = new MutationObserver(() => forceRemove())
+      obs.observe(html, { attributes: true, attributeFilter: ['class'] })
+    } catch {}
+
+    return () => {
+      try {
+        if (obs) obs.disconnect()
+        html.classList.toggle('dark', hadDark)
+      } catch {}
+    }
+  }, [])
+
   useEffect(() => {
     try {
       localStorage.setItem('dialysis.sidebar_collapsed', sidebarCollapsed ? '1' : '0')
@@ -25,9 +51,10 @@ export default function Dialysis_Layout() {
   return (
     <div className={theme === 'dark' ? 'dialysis-scope dark' : 'dialysis-scope'}>
       <div className={shell}>
-        <div className="sticky top-0 z-20 w-full border-b border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div>
+        <div className="sticky top-0 z-20 w-full md:border-b" style={{ background: 'linear-gradient(180deg, #0d9488 0%, #0891b2 100%)', borderColor: 'rgba(255,255,255,0.12)' }}>
+          <div className="flex h-14">
             <Dialysis_Header
+              variant="teal"
               onToggleSidebar={() => setSidebarCollapsed(v => !v)}
               collapsed={sidebarCollapsed}
               onToggleTheme={() => setTheme(t=>t==='dark'?'light':'dark')}

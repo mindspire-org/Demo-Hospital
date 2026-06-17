@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { aestheticApi } from '../../utils/api'
 import Aesthetic_TokenSlip, { type TokenSlipData } from '../../components/aesthetic/aesthetic_TokenSlip'
+import { fmtDateTime12, fmtDate } from '../../utils/timeFormat'
 
 type Row = {
   number: number
@@ -117,10 +118,9 @@ export default function Aesthetic_TokenHistoryPage(){
   const exportCSV = () => {
     const header = ['Date','Time','Token','Patient','Phone','Doctor','Amount','Discount','Payable']
     const rowsCsv = filtered.map(t => {
-      const dt = new Date(t.date)
       return [
-        dt.toLocaleDateString(),
-        dt.toLocaleTimeString(),
+        fmtDate(t.date),
+        fmtDateTime12(t.date).split(', ').pop() || '',
         t.number,
         t.patientName || '',
         t.phone || '',
@@ -196,11 +196,10 @@ export default function Aesthetic_TokenHistoryPage(){
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {pageRows.map((t, idx) => {
-              const dt = new Date(t.date)
               return (
                 <tr key={idx} className="text-slate-700 dark:text-slate-200">
-                  <Td>{dt.toLocaleDateString()}</Td>
-                  <Td>{dt.toLocaleTimeString()}</Td>
+                  <Td>{fmtDate(t.date)}</Td>
+                  <Td>{fmtDateTime12(t.date).split(', ').pop() || ''}</Td>
                   <Td>{t.number}</Td>
                   <Td>{t.mrNumber || '-'}</Td>
                   <Td className="font-medium">{t.patientName || '-'}</Td>

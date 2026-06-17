@@ -25,6 +25,7 @@ const PrescriptionTemplateSchema = new Schema({
   examFindings: { type: String },
   diagnosis: { type: String },
   advice: { type: String },
+  nextFollowUp: { type: String },
 }, { timestamps: true })
 
 PrescriptionTemplateSchema.index({ doctorId: 1, name: 1 }, { unique: true })
@@ -47,6 +48,7 @@ export type HospitalPrescriptionTemplateDoc = {
   examFindings?: string
   diagnosis?: string
   advice?: string
+  nextFollowUp?: string
   createdAt: Date
   updatedAt: Date
 }

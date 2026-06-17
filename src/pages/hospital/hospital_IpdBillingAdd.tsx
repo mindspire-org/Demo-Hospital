@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
-import Hospital_IpdPaymentSlip from '../../components/hospital/Hospital_IpdPaymentSlip'
+import Hospital_IpdPaymentSlip from '../../components/hospital/ipd/payment-slip/Hospital_IpdPaymentSlip'
+
+function formatDateForInput(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog: any[], onSelect: (svc: any) => void, initialValue?: string }) {
   const [q, setQ] = useState(initialValue)
@@ -34,7 +41,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-[100] mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+        <div className="absolute z-100 mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id}
@@ -58,6 +65,57 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
   )
 }
 
+function DoctorSelect({ doctors, onSelect, initialValue = '' }: { doctors: any[], onSelect: (doc: any) => void, initialValue?: string }) {
+  const [q, setQ] = useState(initialValue)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const filtered = useMemo(() => {
+    const s = q.toLowerCase().trim()
+    if (!s) return doctors
+    return doctors.filter(doc => (doc.name || '').toLowerCase().includes(s))
+  }, [doctors, q])
+
+  useEffect(() => {
+    const clickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', clickOutside)
+    return () => document.removeEventListener('mousedown', clickOutside)
+  }, [])
+
+  return (
+    <div className="relative w-full" ref={ref}>
+      <input
+        value={q}
+        autoComplete="off"
+        onChange={e => { setQ(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder="Search doctor..."
+        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-100 mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+          {filtered.map(doc => (
+            <button
+              key={doc.id || doc._id}
+              type="button"
+              className="w-full px-3 py-2 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+              onClick={() => {
+                onSelect(doc)
+                setQ(doc.name)
+                setOpen(false)
+              }}
+            >
+              <span className="text-sm font-medium text-slate-900">{doc.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Hospital_IPDBilling() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -67,11 +125,31 @@ export default function Hospital_IPDBilling() {
   const [availableAdmissions, setAvailableAdmissions] = useState<any[]>([])
   const [loadingAdmissions, setLoadingAdmissions] = useState(false)
 
+  // Date filters - empty by default
+  const [fromDate, setFromDate] = useState<string>('')
+  const [toDate, setToDate] = useState<string>('')
+
+  const setTodayFilter = () => {
+    const today = new Date()
+    setFromDate(formatDateForInput(today))
+    setToDate(formatDateForInput(today))
+  }
+
+  const resetFilter = () => {
+    setFromDate('')
+    setToDate('')
+  }
+  
+  // Patient search query
+  const [searchQuery, setSearchQuery] = useState<string>('')
+
   const encounterId = urlEncounterId
 
   const [openCharge, setOpenCharge] = useState(false)
   const [editCharge, setEditCharge] = useState<null | { id: string; description: string; qty: number; unitPrice: number; type: string }>(null)
   const [openAdvance, setOpenAdvance] = useState(false)
+  const [openDoctorService, setOpenDoctorService] = useState(false)
+  const [doctors, setDoctors] = useState<Array<{ id: string; name: string }>>([])
 
   const [loadingEnc, setLoadingEnc] = useState(false)
   const [enc, setEnc] = useState<any>(null)
@@ -88,17 +166,50 @@ export default function Hospital_IPDBilling() {
   const [slipOpen, setSlipOpen] = useState(false)
   const [slipData, setSlipData] = useState<any|null>(null)
 
+  async function loadAdmissions() {
+    setLoadingAdmissions(true)
+    try {
+      const res: any = await hospitalApi.listIPDAdmissions({ status: 'admitted', limit: 200 })
+      let admissions = res?.admissions || []
+      
+      // Filter by date range only if dates are set
+      if (fromDate && toDate) {
+        const from = new Date(fromDate)
+        from.setHours(0, 0, 0, 0)
+        const to = new Date(toDate)
+        to.setHours(23, 59, 59, 999)
+        admissions = admissions.filter((a: any) => {
+          const admitDate = new Date(a.startAt || a.admittedAt || a.createdAt || 0)
+          return admitDate >= from && admitDate <= to
+        })
+      }
+      
+      setAvailableAdmissions(admissions)
+    } catch {
+      setAvailableAdmissions([])
+    } finally {
+      setLoadingAdmissions(false)
+    }
+  }
+
   useEffect(() => {
     if (!urlEncounterId) {
-      setLoadingAdmissions(true)
-      hospitalApi.listIPDAdmissions({ status: 'admitted', limit: 50 })
-        .then((res: any) => {
-          setAvailableAdmissions(res?.admissions || [])
-        })
-        .catch(() => setAvailableAdmissions([]))
-        .finally(() => setLoadingAdmissions(false))
+      loadAdmissions()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlEncounterId])
+
+  // Filtered admissions based on search query
+  const filteredAdmissions = useMemo(() => {
+    if (!searchQuery.trim()) return availableAdmissions
+    const q = searchQuery.toLowerCase().trim()
+    return availableAdmissions.filter((a: any) => {
+      const patientName = String(a.patientId?.fullName || '').toLowerCase()
+      const mrn = String(a.patientId?.mrn || '').toLowerCase()
+      const admissionNo = String(a.admissionNo || '').toLowerCase()
+      return patientName.includes(q) || mrn.includes(q) || admissionNo.includes(q)
+    })
+  }, [availableAdmissions, searchQuery])
 
   useEffect(() => {
     if (!toast) return
@@ -114,6 +225,23 @@ export default function Hospital_IPDBilling() {
         setSvcCatalog(items.map((s: any) => ({ id: String(s._id || s.id), name: String(s.name || ''), price: Number(s.price || 0) })))
       })
       .catch(() => setSvcCatalog([]))
+  }, [])
+
+  // Load doctors for Doctor Services
+  useEffect(() => {
+    let cancelled = false
+    async function loadDoctors() {
+      try {
+        const res: any = await hospitalApi.listDoctors({ active: true, limit: 500 })
+        const rows: any[] = res?.doctors || res || []
+        if (cancelled) return
+        setDoctors(rows.map((d: any) => ({ id: String(d._id || d.id), name: String(d.name || '') })))
+      } catch {
+        if (!cancelled) setDoctors([])
+      }
+    }
+    loadDoctors()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -209,6 +337,7 @@ export default function Hospital_IPDBilling() {
       const res: any = await hospitalApi.createIpdPayment(encounterId, {
         amount: amt,
         method: 'Advance',
+        paymentMode: d.method,
         refNo: d.refNo || '',
         notes: d.notes || '',
         receivedBy: 'hospital',
@@ -247,11 +376,6 @@ export default function Hospital_IPDBilling() {
     } catch (e: any) { setToast({ type: 'error', message: e?.message || 'Failed to record advance' }) }
   }
 
-  const discharge = () => {
-    if (!encounterId) { setToast({ type: 'error', message: 'Encounter not loaded yet' }); return }
-    navigate(`/hospital/ipd/discharge/${encounterId}`)
-  }
-
   if (!encounterId) {
     return (
       <div className="space-y-4 p-4 md:p-6">
@@ -261,12 +385,68 @@ export default function Hospital_IPDBilling() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-4">
+          {/* Date Filters and Search */}
+          <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-slate-100 pb-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">From Date</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">To Date</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <button
+              onClick={setTodayFilter}
+              className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700"
+            >
+              Today
+            </button>
+            <button
+              onClick={resetFilter}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Reset
+            </button>
+            <button
+              onClick={loadAdmissions}
+              disabled={loadingAdmissions}
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {loadingAdmissions ? 'Loading...' : 'Apply Filters'}
+            </button>
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-xs font-medium text-slate-600">Search (Name, MR No, Admission No)</label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search patients..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
           {loadingAdmissions ? (
             <div className="py-8 text-center text-slate-500">Loading admitted patients...</div>
           ) : availableAdmissions.length === 0 ? (
             <div className="py-8 text-center text-slate-500">
               <div className="text-lg mb-2">No admitted IPD patients found</div>
               <div className="text-sm">Go to <button onClick={() => navigate('/hospital/ipd')} className="text-indigo-600 hover:underline">IPD Queue</button> to admit a patient.</div>
+            </div>
+          ) : filteredAdmissions.length === 0 ? (
+            <div className="py-8 text-center text-slate-500">
+              <div className="text-lg mb-2">No matching patients found</div>
+              <div className="text-sm">Try adjusting your date range or search query.</div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -282,7 +462,7 @@ export default function Hospital_IPDBilling() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {availableAdmissions.map((a: any) => (
+                  {filteredAdmissions.map((a: any) => (
                     <tr key={String(a._id || a.id)} className="hover:bg-slate-50">
                       <td className="px-3 py-2 font-medium text-slate-900">
                         {a.patientId?.fullName || 'Unknown'}
@@ -294,7 +474,7 @@ export default function Hospital_IPDBilling() {
                         {a.admissionNo || '-'}
                       </td>
                       <td className="px-3 py-2 text-slate-600">
-                        {a.bedLabel || a.bedId || '-'}
+                        {a.bedLocation ? `${a.bedLocation.floor} / ${a.bedLocation.location} / Bed: ${a.bedLocation.bed}` : (a.bedLabel || a.bedId || '-')}
                       </td>
                       <td className="px-3 py-2 text-slate-600">
                         {a.doctorId?.name || '-'}
@@ -331,7 +511,6 @@ export default function Hospital_IPDBilling() {
             <div className="mt-1 text-sm text-slate-600">Manage in-patient services, charges, and payments.</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={discharge} className="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700">Discharge</button>
             <button onClick={()=>{
               const isReception = window.location.pathname.startsWith('/reception')
               navigate(isReception ? '/reception/ipd-billing' : '/hospital/ipd-billing')
@@ -351,31 +530,44 @@ export default function Hospital_IPDBilling() {
             </div>
             <div className="flex items-center gap-2">
               <button disabled={!encounterId || loadingEnc} onClick={()=>setOpenCharge(true)} className="btn disabled:opacity-50">Add Service</button>
+              <button disabled={!encounterId || loadingEnc} onClick={()=>setOpenDoctorService(true)} className="btn-outline-navy disabled:opacity-50">Doctor Services</button>
               <button disabled={!encounterId || loadingEnc} onClick={()=>setOpenAdvance(true)} className="btn-outline-navy disabled:opacity-50">Add Advance</button>
               <button disabled={!encounterId || loadingCharges} onClick={async()=>{ await reloadCharges(); await reloadBillingSummary() }} className="btn-outline-navy disabled:opacity-50">Refresh</button>
             </div>
           </div>
 
           {encounterId && (
-            <div className="mt-4 grid grid-cols-4 gap-4">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm">
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Total Bill</div>
-                <div className="text-xl font-bold text-slate-900">Rs{total.toFixed(0)}</div>
+            <>
+              {Number(enc?.packageAmount || 0) > 0 && (
+                <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="font-semibold text-violet-800">Package: Rs {Number(enc.packageAmount).toFixed(0)}</span>
+                    <span className="text-xs text-violet-600">Advance: Rs {Number(enc?.advancedAmount || 0).toFixed(0)}</span>
+                    <span className="text-xs text-violet-600">Pending: Rs {Number(enc?.pendingAmount || 0).toFixed(0)}</span>
+                    <span className="text-xs text-violet-600">Bed: {enc?.bedFeeIncludedInPackage ? 'Included' : 'Separate'}</span>
+                  </div>
+                </div>
+              )}
+              <div className="mt-4 grid grid-cols-4 gap-4">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Total Bill</div>
+                  <div className="text-xl font-bold text-slate-900">Rs{total.toFixed(0)}</div>
+                </div>
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wider text-indigo-700 font-bold">Advance Available</div>
+                  <div className="text-xl font-bold text-indigo-700">Rs{advanceTotal.toFixed(0)}</div>
+                </div>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-bold">Total Paid</div>
+                  <div className="text-xl font-bold text-emerald-700">Rs{paid.toFixed(0)}</div>
+                  <div className="text-[10px] text-emerald-600 font-medium">Cleared Amount</div>
+                </div>
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wider text-rose-700 font-bold">Remaining/Net Due</div>
+                  <div className="text-xl font-bold text-rose-700">Rs{netDue.toFixed(0)}</div>
+                </div>
               </div>
-              <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 shadow-sm">
-                <div className="text-[10px] uppercase tracking-wider text-indigo-700 font-bold">Advance Available</div>
-                <div className="text-xl font-bold text-indigo-700">Rs{advanceTotal.toFixed(0)}</div>
-              </div>
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 shadow-sm">
-                <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-bold">Total Paid</div>
-                <div className="text-xl font-bold text-emerald-700">Rs{paid.toFixed(0)}</div>
-                <div className="text-[10px] text-emerald-600 font-medium">Cleared Amount</div>
-              </div>
-              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 shadow-sm">
-                <div className="text-[10px] uppercase tracking-wider text-rose-700 font-bold">Remaining/Net Due</div>
-                <div className="text-xl font-bold text-rose-700">Rs{netDue.toFixed(0)}</div>
-              </div>
-            </div>
+            </>
           )}
 
           {payments.some(p => ['advance', 'advance settlement'].includes(String(p.method || '').toLowerCase())) && (
@@ -623,6 +815,71 @@ export default function Hospital_IPDBilling() {
         </div>
       )}
 
+      {openDoctorService && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <form
+            data-ipd-doctor-form="true"
+            onSubmit={async (e)=>{
+              e.preventDefault()
+              if (!encounterId) return
+              const fd = new FormData(e.currentTarget)
+              const doctorId = String(fd.get('doctorId') || '').trim()
+              const serviceType = String(fd.get('serviceType') || '').trim()
+              const fee = Number(fd.get('fee') || 0)
+              if (!doctorId){ setToast({ type: 'error', message: 'Doctor is required' }); return }
+              if (!serviceType){ setToast({ type: 'error', message: 'Service type is required' }); return }
+              const doctor = doctors.find(d => d.id === doctorId)
+              const description = `Doctor Service - ${doctor?.name || doctorId} (${serviceType})`
+              try{
+                await hospitalApi.createIpdBillingItem(encounterId, { type: 'service', description, qty: 1, unitPrice: fee, billedBy: 'hospital' })
+                setOpenDoctorService(false)
+                await reloadCharges()
+                await reloadBillingSummary()
+                setToast({ type: 'success', message: 'Doctor service added' })
+              }catch(e: any){
+                setToast({ type: 'error', message: e?.message || 'Failed to add doctor service' })
+              }
+            }}
+            className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5"
+          >
+            <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Doctor Services</div>
+            <div className="space-y-3 px-5 py-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Doctor</label>
+                <DoctorSelect
+                  doctors={doctors}
+                  onSelect={(doc) => {
+                    const form = document.querySelector('form[data-ipd-doctor-form="true"]')
+                    if (!form) return
+                    const idEl = form.querySelector<HTMLInputElement>('input[name="doctorId"]')
+                    if (idEl) idEl.value = String(doc.id || doc._id || '')
+                  }}
+                />
+                <input name="doctorId" type="hidden" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Service Type</label>
+                <select name="serviceType" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                  <option value="">Select type...</option>
+                  <option value="Visit">Visit</option>
+                  <option value="Minor Surgery">Minor Surgery</option>
+                  <option value="Major Surgery">Major Surgery</option>
+                  <option value="Anesthesia">Anesthesia</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Fee</label>
+                <input name="fee" type="number" defaultValue={0} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+              <button type="button" onClick={()=>setOpenDoctorService(false)} className="btn-outline-navy">Cancel</button>
+              <button type="submit" className="btn">Add</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {openAdvance && (
         <AdvanceDialog open={openAdvance} onClose={()=>setOpenAdvance(false)} onSave={saveAdvance} />
       )}
@@ -635,7 +892,7 @@ export default function Hospital_IPDBilling() {
       />
 
       {toast && (
-        <div className="fixed right-4 top-16 z-[60] max-w-sm">
+        <div className="fixed right-4 top-16 z-60 max-w-sm">
           <div className={toast.type==='success' ? 'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow' : toast.type==='error' ? 'rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow' : 'rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow'}>
             <div className="flex items-start justify-between gap-3">
               <div>{toast.message}</div>
@@ -670,7 +927,7 @@ function AdvanceDialog({ open, onClose, onSave }: { open: boolean; onClose: ()=>
 
           <label htmlFor="adv-method" className="block text-xs font-medium text-slate-600">Payment Mode</label>
           <select id="adv-method" name="method" className="w-full rounded-md border border-slate-300 px-3 py-2">
-            {['Cash','Card','Bank','Online'].map(m => (<option key={m} value={m}>{m}</option>))}
+            {['Cash','Bank'].map(m => (<option key={m} value={m}>{m}</option>))}
           </select>
 
           <label htmlFor="adv-ref" className="block text-xs font-medium text-slate-600">Ref No</label>

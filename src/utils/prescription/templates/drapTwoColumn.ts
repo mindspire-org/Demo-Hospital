@@ -1,19 +1,18 @@
 import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import type { PrescriptionPdfData } from '../../prescriptionPdf'
 import { ensurePoppins } from '../ensurePoppins'
-import { ensureUrduNastaleeq } from '../ensureUrduNastaleeq'
+import { ensureUrduNastaleeq, drawUrduText } from '../ensureUrduNastaleeq'
 
 export async function buildDrapTwoColumn(data: PrescriptionPdfData){
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true })
   const pageWidth = pdf.internal.pageSize.getWidth()
-  const pageHeight = pdf.internal.pageSize.getHeight()
-
   await ensurePoppins(pdf)
-  await ensureUrduNastaleeq(pdf)
+  const urduOk = await ensureUrduNastaleeq(pdf)
   const setPoppins = (style: 'normal'|'bold') => { try { pdf.setFont('Poppins', style) } catch { pdf.setFont('helvetica', style) } }
-  const hasUrdu = (s: string) => /[\u0600-\u06FF]/.test(s)
-  const setUrdu = () => { try { pdf.setFont('AlQalamTajNastaleeq', 'normal') } catch { setPoppins('normal') } }
+  const hasUrdu = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrduText = (text: string | string[], x: number, y: number, opts?: any) => {
+    drawUrduText(pdf, text as any, x, y, opts)
+  }
 
   const clinicName = String(data.settings?.name || 'Clinic')
   const createdAt = (() => { try { return (data.createdAt ? new Date(data.createdAt) : new Date()) } catch { return new Date() } })()
@@ -171,9 +170,9 @@ export async function buildDrapTwoColumn(data: PrescriptionPdfData){
     pdf.text(`${idx + 1}.`, rxX + 8, my)
 
     const nameIsUrdu = hasUrdu(name)
-    if (nameIsUrdu) setUrdu(); else setPoppins('bold')
     pdf.setFontSize(nameIsUrdu ? 11 : 9)
-    pdf.text(name || '-', rxX + 14, my)
+    if (nameIsUrdu) { safeUrduText(name || '-', rxX + 14, my) }
+    else { setPoppins('bold'); pdf.text(name || '-', rxX + 14, my) }
 
     // right side small meta
     setPoppins('normal')
@@ -183,12 +182,14 @@ export async function buildDrapTwoColumn(data: PrescriptionPdfData){
 
     if (instr) {
       const instrIsUrdu = hasUrdu(instr)
-      if (instrIsUrdu) setUrdu(); else setPoppins('normal')
       pdf.setFontSize(instrIsUrdu ? 10 : 7)
+      // splitTextToSize needs helvetica for metrics
+      setPoppins('normal')
       const lines = pdf.splitTextToSize(instr, rxW - 22)
       const x = instrIsUrdu ? (rxX + rxW - 6) : (rxX + 14)
       const align: any = instrIsUrdu ? 'right' : 'left'
-      pdf.text(lines.slice(0, 2), x, my + 5, { align })
+      if (instrIsUrdu) { safeUrduText(lines.slice(0, 2), x, my + 5, { align }) }
+      else { setPoppins('normal'); pdf.text(lines.slice(0, 2), x, my + 5, { align }) }
     }
 
     my += lineGap

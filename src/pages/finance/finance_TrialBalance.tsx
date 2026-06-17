@@ -1,141 +1,159 @@
-import { useEffect, useMemo, useState } from 'react'
-import { financeApi } from '../../utils/api'
-import { fmtRs, firstOfMonth, todayIso } from '../../components/finance/finance_ui'
-import { RefreshCw, Printer, Scale, TrendingUp, TrendingDown, CheckCircle2, AlertTriangle, Search } from 'lucide-react'
-import DateRangeFilter from '../../components/finance/finance_DateRange'
-import { printFinanceReport } from '../../components/finance/finance_print'
-import { HeroHeader, HeroButton, KpiCard, Toolbar, SectionCard, ModernTable } from '../../components/finance/finance_modern'
+import { useEffect, useState } from 'react'
+import { financeApi } from '../../features/finance/finance.api'
+import Toast, { type ToastState } from '../../components/ui/Toast'
+import { exportToPdf } from '../../utils/financeExportPdf'
 
-export default function Finance_TrialBalance(){
-  const [from, setFrom] = useState(firstOfMonth())
-  const [to, setTo] = useState(todayIso())
-  const [data, setData] = useState<any>(null)
+type TrialBalanceRow = {
+  code: string
+  name: string
+  type: string
+  subType: string
+  module?: string | null
+  debit: number
+  credit: number
+  balance: number
+  debitBalance: number
+  creditBalance: number
+}
+
+export default function Finance_TrialBalance() {
+  const [rows, setRows] = useState<TrialBalanceRow[]>([])
   const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
+  const [toast, setToast] = useState<ToastState>(null)
 
-  async function load(){
-    setLoading(true); setErr(null)
-    try { setData(await financeApi.trialBalance({ from, to })) }
-    catch (e: any) { setErr(e?.message || 'Failed') }
-    finally { setLoading(false) }
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [totalDebit, setTotalDebit] = useState(0)
+  const [totalCredit, setTotalCredit] = useState(0)
+  const [balanced, setBalanced] = useState(true)
+
+  useEffect(() => {
+    loadReport()
+  }, [dateFrom, dateTo])
+
+  async function loadReport() {
+    setLoading(true)
+    try {
+      const res: any = await financeApi.trialBalance({ from: dateFrom || undefined, to: dateTo || undefined })
+      setRows(res.rows || [])
+      setTotalDebit(res.totalDebit || 0)
+      setTotalCredit(res.totalCredit || 0)
+      setBalanced(res.balanced ?? true)
+    } catch (e: any) {
+      setToast({ type: 'error', message: e?.message || 'Failed to load trial balance' })
+    } finally {
+      setLoading(false)
+    }
   }
-  useEffect(() => { load() /* eslint-disable-next-line */ }, [from, to])
 
-  const allRows = (data?.rows || []).filter((r: any) => r.debits !== 0 || r.credits !== 0)
-  const rows = useMemo(() => {
-    if (!query.trim()) return allRows
-    const q = query.toLowerCase()
-    return allRows.filter((r: any) =>
-      String(r.name || '').toLowerCase().includes(q) ||
-      String(r.code || '').toLowerCase().includes(q) ||
-      String(r.type || '').toLowerCase().includes(q)
-    )
-  }, [allRows, query])
+  function handleExport() {
+    const headers = ['Code', 'Name', 'Account Type', 'Detail Type', 'Debit', 'Credit', 'Balance']
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => [r.code, r.name, r.type, r.subType, r.debit, r.credit, r.balance].join(',')),
+      ['', '', '', '', totalDebit, totalCredit, ''],
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `trial-balance-${dateFrom || 'all'}-${dateTo || 'all'}.csv`
+    a.click()
+  }
 
-  const balanced = data && Math.abs(Number(data?.totals?.diff || 0)) < 0.01
+  function handleExportPdf() {
+    exportToPdf({
+      title: 'Trial Balance',
+      subtitle: `Period: ${dateFrom || 'Start'} to ${dateTo || 'Today'}`,
+      filename: `trial-balance-${dateFrom || 'all'}-${dateTo || 'all'}`,
+      headers: ['Code', 'Name', 'Account Type', 'Detail Type', 'Debit', 'Credit', 'Balance'],
+      rows: rows.map(r => [r.code, r.name, r.type, r.subType, r.debit.toFixed(2), r.credit.toFixed(2), r.balance.toFixed(2)]),
+      footers: [['', '', '', 'TOTALS', totalDebit.toFixed(2), totalCredit.toFixed(2), (totalDebit - totalCredit).toFixed(2)]]
+    })
+  }
 
   return (
-    <div className="min-h-[calc(100dvh-3.5rem)] bg-slate-50 dark:bg-slate-950">
-      <HeroHeader
-        icon={Scale}
-        title="Trial Balance"
-        subtitle={<span>All accounts with debit / credit totals from <strong>{from}</strong> to <strong>{to}</strong></span>}
-        gradient="from-indigo-600 via-blue-600 to-cyan-600"
-        actions={
-          <>
-            <HeroButton icon={RefreshCw} onClick={load} disabled={loading}>
-              {loading ? 'Loading…' : 'Refresh'}
-            </HeroButton>
-            <HeroButton icon={Printer} variant="solid" onClick={() => printFinanceReport({
-              title: 'Trial Balance',
-              subtitle: `Period ${from || '—'} → ${to || '—'}`,
-              columns: [
-                { header: 'Code', key: 'code' },
-                { header: 'Account', key: 'name' },
-                { header: 'Type', key: 'type' },
-                { header: 'Debits',  render: (r: any) => fmtRs(r.debits),  align: 'right' },
-                { header: 'Credits', render: (r: any) => fmtRs(r.credits), align: 'right' },
-                { header: 'Balance', render: (r: any) => `${fmtRs(Math.abs(r.balance))} ${r.balance >= 0 ? 'Dr' : 'Cr'}`, align: 'right' },
-              ],
-              rows,
-              totals: data ? [
-                { label: 'Total Debits',  value: fmtRs(data.totals.debits) },
-                { label: 'Total Credits', value: fmtRs(data.totals.credits) },
-                { label: 'Difference',    value: fmtRs(data.totals.diff) },
-              ] : [],
-            })}>
-              Print
-            </HeroButton>
-          </>
-        }
-      />
+    <div className="p-6">
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
-      <Toolbar>
-        <DateRangeFilter value={{ from, to }} onChange={r => { setFrom(r.from); setTo(r.to) }} />
-        <div className="relative ml-auto w-full md:w-auto">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search account / code / type…"
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 md:w-72 dark:border-slate-700 dark:bg-slate-800"
-          />
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow p-5 mb-6 flex items-center justify-between text-white">
+        <div>
+          <h1 className="text-2xl font-semibold">Trial Balance</h1>
+          <p className="text-sm text-blue-100 mt-1">Verifies that debits equal credits across all accounts</p>
         </div>
-      </Toolbar>
+        <div className="flex gap-2">
+          <button onClick={handleExport} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg">
+            Export CSV
+          </button>
+          <button onClick={handleExportPdf} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg">
+            Export PDF
+          </button>
+        </div>
+      </div>
 
-      <div className="mx-auto max-w-7xl space-y-6 p-6">
-        {err && (
-          <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
-            <AlertTriangle className="h-4 w-4" /> {err}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <div className="flex gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">From Date</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 border rounded-lg" />
           </div>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard icon={TrendingUp} label="Total Debits" value={loading ? '…' : fmtRs(data?.totals?.debits || 0)} gradient="from-emerald-500 to-teal-600" />
-          <KpiCard icon={TrendingDown} label="Total Credits" value={loading ? '…' : fmtRs(data?.totals?.credits || 0)} gradient="from-rose-500 to-pink-600" />
-          <KpiCard
-            icon={balanced ? CheckCircle2 : AlertTriangle}
-            label="Balance Status"
-            value={loading ? '…' : (balanced ? 'Balanced' : 'Unbalanced')}
-            tone={balanced ? 'good' : 'bad'}
-            gradient={balanced ? 'from-emerald-500 to-teal-600' : 'from-amber-500 to-orange-600'}
-            hint={data ? `Diff: ${fmtRs(data.totals.diff)}` : undefined}
-          />
-          <KpiCard icon={Scale} label="Active Accounts" value={loading ? '…' : allRows.length} gradient="from-blue-500 to-indigo-600" />
+          <div>
+            <label className="block text-sm font-medium mb-1">To Date</label>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 border rounded-lg" />
+          </div>
         </div>
+      </div>
 
-        <SectionCard
-          title={`Accounts (${rows.length})`}
-          subtitle="Accounts with activity during the selected period"
-          right={data ? (
-            <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-              <span>Dr <span className="font-semibold text-emerald-600">{fmtRs(data.totals.debits)}</span></span>
-              <span>Cr <span className="font-semibold text-rose-600">{fmtRs(data.totals.credits)}</span></span>
-              <span>Δ <span className={`font-semibold ${balanced ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtRs(data.totals.diff)}</span></span>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center">Loading...</div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Code</th>
+                    <th className="px-4 py-3 text-left">Name</th>
+                    <th className="px-4 py-3 text-left">Account Type</th>
+                    <th className="px-4 py-3 text-left">Detail Type</th>
+                    <th className="px-4 py-3 text-left">Module</th>
+                    <th className="px-4 py-3 text-right">Debit</th>
+                    <th className="px-4 py-3 text-right">Credit</th>
+                    <th className="px-4 py-3 text-right">Balance</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {rows.map((r, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-4 py-2">{r.code}</td>
+                      <td className="px-4 py-2">{r.name}</td>
+                      <td className="px-4 py-2">{r.type}</td>
+                      <td className="px-4 py-2">{r.subType}</td>
+                      <td className="px-4 py-2">
+                        {r.module ? <span className="px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-800">{r.module}</span> : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-right">{r.debit.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right">{r.credit.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right font-medium">{r.balance.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-100 font-bold">
+                  <tr>
+                    <td colSpan={5} className="px-4 py-3">TOTALS</td>
+                    <td className="px-4 py-3 text-right">{totalDebit.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right">{totalCredit.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right">{(totalDebit - totalCredit).toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
-          ) : null}
-        >
-          <ModernTable
-            columns={[
-              { key: 'code', header: 'Code', render: (r: any) => <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{r.code || '—'}</span> },
-              { key: 'name', header: 'Account', render: (r: any) => <span className="font-medium">{r.name}</span> },
-              { key: 'type', header: 'Type', render: (r: any) => (
-                <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{r.type || '—'}</span>
-              ) },
-              { key: 'debits',  header: 'Debits',  render: (r: any) => <span className="tabular-nums text-emerald-600 dark:text-emerald-400">{r.debits ? fmtRs(r.debits) : '—'}</span>, className: 'text-right' },
-              { key: 'credits', header: 'Credits', render: (r: any) => <span className="tabular-nums text-rose-600 dark:text-rose-400">{r.credits ? fmtRs(r.credits) : '—'}</span>, className: 'text-right' },
-              { key: 'balance', header: 'Balance', render: (r: any) => (
-                <span className={`tabular-nums font-semibold ${r.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                  {fmtRs(Math.abs(r.balance))} <span className="text-xs font-normal opacity-70">{r.balance >= 0 ? 'Dr' : 'Cr'}</span>
-                </span>
-              ), className: 'text-right' },
-            ]}
-            rows={rows.map((r: any, i: number) => ({ ...r, id: `${r.code}-${i}` }))}
-            empty={loading ? 'Loading…' : query ? `No accounts match "${query}".` : 'No activity in period.'}
-            maxHeight="calc(100vh - 32rem)"
-          />
-        </SectionCard>
+            <div className={`p-4 text-center font-medium ${balanced ? 'text-green-600' : 'text-red-600'}`}>
+              {balanced ? '✓ Trial Balance is Balanced' : '✗ Trial Balance is NOT Balanced'}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

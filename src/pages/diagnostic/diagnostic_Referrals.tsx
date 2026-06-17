@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
 import Toast from '../../components/ui/Toast'
 
 export default function Diagnostic_Referrals(){
   const navigate = useNavigate()
+  const location = useLocation()
+  const isReception = location.pathname.startsWith('/reception')
   const [list, setList] = useState<any[]>([])
   const [status, setStatus] = useState<'pending'|'completed'|'cancelled'|'all'>('all')
   const [q, setQ] = useState('')
@@ -91,7 +93,7 @@ export default function Diagnostic_Referrals(){
                   onClick={()=>{
                     const p = r?.encounterId?.patientId || {}
                     const d = r?.encounterId?.doctorId || {}
-                    navigate('/diagnostic/token-generator', {
+                    navigate(isReception ? '/reception/diagnostic/token-generator' : '/diagnostic/token-generator', {
                       state: {
                         fromReferralId: r._id,
                         encounterId: r?.encounterId?._id || r?.encounterId,

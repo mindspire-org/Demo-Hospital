@@ -1,8 +1,8 @@
 export type PrescriptionPdfData = {
-  doctor?: { name?: string; qualification?: string; departmentName?: string; phone?: string }
+  doctor?: { name?: string; qualification?: string; departmentName?: string; phone?: string; specialization?: string }
   settings?: { name?: string; address?: string; phone?: string; logoDataUrl?: string }
   patient?: { name?: string; mrn?: string; gender?: string; fatherName?: string; age?: string; phone?: string; address?: string; cnic?: string }
-  items?: Array<{ name?: string; frequency?: string; duration?: string; dose?: string; instruction?: string; route?: string }>
+  items?: Array<{ name?: string; genericName?: string; company?: string; frequency?: string; duration?: string; dose?: string; instruction?: string; route?: string; notes?: string; qty?: number | string }>
   primaryComplaint?: string
   primaryComplaintHistory?: string
   familyHistory?: string
@@ -12,6 +12,8 @@ export type PrescriptionPdfData = {
   examFindings?: string
   diagnosis?: string
   advice?: string
+  nextFollowUp?: string
+  tokenNo?: string
   vitals?: {
     pulse?: number
     temperatureC?: number
@@ -24,507 +26,431 @@ export type PrescriptionPdfData = {
     bmi?: number
     bsa?: number
     spo2?: number
+    ar?: string
+    va?: string
+    iop?: string
   }
   labTests?: string[]
   labNotes?: string
   diagnosticTests?: string[]
   diagnosticNotes?: string
   createdAt?: string | Date
+  language?: 'english' | 'urdu'
 }
 
 type RxPdfExtras = {
   tokenNo?: string
   investigations?: Array<{ label: string; checked?: boolean }>
+  manualRxFields?: Record<string, boolean>
 }
 
 export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtras) {
+  const rawManualRxFields = data.manualRxFields
+  const showRx = (k: string) => !rawManualRxFields || rawManualRxFields[k] !== false
   const { jsPDF } = await import('jspdf')
-
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true })
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
 
-  const blue     = { r: 37,  g: 99,  b: 235 }
-  const slate    = { r: 15,  g: 23,  b: 42  }
-  const softBlue = { r: 240, g: 249, b: 255 }
-  const softRed  = { r: 255, g: 241, b: 242 }
-  const red      = { r: 185, g: 28,  b: 28  }
+  // ── PALETTE: Premium Light Clinical ──────────────────────────────────────
+  const teal    = { r: 80,  g: 160, b: 155 }   // soft teal
+  const tealDk  = { r: 60,  g: 120, b: 115 }   // teal-dark for text
+  const tealLt  = { r: 235, g: 248, b: 246 }   // very light teal tint
+  const navy    = { r: 45,  g: 55,  b: 72  }   // soft slate
+  const gray    = { r: 130, g: 145, b: 165 }   // medium gray
+  const faint   = { r: 250, g: 251, b: 252 }   // almost white
+  const border  = { r: 230, g: 235, b: 242 }   // very light border
+  const rowAlt  = { r: 248, g: 250, b: 252 }   // alternate row
 
   const settings = data.settings || {}
   const patient  = data.patient  || {}
   const doctor   = data.doctor   || {}
   const dt       = data.createdAt ? new Date(data.createdAt as any) : new Date()
-
-  const marginX = 10
-  let y = 10
+  const mx = 10
+  const cw = W - 2 * mx
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 1.  CARD HEADER  ── Hospital (left) + Doctor (right)
+  // 1. HEADER — premium light modern header
   // ══════════════════════════════════════════════════════════════════════════
-  const headerH  = 38
-  const headerY  = 8
+  const hdrH = 18
 
-  const navy     = { r: 15,  g: 40,  b: 100 }
-  const skyBg    = { r: 241, g: 246, b: 255 }
-  const lightBlue= { r: 219, g: 234, b: 254 }
-  const gray     = { r: 100, g: 116, b: 139 }
+  // Very light background fill
+  pdf.setFillColor(faint.r, faint.g, faint.b)
+  pdf.rect(mx, 2, cw, hdrH, 'F')
 
-  // Card background
-  pdf.setFillColor(skyBg.r, skyBg.g, skyBg.b)
-  pdf.setDrawColor(lightBlue.r, lightBlue.g, lightBlue.b)
-  pdf.setLineWidth(0.6)
-  pdf.roundedRect(marginX, headerY, W - 2 * marginX, headerH, 4, 4, 'FD')
+  // Subtle top border
+  pdf.setDrawColor(teal.r, teal.g, teal.b)
+  pdf.setLineWidth(0.4)
+  pdf.line(mx, 2, W - mx, 2)
 
-  // Bold navy left accent strip
-  pdf.setFillColor(navy.r, navy.g, navy.b)
-  pdf.rect(marginX, headerY, 4, headerH, 'F')
-  // Soften strip corners
-  pdf.setFillColor(skyBg.r, skyBg.g, skyBg.b)
-  pdf.rect(marginX, headerY, 2, 2, 'F')
-  pdf.rect(marginX, headerY + headerH - 2, 2, 2, 'F')
-
-  // Thick blue bottom line
-  pdf.setDrawColor(blue.r, blue.g, blue.b)
-  pdf.setLineWidth(1.8)
-  pdf.line(marginX, headerY + headerH, W - marginX, headerY + headerH)
-
-  // ── LEFT: logo + hospital name + address ───────────────────────────────────
-  let nameX = marginX + 10
-  const logoAreaX = marginX + 10
-  const logoY     = headerY + 6
-
+  // Logo
+  let logoEndX = mx + 4
   const logoSrc = String(settings.logoDataUrl || '')
   if (logoSrc) {
     try {
-      const normalized = await ensurePngDataUrl(logoSrc)
-      pdf.addImage(normalized, 'PNG' as any, logoAreaX, logoY, 14, 14, undefined, 'FAST')
-      nameX = logoAreaX + 18
+      const norm = await ensurePngDataUrl(logoSrc)
+      pdf.addImage(norm, 'PNG' as any, mx + 3, 5, 10, 10, undefined, 'FAST')
+      logoEndX = mx + 16
     } catch {}
   }
 
   // Hospital name
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(16)
-  pdf.setTextColor(slate.r, slate.g, slate.b)
-  const hospitalName  = String(settings.name || 'Hospital')
-  const nameLines = (pdf as any).splitTextToSize(hospitalName, 75)
-  pdf.text(nameLines, nameX, headerY + 13)
+  pdf.setFontSize(12)
+  pdf.setTextColor(navy.r, navy.g, navy.b)
+  pdf.text(String(settings.name || 'Hospital'), logoEndX + 2, 10)
 
-  // Thin blue rule under name
-  const ruleY = headerY + 13 + nameLines.length * 6
-  pdf.setDrawColor(blue.r, blue.g, blue.b)
-  pdf.setLineWidth(0.6)
-  pdf.line(nameX, ruleY, nameX + 70, ruleY)
-
-  // Address
+  // Hospital sub-info — single line compact
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8)
+  pdf.setFontSize(6.5)
   pdf.setTextColor(gray.r, gray.g, gray.b)
-  pdf.text(String(settings.address || ''), nameX, ruleY + 5)
+  const addrPhone = [settings.address, settings.phone].filter(Boolean).join('   ·   ')
+  if (addrPhone) pdf.text(addrPhone, logoEndX + 2, 14.5)
 
-  // ── RIGHT: doctor info ────────────────────────────────────────────────────
-  const cardRight = W - marginX
-  const drX       = cardRight - 8
-
-  // Department badge (top-right of card)
-  const dept = String((doctor as any).departmentName || '').toUpperCase().trim()
-  if (dept) {
-    const badgeW = Math.min(60, Math.max(36, dept.length * 1.9 + 8))
-    const badgeX = cardRight - badgeW - 4
-    pdf.setFillColor(navy.r, navy.g, navy.b)
-    pdf.roundedRect(badgeX, headerY + 4, badgeW, 7, 1.5, 1.5, 'F')
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(6.5)
-    pdf.setTextColor(255, 255, 255)
-    pdf.text(dept, badgeX + badgeW / 2, headerY + 9, { align: 'center' })
-  }
-
-  // Doctor name
+  // Doctor name (right side)
+  const drX = W - mx - 2
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(14)
-  pdf.setTextColor(slate.r, slate.g, slate.b)
-  pdf.text(`Dr. ${String(doctor.name || '-')}`, drX, headerY + 18, { align: 'right' })
+  pdf.setFontSize(9)
+  pdf.setTextColor(navy.r, navy.g, navy.b)
+  pdf.text(`Dr. ${String(doctor.name || '-')}`, drX, 10, { align: 'right' })
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(6.5)
+  pdf.setTextColor(gray.r, gray.g, gray.b)
+  if (doctor.qualification) pdf.text(String(doctor.qualification), drX, 14.5, { align: 'right' })
+  const spec = String((doctor as any).specialization || doctor.departmentName || '')
+  if (spec) pdf.text(spec, drX, 18, { align: 'right' })
 
-  // Qualification
-  if (doctor.qualification) {
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-    pdf.setTextColor(gray.r, gray.g, gray.b)
-    pdf.text(String(doctor.qualification), drX, headerY + 25, { align: 'right' })
-  }
-
-  // Specialization (blue)
-  const spec = (doctor as any).specialization || ''
-  if (spec) {
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.setTextColor(blue.r, blue.g, blue.b)
-    pdf.text(spec, drX, headerY + 31, { align: 'right' })
-  }
-
-  y = headerY + headerH + 8
+  // Bottom subtle line
+  pdf.setDrawColor(border.r, border.g, border.b)
+  pdf.setLineWidth(0.25)
+  pdf.line(mx, hdrH + 1, W - mx, hdrH + 1)
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2.  PATIENT INFO (two columns)
+  // 2. PATIENT INFO BAND — ultra compact, minimal gap
   // ══════════════════════════════════════════════════════════════════════════
-  pdf.setTextColor(slate.r, slate.g, slate.b)
-  pdf.setFontSize(9)
-  pdf.setFont('helvetica', 'bold')
+  const patY = hdrH + 2
+  const patH = 8
 
-  const col1X = marginX
-  const col2X = marginX + (W - 2 * marginX) / 3
-  const col3X = marginX + 2 * (W - 2 * marginX) / 3
-  const colW = (W - 2 * marginX) / 3 - 4
-  const rowH = 4.5
-
-  const kv3 = (label: string, value: string, x: number, yy: number) => {
-    pdf.setFont('helvetica', 'bold')
-    pdf.text(label, x, yy)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(value || '-', x + 18, yy)
-  }
-
-  // Row 1: Patient Name | MR Number | Token #
-  kv3('Patient:', String(patient.name || '-'), col1X, y)
-  kv3('MR #:', String(patient.mrn || '-'), col2X, y)
-  kv3('Token:', String((data as any).tokenNo || '-'), col3X, y)
-  y += rowH
-
-  // Row 2: Age | Gender | Date
-  kv3('Age:', String(patient.age || '-'), col1X, y)
-  kv3('Gender:', String(patient.gender || '-'), col2X, y)
-  kv3('Date:', String(dt.toLocaleDateString()), col3X, y)
-  y += rowH
-
-  // Row 3: Phone | Address
-  kv3('Phone:', String(patient.phone || '-'), col1X, y)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text('Address:', col2X, y)
-  pdf.setFont('helvetica', 'normal')
-  const addrX = col2X + 18
-  const addrLines = (pdf as any).splitTextToSize(String(patient.address || '-'), colW * 2 - 20)
-  pdf.text(addrLines, addrX, y)
-  y += Math.max(rowH, addrLines.length * 3.5)
-
-  y += 4
-
-  // ── Layout constants ─────────────────────────────────────────────────────
-  const leftColW  = 40
-  const gap       = 6
-  const rightColX = marginX + leftColW + gap
-  const rightColW = W - marginX - rightColX
-
-  // ── Vitals box ───────────────────────────────────────────────────────────
-  pdf.setDrawColor(blue.r, blue.g, blue.b)
-  pdf.setLineWidth(0.4)
-
-  const v = (data as any).vitals || {}
-  const vitalsList = [
-    { label: 'BP',    value: fmtBp(v) },
-    { label: 'Pulse', value: fmt(v.pulse) },
-    { label: 'Temp',  value: fmt(v.temperatureC) },
-    { label: 'RR',    value: fmt(v.respiratoryRate) },
-    { label: 'SpO2',  value: fmt(v.spo2) },
-    { label: 'BS',    value: fmt(v.bloodSugar) },
-    { label: 'Wt',    value: fmt(v.weightKg) },
-    { label: 'Ht',    value: fmt(v.heightCm) },
-    { label: 'BMI',   value: fmt(v.bmi) },
-    { label: 'BSA',   value: fmt(v.bsa) },
-  ].filter(item => item.value !== '— —')
-
-  const vitalsHeight = Math.max(28, 10 + vitalsList.length * 4.5)
-
-  roundedRect(pdf, marginX, y, leftColW, vitalsHeight, 2)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setTextColor(blue.r, blue.g, blue.b)
-  pdf.setFontSize(9)
-  pdf.text('VITAL SIGNS', marginX + 2, y + 5)
-  pdf.setTextColor(slate.r, slate.g, slate.b)
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8)
-
-  let vitY = y + 9
-  for (const vital of vitalsList.slice(0, 12)) {
-    pdf.text(`${vital.label}: ${vital.value}`, marginX + 2, vitY)
-    vitY += 4.5
-  }
-
-  // ── Tests box (below vitals) ─────────────────────────────────────────────
-  const labTests  = (data.labTests        || []).filter(Boolean)
-  const diagTests = (data.diagnosticTests || []).filter(Boolean)
-  const hasTests  = labTests.length > 0 || diagTests.length > 0
-
-  let testsSectionHeight = 0
-  if (hasTests) {
-    const maxLab  = Math.min(labTests.length,  3)
-    const maxDiag = Math.min(diagTests.length, 3)
-    const testsHeight =
-      14 +
-      (labTests.length  > 0 ? 4 : 0) + maxLab  * 4 + (labTests.length  > 3 ? 4 : 0) +
-      (diagTests.length > 0 ? 4 : 0) + maxDiag * 4 + (diagTests.length > 3 ? 4 : 0)
-
-    testsSectionHeight = testsHeight + 6
-    const testsY = y + vitalsHeight + 6
-
-    roundedRect(pdf, marginX, testsY, leftColW, testsHeight, 2)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.setTextColor(blue.r, blue.g, blue.b)
-    pdf.text('TESTS', marginX + 2, testsY + 5)
-    pdf.setTextColor(slate.r, slate.g, slate.b)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-
-    let testY = testsY + 10
-
-    if (labTests.length > 0) {
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('Lab:', marginX + 2, testY)
-      pdf.setFont('helvetica', 'normal')
-      testY += 4
-      for (const test of labTests.slice(0, 3)) {
-        pdf.text(`• ${String(test)}`, marginX + 4, testY)
-        testY += 4
-      }
-      if (labTests.length > 3) {
-        pdf.text(`+${labTests.length - 3} more`, marginX + 4, testY)
-        testY += 4
-      }
-    }
-
-    if (diagTests.length > 0) {
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('Diag:', marginX + 2, testY)
-      pdf.setFont('helvetica', 'normal')
-      testY += 4
-      for (const test of diagTests.slice(0, 3)) {
-        pdf.text(`• ${String(test)}`, marginX + 4, testY)
-        testY += 4
-      }
-      if (diagTests.length > 3) {
-        pdf.text(`+${diagTests.length - 3} more`, marginX + 4, testY)
-        testY += 4
-      }
-    }
-  }
-
-  // ── Rx big box ───────────────────────────────────────────────────────────
-  const rxY             = y
-  const leftColTotal    = vitalsHeight + testsSectionHeight
-  const rxH             = Math.max(180, leftColTotal)
-
-  pdf.setDrawColor(blue.r, blue.g, blue.b)
-  pdf.setLineWidth(0.7)
-  roundedRect(pdf, rightColX, rxY, rightColW, rxH, 3)
-
-  pdf.setTextColor(blue.r, blue.g, blue.b)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(18)
-  pdf.text('Rx', rightColX + 6, rxY + 12)
-
-  let contentY = rxY + 18
-  const contentX = rightColX + 6
-  const contentW = rightColW - 12
-
-  // Helper: add a labelled section
-  const addSection = (label: string, value: string | undefined) => {
-    if (!value || !String(value).trim()) return
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.setTextColor(blue.r, blue.g, blue.b)
-    pdf.text(`${label}:`, contentX, contentY)
-    contentY += 5
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    pdf.setTextColor(slate.r, slate.g, slate.b)
-    const lines = (pdf as any).splitTextToSize(String(value), contentW - 10)
-    pdf.text(lines, contentX + 4, contentY)
-    contentY += lines.length * 3.5 + 3
-  }
-
-  addSection('Primary Complaint',               data.primaryComplaint)
-  addSection('Risk Factors / Medical History',  data.history)
-  addSection('History of Primary Complaint',    data.primaryComplaintHistory)
-  addSection('Family History',                  data.familyHistory)
-  addSection('Allergy History',                 data.allergyHistory)
-  addSection('Treatment History',               data.treatmentHistory)
-  addSection('Examination Findings',            data.examFindings)
-  addSection('Diagnosis / Disease',             data.diagnosis)
-  addSection('Advice / Referral',               data.advice)
-
-  // ── Medicines Table (FIXED) ──────────────────────────────────────────────
-  const meds = (data.items || []).filter(m => String(m?.name || '').trim())
-  if (meds.length > 0) {
-    contentY += 3
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.setTextColor(blue.r, blue.g, blue.b)
-    pdf.text('PRESCRIBED MEDICINES', contentX, contentY)
-    contentY += 6
-
-    // 7 fixed columns that sum exactly to contentW (~132mm):
-    //  # (6) | Medicine (35) | Dosage (18) | Duration (18) | Frequency (22) | Route (15) | Instruction (18) = 132
-    const colWidths = [6, 35, 18, 18, 22, 15, 18]
-    const headers   = ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction']
-
-    // Header row background
-    pdf.setFillColor(softBlue.r, softBlue.g, softBlue.b)
-    pdf.setDrawColor(blue.r, blue.g, blue.b)
-    pdf.rect(contentX, contentY - 4, contentW, 6, 'FD')
-    pdf.setFontSize(7)
-    pdf.setTextColor(slate.r, slate.g, slate.b)
-
-    let colX = contentX
-    headers.forEach((h, i) => {
-      pdf.text(h, colX + 1, contentY)
-      colX += colWidths[i]
-    })
-    contentY += 6
-
-    // Data rows
-    pdf.setFont('helvetica', 'normal')
-    meds.forEach((m, i) => {
-      const rowY        = contentY
-      const name        = String(m?.name        || '').trim()
-      const dose        = String(m?.dose        || '').trim()
-      const duration    = String(m?.duration    || '').trim()
-      const freq        = String(m?.frequency   || '').trim()
-      const route       = String(m?.route       || '').trim()
-      const instruction = String(m?.instruction || '').trim()
-
-      colX = contentX
-
-      // # ─────────────────────────────────────────────────────
-      pdf.text(String(i + 1), colX + 1, rowY)
-      colX += colWidths[0]
-
-      // Medicine (wrapped to column width) ───────────────────
-      const nameLines = (pdf as any).splitTextToSize(name, colWidths[1] - 2)
-      pdf.text(nameLines, colX + 1, rowY)
-      colX += colWidths[1]
-
-      // Dosage ───────────────────────────────────────────────
-      pdf.text(dose, colX + 1, rowY)
-      colX += colWidths[2]
-
-      // Duration ─────────────────────────────────────────────
-      pdf.text(duration, colX + 1, rowY)
-      colX += colWidths[3]
-
-      // Frequency ────────────────────────────────────────────
-      pdf.text(freq, colX + 1, rowY)
-      colX += colWidths[4]
-
-      // Route ────────────────────────────────────────────────
-      pdf.text(route, colX + 1, rowY)
-      colX += colWidths[5]
-
-      // Instruction (wrapped to column width) ────────────────
-      const instLines = (pdf as any).splitTextToSize(instruction, colWidths[6] - 2)
-      pdf.text(instLines, colX + 1, rowY)
-
-      // Row separator
-      const rowHeight = Math.max(nameLines.length, instLines.length) * 3 + 2
-      pdf.setDrawColor(200, 200, 200)
-      pdf.setLineWidth(0.1)
-      pdf.line(contentX, rowY + rowHeight - 1, contentX + contentW, rowY + rowHeight - 1)
-
-      contentY += rowHeight
-    })
-  }
-
-  // ── Doctor Signature ─────────────────────────────────────────────────────
-  // Position signature at bottom left (inside left column area), above footer
-  const footerY = H - 22
-  const signY = footerY - 15
-  const signX = marginX + 2
-  pdf.setDrawColor(slate.r, slate.g, slate.b)
+  pdf.setDrawColor(border.r, border.g, border.b)
   pdf.setLineWidth(0.2)
-  pdf.line(signX, signY, signX + 35, signY)
-  pdf.setFontSize(8)
-  pdf.setFont('helvetica', 'normal')
-  pdf.setTextColor(slate.r, slate.g, slate.b)
-  pdf.text('Doctor Signature', signX, signY + 4)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text(String(doctor.name ? `Dr. ${doctor.name}` : ''), signX, signY + 8)
+  pdf.rect(mx, patY, cw, patH)
 
-  // ── Not Valid bar ────────────────────────────────────────────────────────
-  const nvY = H - 22
-  pdf.setFillColor(softRed.r, softRed.g, softRed.b)
-  pdf.setDrawColor(254, 202, 202)
-  pdf.roundedRect(marginX, nvY, W - 2 * marginX, 8, 1.5, 1.5, 'FD')
-  pdf.setTextColor(red.r, red.g, red.b)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(9)
-  pdf.text('⚠ NOT VALID FOR COURT ⚠', W / 2, nvY + 5.5, { align: 'center' })
+  const pf = (lbl: string, val: string, x: number, yy: number) => {
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6); pdf.setTextColor(tealDk.r, tealDk.g, tealDk.b)
+    pdf.text(lbl, x, yy)
+    pdf.setFont('helvetica', 'normal'); pdf.setTextColor(navy.r, navy.g, navy.b)
+    pdf.text(String(val || '-'), x + 11, yy)
+  }
 
-  // ── Contact box ──────────────────────────────────────────────────────────
-  const cbY = H - 12
-  pdf.setFillColor(softBlue.r, softBlue.g, softBlue.b)
-  pdf.setDrawColor(186, 230, 253)
-  pdf.roundedRect(marginX, cbY, W - 2 * marginX, 10, 2.5, 2.5, 'FD')
-  pdf.setTextColor(slate.r, slate.g, slate.b)
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8)
-  pdf.text(`Phone: ${String(settings.phone   || '+92-xxx-xxxxxx')}`,                    W / 2, cbY + 4,   { align: 'center' })
-  pdf.text(`Address: ${String(settings.address || 'Hospital Address, City, Country')}`, W / 2, cbY + 8, { align: 'center' })
+  const py1 = patY + 3.5
+  const py2 = patY + 6.5
+  const c1 = mx + 4, c2 = mx + 55, c3 = mx + 100, c4 = mx + 148
+  pf('Patient:', String(patient.name || '-'), c1, py1)
+  pf('MR #:', String(patient.mrn || '-'), c2, py1)
+  pf('Age:', String(patient.age || '-'), c3, py1)
+  pf('Gender:', String(patient.gender || '-'), c4, py1)
+  pf('Token:', String(data.tokenNo || (data as any).tokenNo || '-'), c1, py2)
+  pf('Phone:', String(patient.phone || '-'), c2, py2)
+  pf('Date:', dt.toLocaleDateString('en-GB'), c3, py2)
 
-  // ── Overlay (header/footer/watermark) ────────────────────────────────────
+  let y = patY + patH + 1.5
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3. TWO-COLUMN BODY: Compact Vitals+Tests LEFT | Clinical Notes + Rx RIGHT
+  // ══════════════════════════════════════════════════════════════════════════
+  const lw = 28        // left panel width (narrower)
+  const gap = 3
+  const rx = mx + lw + gap
+  const rw = cw - lw - gap
+  const bodyY = y
+
+  // ── LEFT: Vitals ─────────────────────────────────────────────────────────
+  const v = data.vitals || {}
+  const vitals = [
+    { l: 'BP',    v: v.bloodPressureSys != null && v.bloodPressureDia != null ? `${v.bloodPressureSys}/${v.bloodPressureDia}` : '' },
+    { l: 'P',     v: v.pulse != null ? String(v.pulse) : '' },
+    { l: 'T',     v: v.temperatureC != null ? `${v.temperatureC}°C` : '' },
+    { l: 'RR',    v: v.respiratoryRate != null ? String(v.respiratoryRate) : '' },
+    { l: 'SpO2',  v: v.spo2 != null ? `${v.spo2}%` : '' },
+    { l: 'BS',    v: v.bloodSugar != null ? String(v.bloodSugar) : '' },
+    { l: 'Wt',    v: v.weightKg != null ? `${v.weightKg}kg` : '' },
+    { l: 'Ht',    v: v.heightCm != null ? `${v.heightCm}cm` : '' },
+    { l: 'BMI',   v: v.bmi != null ? String(v.bmi) : '' },
+    { l: 'AR',    v: String((v as any).ar || '') },
+    { l: 'VA',    v: String((v as any).va || '') },
+    { l: 'IOP',   v: String((v as any).iop || '') },
+  ].filter(x => x.v.trim())
+
+  const vitH = Math.max(18, 7 + vitals.length * 3.5)
+
+  // Vitals box — no heavy fill, just border
+  pdf.setDrawColor(border.r, border.g, border.b)
+  pdf.setLineWidth(0.2)
+  pdf.roundedRect(mx, bodyY, lw, vitH, 1.5, 1.5, 'D')
+
+  // Vitals header — text only, no fill
+  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6.5)
+  pdf.setTextColor(teal.r, teal.g, teal.b)
+  pdf.text('VITALS', mx + 2, bodyY + 4.5)
+
+  pdf.setDrawColor(tealLt.r, tealLt.g, tealLt.b)
+  pdf.setLineWidth(0.2)
+  pdf.line(mx + 2, bodyY + 5.5, mx + 18, bodyY + 5.5)
+
+  let vitY = bodyY + 8
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5)
+  pdf.setTextColor(navy.r, navy.g, navy.b)
+  for (const vit of vitals) {
+    pdf.setFont('helvetica', 'bold'); pdf.setTextColor(tealDk.r, tealDk.g, tealDk.b)
+    pdf.text(`${vit.l}:`, mx + 2, vitY)
+    pdf.setFont('helvetica', 'normal'); pdf.setTextColor(navy.r, navy.g, navy.b)
+    pdf.text(vit.v, mx + 12, vitY)
+    vitY += 3.5
+  }
+
+  // ── LEFT: Tests (below vitals) ───────────────────────────────────────────
+  const labTests  = (data.labTests || []).filter(Boolean)
+  const diagTests = (data.diagnosticTests || []).filter(Boolean)
+  let leftBottom = bodyY + vitH
+
+  if (labTests.length || diagTests.length) {
+    const tsY = leftBottom + 2
+    const rows = labTests.length + diagTests.length
+    const tsH = 7 + rows * 3.5 + 3
+    pdf.setDrawColor(border.r, border.g, border.b)
+    pdf.setLineWidth(0.2)
+    pdf.roundedRect(mx, tsY, lw, tsH, 1.5, 1.5, 'D')
+
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6.5)
+    pdf.setTextColor(teal.r, teal.g, teal.b)
+    pdf.text('TESTS', mx + 2, tsY + 4.5)
+
+    pdf.setDrawColor(tealLt.r, tealLt.g, tealLt.b)
+    pdf.setLineWidth(0.2)
+    pdf.line(mx + 2, tsY + 5.5, mx + 18, tsY + 5.5)
+
+    let ty = tsY + 8
+    for (const t of [...labTests, ...diagTests]) {
+      pdf.setFont('helvetica', 'normal'); pdf.setTextColor(navy.r, navy.g, navy.b)
+      pdf.setFontSize(6.5)
+      const ls = (pdf as any).splitTextToSize(`• ${t}`, lw - 5)
+      pdf.text(ls, mx + 2, ty); ty += ls.length * 3.2
+    }
+    leftBottom = tsY + tsH
+  }
+
+  // ── RIGHT: Clinical Notes ─────────────────────────────────────────────────
+  let ry = bodyY
+  const sect = (title: string, val: string | undefined) => {
+    if (!val?.trim()) return
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6.5); pdf.setTextColor(tealDk.r, tealDk.g, tealDk.b)
+    pdf.text(title.toUpperCase(), rx, ry)
+    ry += 0.5
+    pdf.setDrawColor(tealLt.r, tealLt.g, tealLt.b)
+    pdf.setLineWidth(0.2); pdf.line(rx, ry + 1, rx + rw, ry + 1)
+    ry += 2.5
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(navy.r, navy.g, navy.b)
+    const lines = (pdf as any).splitTextToSize(val.trim(), rw)
+    pdf.text(lines, rx, ry)
+    ry += lines.length * 3.5 + 2
+  }
+  sect('Chief Complaint', data.primaryComplaint)
+  sect('Diagnosis', data.diagnosis)
+  sect('History', data.history)
+  sect('Exam Findings', data.examFindings)
+  sect('Allergies', data.allergyHistory)
+  sect('Family History', data.familyHistory)
+  sect('Advice', data.advice)
+  sect('Follow Up', data.nextFollowUp)
+
+  // ── Rx Medicines Table ────────────────────────────────────────────────────
+  const wantsUrdu = data.language === 'urdu'
+  let urduFontOk = false
+  let drawUrduText: any = null
+  if (wantsUrdu) {
+    try {
+      const mod = await import('../ensureUrduNastaleeq')
+      urduFontOk = await mod.ensureUrduNastaleeq(pdf)
+      drawUrduText = mod.drawUrduText
+    } catch { urduFontOk = false }
+  }
+  const isUrdu = wantsUrdu && urduFontOk
+  const { translateRxItem } = await import('../../prescriptionUrdu')
+  const hasUrduChars = (s: string) => urduFontOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrduText = (text: string, x: number, y: number, opts?: any) => {
+    if (drawUrduText) drawUrduText(pdf, text, x, y, opts)
+    else pdf.text(text, x, y, opts)
+  }
+
+  const meds = (data.items || []).filter(m => String(m?.name || '').trim())
+  if (meds.length) {
+    y = Math.max(ry, leftBottom) + 3
+
+    // Rx Header — full width, light style
+    pdf.setDrawColor(teal.r, teal.g, teal.b)
+    pdf.setLineWidth(0.4)
+    pdf.line(mx, y, mx + cw, y)
+
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11)
+    pdf.setTextColor(tealDk.r, tealDk.g, tealDk.b)
+    if (showRx('showRxSymbol')) {
+      pdf.text('Rx', mx + 2, y + 5)
+    }
+    pdf.setFontSize(7.5)
+    const headerText = isUrdu ? 'تجویز کردہ ادویات' : 'PRESCRIBED MEDICINES'
+    if (hasUrduChars(headerText)) {
+      safeUrduText(headerText, showRx('showRxSymbol') ? mx + 14 : mx + 3, y + 5)
+    } else {
+      pdf.setFont('helvetica', 'normal')
+      pdf.text(headerText, showRx('showRxSymbol') ? mx + 14 : mx + 3, y + 5)
+    }
+
+    pdf.setDrawColor(border.r, border.g, border.b)
+    pdf.setLineWidth(0.2)
+    pdf.line(mx, y + 7, mx + cw, y + 7)
+    y += 9
+
+    // Wider columns for medicine table
+    const cols = [5, 55, 18, 18, 20, 12, 20]
+    const hdrs = isUrdu
+      ? ['#', 'Medicine', 'خوراک', 'مدت', 'فریکوئنسی', 'طریقہ', 'ہدایت']
+      : ['#', 'Medicine', 'Dose', 'Duration', 'Frequency', 'Route', 'Instr']
+
+    // Header row with very light background
+    pdf.setFillColor(tealLt.r, tealLt.g, tealLt.b)
+    pdf.rect(mx, y - 3, cw, 5, 'F')
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6.5)
+    pdf.setTextColor(tealDk.r, tealDk.g, tealDk.b)
+    let cx = mx + 2
+    hdrs.forEach((h, i) => {
+      if (hasUrduChars(h)) {
+        safeUrduText(h, cx, y + 1)
+      } else {
+        pdf.setFont('helvetica', 'bold')
+        pdf.text(h, cx, y + 1)
+      }
+      cx += cols[i]
+    })
+    y += 4.5
+
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(navy.r, navy.g, navy.b)
+    meds.forEach((m, i) => {
+      const t     = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
+      const name  = String(m?.name || '').trim()
+      const generic = String(m?.genericName || '').trim()
+      const company = String(m?.company || '').trim()
+      const dose  = String(t?.dose || '').trim()
+      const dur   = String(t?.duration || '').trim()
+      const freq  = String(t?.frequency || '').trim()
+      const route = String(t?.route || '').trim()
+      const instr = String(t?.instruction || '').trim()
+      const nameL = (pdf as any).splitTextToSize(name, cols[1] - 4)
+      const detailParts = [generic, company].filter(Boolean)
+      const detailLine = detailParts.join(' · ')
+      const detailL = detailLine ? (pdf as any).splitTextToSize(detailLine, cols[1] - 4) : []
+      const rowH  = (nameL.length + detailL.length) * 3.4 + 1.5
+
+      // Very subtle alternate row
+      if (i % 2 === 0) {
+        pdf.setFillColor(rowAlt.r, rowAlt.g, rowAlt.b)
+        pdf.rect(mx, y - 2.5, cw, rowH + 0.5, 'F')
+      }
+
+      cx = mx + 2
+      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(teal.r, teal.g, teal.b)
+      pdf.setFontSize(7)
+      pdf.text(String(i + 1), cx, y); cx += cols[0]
+
+      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(navy.r, navy.g, navy.b)
+      pdf.setFontSize(7.5)
+      pdf.text(nameL, cx, y)
+      if (detailL.length) {
+        pdf.setFont('helvetica', 'normal'); pdf.setTextColor(gray.r, gray.g, gray.b)
+        pdf.setFontSize(6)
+        pdf.text(detailL, cx, y + nameL.length * 3.2)
+        pdf.setTextColor(navy.r, navy.g, navy.b)
+      }
+      cx += cols[1]
+
+      pdf.setFont('helvetica', 'normal'); pdf.setTextColor(navy.r, navy.g, navy.b)
+      pdf.setFontSize(7)
+      if (hasUrduChars(dose)) safeUrduText(dose, cx + cols[2] - 1, y, { align: 'right', maxWidth: cols[2] - 2 })
+      else { pdf.text(dose, cx, y) }
+      cx += cols[2]
+
+      if (hasUrduChars(dur)) safeUrduText(dur, cx + cols[3] - 1, y, { align: 'right', maxWidth: cols[3] - 2 })
+      else { pdf.text(dur, cx, y) }
+      cx += cols[3]
+
+      if (hasUrduChars(freq)) safeUrduText(freq, cx + cols[4] - 1, y, { align: 'right', maxWidth: cols[4] - 2 })
+      else { pdf.text(freq, cx, y) }
+      cx += cols[4]
+
+      if (hasUrduChars(route)) safeUrduText(route, cx + cols[5] - 1, y, { align: 'right', maxWidth: cols[5] - 2 })
+      else { pdf.text(route, cx, y) }
+      cx += cols[5]
+
+      pdf.setFontSize(6.5); pdf.setTextColor(gray.r, gray.g, gray.b)
+      if (hasUrduChars(instr)) safeUrduText(instr, cx + cols[6] - 1, y, { align: 'right', maxWidth: cols[6] - 2 })
+      else if (instr) { pdf.setFont('helvetica', 'normal'); pdf.text(instr, cx, y) }
+      pdf.setFontSize(7.5)
+
+      // Very light bottom rule per row
+      pdf.setDrawColor(border.r, border.g, border.b)
+      pdf.setLineWidth(0.1)
+      pdf.line(mx + 2, y + rowH - 1.5, mx + cw - 2, y + rowH - 1.5)
+
+      y += rowH
+    })
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 4. FOOTER — minimal professional
+  // ══════════════════════════════════════════════════════════════════════════
+  const footY = H - 16
+
+  // Signature
+  pdf.setDrawColor(border.r, border.g, border.b)
+  pdf.setLineWidth(0.2)
+  pdf.line(mx, footY, mx + 35, footY)
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6); pdf.setTextColor(gray.r, gray.g, gray.b)
+  pdf.text('Signature', mx, footY + 3)
+  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7); pdf.setTextColor(navy.r, navy.g, navy.b)
+  pdf.text(`Dr. ${String(doctor.name || '')}`, mx, footY + 6.5)
+
+  // Footer info line
+  pdf.setDrawColor(border.r, border.g, border.b)
+  pdf.setLineWidth(0.2)
+  pdf.line(mx, H - 9, W - mx, H - 9)
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6); pdf.setTextColor(gray.r, gray.g, gray.b)
+  pdf.text(`${String(settings.name || '')}  ·  ${String(settings.phone || '')}  ·  ${String(settings.address || '')}`, W / 2, H - 5.5, { align: 'center' })
+
   const { applyOverlayBeforeOutput } = await import('./applyOverlay')
   await applyOverlayBeforeOutput(pdf)
 
-  // ── Output ───────────────────────────────────────────────────────────────
   try {
     const api = (window as any).electronAPI
     if (api && typeof api.printPreviewPdf === 'function') {
-      const dataUrl = pdf.output('datauristring') as string
-      await api.printPreviewPdf(dataUrl)
+      await api.printPreviewPdf(pdf.output('datauristring') as string)
       return
     }
   } catch {}
-
-  const blob = pdf.output('blob') as Blob
-  const url  = URL.createObjectURL(blob)
-  window.open(url, '_blank')
+  window.open(URL.createObjectURL(pdf.output('blob') as Blob), '_blank')
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(v: any) {
-  const s = String(v ?? '').trim()
-  return s ? s : '— —'
-}
-
-function fmtBp(v: any) {
-  const sys = v?.bloodPressureSys
-  const dia = v?.bloodPressureDia
-  if (sys != null && dia != null) return `${sys}/${dia}`
-  return '— —'
-}
-
 function roundedRect(pdf: any, x: number, y: number, w: number, h: number, r: number) {
   try { pdf.roundedRect(x, y, w, h, r, r) } catch { pdf.rect(x, y, w, h) }
 }
+void roundedRect
 
 async function ensurePngDataUrl(src: string): Promise<string> {
   try {
     if (/^data:image\/(png|jpeg|jpg)/i.test(src)) return src
     return await new Promise<string>((resolve) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        try {
-          const canvas    = document.createElement('canvas')
-          canvas.width    = img.naturalWidth  || img.width  || 200
-          canvas.height   = img.naturalHeight || img.height || 200
-          const ctx       = canvas.getContext('2d')
-          ctx?.drawImage(img, 0, 0)
-          const out = canvas.toDataURL('image/png')
-          resolve(out || src)
-        } catch { resolve(src) }
-      }
-      img.onerror = () => resolve(src)
-      img.src = src
+      const img = new Image(); img.crossOrigin = 'anonymous'
+      img.onload = () => { try { const c = document.createElement('canvas'); c.width = img.naturalWidth || 200; c.height = img.naturalHeight || 200; c.getContext('2d')?.drawImage(img, 0, 0); resolve(c.toDataURL('image/png') || src) } catch { resolve(src) } }
+      img.onerror = () => resolve(src); img.src = src
     })
   } catch { return src }
 }

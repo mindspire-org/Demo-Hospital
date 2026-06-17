@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, CheckCircle2, XCircle, ListChecks, RefreshCw, Plus, User, Clock, Phone, FlaskConical, Pencil, FileText, Search } from 'lucide-react'
 import { labApi } from '../../utils/api'
+import PatientImageCapture from '../../components/lab/PatientImageCapture'
 import { getLocalDate } from '../../utils/date'
 import Lab_ConfirmDialog from '../../components/lab/lab_ConfirmDialog'
 import { useLabSession } from '../../hooks/useLabSession'
@@ -40,6 +41,9 @@ export default function Lab_Appointments() {
 
   const [rows, setRows] = useState<AppointmentRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [total, setTotal] = useState(0)
 
   // Edit modal
   const [editOpen, setEditOpen] = useState(false)
@@ -68,6 +72,7 @@ export default function Lab_Appointments() {
     testIds: [] as string[],
     testSearch: '',
   })
+  const [patientImage, setPatientImage] = useState<string | null>(null)
   const update = (k: keyof typeof form, v: any) => setForm(prev => ({ ...prev, [k]: v }))
 
   // patient suggestions
@@ -112,7 +117,6 @@ export default function Lab_Appointments() {
     if (!editRow) return
     if (!editForm.dateIso) { showNotice('error', 'Select date'); return }
     if (!editForm.patientName.trim()) { showNotice('error', 'Enter patient name'); return }
-    if (!editForm.testIds.length) { showNotice('error', 'Select at least 1 test'); return }
 
     try {
       const payload: any = {
@@ -160,12 +164,12 @@ export default function Lab_Appointments() {
     })()
   }, [])
 
-  useEffect(() => { load() }, [dateIso, status])
+  useEffect(() => { load() }, [dateIso, status, page, limit])
 
   async function load() {
     setLoading(true)
     try {
-      const params: any = { date: dateIso }
+      const params: any = { date: dateIso, page, limit }
       if (status !== 'all') params.status = status
       const res: any = await labApi.listAppointments(params)
       const arr: any[] = (res?.appointments || [])
@@ -185,8 +189,10 @@ export default function Lab_Appointments() {
         orderId: a.orderId ? String(a.orderId) : undefined,
       }))
       setRows(mapped)
+      setTotal(res?.total || 0)
     } catch {
       setRows([])
+      setTotal(0)
     }
     setLoading(false)
   }
@@ -227,11 +233,18 @@ export default function Lab_Appointments() {
     setPhoneSuggestOpen(false)
   }
 
+  function clearForm() {
+    setForm({ phone: '', patientName: '', gender: '', age: '', time: '', notes: '', testIds: [], testSearch: '' })
+    setPatientImage(null)
+    setSelectedPatient(null)
+    setPhoneSuggestItems([])
+    setPhoneSuggestOpen(false)
+  }
+
   async function createAppointment() {
     if (!dateIso) { showNotice('error', 'Select date'); return }
     if (!form.patientName.trim()) { showNotice('error', 'Enter patient name'); return }
     if (!form.phone.trim()) { showNotice('error', 'Enter phone'); return }
-    if (!form.testIds.length) { showNotice('error', 'Select at least 1 test'); return }
 
     try {
       const payload: any = {
@@ -250,10 +263,7 @@ export default function Lab_Appointments() {
 
       await labApi.createAppointment(payload)
       showNotice('success', 'Appointment created')
-      setForm({ phone: '', patientName: '', gender: '', age: '', time: '', notes: '', testIds: [], testSearch: '' })
-      setSelectedPatient(null)
-      setPhoneSuggestItems([])
-      setPhoneSuggestOpen(false)
+      clearForm()
       await load()
     } catch (e: any) {
       showNotice('error', e?.message || 'Failed to create appointment')
@@ -271,33 +281,22 @@ export default function Lab_Appointments() {
 
   async function convertToToken(id: string) {
     try {
-      const res: any = await labApi.convertAppointmentToToken(id)
-      if (res?.alreadyConverted) {
-        const token = res?.order?.tokenNo || ''
-        showNotice('success', token ? `Already converted to Token ${token}` : 'Already converted')
-        await load()
-        return
-      }
-      const patient = res?.patient
-      const testDetails = res?.testDetails || []
-      if (patient) {
-        navigate('/lab/orders', {
-          state: {
-            appointmentId: id,
-            patient: {
-              mrn: patient.mrn,
-              fullName: patient.fullName,
-              phone: patient.phoneNormalized || patient.phone,
-              age: patient.age,
-              gender: patient.gender,
-            },
-            preSelectedTests: testDetails.map((t: any) => t.id || t._id),
-            fromAppointment: true
-          }
-        })
-      } else {
-        showNotice('error', 'No patient data returned from server')
-      }
+      const row = rows.find(r => r.id === id)
+      if (!row) return
+      navigate('/lab/orders', {
+        state: {
+          appointmentId: id,
+          patient: {
+            mrn: row.mrn || undefined,
+            fullName: row.patientName || '',
+            phone: row.phoneNormalized || undefined,
+            age: row.age || undefined,
+            gender: row.gender || undefined,
+          },
+          preSelectedTests: row.tests || [],
+          fromAppointment: true
+        }
+      })
     } catch (e: any) {
       showNotice('error', e?.message || 'Failed to convert')
     }
@@ -442,7 +441,7 @@ export default function Lab_Appointments() {
                 </div>
               </div>
               <div className="space-y-2" ref={testSuggestWrapRef}>
-                <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-1">Select Tests *</label>
+                <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-1">Select Tests</label>
                 <div className="relative">
                   <FlaskConical className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
                   <input value={form.testSearch} onChange={e => { update('testSearch', e.target.value); setTestSuggestOpen(e.target.value.trim().length > 0) }} onFocus={() => { if (form.testSearch.trim().length > 0) setTestSuggestOpen(true) }} placeholder="Search diagnostic tests..." className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-12 pr-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner placeholder:text-slate-300" />
@@ -475,8 +474,10 @@ export default function Lab_Appointments() {
                   </div>
                 )}
               </div>
-              <div className="pt-4">
-                <button onClick={createAppointment} className="w-full rounded-2xl bg-linear-to-r from-indigo-600 to-violet-700 py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all">Confirm Appointment</button>
+              <PatientImageCapture value={patientImage} onChange={setPatientImage} className="mt-2" />
+              <div className="pt-4 flex gap-3">
+                <button onClick={clearForm} className="w-1/3 rounded-2xl border border-slate-200 bg-slate-50 py-4 text-sm font-bold uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all active:scale-95">Reset</button>
+                <button onClick={createAppointment} className="flex-1 rounded-2xl bg-linear-to-r from-indigo-600 to-violet-700 py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all">Confirm Appointment</button>
               </div>
             </div>
           </div>
@@ -526,10 +527,10 @@ export default function Lab_Appointments() {
                         <td className="px-6 py-5 text-center"><span className={`inline-flex items-center rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border-2 ${r.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : r.status === 'converted' ? 'bg-violet-50 text-violet-700 border-violet-100' : r.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{r.status}</span></td>
                         <td className="px-6 py-5">
                           <div className="flex items-center justify-end gap-1">
-                            {r.status !== 'converted' && <button onClick={() => openEdit(r)} className="p-2 text-slate-400 hover:text-slate-900"><Pencil className="h-4 w-4" /></button>}
-                            {r.status === 'booked' && <button onClick={() => setRowStatus(r.id, 'confirmed')} className="p-2 text-emerald-400 hover:text-emerald-700"><CheckCircle2 className="h-4 w-4" /></button>}
-                            {r.status !== 'cancelled' && r.status !== 'converted' && <button onClick={() => setRowStatus(r.id, 'cancelled')} className="p-2 text-rose-400 hover:text-rose-700"><XCircle className="h-4 w-4" /></button>}
-                            {!r.orderId && r.status !== 'cancelled' && session.isMainLab && <button onClick={() => convertToToken(r.id)} className="p-2 text-indigo-500 hover:text-indigo-700"><FlaskConical className="h-4 w-4" /></button>}
+                            {r.status !== 'converted' && <button title="Edit Appointment" onClick={() => openEdit(r)} className="p-2 text-slate-400 hover:text-slate-900"><Pencil className="h-4 w-4" /></button>}
+                            {r.status === 'booked' && <button title="Confirm Appointment" onClick={() => setRowStatus(r.id, 'confirmed')} className="p-2 text-emerald-400 hover:text-emerald-700"><CheckCircle2 className="h-4 w-4" /></button>}
+                            {r.status !== 'cancelled' && r.status !== 'converted' && <button title="Cancel Appointment" onClick={() => setRowStatus(r.id, 'cancelled')} className="p-2 text-rose-400 hover:text-rose-700"><XCircle className="h-4 w-4" /></button>}
+                            {!r.orderId && r.status !== 'cancelled' && session.isMainLab && <button title="Convert to Token" onClick={() => convertToToken(r.id)} className="p-2 text-indigo-500 hover:text-indigo-700"><FlaskConical className="h-4 w-4" /></button>}
                           </div>
                         </td>
                       </tr>
@@ -538,6 +539,31 @@ export default function Lab_Appointments() {
                 </tbody>
               </table>
             </div>
+            {total > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200 bg-slate-50 px-6 py-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-xs font-bold text-slate-500">
+                    Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total} entries
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-400">Show</span>
+                    <select
+                      value={limit}
+                      onChange={e => { setLimit(Number(e.target.value)); setPage(1); }}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-600 outline-none cursor-pointer focus:border-indigo-400"
+                    >
+                      {[10, 25, 50, 100].map(v => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-all">Prev</button>
+                  <button onClick={() => setPage(p => p + 1)} disabled={page * limit >= total} className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-all">Next</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

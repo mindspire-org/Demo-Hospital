@@ -5,9 +5,10 @@ interface Props {
   limit?: number
   onPageChange: (page: number) => void
   onLimitChange?: (limit: number) => void
+  hideLimit?: boolean
 }
 
-export default function Pagination({ page, pages, total, limit = 20, onPageChange, onLimitChange }: Props) {
+export default function Pagination({ page, pages, total, limit = 20, onPageChange, onLimitChange, hideLimit = false }: Props) {
   const startRow = (page - 1) * limit + 1
   const endRow = Math.min(page * limit, total)
 
@@ -26,12 +27,12 @@ export default function Pagination({ page, pages, total, limit = 20, onPageChang
   }
 
   return (
-    <div className="flex items-center justify-between border-t border-slate-200 px-3 py-3 text-sm">
+    <div className="flex items-center justify-between border-t border-slate-200 px-3 py-3 text-sm print:hidden">
       <div className="flex items-center gap-3">
         <span className="text-slate-500">
           Showing {startRow}-{endRow} of {total}
         </span>
-        {onLimitChange && (
+        {onLimitChange && !hideLimit && (
           <select
             value={limit}
             onChange={e => onLimitChange(Number(e.target.value))}

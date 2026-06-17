@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { hospitalApi, ipdApi } from '../../utils/api'
 
 type RecordItem = { id: string; createdAt?: string; parsed?: any }
 
@@ -25,14 +25,16 @@ export default function Hospital_IpdSurgicalSafetySignOut({ encounterId }: { enc
     setLoading(true)
     setError(null)
     try {
-      const res = (await hospitalApi.listIpdClinicalNotes(encounterId, { type: 'surgical-signout', limit: 200 })) as any
-      const rows = (res?.notes || []) as any[]
+      const res = (await ipdApi.listIpdSurgicalSafety(encounterId, { limit: 200 })) as any
+      const rows = (res?.surgicalSafetyRecords || []) as any[]
 
-      const filtered: RecordItem[] = rows.map((n: any) => ({
-        id: String(n?._id || n?.id || Math.random()),
-        createdAt: n?.recordedAt || n?.createdAt,
-        parsed: n?.data || null,
-      }))
+      const filtered: RecordItem[] = rows
+        .filter((n: any) => n?.signOut?.signOutCompletedAt) // Only show completed Sign Out records
+        .map((n: any) => ({
+          id: String(n?._id || n?.id || Math.random()),
+          createdAt: n?.signOut?.signOutCompletedAt || n?.createdAt,
+          parsed: n?.signOut || null,
+        }))
       setItems(filtered)
     } catch (e: any) {
       setError(e?.message || 'Failed to load records')
@@ -45,10 +47,23 @@ export default function Hospital_IpdSurgicalSafetySignOut({ encounterId }: { enc
     setLoading(true)
     setError(null)
     try {
-      await hospitalApi.createIpdClinicalNote(encounterId, {
-        type: 'surgical-signout',
-        sign: form?.signedBy || '',
-        data: form,
+      await ipdApi.createIpdSurgicalSafety(encounterId, {
+        signOut: {
+          procedureNameRecorded: form.procedureRecorded ? 'Procedure recorded' : '',
+          procedureCompleted: form.procedureRecorded,
+          instrumentCountCorrect: form.countsComplete,
+          spongeCountCorrect: form.countsComplete,
+          sharpsCountCorrect: form.countsComplete,
+          specimenLabeled: form.specimenLabelled,
+          specimenDetails: form.specimenLabelled ? 'Specimen labeled' : '',
+          equipmentIssues: form.equipmentProblems,
+          keyConcernsForRecovery: form.keyConcerns,
+          postOpInstructionsGiven: form.keyConcerns ? true : false,
+          signOutCompletedAt: form.date ? new Date(form.date).toISOString() : new Date().toISOString(),
+          signOutCompletedBy: form.doctorName,
+        },
+        surgeonSignature: form.signature,
+        status: 'completed',
       })
       setOpen(false)
       await reload()
@@ -85,14 +100,13 @@ export default function Hospital_IpdSurgicalSafetySignOut({ encounterId }: { enc
 
               {it.parsed ? (
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                  <Field label="Procedure recorded" value={it.parsed?.procedureRecorded ? 'Yes' : 'No'} />
-                  <Field label="Instrument/needle/sponge counts complete" value={it.parsed?.countsComplete ? 'Yes' : 'No'} />
-                  <Field label="Specimen labelled" value={it.parsed?.specimenLabelled ? 'Yes' : 'No'} />
-                  <Field label="Any equipment problems" value={it.parsed?.equipmentProblems || '-'} />
-                  <Field label="Key concerns for recovery/management" value={it.parsed?.keyConcerns || '-'} />
-                  <Field label="Doctor Name" value={it.parsed?.doctorName} />
-                  <Field label="Signature" value={it.parsed?.signature} />
-                  <Field label="Date" value={it.parsed?.date} />
+                  <Field label="Procedure recorded" value={it.parsed?.procedureCompleted ? 'Yes' : 'No'} />
+                  <Field label="Instrument/needle/sponge counts complete" value={it.parsed?.instrumentCountCorrect ? 'Yes' : 'No'} />
+                  <Field label="Specimen labelled" value={it.parsed?.specimenLabeled ? 'Yes' : 'No'} />
+                  <Field label="Any equipment problems" value={it.parsed?.equipmentIssues || '-'} />
+                  <Field label="Key concerns for recovery/management" value={it.parsed?.keyConcernsForRecovery || '-'} />
+                  <Field label="Doctor Name" value={it.parsed?.signOutCompletedBy} />
+                  <Field label="Date" value={it.parsed?.signOutCompletedAt?.slice(0, 10)} />
                 </div>
               ) : (
                 <div className="mt-3 text-sm text-slate-600">Invalid record data.</div>
@@ -127,6 +141,37 @@ function SignOutDialog({ open, onClose, onSave }: { open: boolean; onClose: () =
     signature: '',
     date: new Date().toISOString().slice(0, 10),
   })
+  const [doctors, setDoctors] = useState<Array<{ _id: string; name: string }>>([])
+  const [doctorSearch, setDoctorSearch] = useState('')
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const filteredDoctors = doctors.filter(d => d.name.toLowerCase().includes(doctorSearch.toLowerCase()))
+
+  useEffect(() => {
+    if (open) {
+      setDoctorSearch('')
+      setShowDoctorDropdown(false)
+      ;(async () => {
+        try {
+          const res = await hospitalApi.listDoctors() as any
+          const items = (res?.doctors || res || []) as Array<{ _id: string; name: string }>
+          setDoctors(items)
+        } catch {
+          setDoctors([])
+        }
+      })()
+    }
+  }, [open])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDoctorDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   if (!open) return null
 
@@ -153,7 +198,30 @@ function SignOutDialog({ open, onClose, onSave }: { open: boolean; onClose: () =
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-4">
-            <Input label="Doctor Name" value={form.doctorName} onChange={(v) => setForm({ ...form, doctorName: v })} />
+            <div ref={dropdownRef} className="relative">
+              <label className="mb-1 block text-sm font-medium text-slate-700">Doctor Name</label>
+              <input
+                type="text"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                value={form.doctorName || doctorSearch}
+                onChange={(e) => { setDoctorSearch(e.target.value); setShowDoctorDropdown(true); setForm({ ...form, doctorName: '' }); }}
+                onFocus={() => setShowDoctorDropdown(true)}
+                placeholder="Search doctor..."
+              />
+              {showDoctorDropdown && filteredDoctors.length > 0 && (
+                <div className="absolute left-0 right-0 z-10 mt-1 max-h-40 overflow-auto rounded-md border border-slate-300 bg-white shadow-lg">
+                  {filteredDoctors.map(d => (
+                    <div
+                      key={d._id}
+                      onClick={() => { setForm({ ...form, doctorName: d.name }); setDoctorSearch(d.name); setShowDoctorDropdown(false); }}
+                      className="cursor-pointer px-3 py-2 text-sm hover:bg-slate-100"
+                    >
+                      {d.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <Input label="Signature" value={form.signature} onChange={(v) => setForm({ ...form, signature: v })} />
             <Input label="Date" type="date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { pharmacyApi } from '../../utils/api';
+import { indoorPharmacyApi } from '../../utils/api';
 import { Plus, Trash2, X } from 'lucide-react';
 
 interface Item {
@@ -76,7 +76,7 @@ const Pharmacy_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSav
 
   const loadSettings = async () => {
     try {
-      const s: any = await pharmacyApi.getSettings();
+      const s: any = await indoorPharmacyApi.getSettings();
       if (!initial) {
         setDeliveryAddress((prev) => prev || s?.address || '');
       }
@@ -87,7 +87,7 @@ const Pharmacy_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSav
 
   const loadSuppliers = async () => {
     try {
-      const res = await pharmacyApi.listAllSuppliers();
+      const res = await indoorPharmacyApi.listAllSuppliers();
       setSuppliers(res.items || []);
     } catch (error) {
       console.error('Failed to load suppliers', error);
@@ -104,7 +104,7 @@ const Pharmacy_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSav
 
   const loadInventory = async () => {
     try {
-      const res = await pharmacyApi.listInventory({ limit: 1000 });
+      const res = await indoorPharmacyApi.listInventory({ limit: 1000 });
       setInventory(res.items || []);
     } catch (error) {
       console.error('Failed to load inventory', error);
@@ -338,8 +338,8 @@ const Pharmacy_AddPurchaseOrderDialog: React.FC<Props> = ({ open, onClose, onSav
                           <div className="inventory-dropdown absolute z-50 mt-1 max-h-48 w-full min-w-[250px] overflow-y-auto rounded-md border border-slate-200 bg-white shadow-xl">
                             {(itemSearchQuery
                               ? inventory.filter(inv => inv.name?.toLowerCase().includes(itemSearchQuery.toLowerCase()))
-                              : inventory.slice(0, 10)
-                            ).slice(0, 10).map(inv => (
+                              : inventory
+                            ).map(inv => (
                               <div
                                 key={inv._id}
                                 className="inventory-dropdown-item cursor-pointer px-3 py-2 text-sm hover:bg-blue-50"

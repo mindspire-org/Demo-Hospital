@@ -290,56 +290,65 @@ export default function Reception_SidebarPermissions() {
               Last updated by: {currentPermissions.updatedBy || 'Unknown'}
             </div>
 
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
               {currentPermissions.permissions
                 .sort((a, b) => a.order - b.order)
                 .map((permission) => (
                   <div
                     key={permission.path}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 bg-white"
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:border-navy/30 ${
+                      permission.visible 
+                        ? 'border-navy/20 bg-navy/5' 
+                        : 'border-slate-200 bg-white opacity-60'
+                    }`}
+                    onClick={() => toggleVisibility(permission.path)}
                   >
-                    <div className="flex-1">
-                      <div className="font-medium text-slate-800">{permission.label}</div>
-                      <div className="text-xs text-slate-500">{permission.path}</div>
+                    <div className="flex items-center h-5">
+                      <input
+                        type="checkbox"
+                        checked={permission.visible}
+                        onChange={() => {}} // Handled by div onClick
+                        className="h-4 w-4 rounded border-slate-300 text-navy focus:ring-navy cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-slate-800 truncate" title={permission.label}>
+                        {permission.label}
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate" title={permission.path}>
+                        {permission.path}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-1">
                       <button
                         type="button"
-                        onClick={() => reorderItem(permission.path, 'up')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          reorderItem(permission.path, 'up');
+                        }}
                         disabled={permission.order === 1}
-                        className="p-1 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                        className="p-0.5 rounded text-slate-400 hover:bg-white disabled:opacity-30"
                         title="Move up"
                       >
-                        ↑
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
                       </button>
                       <button
                         type="button"
-                        onClick={() => reorderItem(permission.path, 'down')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          reorderItem(permission.path, 'down');
+                        }}
                         disabled={permission.order === currentPermissions.permissions.length}
-                        className="p-1 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                        className="p-0.5 rounded text-slate-400 hover:bg-white disabled:opacity-30"
                         title="Move down"
                       >
-                        ↓
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleVisibility(permission.path)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          permission.visible ? 'bg-navy' : 'bg-slate-300'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            permission.visible ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-
-                      <span className="text-sm text-slate-600 min-w-[60px]">
-                        {permission.visible ? 'Visible' : 'Hidden'}
-                      </span>
                     </div>
                   </div>
                 ))}

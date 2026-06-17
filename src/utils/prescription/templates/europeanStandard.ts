@@ -9,11 +9,8 @@ export async function buildEuropeanStandard(data: PrescriptionPdfData){
   const pageWidth = pdf.internal.pageSize.getWidth()
 
   await ensurePoppins(pdf)
-  await ensureUrduNastaleeq(pdf)
-  
+  void (await ensureUrduNastaleeq(pdf))
   const setPoppins = (style: 'normal'|'bold') => { try { pdf.setFont('Poppins', style) } catch { pdf.setFont('helvetica', style) } }
-  const hasUrdu = (s: string) => /[\u0600-\u06FF]/.test(s)
-  const setUrdu = () => { try { pdf.setFont('AlQalamTajNastaleeq', 'normal') } catch { setPoppins('normal') } }
 
   // European style header with institutional branding
   const headerH = 22

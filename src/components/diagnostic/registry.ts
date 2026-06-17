@@ -1,12 +1,20 @@
 import React from 'react'
 
-export type ReportRendererProps = { value: string; onChange: (text: string)=>void }
+export type ReportRendererProps = {
+  value: string
+  onChange: (text: string)=>void
+  templates?: Array<{ name: string; content: string }>
+  onPrint?: () => void
+  onSave?: () => void
+  readOnly?: boolean
+}
 
 import UltrasoundGeneric from './diagnostic_UltrasoundGeneric'
 import CTScan from './diagnostic_CTScan'
 import Echocardiography from './diagnostic_Echocardiography'
 import Colonoscopy from './diagnostic_Colonoscopy'
 import UpperGIEndoscopy from './diagnostic_UpperGIEndoscopy'
+import Diagnostic_RichTextEditor from './diagnostic_RichTextEditor'
 import { printUltrasoundReport } from './diagnostic_UltrasoundGeneric'
 import { printCTScanReport } from './diagnostic_CTScan'
 import { printEchocardiographyReport } from './diagnostic_Echocardiography'
@@ -19,6 +27,7 @@ export const DiagnosticFormRegistry: Record<string, React.ComponentType<ReportRe
   Echocardiography: Echocardiography,
   Colonoscopy: Colonoscopy,
   UpperGiEndoscopy: UpperGIEndoscopy,
+  GenericParagraph: Diagnostic_RichTextEditor,
 }
 
 export type DiagnosticPrintArgs = {

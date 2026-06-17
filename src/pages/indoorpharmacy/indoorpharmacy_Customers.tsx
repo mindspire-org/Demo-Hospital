@@ -119,8 +119,8 @@ export default function IndoorPharmacy_Customers() {
     }
     load()
     const handler = () => load()
-    try { window.addEventListener('pharmacy:sale', handler as any) } catch {}
-    return () => { mounted = false; try { window.removeEventListener('pharmacy:sale', handler as any) } catch {} }
+    try { window.addEventListener('indoor-pharmacy:sale', handler as any) } catch {}
+    return () => { mounted = false; try { window.removeEventListener('indoor-pharmacy:sale', handler as any) } catch {} }
   }, [q, page, limit])
 
   return (

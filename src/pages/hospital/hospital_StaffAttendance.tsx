@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { Users, CalendarCheck2, CalendarX2, Clock, CalendarRange, RefreshCw, Download, Cpu, Printer } from 'lucide-react'
+import { fmt12 } from '../../utils/timeFormat'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 type Attendance = { id?: string; staffId: string; date: string; shiftId?: string; status: 'present'|'absent'|'leave'; clockIn?: string; clockOut?: string; notes?: string }
-type Staff = { id: string; name: string; position?: string; phone?: string; shiftId?: string }
+type Staff = { id: string; name: string; position?: string; phone?: string; shiftId?: string; biometricEnrollId?: string }
 
-type Shift = { id: string; name: string; start?: string; end?: string }
+type Shift = { id: string; name: string; start?: string; end?: string; lateThreshold?: number }
 
 function today(){ return new Date().toISOString().slice(0,10) }
 
@@ -14,9 +17,9 @@ export default function Hospital_StaffAttendance(){
   const [shiftId, setShiftId] = useState<string>('')
   const [limit, setLimit] = useState<number>(10)
   const [page, setPage] = useState<number>(1)
-  const [total, setTotal] = useState<number>(0)
-  const [totalPages, setTotalPages] = useState<number>(1)
   const [selectedStaffId, setSelectedStaffId] = useState<string>('')
+  const [selectedStatus, setSelectedStatus] = useState<string>('')
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
 
   const [lastSyncFinishedAt, setLastSyncFinishedAt] = useState<string>('')
   const [syncing, setSyncing] = useState<boolean>(false)
@@ -36,12 +39,17 @@ export default function Hospital_StaffAttendance(){
         ])
         if (!mounted) return
         const rawStaff: any[] = (staffRes?.staff || staffRes?.items || staffRes || [])
-        const list = rawStaff.map((x:any)=>({ id: x._id, name: x.name, position: x.position || x.role || '', phone: x.phone, shiftId: x.shiftId }))
+        const list = rawStaff.map((x:any)=>({ 
+          id: x._id, 
+          name: x.name, 
+          position: x.position || x.role || '', 
+          phone: x.phone, 
+          shiftId: x.shiftId,
+          biometricEnrollId: x.biometric?.enrollId || x.biometricEnrollId || ''
+        }))
         setStaff(list)
-        setTotal(Number(staffRes?.total || list.length || 0))
-        setTotalPages(Number(staffRes?.totalPages || 1))
         const rawShifts: any[] = (shiftRes?.items || shiftRes?.shifts || shiftRes || [])
-        setShifts(rawShifts.map((x:any)=>({ id: x._id, name: x.name, start: x.start, end: x.end })))
+        setShifts(rawShifts.map((x:any)=>({ id: x._id, name: x.name, start: x.start, end: x.end, lateThreshold: Number(x.lateThreshold||0) })))
       } catch (e) { console.error(e) }
     })()
     return ()=>{ mounted = false }
@@ -83,22 +91,137 @@ export default function Hospital_StaffAttendance(){
     return () => { mounted = false; try { clearInterval(t) } catch {} }
   }, [date, shiftId, lastSyncFinishedAt])
 
+  const getStaffStatus = (s: Staff) => {
+    const rec = att.find(a=> a.staffId===s.id && a.date===date && (s.shiftId ? (a.shiftId||'')===s.shiftId : true)) || att.find(a=> a.staffId===s.id && a.date===date) || null
+    if (!rec) return 'absent'
+    if (rec.status === 'leave') return 'leave'
+    if (rec.status === 'absent') return 'absent'
+    
+    if (rec.clockIn) {
+      const sh = shifts.find(sh => sh.id === (rec.shiftId || s.shiftId))
+      if (sh?.start) {
+        const [h, m] = sh.start.split(':').map(Number)
+        const startMin = (h || 0) * 60 + (m || 0) + (sh.lateThreshold || 0)
+        const [ih, im] = rec.clockIn.split(':').map(Number)
+        const inMin = (ih || 0) * 60 + (im || 0)
+        if (inMin > startMin) return 'late'
+      }
+      return 'present'
+    }
+    return 'absent'
+  }
+
+  const filteredStaff = useMemo(() => {
+    const list = staff.filter(s => {
+      const matchesStaff = selectedStaffId ? s.id === selectedStaffId : true
+      const matchesStatus = selectedStatus ? getStaffStatus(s) === selectedStatus : true
+      return matchesStaff && matchesStatus
+    })
+
+    // Sort by Biometric Enroll ID
+    return list.sort((a, b) => {
+      const aid = Number(a.biometricEnrollId || 999999)
+      const bid = Number(b.biometricEnrollId || 999999)
+      return sortDir === 'asc' ? aid - bid : bid - aid
+    })
+  }, [staff, selectedStaffId, selectedStatus, att, date, shifts, sortDir])
+
   const staffRows = useMemo(() => {
-    const base = staff.filter(s => (selectedStaffId ? s.id===selectedStaffId : true))
-    return base
-  }, [staff, selectedStaffId])
+    if (limit === -1) return filteredStaff
+    return filteredStaff.slice((page - 1) * limit, page * limit)
+  }, [filteredStaff, page, limit])
+
+  const total = filteredStaff.length
+  const totalPages = limit === -1 ? 1 : Math.max(1, Math.ceil(total / limit))
+
+  const presentCount = useMemo(() => att.filter(a => a.date === date && a.status === 'present').length, [att, date])
+  const absentCount = useMemo(() => att.filter(a => a.date === date && a.status === 'absent').length, [att, date])
+  const leaveCount = useMemo(() => att.filter(a => a.date === date && a.status === 'leave').length, [att, date])
+  const lateCount = useMemo(() => {
+    let c = 0
+    for (const a of att) {
+      if (a.date !== date || a.status !== 'present' || !a.clockIn) continue
+      const s = staff.find(st => st.id === a.staffId)
+      const sh = shifts.find(sh => sh.id === (a.shiftId || s?.shiftId))
+      if (!sh?.start) continue
+      const [h, m] = sh.start.split(':').map(Number)
+      const startMin = (h || 0) * 60 + (m || 0) + (sh.lateThreshold || 0)
+      const [ih, im] = a.clockIn.split(':').map(Number)
+      const inMin = (ih || 0) * 60 + (im || 0)
+      if (inMin > startMin) c++
+    }
+    return c
+  }, [att, date, staff, shifts])
 
   const shiftName = (id?: string)=> id ? (shifts.find(s=>s.id===id)?.name || '—') : '—'
 
   const exportCsv = () => {
-    const rows = [['Date','Shift','Staff','Position','Phone','Clock In','Clock Out']]
-    staffRows.forEach(s => {
+    const rows = [['Date','Shift','Staff','Position','Phone','Clock In','Clock Out','Status']]
+    filteredStaff.forEach(s => {
       const rec = att.find(a=> a.staffId===s.id && a.date===date && (s.shiftId ? (a.shiftId||'')===s.shiftId : true)) || att.find(a=> a.staffId===s.id && a.date===date) || null
-      rows.push([date, shiftName(s.shiftId), s.name, s.position||'', s.phone||'', rec?.clockIn||'', rec?.clockOut||''])
+      const status = getStaffStatus(s)
+      rows.push([date, shiftName(s.shiftId), s.name, s.position||'', s.phone||'', rec?.clockIn ? fmt12(rec.clockIn) : '', rec?.clockOut ? fmt12(rec.clockOut) : '', status])
     })
     const csv = rows.map(r=> r.map(x=> `"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `attendance_${date}.csv`; a.click(); URL.revokeObjectURL(a.href)
+  }
+
+  const printAttendance = () => {
+    const win = window.open('', '_blank')
+    if (!win) return
+    const html = `
+      <html>
+        <head>
+          <title>Attendance Report - ${date}</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; color: #333; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 12px; }
+            th { bg-color: #f5f5f5; font-weight: bold; }
+            h2 { margin-bottom: 5px; }
+            .meta { font-size: 14px; color: #666; margin-bottom: 20px; }
+            .status { text-transform: capitalize; font-weight: bold; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <h2>Staff Attendance Report</h2>
+          <div class="meta">Date: ${date} | Total Records: ${filteredStaff.length}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Staff</th>
+                <th>Position</th>
+                <th>Shift</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredStaff.map(s => {
+                const rec = att.find(a=> a.staffId===s.id && a.date===date && (s.shiftId ? (a.shiftId||'')===s.shiftId : true)) || att.find(a=> a.staffId===s.id && a.date===date) || null
+                const status = getStaffStatus(s)
+                return `
+                  <tr>
+                    <td>${s.name}</td>
+                    <td>${s.position || '—'}</td>
+                    <td>${shiftName(s.shiftId)}</td>
+                    <td>${rec?.clockIn ? fmt12(rec.clockIn) : '—'}</td>
+                    <td>${rec?.clockOut ? fmt12(rec.clockOut) : '—'}</td>
+                    <td class="status">${status}</td>
+                  </tr>
+                `
+              }).join('')}
+            </tbody>
+          </table>
+          <script>window.print();</script>
+        </body>
+      </html>
+    `
+    win.document.write(html)
+    win.document.close()
   }
 
   function nowTime(){ const d=new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` }
@@ -134,7 +257,25 @@ export default function Hospital_StaffAttendance(){
   const fetchFromMachine = async () => {
     try {
       setSyncing(true)
-      await (hospitalApi as any).fetchBiometricNow?.()
+      // Try backend first; if it can't reach the device, try local fetcher
+      try {
+        await (hospitalApi as any).fetchBiometricNow?.()
+      } catch (backendErr: any) {
+        const msg = String(backendErr?.message || '').toLowerCase()
+        if (msg.includes('unreachable') || msg.includes('biometric is disabled') || msg.includes('econnrefused') || msg.includes('503') || msg.includes('not set')) {
+          console.log('[biometric] Backend cannot reach device, trying local fetcher...')
+          try {
+            await (hospitalApi as any).fetchBiometricViaLocal()
+            const res = await hospitalApi.listAttendance({ date, shiftId: shiftId || undefined, page: 1, limit: 500 })
+            setAtt((res.items||[]).map((x:any)=>({ id: x._id || `${x.staffId}-${x.date}-${x.shiftId||''}`, staffId: x.staffId, date: x.date, shiftId: x.shiftId, status: x.status, clockIn: x.clockIn, clockOut: x.clockOut, notes: x.notes })))
+            setToast({ type: 'success', message: 'Synced via local fetcher' })
+            return
+          } catch (localErr: any) {
+            throw new Error('Device unreachable from server and local fetcher not running')
+          }
+        }
+        throw backendErr
+      }
       const startedAt = Date.now()
       while (Date.now() - startedAt < 60000) {
         try {
@@ -152,82 +293,154 @@ export default function Hospital_StaffAttendance(){
     }
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="text-xl font-bold text-slate-800">Staff Attendance</div>
+  const summaryCards = [
+    { title: 'Total Staff', value: String(staff.length), icon: Users, tone: 'from-sky-500 to-sky-600', sub: 'On roster' },
+    { title: 'Present', value: String(presentCount), icon: CalendarCheck2, tone: 'from-emerald-500 to-emerald-600', sub: `${staff.length ? Math.round((presentCount/Math.max(1,staff.length))*100) : 0}% today` },
+    { title: 'Absent', value: String(absentCount), icon: CalendarX2, tone: 'from-rose-500 to-rose-600', sub: 'Not checked in' },
+    { title: 'On Leave', value: String(leaveCount), icon: CalendarRange, tone: 'from-amber-500 to-amber-600', sub: 'Approved' },
+    { title: 'Late', value: String(lateCount), icon: Clock, tone: 'from-indigo-500 to-indigo-600', sub: 'After shift start' },
+  ]
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="mb-1 block text-sm text-slate-700">Daily View</label>
-            <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+  return (
+    <div className="space-y-6 pb-8 bg-slate-50/50 dark:bg-slate-900/50 -m-6 p-6 min-h-screen">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">Staff Attendance</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchFromMachine}
+            disabled={syncing}
+            className={`btn flex items-center gap-2 ${syncing ? 'opacity-60 cursor-not-allowed' : ''} dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700`}
+            title="Sync biometric logs"
+          >
+            <Cpu className={`h-4 w-4 ${syncing ? 'animate-pulse' : ''}`} /> {syncing ? 'Syncing…' : 'Fetch from Machine'}
+          </button>
+          <button onClick={()=>{ setPage(1); setDate(d => d) }} className="btn flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
+          <button onClick={exportCsv} className="btn flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
+            <Download className="h-4 w-4" /> Export CSV
+          </button>
+          <button onClick={printAttendance} className="btn flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
+            <Printer className="h-4 w-4" /> Print
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {summaryCards.map(({ title, value, icon: Icon, tone, sub }) => (
+          <div key={title} className={`group relative overflow-hidden rounded-xl p-3.5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-br ${tone}`}>
+            <div className="absolute -right-3 -bottom-3 h-16 w-16 rounded-full bg-white/10" />
+            <div className="relative flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[9px] font-bold uppercase tracking-widest text-white/70 truncate">{title}</div>
+                <div className="mt-1 text-xl font-extrabold text-white tabular-nums">{value}</div>
+                <div className="mt-0.5 text-[9px] font-medium text-white/60 truncate">{sub}</div>
+              </div>
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white">
+                <Icon className="h-4 w-4" />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="mb-1 block text-sm text-slate-700">Shift</label>
-            <select value={shiftId} onChange={e=>setShiftId(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[180px]">
+        ))}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+        <div className="grid gap-6 md:grid-cols-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</label>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-sky-500 transition-all h-11 px-4 text-slate-900 dark:text-slate-100" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Shift</label>
+            <select value={shiftId} onChange={e=>setShiftId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-sky-500 transition-all h-11 px-4 appearance-none text-slate-900 dark:text-slate-100">
               <option value="">All Shifts</option>
               {shifts.map(s=> (<option key={s.id} value={s.id}>{s.name}</option>))}
             </select>
           </div>
-          <div>
-            <label className="mb-1 block text-sm text-slate-700">Staff</label>
-            <select value={selectedStaffId} onChange={e=>setSelectedStaffId(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[220px]">
-              <option value="">— All staff —</option>
-              {staff.map(s=> (<option key={s.id} value={s.id}>{s.name}</option>))}
-            </select>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Staff Member</label>
+            <SearchableSelect
+              value={selectedStaffId}
+              onChange={setSelectedStaffId}
+              options={[{ value: '', label: 'All Staff' }, ...staff.map(s => ({ value: s.id, label: s.name }))]}
+              placeholder="Search staff..."
+              className="h-11"
+            />
           </div>
-          <div className="ml-auto flex items-end gap-2">
-            <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700">
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</label>
+            <select value={selectedStatus} onChange={e=>setSelectedStatus(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-sky-500 transition-all h-11 px-4 appearance-none text-slate-900 dark:text-slate-100">
+              <option value="">All Statuses</option>
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+              <option value="leave">Leave</option>
+              <option value="late">Late</option>
             </select>
-            <button
-              onClick={fetchFromMachine}
-              disabled={syncing}
-              className={syncing ? 'btn-outline-navy opacity-60 cursor-not-allowed' : 'btn-outline-navy'}
-              title="Manually sync biometric logs from the attendance machine"
-            >
-              {syncing ? 'Fetching…' : 'Fetch from Machine'}
-            </button>
-            <button onClick={()=>{ setPage(1); setDate(d => d) }} className="btn-outline-navy">Refresh</button>
-            <button onClick={exportCsv} className="btn-outline-navy">Export CSV</button>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100">Attendance Records</h3>
+          <select value={limit} onChange={e=>{ setLimit(parseInt(e.target.value)); setPage(1) }} className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:ring-2 focus:ring-sky-500 h-9 px-3 text-slate-900 dark:text-slate-100">
+            <option value={10}>10 / page</option>
+            <option value={25}>25 / page</option>
+            <option value={50}>50 / page</option>
+            <option value={100}>100 / page</option>
+            <option value={-1}>All</option>
+          </select>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
-              <tr>
-                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Staff</th>
-                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Position</th>
-                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Phone</th>
-                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Shift</th>
-                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Clock In</th>
-                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Clock Out</th>
-                <th className="px-4 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
+            <thead>
+              <tr className="bg-slate-50/80 dark:bg-slate-900/50">
+                <th 
+                  className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 cursor-pointer hover:text-sky-600 transition-colors"
+                  onClick={() => setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')}
+                >
+                  <div className="flex items-center gap-1">
+                    ID {sortDir === 'asc' ? '↑' : '↓'}
+                  </div>
+                </th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Staff</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Position</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Phone</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Shift</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Clock In</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Clock Out</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Status</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 text-slate-700">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {staffRows.map(s => {
                 const rec = att.find(a=> a.staffId===s.id && a.date===date && (s.shiftId ? (a.shiftId||'')===s.shiftId : true)) || att.find(a=> a.staffId===s.id && a.date===date) || null
                 const canClockIn = !(rec && rec.clockIn)
                 const canClockOut = !(rec && rec.clockOut)
+                const status = getStaffStatus(s)
+                const statusColor: Record<string,string> = { 
+                  present: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400', 
+                  absent: 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400', 
+                  leave: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
+                  late: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400'
+                }
                 return (
-                  <tr key={s.id}>
-                    <td className="px-4 py-2">{s.name}</td>
-                    <td className="px-4 py-2">{s.position || '—'}</td>
-                    <td className="px-4 py-2">{s.phone || '—'}</td>
-                    <td className="px-4 py-2">{shiftName(s.shiftId)}</td>
-                    <td className="px-4 py-2">{rec?.clockIn || '—'}</td>
-                    <td className="px-4 py-2">{rec?.clockOut || '—'}</td>
-                    <td className="px-4 py-2">
+                  <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition">
+                    <td className="px-6 py-3 font-mono text-slate-700 dark:text-slate-300">{s.biometricEnrollId || '—'}</td>
+                    <td className="px-6 py-3 font-medium text-slate-900 dark:text-slate-100">{s.name}</td>
+                    <td className="px-6 py-3 text-slate-600 dark:text-slate-400">{s.position || '—'}</td>
+                    <td className="px-6 py-3 text-slate-600 dark:text-slate-400">{s.phone || '—'}</td>
+                    <td className="px-6 py-3 text-slate-600 dark:text-slate-400">{shiftName(s.shiftId)}</td>
+                    <td className="px-6 py-3 font-mono text-slate-700 dark:text-slate-300">{rec?.clockIn ? fmt12(rec.clockIn) : '—'}</td>
+                    <td className="px-6 py-3 font-mono text-slate-700 dark:text-slate-300">{rec?.clockOut ? fmt12(rec.clockOut) : '—'}</td>
+                    <td className="px-6 py-3">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${statusColor[status] || 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                    </td>
+                    <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
-                        <button disabled={!canClockIn} onClick={()=>quickClockRow(s,'in')} className={`rounded-md border px-2 py-1 text-xs ${canClockIn? 'border-slate-300 hover:bg-slate-50' : 'border-slate-200 text-slate-400 cursor-not-allowed'}`}>Clock In</button>
-                        <button disabled={!canClockOut} onClick={()=>quickClockRow(s,'out')} className={`rounded-md border px-2 py-1 text-xs ${canClockOut? 'border-slate-300 hover:bg-slate-50' : 'border-slate-200 text-slate-400 cursor-not-allowed'}`}>Clock Out</button>
+                        <button disabled={!canClockIn} onClick={()=>quickClockRow(s,'in')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${canClockIn? 'bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20' : 'bg-slate-50 text-slate-400 cursor-not-allowed border border-slate-100 dark:bg-slate-900 dark:text-slate-600 dark:border-slate-800'}`}>Clock In</button>
+                        <button disabled={!canClockOut} onClick={()=>quickClockRow(s,'out')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${canClockOut? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-slate-50 text-slate-400 cursor-not-allowed border border-slate-100 dark:bg-slate-900 dark:text-slate-600 dark:border-slate-800'}`}>Clock Out</button>
                       </div>
                     </td>
                   </tr>
@@ -235,22 +448,22 @@ export default function Hospital_StaffAttendance(){
               })}
               {staffRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-500">No staff records</td>
+                  <td colSpan={9} className="px-6 py-16 text-center text-slate-400 dark:text-slate-500 font-medium">No staff records found</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
+        <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-6 py-3 text-sm text-slate-500 dark:text-slate-400">
           <div>
             {total > 0 ? (
-              <>Showing {Math.min((page-1)*limit + 1, total)}-{Math.min((page-1)*limit + staffRows.length, total)} of {total}</>
+              <>Showing {Math.min((page-1)*limit + 1, total)}–{Math.min((page-1)*limit + staffRows.length, total)} of {total}</>
             ) : 'No results'}
           </div>
           <div className="flex items-center gap-2">
-            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50 disabled:opacity-50">Prev</button>
-            <div>Page {page} of {totalPages}</div>
-            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50 disabled:opacity-50">Next</button>
+            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-40 transition-all text-slate-700 dark:text-slate-300">Prev</button>
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Page {page} of {totalPages}</span>
+            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-40 transition-all text-slate-700 dark:text-slate-300">Next</button>
           </div>
         </div>
       </div>

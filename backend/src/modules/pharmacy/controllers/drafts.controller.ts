@@ -189,6 +189,7 @@ export async function listLines(req: Request, res: Response){
             'totalItems': '$lines.totalItems',
             'minStock': '$lines.minStock',
             'expiry': '$lines.expiry',
+            'shelfNumber': '$lines.shelfNumber',
           } },
         ],
         count: [ { $count: 'total' } ]
@@ -293,6 +294,8 @@ export async function approve(req: Request, res: Response){
     const addQty = (l.totalItems != null) ? l.totalItems : (unitsPerPack * (l.packs || 0))
     const salePerUnit = (unitsPerPack && l.salePerPack) ? (l.salePerPack / unitsPerPack) : 0
     const expiry = l.expiry
+    const expiryAlertDate = l.expiryAlertDate
+    const shelfNumber = l.shelfNumber
 
     const prev: any = await InventoryItem.findOne({ key }).lean()
     const prevOnHand = Number(prev?.onHand || 0)
@@ -311,6 +314,8 @@ export async function approve(req: Request, res: Response){
         lastSupplierId: draft.supplierId || undefined,
         lastInvoiceDate: draft.date || undefined,
         lastExpiry: expiry || undefined,
+        expiryAlertDate: expiryAlertDate || undefined,
+        shelfNumber: shelfNumber || undefined,
         lastPacksReceived: packs || 0,
         lastTotalItemsReceived: addQty || 0,
         lastBuyPerPack: l.buyPerPack || 0,
@@ -333,6 +338,9 @@ export async function approve(req: Request, res: Response){
     // earliestExpiry: keep min date using $min on ISO string (yyyy-mm-dd)
     if (expiry){
       update.$min = { ...(update.$min||{}), earliestExpiry: expiry }
+    }
+    if (expiryAlertDate){
+      update.$min = { ...(update.$min||{}), earliestExpiryAlert: expiryAlertDate }
     }
     await InventoryItem.findOneAndUpdate({ key }, update, { upsert: true, new: true })
   }

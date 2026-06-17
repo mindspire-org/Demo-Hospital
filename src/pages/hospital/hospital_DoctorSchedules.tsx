@@ -8,7 +8,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
 
 
-function todayIso(){ return new Date().toISOString().slice(0,10) }
+function todayIso(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
 
 
@@ -84,7 +84,7 @@ export default function Hospital_DoctorSchedules(){
 
     try{
 
-      const [docRes, depRes] = await Promise.all([ hospitalApi.listDoctors() as any, hospitalApi.listDepartments() as any ])
+      const [docRes, depRes] = await Promise.all([ hospitalApi.listDoctors() as any, hospitalApi.listDepartments({ limit: 1000 }) as any ])
 
       setDoctors(((docRes?.doctors)||[]).map((d:any)=>({ id: String(d._id), name: d.name })))
 

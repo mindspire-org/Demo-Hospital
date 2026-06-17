@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { aestheticApi } from '../../utils/api'
 import Aesthetic_TokenSlip, { type TokenSlipData } from '../../components/aesthetic/aesthetic_TokenSlip'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
@@ -64,7 +65,7 @@ export default function Aesthetic_TodayTokens(){
       .filter((t:any)=> String(t?.status||'') !== 'cancelled')
       .map((t:any) => ({
         _id: String(t._id),
-        time: t.date ? new Date(t.date).toLocaleTimeString() : '',
+        time: t.date ? fmtDateTime12(t.date).split(', ').pop() || '' : '',
         number: Number(t.number || 0),
         mrNumber: t.mrNumber,
         patientName: t.patientName,

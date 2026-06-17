@@ -11,6 +11,7 @@ import { HospitalDoctor } from '../models/Doctor'
 import { HospitalIpdShortStay } from '../models/IpdShortStay'
 import { HospitalIpdReceivedDeath } from '../models/IpdReceivedDeath'
 import { HospitalIpdBirthCertificate } from '../models/IpdBirthCertificate'
+import { HospitalCounter } from '../models/Counter'
 
 async function getEncounterOr404(id: string, res: Response){
   const enc: any = await HospitalEncounter.findById(id).lean()
@@ -68,13 +69,6 @@ export async function listBirthCertificates(req: Request, res: Response){
   res.json({ page: p, limit: l, total: row.total, results: row.results })
 }
 
-export async function deleteBirthCertificate(req: Request, res: Response){
-  const { id } = req.params as any
-  const enc = await getEncounterOr404(String(id), res)
-  if (!enc) return
-  await HospitalIpdBirthCertificate.deleteOne({ encounterId: enc._id })
-  res.json({ ok: true })
-}
 
 // Standalone Birth Certificate (no encounter) ---------------------------------
 export async function createBirthCertificateStandalone(req: Request, res: Response){
@@ -221,73 +215,6 @@ const birthSchema = z.object({
   createdBy: z.string().optional(),
 })
 
-export async function upsertBirthCertificate(req: Request, res: Response){
-  const { id } = req.params as any
-  const enc = await getEncounterOr404(String(id), res)
-  if (!enc) return
-  const data = birthSchema.parse(req.body)
-  const patch: any = { ...data }
-  if (data.dateOfBirth) patch.dateOfBirth = new Date(data.dateOfBirth)
-  patch.patientId = enc.patientId
-  patch.doctorId = enc.doctorId
-  patch.departmentId = enc.departmentId
-  const existing = await HospitalIpdBirthCertificate.findOne({ encounterId: enc._id })
-  let doc: any
-  if (existing){
-    doc = await HospitalIpdBirthCertificate.findOneAndUpdate({ encounterId: enc._id }, patch, { new: true })
-  } else {
-    doc = await HospitalIpdBirthCertificate.create({ encounterId: enc._id, ...patch })
-  }
-  res.json({ birthCertificate: doc })
-}
-
-export async function getBirthCertificate(req: Request, res: Response){
-  const { id } = req.params as any
-  const enc = await getEncounterOr404(String(id), res)
-  if (!enc) return
-  const doc = await HospitalIpdBirthCertificate.findOne({ encounterId: enc._id }).lean()
-  res.json({ birthCertificate: doc || null })
-}
-
-export async function printBirthCertificate(req: Request, res: Response){
-  const { id } = req.params as any
-  const enc = await getEncounterOr404(String(id), res)
-  if (!enc) return
-  const cert: any = await HospitalIpdBirthCertificate.findOne({ encounterId: enc._id }).lean()
-  if (!cert) return res.status(404).send('No birth certificate found')
-  const settings: any = await HospitalSettings.findOne({}).lean()
-  const patient: any = await LabPatient.findById(enc.patientId).lean()
-  const doctor: any = enc.doctorId ? await HospitalDoctor.findById(enc.doctorId).lean() : null
-  const html = renderBirthHTML(settings, enc, patient, doctor, cert)
-  res.setHeader('Content-Type', 'text/html; charset=utf-8')
-  res.send(html)
-}
-
-export async function printBirthCertificatePdf(req: Request, res: Response){
-  const { id } = req.params as any
-  const enc = await getEncounterOr404(String(id), res)
-  if (!enc) return
-  const doc: any = await HospitalIpdBirthCertificate.findOne({ encounterId: enc._id }).lean()
-  if (!doc) return res.status(404).send('No birth certificate found')
-  const settings: any = await HospitalSettings.findOne({}).lean()
-  const patient: any = await LabPatient.findById(enc.patientId).lean()
-  const doctor: any = enc.doctorId ? await HospitalDoctor.findById(enc.doctorId).lean() : null
-  const html = renderBirthHTML(settings, enc, patient, doctor, doc)
-  let puppeteer: any
-  try { puppeteer = require('puppeteer') } catch { return res.status(500).send('PDF generator not available') }
-  let browser: any = null
-  try {
-    browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] as any, headless: true })
-    const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'networkidle0' })
-    const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' } })
-    res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `inline; filename="birth-certificate-${Date.now()}.pdf"`)
-    res.send(pdf)
-  } catch {
-    res.status(500).send('Failed to render PDF')
-  } finally { try { await browser?.close() } catch {} }
-}
 
 const dischargeSchema = z.object({
   diagnosis: z.string().optional(),
@@ -400,6 +327,7 @@ export async function printDischargeSummary(req: Request, res: Response){
 }
 // Received Death (clean structured form)
 const receivedDeathSchema = z.object({
+  rdNo: z.string().optional(),
   srNo: z.string().optional(),
   patientCnic: z.string().optional(),
   relative: z.string().optional(),
@@ -442,6 +370,8 @@ export async function upsertReceivedDeath(req: Request, res: Response){
   if (existing){
     doc = await HospitalIpdReceivedDeath.findOneAndUpdate({ encounterId: enc._id }, patch, { new: true })
   } else {
+    // Auto-generate rdNo for new received death records
+    if (!patch.rdNo) patch.rdNo = await nextRdNo()
     doc = await HospitalIpdReceivedDeath.create({ encounterId: enc._id, ...patch })
   }
   res.json({ receivedDeath: doc })
@@ -575,6 +505,64 @@ const deathSchema = z.object({
   doctorSignTime: z.string().optional(),
 })
 
+async function nextDcNo(){
+  const now = new Date()
+  const yyyy = String(now.getFullYear())
+  const mm = String(now.getMonth()+1).padStart(2,'0')
+  const yyyymm = `${yyyy}${mm}`
+  const key = `dc_${yyyymm}`
+  const c = await HospitalCounter.findByIdAndUpdate(key, { $inc: { seq: 1 } }, { upsert: true, new: true, setDefaultsOnInsert: true })
+  const seq = String((c as any)?.seq || 1).padStart(3,'0')
+  return `DC-${yyyymm}-${seq}`
+}
+
+async function previewNextDcNo(){
+  const now = new Date()
+  const yyyy = String(now.getFullYear())
+  const mm = String(now.getMonth()+1).padStart(2,'0')
+  const yyyymm = `${yyyy}${mm}`
+  // Count actual death certificates for this month
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const count = await HospitalIpdDeathCertificate.countDocuments({ createdAt: { $gte: monthStart, $lt: monthEnd } })
+  const seq = String(count + 1).padStart(3,'0')
+  return `DC-${yyyymm}-${seq}`
+}
+
+async function nextRdNo(){
+  const now = new Date()
+  const yyyy = String(now.getFullYear())
+  const mm = String(now.getMonth()+1).padStart(2,'0')
+  const yyyymm = `${yyyy}${mm}`
+  const key = `rd_${yyyymm}`
+  const c = await HospitalCounter.findByIdAndUpdate(key, { $inc: { seq: 1 } }, { upsert: true, new: true, setDefaultsOnInsert: true })
+  const seq = String((c as any)?.seq || 1).padStart(3,'0')
+  return `RD-${yyyymm}-${seq}`
+}
+
+async function previewNextRdNo(){
+  const now = new Date()
+  const yyyy = String(now.getFullYear())
+  const mm = String(now.getMonth()+1).padStart(2,'0')
+  const yyyymm = `${yyyy}${mm}`
+  // Count actual received death records for this month
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const count = await HospitalIpdReceivedDeath.countDocuments({ createdAt: { $gte: monthStart, $lt: monthEnd } })
+  const seq = String(count + 1).padStart(3,'0')
+  return `RD-${yyyymm}-${seq}`
+}
+
+export async function getNextDcNo(req: Request, res: Response){
+  const dcNo = await previewNextDcNo()
+  res.json({ dcNo })
+}
+
+export async function getNextRdNo(req: Request, res: Response){
+  const rdNo = await previewNextRdNo()
+  res.json({ rdNo })
+}
+
 export async function upsertDeathCertificate(req: Request, res: Response){
   const { id } = req.params as any
   const enc = await getEncounterOr404(String(id), res)
@@ -594,6 +582,8 @@ export async function upsertDeathCertificate(req: Request, res: Response){
   if (existing){
     doc = await HospitalIpdDeathCertificate.findOneAndUpdate({ encounterId: enc._id }, patch, { new: true })
   } else {
+    // Auto-generate dcNo for new death certificates
+    if (!patch.dcNo) patch.dcNo = await nextDcNo()
     doc = await HospitalIpdDeathCertificate.create({ encounterId: enc._id, ...patch })
   }
   res.json({ certificate: doc })
@@ -720,7 +710,12 @@ export async function printFinalInvoice(req: Request, res: Response){
   const settings: any = await HospitalSettings.findOne({}).lean()
   const patient: any = await LabPatient.findById(enc.patientId).lean()
   const doctor: any = enc.doctorId ? await HospitalDoctor.findById(enc.doctorId).lean() : null
-  const html = renderInvoiceHTML(settings, enc, patient, doctor, items, payments, isER)
+  
+  // Load invoice to get discharge date/time
+  const { HospitalInvoice } = await import('../models/Invoice')
+  const invoice: any = await HospitalInvoice.findOne({ encounterId: enc._id }).lean()
+  
+  const html = renderInvoiceHTML(settings, enc, patient, doctor, items, payments, isER, invoice)
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.send(html)
 }
@@ -952,36 +947,48 @@ function hdr(settings: any){
   const name = settings?.name || 'HospitalCare'
   const addr = settings?.address || ''
   const phone = settings?.phone || ''
-  const logo = settings?.logoDataUrl ? `<img src="${settings.logoDataUrl}" class="h-logo" alt="logo" />` : ''
-  return `
-  <div class="hdr">
-    <div class="hdr-left">${logo}</div>
-    <div class="hdr-mid">
-      <div class="h-name">${escapeHtml(name)}</div>
-      <div class="h-meta">${escapeHtml(addr)}${phone ? ` <span class="sep">•</span> ${escapeHtml(phone)}` : ''}</div>
+  const logo = settings?.logoDataUrl ? `<img src="${settings.logoDataUrl}" style="height:40px;" />` : ''
+  return `<div style="display:grid; grid-template-columns:1fr auto 1fr; align-items:center;">
+    <div style="justify-self:start;">${logo}</div>
+    <div style="justify-self:center; text-align:center;">
+      <div style="font-size:18px; font-weight:700;">${escapeHtml(name)}</div>
+      <div style="font-size:11px; color:#555;">${escapeHtml(addr)} ${phone?(' | '+escapeHtml(phone)) : ''}</div>
     </div>
-    <div class="hdr-right"></div>
+    <div></div>
   </div>`
 }
 
 function box(title: string, body: string){
-  return `
-  <section class="card">
-    <div class="card-h">${escapeHtml(title)}</div>
-    <div class="card-b">${body}</div>
-  </section>`
+  return `<div style="border:1px solid #e5e7eb; border-radius:6px; padding:10px; margin-top:8px;">
+    <div style="font-weight:600; margin-bottom:4px;">${escapeHtml(title)}</div>
+    <div>${body}</div>
+  </div>`
 }
 
 function renderDischargeHTML(settings: any, enc: any, patient: any, doctor: any, s: any){
   const pInfo = `
-    <div class="kv-grid">
-      <div class="kv"><div class="k">Patient</div><div class="v">${escapeHtml(patient?.fullName||'')}</div></div>
-      <div class="kv"><div class="k">MRN</div><div class="v">${escapeHtml(patient?.mrn||'')}</div></div>
-      <div class="kv"><div class="k">Doctor</div><div class="v">${escapeHtml(doctor?.fullName||doctor?.name||'')}</div></div>
-      <div class="kv"><div class="k">Admission No</div><div class="v">${escapeHtml(enc?.admissionNo||'')}</div></div>
-      <div class="kv"><div class="k">Admitted</div><div class="v">${fmt(enc?.startAt)}</div></div>
-      <div class="kv"><div class="k">Discharged</div><div class="v">${fmt(enc?.endAt)}</div></div>
-    </div>
+    <table style="width:100%; border-collapse:separate; border-spacing:6px 2px; font-size:11.5px; line-height:1.25;">
+      <tbody>
+        <tr>
+          <td style="font-weight:700; color:#334155; width:120px;">Patient</td>
+          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${escapeHtml(patient?.fullName||'')}</td>
+          <td style="font-weight:700; color:#334155; width:120px;">MRN</td>
+          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${escapeHtml(patient?.mrn||'')}</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700; color:#334155;">Doctor</td>
+          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${escapeHtml(doctor?.fullName||doctor?.name||'')}</td>
+          <td style="font-weight:700; color:#334155;">Admission No</td>
+          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${escapeHtml(enc?.admissionNo||'')}</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700; color:#334155;">Admitted</td>
+          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${fmt(enc?.startAt)}</td>
+          <td style="font-weight:700; color:#334155;">Discharged</td>
+          <td style="border-bottom:1px solid #e5e7eb; padding:2px 6px;">${fmt(enc?.endAt)}</td>
+        </tr>
+      </tbody>
+    </table>
   `
 
   // Parse enhanced fields (when front-end sends composed text)
@@ -1018,7 +1025,7 @@ function renderDischargeHTML(settings: any, enc: any, patient: any, doctor: any,
   const invBlocks = invOrder.map(lbl => (
     `<div><div style="font-size:11px;color:#334155;font-weight:600;margin-bottom:2px;">${escapeHtml(lbl)}</div><div style="border:1px solid #e5e7eb;border-radius:6px;padding:6px;min-height:20px;">${escapeHtml(invMap[lbl]||'')}</div></div>`
   )).join('')
-  const investGrid = `<div class="inv-grid">${invBlocks}</div>`
+  const investGrid = `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;">${invBlocks}</div>`
 
   const medsRows = (Array.isArray(s.medications) ? s.medications : String(s.medications||'').split('\n'))
     .map((m:string)=>{
@@ -1027,37 +1034,37 @@ function renderDischargeHTML(settings: any, enc: any, patient: any, doctor: any,
     })
     .filter((row:any)=> Object.values(row).some(v=> String(v||'').trim()))
   const medsTable = `
-    <table class="tbl">
+    <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
       <thead>
-        <tr>
-          <th style="width:44px">Sr</th>
-          <th>Medicine</th>
-          <th style="width:140px">Strength/Dose</th>
-          <th style="width:90px">Route</th>
-          <th style="width:120px">Frequency</th>
-          <th style="width:100px">Timing</th>
-          <th style="width:90px">Duration</th>
+        <tr style="background:#f8fafc;">
+          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Sr</th>
+          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Medicine</th>
+          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Strength/Dose</th>
+          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Route</th>
+          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Frequency</th>
+          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Timing</th>
+          <th style="text-align:left; padding:4px; border:1px solid #e5e7eb;">Duration</th>
         </tr>
       </thead>
       <tbody>
         ${medsRows.map((r:any, i:number)=>`<tr>
-          <td class="num">${i+1}</td>
-          <td>${escapeHtml(r.name)}</td>
-          <td>${escapeHtml(r.dose)}</td>
-          <td>${escapeHtml(r.route)}</td>
-          <td>${escapeHtml(r.freq)}</td>
-          <td>${escapeHtml(r.timing)}</td>
-          <td>${escapeHtml(r.duration)}</td>
+          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${i+1}</td>
+          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.name)}</td>
+          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.dose)}</td>
+          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.route)}</td>
+          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.freq)}</td>
+          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.timing)}</td>
+          <td style=\"padding:4px; border:1px solid #e5e7eb;\">${escapeHtml(r.duration)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
   `
 
   const procBody = Array.isArray(s.procedures) ? `<ul>${s.procedures.map((x:string)=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>` : nl2br(escapeHtml(String(s.procedures||'')))
-  const paired1 = `<div class="grid2">${box('Presenting Complaints', nl2br(escapeHtml(presentingComplaints||'')))}${box('Reason of Admission / Brief History / Examination', nl2br(escapeHtml(reasonOfAdmission||'')))}</div>`
-  const paired2 = `<div class="grid2">${box('Final Diagnosis', nl2br(escapeHtml(s.diagnosis||'')))}${box('Any Procedure During Stay & Outcome', procBody)}</div>`
-  const statusGrid = `<div class="grid2">${box('Condition at Discharge', nl2br(escapeHtml(s.conditionAtDischarge||'')))}${box('Response of Treatment', escapeHtml(responseOfTreatment||''))}</div>`
-  const docGrid = `<div class="grid3">${box('Doctor Name', escapeHtml(doctorName||doctor?.name||''))}${box('Sign Date', fmt(s.followUpDate))}${box('Doctor Sign (text)', escapeHtml(doctorSign||''))}</div>`
+  const paired1 = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">${box('Presenting Complaints', nl2br(escapeHtml(presentingComplaints||'')))}${box('Reason of Admission / Brief History / Examination', nl2br(escapeHtml(reasonOfAdmission||'')))}</div>`
+  const paired2 = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">${box('Final Diagnosis', nl2br(escapeHtml(s.diagnosis||'')))}${box('Any Procedure During Stay & Outcome', procBody)}</div>`
+  const statusGrid = `<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;\">${box('Condition at Discharge', nl2br(escapeHtml(s.conditionAtDischarge||'')))}${box('Response of Treatment', escapeHtml(responseOfTreatment||''))}</div>`
+  const docGrid = `<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;\">${box('Doctor Name', escapeHtml(doctorName||doctor?.name||''))}${box('Sign Date', fmt(s.followUpDate))}${box('Doctor Sign (text)', escapeHtml(doctorSign||''))}</div>`
   const sections = [
     box('Patient Info', pInfo),
     paired1,
@@ -1069,226 +1076,294 @@ function renderDischargeHTML(settings: any, enc: any, patient: any, doctor: any,
     box('Follow-up Instructions', nl2br(escapeHtml(s.advice||''))),
     docGrid,
   ].join('')
-  const title = `
-    <div class="title">
-      <div class="title-left">
-        <div class="title-h">Discharge Summary</div>
-        <div class="title-sub">Generated: ${escapeHtml(new Date().toLocaleString())}</div>
-      </div>
-      <div class="badge">IPD</div>
-    </div>
-  `
-  return wrap(`${hdr(settings)}${title}${sections}`)
+  return wrap(`${hdr(settings)}<h2 style="margin:12px 0 8px; font-size:22px; font-weight:800;">Discharge Summary</h2>${sections}`)
 }
 
 function renderDeathHTML(settings: any, enc: any, patient: any, doctor: any, c: any){
-  const head = `${hdr(settings)}<h2 style="margin:12px 0;">Death Certificate</h2>`
-  const pInfo = `
-    <div><b>Patient:</b> ${escapeHtml(patient?.fullName||'')}</div>
-    <div><b>MRN:</b> ${escapeHtml(patient?.mrn||'')}</div>
-    <div><b>Doctor:</b> ${escapeHtml(doctor?.name||'')}</div>
-    <div><b>Admission No:</b> ${escapeHtml(enc?.admissionNo||'')}</div>
+  const head = `${hdr(settings)}<h2 style="margin:12px 0; text-align:center; font-size:20px; font-weight:800; border-bottom:2px solid #000; padding-bottom:8px;">DEATH CERTIFICATE</h2>`
+  
+  const row2 = (label: string, value: any) => `<div style="display:flex; gap:8px; margin:4px 0;"><div style="min-width:140px; font-weight:700;">${label}</div><div style="flex:1; border-bottom:1px solid #000; padding-left:4px;">${escapeHtml(String(value||''))}</div></div>`
+  const row2date = (label: string, date: any, time?: any) => `<div style="display:flex; gap:8px; margin:4px 0;"><div style="min-width:140px; font-weight:700;">${label}</div><div style="flex:1; border-bottom:1px solid #000; padding-left:4px;">${fmt(date)}${time ? ' ' + escapeHtml(time) : ''}</div></div>`
+  
+  const section = (title: string, content: string) => `<div style="margin-top:12px; border:1px solid #000; padding:8px;"><div style="font-weight:800; font-size:14px; margin-bottom:6px; background:#f0f0f0; padding:4px;">${title}</div>${content}</div>`
+  
+  const patientInfo = section('PATIENT INFORMATION', `
+    ${row2('Patient Name', patient?.fullName)}
+    ${row2('MR Number', patient?.mrn)}
+    ${row2('Age / Sex', c?.ageSex)}
+    ${row2('Address', c?.address)}
+    ${row2('Guardian Name', c?.relative || patient?.fatherName)}
+    ${row2('Admission No', enc?.admissionNo)}
+    ${row2('Doctor', doctor?.name || c?.doctorName)}
+  `)
+  
+  const deathDetails = section('DEATH DETAILS', `
+    ${row2('DC No', c?.dcNo)}
+    ${row2date('Date of Death', c?.dateOfDeath, c?.timeOfDeath)}
+  `)
+  
+  const medicalInfo = section('MEDICAL INFORMATION', `
+    ${row2('Presenting Complaints', c?.presentingComplaints)}
+    ${row2('Diagnosis', c?.diagnosis)}
+    ${row2('Primary Cause of Death', c?.primaryCause || c?.causeOfDeath)}
+    ${row2('Secondary Cause of Death', c?.secondaryCause)}
+  `)
+  
+  const handover = section('BODY HANDOVER DETAILS', `
+    ${row2('Received By Name', c?.receiverName)}
+    ${row2('Relation', c?.receiverRelation)}
+    ${row2('ID Card No', c?.receiverIdCard)}
+    ${row2date('Date & Time', c?.receiverDate, c?.receiverTime)}
+  `)
+  
+  const signatures = `
+    <div style="margin-top:20px; display:grid; grid-template-columns:1fr 1fr; gap:40px;">
+      <div style="text-align:center;">
+        <div style="border-top:1px solid #000; margin-top:40px; padding-top:4px; font-weight:700;">Staff Signature</div>
+        <div style="font-size:12px; margin-top:4px;">${escapeHtml(c?.staffName||'')}</div>
+        <div style="font-size:11px; color:#555;">${fmt(c?.staffSignDate)} ${escapeHtml(c?.staffSignTime||'')}</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="border-top:1px solid #000; margin-top:40px; padding-top:4px; font-weight:700;">Doctor Signature</div>
+        <div style="font-size:12px; margin-top:4px;">${escapeHtml(c?.doctorName||'')}</div>
+        <div style="font-size:11px; color:#555;">${fmt(c?.doctorSignDate)} ${escapeHtml(c?.doctorSignTime||'')}</div>
+      </div>
+    </div>
   `
-  const idRow = `
-    <div><b>DC No:</b> ${escapeHtml(c?.dcNo||'')}</div>
-    <div><b>Relative:</b> ${escapeHtml(c?.relative||'')}</div>
-    <div><b>Age/Sex:</b> ${escapeHtml(c?.ageSex||'')}</div>
-    <div><b>Address:</b> ${escapeHtml(c?.address||'')}</div>
-  `
-  const details = `
-    <div><b>Date of Death:</b> ${fmt(c?.dateOfDeath)}</div>
-    <div><b>Time of Death:</b> ${escapeHtml(c?.timeOfDeath||'')}</div>
-    <div><b>Primary Cause of Death:</b> ${nl2br(escapeHtml(c?.primaryCause||c?.causeOfDeath||''))}</div>
-    <div><b>Secondary Cause of Death:</b> ${nl2br(escapeHtml(c?.secondaryCause||''))}</div>
-    <div><b>Place of Death:</b> ${escapeHtml(c?.placeOfDeath||'')}</div>
-  `
-  const medical = [
-    c?.presentingComplaints? box('Presenting Complaints', nl2br(escapeHtml(c.presentingComplaints))) : '',
-    c?.diagnosis? box('Diagnosis', nl2br(escapeHtml(c.diagnosis))) : '',
-  ].join('')
-  const receiver = `
-    <div><b>Dead Body Received By Name:</b> ${escapeHtml(c?.receiverName||'')}</div>
-    <div><b>Relation:</b> ${escapeHtml(c?.receiverRelation||'')}</div>
-    <div><b>ID Card No:</b> ${escapeHtml(c?.receiverIdCard||'')}</div>
-    <div><b>Date & Time:</b> ${fmt(c?.receiverDate)} ${escapeHtml(c?.receiverTime||'')}</div>
-  `
-  const staff = `
-    <div><b>Staff Name:</b> ${escapeHtml(c?.staffName||'')}</div>
-    <div><b>Sign Date & Time:</b> ${fmt(c?.staffSignDate)} ${escapeHtml(c?.staffSignTime||'')}</div>
-  `
-  const docSec = `
-    <div><b>Doctor Name:</b> ${escapeHtml(c?.doctorName||'')}</div>
-    <div><b>Sign Date & Time:</b> ${fmt(c?.doctorSignDate)} ${escapeHtml(c?.doctorSignTime||'')}</div>
-  `
-  const notes = c?.notes ? box('Notes', nl2br(escapeHtml(c.notes))) : ''
-  const body = [
-    box('Patient Info', pInfo),
-    box('Identifiers', idRow),
-    box('Details', details),
-    medical,
-    box('Received By', receiver),
-    box('Staff', staff),
-    box('Doctor', docSec),
-    notes,
-  ].join('')
-  return wrap(head + body)
+  
+  const notes = c?.notes ? section('NOTES', `<div style="white-space:pre-wrap;">${nl2br(escapeHtml(c.notes))}</div>`) : ''
+  
+  return wrap(head + patientInfo + deathDetails + medicalInfo + handover + signatures + notes)
 }
 
 function renderReceivedDeathHTML(settings: any, enc: any, patient: any, doctor: any, d: any){
-  const head = `${hdr(settings)}<div style="text-align:center; font-weight:800; margin:10px 0;">EMERGENCY WARD</div>`
-  const line = (v?:string)=> (String(v||'').trim() ? `<span style="display:inline-block; border-bottom:1px solid #0f172a; line-height:18px; vertical-align:baseline; white-space:nowrap;">${escapeHtml(v||'')}</span>` : '')
-  const linePad = (v?:string)=> (String(v||'').trim() ? `<span style="display:inline-block; border-bottom:1px solid #0f172a; line-height:18px; vertical-align:baseline; white-space:nowrap; padding-right:72px; max-width:100%; overflow:hidden; text-overflow:clip;">${escapeHtml(v||'')}</span>` : '')
-  const row2 = (l1:string,v1?:string,l2?:string,v2?:string)=>`<div style="display:grid; grid-template-columns:auto 1fr auto 1fr; gap:8px; align-items:baseline; margin-top:6px;"><div style="font-weight:700;">${escapeHtml(l1)}</div><div>${line(v1)}</div>${l2?`<div style=\"font-weight:700;\">${escapeHtml(l2)}</div><div>${line(v2)}</div>`:''}</div>`
-  const row3 = (l1:string,v1?:string,l2?:string,v2?:string,l3?:string,v3?:string)=>`<div style="display:grid; grid-template-columns:auto 1fr auto 1fr auto 1fr; gap:8px; align-items:baseline; margin-top:6px;"><div style="font-weight:700;">${escapeHtml(l1)}</div><div>${line(v1)}</div><div style="font-weight:700;">${escapeHtml(l2||'')}</div><div>${line(v2)}</div><div style="font-weight:700;">${escapeHtml(l3||'')}</div><div>${line(v3)}</div></div>`
+  const head = `${hdr(settings)}<h2 style="margin:12px 0; text-align:center; font-size:20px; font-weight:800; border-bottom:2px solid #000; padding-bottom:8px;">RECEIVED DEAD</h2>`
 
-  const top = [
-    row2('MR #', patient?.mrn, 'Patient CNIC (if available)', d?.patientCnic),
-    row3('Patient Name', patient?.fullName||patient?.name, 'Relation', d?.relative, 'Age/Sex', d?.ageSex),
-    row2('Reported Date (Emergency)', fmt(d?.emergencyReportedDate), 'Time', d?.emergencyReportedTime),
-    row2('Address', patient?.address, 'Phone', patient?.phoneNormalized),
-  ].join('')
+  const row2 = (label: string, value: any) => `<div style="display:flex; gap:8px; margin:4px 0;"><div style="min-width:140px; font-weight:700;">${label}</div><div style="flex:1; border-bottom:1px solid #000; padding-left:4px;">${escapeHtml(String(value||''))}</div></div>`
+  const row2date = (label: string, date: any, time?: any) => `<div style="display:flex; gap:8px; margin:4px 0;"><div style="min-width:140px; font-weight:700;">${label}</div><div style="flex:1; border-bottom:1px solid #000; padding-left:4px;">${fmt(date)}${time ? ' ' + escapeHtml(time) : ''}</div></div>`
+  const row3 = (l1: string, v1: any, l2: string, v2: any, l3: string, v3: any) => `<div style="display:flex; gap:8px; margin:4px 0;"><div style="min-width:100px; font-weight:700;">${l1}</div><div style="flex:1; border-bottom:1px solid #000; padding-left:4px;">${escapeHtml(String(v1||''))}</div><div style="min-width:100px; font-weight:700;">${l2}</div><div style="flex:1; border-bottom:1px solid #000; padding-left:4px;">${escapeHtml(String(v2||''))}</div><div style="min-width:100px; font-weight:700;">${l3}</div><div style="flex:1; border-bottom:1px solid #000; padding-left:4px;">${escapeHtml(String(v3||''))}</div></div>`
 
-  const recv = `
-    <div style="font-weight:800; margin-top:10px;">RECEIVING PARAMETERS:</div>
-    <ul style="margin-top:6px; padding-left:20px; line-height:1.9;">
-      <li style="display:grid; grid-template-columns:200px minmax(160px, 1fr); column-gap:8px; align-items:baseline;"><span>Pulse</span><span>${linePad(d?.receiving?.pulse)}</span></li>
-      <li style="display:grid; grid-template-columns:200px minmax(160px, 1fr); column-gap:8px; align-items:baseline;"><span>Blood Pressure</span><span>${linePad(d?.receiving?.bloodPressure)}</span></li>
-      <li style="display:grid; grid-template-columns:200px minmax(160px, 1fr); column-gap:8px; align-items:baseline;"><span>Respiratory Rate</span><span>${linePad(d?.receiving?.respiratoryRate)}</span></li>
-      <li style="display:grid; grid-template-columns:200px minmax(160px, 1fr); column-gap:8px; align-items:baseline;"><span>Pupils</span><span>${linePad(d?.receiving?.pupils)}</span></li>
-      <li style="display:grid; grid-template-columns:200px minmax(160px, 1fr); column-gap:8px; align-items:baseline;"><span>Corneal Reflex</span><span>${linePad(d?.receiving?.cornealReflex)}</span></li>
-      <li style="display:grid; grid-template-columns:200px minmax(160px, 1fr); column-gap:8px; align-items:baseline;"><span>ECG</span><span>${linePad(d?.receiving?.ecg)}</span></li>
-    </ul>
-  `
+  const section = (title: string, content: string) => `<div style="margin-top:12px; border:1px solid #000; padding:8px;"><div style="font-weight:800; font-size:14px; margin-bottom:6px; background:#f0f0f0; padding:4px;">${title}</div>${content}</div>`
 
-  const diagnosis = row2('Diagnosis:', d?.diagnosis)
+  const patientInfo = section('PATIENT INFORMATION', `
+    ${row2('Patient Name', patient?.fullName)}
+    ${row2('MR Number', patient?.mrn)}
+    ${row2('Age / Sex', d?.ageSex)}
+    ${row2('Address', patient?.address)}
+    ${row2('Guardian Name', patient?.fatherName)}
+    ${row2('Patient CNIC', d?.patientCnic)}
+    ${row2('Admission No', enc?.admissionNo)}
+    ${row2('Doctor', doctor?.name)}
+  `)
 
-  const rdTitle = `<div style="font-weight:800; margin-top:12px;">Received Dead</div>`
-  const attRows = [
-    row2('Attendant Name', d?.attendantName),
-    row2('Relation with the patient', d?.attendantRelation),
-    row2('Attendant CNIC', d?.attendantCnic),
-    row2('Death Declared By / Doctors', d?.deathDeclaredBy),
-    row2('Doctor Name', d?.doctorName || doctor?.name, 'Admission No', enc?.admissionNo),
-  ].join('')
+  const receivedDetails = section('RECEIVED DETAILS', `
+    ${row2('RD No', d?.rdNo)}
+    ${row2date('Reported Date (Emergency)', d?.emergencyReportedDate, d?.emergencyReportedTime)}
+  `)
 
-  const footer = `
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:24px;">
-      <div>
-        <div style="font-weight:700;">Signature / Name Designation / Stamp</div>
-        <div style="border-bottom:1px solid #0f172a; height:22px;"></div>
+  const receivingParams = section('RECEIVING PARAMETERS', `
+    ${row2('Pulse', d?.receiving?.pulse)}
+    ${row2('Blood Pressure', d?.receiving?.bloodPressure)}
+    ${row2('Respiratory Rate', d?.receiving?.respiratoryRate)}
+    ${row2('Pupils', d?.receiving?.pupils)}
+    ${row2('Corneal Reflex', d?.receiving?.cornealReflex)}
+    ${row2('ECG', d?.receiving?.ecg)}
+  `)
+
+  const diagnosisSection = section('DIAGNOSIS', `
+    ${row2('Diagnosis', d?.diagnosis)}
+  `)
+
+  const attendantSection = section('ATTENDANT INFORMATION', `
+    ${row3('Attendant Name', d?.attendantName, 'Relation', d?.attendantRelation, 'Attendant CNIC', d?.attendantCnic)}
+    ${row3('Death Declared By', d?.deathDeclaredBy, 'Charge Nurse', d?.chargeNurseName, 'Doctor Name', d?.doctorName || doctor?.name)}
+  `)
+
+  const signatures = `
+    <div style="margin-top:20px; display:grid; grid-template-columns:1fr 1fr; gap:40px;">
+      <div style="text-align:center;">
+        <div style="border-top:1px solid #000; margin-top:40px; padding-top:4px; font-weight:700;">Charge Nurse Signature</div>
+        <div style="font-size:12px; margin-top:4px;">${escapeHtml(d?.chargeNurseName||'')}</div>
       </div>
-      <div>
-        <div style="font-weight:700; text-align:right;">Charge Nurse Name & Signature</div>
-        <div style="border-bottom:1px solid #0f172a; height:22px;"></div>
-        <div style="text-align:right; font-size:12px; color:#334155; margin-top:4px;">${escapeHtml(d?.chargeNurseName||'')}</div>
+      <div style="text-align:center;">
+        <div style="border-top:1px solid #000; margin-top:40px; padding-top:4px; font-weight:700;">Doctor Signature</div>
+        <div style="font-size:12px; margin-top:4px;">${escapeHtml(d?.doctorName||'')}</div>
       </div>
     </div>
   `
 
-  const body = `<div style="border:1px solid #e5e7eb; border-radius:8px; padding:12px;">${top}${recv}${diagnosis}${rdTitle}${attRows}${footer}</div>`
-  return wrap(head + body)
+  return wrap(head + patientInfo + receivedDetails + receivingParams + diagnosisSection + attendantSection + signatures)
 }
 
-function renderInvoiceHTML(settings: any, enc: any, patient: any, doctor: any, items: any[], payments: any[], isER: boolean = false){
-  const sub = items.reduce((s,i)=> s + Number(i.amount||0), 0)
-  const paid = payments.reduce((s,p)=> s + Number(p.amount||0), 0)
-  const deposit = Number(enc.deposit||0)
-  const totalPaid = deposit + paid
-  const balance = Math.max(0, sub - totalPaid)
-  const title = isER ? 'ER Final Invoice' : 'Final Invoice'
-  const head = `${hdr(settings)}<h2 style=\"margin:12px 0;\">${escapeHtml(title)}</h2>`
-  const pInfo = `
-    <div><b>Patient:</b> ${escapeHtml(patient?.fullName||'')} (${escapeHtml(patient?.mrn||'')})</div>
-    <div><b>Doctor:</b> ${escapeHtml(doctor?.name||'')}</div>
-    ${isER ? '' : `<div><b>Admission No:</b> ${escapeHtml(enc?.admissionNo||'')}</div>`}
-    <div><b>${isER ? 'Date In' : 'Admitted'}:</b> ${fmt(enc?.startAt)} | <b>${isER ? 'Date Out' : 'Discharged'}:</b> ${fmt(enc?.endAt)}</div>
+function renderInvoiceHTML(settings: any, enc: any, patient: any, doctor: any, items: any[], payments: any[], isER: boolean = false, invoice?: any){
+  // Calculate totals like frontend
+  const totalBill = items.reduce((s,i)=> s + Number(i.amount||0), 0)
+  
+  // Separate regular payments from refunds
+  const regularPayments = payments.filter((p: any) => String(p.method || '').toLowerCase() !== 'advance return' && String(p.type || '').toLowerCase() !== 'refund')
+  const refunds = payments.filter((p: any) => String(p.method || '').toLowerCase() === 'advance return' || String(p.type || '').toLowerCase() === 'refund')
+  
+  // Calculate totals: payments minus refunds
+  const paymentTotal = regularPayments.reduce((s,p)=> s + Number(p.amount||0), 0)
+  const refundTotal = refunds.reduce((s,p)=> s + Number(p.amount||0), 0)
+  const totalPaid = Math.max(0, paymentTotal - refundTotal)
+  const balance = Math.max(0, totalBill - totalPaid)
+  
+  // Format helpers
+  const fmtNum = (n: number) => n.toLocaleString()
+  const fmtDateTime = (d: any) => { 
+    if (!d || d === 'Invalid Date') return '-'
+    try { const x = new Date(d); if (isNaN(x.getTime())) return '-'; return x.toLocaleString() } catch { return '-' } 
+  }
+  
+  // Build header with hospital branding
+  const logo = settings?.logoDataUrl ? `<img src="${settings.logoDataUrl}" style="width:56px;height:56px;object-fit:contain;border:1px solid #bae6fd;border-radius:8px;background:#fff;margin-right:8px;" />` : ''
+  const header = `
+    <div style="display:flex;gap:10px;align-items:center;justify-content:center;text-align:center;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid #bae6fd;">
+      ${logo}
+      <div>
+        <div style="font-weight:900;text-transform:uppercase;letter-spacing:.3px;font-size:24px;line-height:1.1;color:#1d4ed8;">${escapeHtml(settings?.name||'Hospital')}</div>
+        <div style="color:#475569;font-size:12px;margin-top:2px;">${escapeHtml(settings?.address||'')}</div>
+        <div style="color:#475569;font-size:12px;">Tel: ${escapeHtml(settings?.phone||'')}</div>
+      </div>
+    </div>
   `
-  const itemsTbl = `<table style=\"width:100%; border-collapse:collapse; margin-top:8px;\">
-    <thead><tr><th style=\"text-align:left; border-bottom:1px solid #e5e7eb; padding:6px;\">Description</th><th style=\"text-align:right; border-bottom:1px solid #e5e7eb; padding:6px;\">Qty</th><th style=\"text-align:right; border-bottom:1px solid #e5e7eb; padding:6px;\">Unit</th><th style=\"text-align:right; border-bottom:1px solid #e5e7eb; padding:6px;\">Amount</th></tr></thead>
-    <tbody>
-      ${items.map(i=>`<tr>
-        <td style=\"padding:6px; border-bottom:1px solid #f1f5f9;\">${escapeHtml(i.description||'')}</td>
-        <td style=\"padding:6px; text-align:right; border-bottom:1px solid #f1f5f9;\">${Number(i.qty||1)}</td>
-        <td style=\"padding:6px; text-align:right; border-bottom:1px solid #f1f5f9;\">${Number(i.unitPrice||0).toFixed(2)}</td>
-        <td style=\"padding:6px; text-align:right; border-bottom:1px solid #f1f5f9;\">${Number(i.amount||0).toFixed(2)}</td>
-      </tr>`).join('')}
-    </tbody>
-  </table>`
-  const payTbl = `<table style=\"width:100%; border-collapse:collapse; margin-top:8px;\">
-    <thead><tr><th style=\"text-align:left; border-bottom:1px solid #e5e7eb; padding:6px;\">Payment</th><th style=\"text-align:right; border-bottom:1px solid #e5e7eb; padding:6px;\">Amount</th></tr></thead>
-    <tbody>
-      <tr><td style=\"padding:6px; border-bottom:1px solid #f1f5f9;\">Deposit</td><td style=\"padding:6px; text-align:right; border-bottom:1px solid #f1f5f9;\">${deposit.toFixed(2)}</td></tr>
-      ${payments.map(p=>`<tr>
-        <td style=\"padding:6px; border-bottom:1px solid #f1f5f9;\">${escapeHtml(p.method||'')} ${p.refNo?('('+escapeHtml(p.refNo)+')'):''} - ${fmt(p.receivedAt)}</td>
-        <td style=\"padding:6px; text-align:right; border-bottom:1px solid #f1f5f9;\">${Number(p.amount||0).toFixed(2)}</td>
-      </tr>`).join('')}
-    </tbody>
-  </table>`
-  const totals = `<div style=\"margin-top:8px; text-align:right;\">
-    <div><b>Subtotal:</b> ${sub.toFixed(2)}</div>
-    <div><b>Total Paid:</b> ${totalPaid.toFixed(2)}</div>
-    <div><b>Balance:</b> ${balance.toFixed(2)}</div>
-  </div>`
-  const body = [box('Patient Info', pInfo), box('Items', itemsTbl), box('Payments', payTbl), totals].join('')
-  return wrap(head + body)
+  
+  // Use invoice discharge date/time if available, fallback to encounter endAt
+  const dischargeDate = invoice?.dateOfDischarge || enc?.endAt
+  const dischargeTime = invoice?.dischargeTime 
+  
+  // Patient info grid - match frontend format
+  const pInfo = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div><span style="font-weight:700;">MR #</span> <span>${escapeHtml(patient?.mrn||'')}</span></div>
+      <div><span style="font-weight:700;">Pt. Name</span> <span>${escapeHtml(patient?.fullName||'')}</span></div>
+      <div><span style="font-weight:700;">Date Of Admission</span> <span>${fmtDateTime(enc?.startAt)}</span></div>
+      <div><span style="font-weight:700;">Time Of Admission</span> <span>${fmtDateTime(enc?.startAt)}</span></div>
+      <div><span style="font-weight:700;">Phone</span> <span>${escapeHtml(patient?.phoneNormalized||patient?.phone||'')}</span></div>
+      <div><span style="font-weight:700;">Address</span> <span>${escapeHtml(patient?.address||'')}</span></div>
+      <div><span style="font-weight:700;">Date Of Discharge</span> <span>${fmtDateTime(dischargeDate)}</span></div>
+      <div><span style="font-weight:700;">Time Of Discharge</span> <span>${fmtDateTime(dischargeDate)}</span></div>
+    </div>
+  `
+  
+  // Charges table with status
+  const chargesRows = items.map((r,i)=>{
+    const isPaid = Number(r.paidAmount||0) >= Number(r.amount||0)
+    const isPartial = !isPaid && Number(r.paidAmount||0) > 0
+    const status = isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'
+    return `<tr>
+      <td style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:center;">${i+1}</td>
+      <td style="padding:6px;border:1px solid #111;border-right:1px solid #111;">${escapeHtml(r.description||'')}</td>
+      <td style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:right;">Rs ${fmtNum(Number(r.amount||0))}</td>
+      <td style="padding:6px;border:1px solid #111;text-align:center;">${status}</td>
+    </tr>`
+  }).join('')
+  
+  const chargesTable = `
+    <div style="margin:10px 0;border:1px solid #111;border-radius:4px;overflow:hidden;">
+      <div style="background:#f8fafc;padding:8px 12px;font-weight:700;font-size:13px;border-bottom:1px solid #111;">Charges</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead style="background:#f8fafc;">
+          <tr>
+            <th style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:center;width:40px;">#</th>
+            <th style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:left;">Description</th>
+            <th style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:right;width:100px;">Amount</th>
+            <th style="padding:6px;border:1px solid #111;text-align:center;width:80px;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${chargesRows || '<tr><td colspan="4" style="text-align:center;padding:12px;color:#94a3b8;">No charges</td></tr>'}
+        </tbody>
+        <tfoot style="background:#f8fafc;font-weight:700;">
+          <tr>
+            <td colspan="2" style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:right;">Total</td>
+            <td style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:right;">Rs ${fmtNum(totalBill)}</td>
+            <td style="padding:6px;border:1px solid #111;"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `
+  
+  // Payments table - show ALL payments like frontend (including refunds)
+  const paymentRows = payments.map((p)=>`<tr>
+    <td style="padding:6px;border:1px solid #111;border-right:1px solid #111;">${fmtDateTime(p.receivedAt)}</td>
+    <td style="padding:6px;border:1px solid #111;border-right:1px solid #111;">${escapeHtml(p.method || '-')}</td>
+    <td style="padding:6px;border:1px solid #111;border-right:1px solid #111;">${escapeHtml(p.refNo || p.notes || '-')}</td>
+    <td style="padding:6px;border:1px solid #111;text-align:right;">Rs ${fmtNum(Number(p.amount||0))}</td>
+  </tr>`).join('')
+  
+  const paymentsTable = `
+    <div style="margin:10px 0;border:1px solid #111;border-radius:4px;overflow:hidden;">
+      <div style="background:#f8fafc;padding:8px 12px;font-weight:700;font-size:13px;border-bottom:1px solid #111;">Payments</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead style="background:#f8fafc;">
+          <tr>
+            <th style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:left;">Date/Time</th>
+            <th style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:left;">Method</th>
+            <th style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:left;">Ref</th>
+            <th style="padding:6px;border:1px solid #111;text-align:right;width:100px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${paymentRows || '<tr><td colspan="4" style="text-align:center;padding:12px;color:#94a3b8;">No payments</td></tr>'}
+        </tbody>
+        <tfoot style="background:#f8fafc;font-weight:700;">
+          <tr>
+            <td colspan="3" style="padding:6px;border:1px solid #111;border-right:1px solid #111;text-align:right;">Total Paid</td>
+            <td style="padding:6px;border:1px solid #111;text-align:right;">Rs ${fmtNum(totalPaid)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `
+  
+  // Summary box
+  const summary = `
+    <div style="margin:10px 0;border:1px solid #111;border-radius:4px;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;background:#f8fafc;">
+        <tbody style="font-weight:700;">
+          <tr style="border-bottom:1px solid #111;">
+            <td style="padding:8px 12px;width:50%;">Total Bill</td>
+            <td style="text-align:right;padding:8px 12px;">Rs ${fmtNum(totalBill)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #111;">
+            <td style="padding:8px 12px;">Total Paid</td>
+            <td style="text-align:right;padding:8px 12px;color:#059669;">Rs ${fmtNum(totalPaid)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;">Balance</td>
+            <td style="text-align:right;padding:8px 12px;color:${balance > 0 ? '#dc2626' : '#059669'};">Rs ${fmtNum(balance)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="text-align:center;font-size:12px;color:#64748b;margin-top:8px;">System Generated Receipt</div>
+  `
+  
+  const title = isER ? 'ER Final Invoice' : 'Final Invoice'
+  const body = `
+    ${header}
+    <h2 style="margin:12px 0;font-size:18px;font-weight:700;">${escapeHtml(title)}</h2>
+    <div style="border:1px solid #111;border-radius:4px;padding:12px;margin-bottom:10px;">
+      ${pInfo}
+    </div>
+    ${chargesTable}
+    ${paymentsTable}
+    ${summary}
+  `
+  
+  return wrap(body)
 }
 
 function wrap(inner: string){
   return `<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Print</title>
   <style>
-    :root{--ink:#0f172a;--muted:#475569;--line:#e2e8f0;--soft:#f8fafc;--brand:#0f172a;--accent:#0ea5e9;}
-    *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    body{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:var(--ink); padding:14px; background:#ffffff; font-size:12px; line-height:1.45;}
-    .page{max-width:840px; margin:0 auto;}
-    @page{size:A4;margin:12mm}
+    body{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:#0f172a; padding:12px; background:#ffffff; font-size:12px; line-height:1.35;}
+    .page{max-width:780px; margin:0 auto;}
     @media print { body { padding: 0; } .page{margin:0 auto;} }
-
-    .hdr{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#fff, var(--soft));}
-    .hdr-left{justify-self:start}
-    .hdr-mid{text-align:center}
-    .hdr-right{justify-self:end}
-    .h-logo{height:46px;width:auto;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#fff;padding:4px}
-    .h-name{font-size:18px;font-weight:900;letter-spacing:.02em;text-transform:uppercase}
-    .h-meta{margin-top:2px;font-size:11px;color:var(--muted)}
-    .sep{opacity:.7;padding:0 6px}
-
-    .title{display:flex;align-items:flex-end;justify-content:space-between;margin:14px 0 8px;}
-    .title-h{font-size:24px;font-weight:1000;letter-spacing:-.02em}
-    .title-sub{margin-top:2px;font-size:11px;color:var(--muted)}
-    .badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:7px 12px;border:1px solid var(--line);background:var(--soft);font-size:10px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;color:#334155}
-
-    .card{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:10px;break-inside:avoid}
-    .card-h{background:var(--brand);color:#fff;padding:9px 12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;font-size:10px}
-    .card-b{padding:12px;background:#fff}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-
-    .kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
-    .kv{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#fff, var(--soft))}
-    .k{font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#64748b}
-    .v{font-size:12px;font-weight:800;color:var(--ink)}
-
-    .inv-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
-    .inv-grid > div > div:first-child{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
-    .inv-grid > div > div:last-child{margin-top:4px;border:1px solid var(--line);border-radius:12px;padding:8px;min-height:24px;background:#fff}
-
-    .tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px}
-    .tbl th{background:var(--soft);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;font-size:10px;font-weight:1000;letter-spacing:.14em;text-transform:uppercase;color:#334155}
-    .tbl th:first-child{border-left:1px solid var(--line);border-top-left-radius:12px}
-    .tbl th:last-child{border-right:1px solid var(--line);border-top-right-radius:12px}
-    .tbl td{border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top}
-    .tbl tr td:first-child{border-left:1px solid var(--line)}
-    .tbl tr td:last-child{border-right:1px solid var(--line)}
-    .tbl tr:last-child td:first-child{border-bottom-left-radius:12px}
-    .tbl tr:last-child td:last-child{border-bottom-right-radius:12px}
-    .num{text-align:center;font-variant-numeric:tabular-nums}
-
-    @media print{
-      .grid2{gap:8px}
-      .grid3{gap:8px}
-      .inv-grid{gap:6px}
-    }
   </style>
   </head><body>
   <div class="page">${inner}</div>

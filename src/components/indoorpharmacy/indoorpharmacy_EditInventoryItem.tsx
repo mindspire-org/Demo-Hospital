@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 import SearchableSelect from '../common/SearchableSelect'
 
 type Props = {
@@ -46,11 +46,11 @@ export default function Pharmacy_EditInventoryItem({ open, onClose, medicine }: 
     const key = (medicine||'').trim()
     if (!key) return
     let mounted = true
-    pharmacyApi.listAllSuppliers().then((res:any)=>{
+    indoorPharmacyApi.listAllSuppliers().then((res:any)=>{
       if (!mounted) return
       setSuppliers(res?.items ?? res ?? [])
     }).catch(()=>{})
-    pharmacyApi.listInventory({ search: key, limit: 1 }).then((res:any)=>{
+    indoorPharmacyApi.listInventory({ search: key, limit: 1 }).then((res:any)=>{
       if (!mounted) return
       const it = (res?.items || [])[0]
       if (!it) return
@@ -90,7 +90,7 @@ export default function Pharmacy_EditInventoryItem({ open, onClose, medicine }: 
     ;(async()=>{
       try {
         if (!supplierId){ setCompanies([]); setCompanyId(''); setCompanyName(''); return }
-        const res: any = await pharmacyApi.listAllCompanies({ distributorId: supplierId })
+        const res: any = await indoorPharmacyApi.listAllCompanies({ distributorId: supplierId })
         if (!mounted) return
         const list = res?.items ?? res ?? []
         setCompanies(list)
@@ -206,7 +206,7 @@ export default function Pharmacy_EditInventoryItem({ open, onClose, medicine }: 
               if (!(name||'').trim()) return
               try {
                 const oldKey = String(medicine||'').trim().toLowerCase()
-                await pharmacyApi.updateInventoryItem(oldKey, {
+                await indoorPharmacyApi.updateInventoryItem(oldKey, {
                   name: String(name).trim(),
                   genericName: (genericName||'').trim() || undefined,
                   category: (category||'').trim() || undefined,

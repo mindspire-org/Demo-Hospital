@@ -5,7 +5,6 @@ import { HospitalDoctor } from '../models/Doctor'
 import { HospitalUser } from '../models/User'
 import { HospitalAuditLog } from '../models/AuditLog'
 import { Types } from 'mongoose'
-import { createDoctorAccount, createUserAccount } from '../../finance/services/accountAutoCreate'
 
 export async function listDepartments(req: Request, res: Response){
   const page = Math.max(1, Number((req.query as any)?.page || 1))
@@ -152,7 +151,7 @@ export async function createDoctor(req: Request, res: Response){
       if (username) {
         const existing = await HospitalUser.findOne({ username }).lean()
         if (!existing) {
-          const hospUser = await HospitalUser.create({
+          await HospitalUser.create({
             username,
             role: 'Doctor',
             fullName: docData.name,
@@ -161,15 +160,9 @@ export async function createDoctor(req: Request, res: Response){
             passwordHash: password || '123',
             phoneNormalized: docData.phone ? docData.phone.replace(/\D+/g,'') : undefined,
           })
-          // Auto-create Chart of Accounts entry for this hospital user
-          try { await createUserAccount(String(hospUser._id), hospUser.username, 'hospital') } catch {}
         }
       }
     }
-  } catch {}
-  // Auto-create account in Chart of Accounts
-  try {
-    await createDoctorAccount(String(d._id), d.name)
   } catch {}
   try {
     const actor = (req as any).user?.name || (req as any).user?.email || 'system'

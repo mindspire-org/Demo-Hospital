@@ -12,9 +12,17 @@ type Order = {
   sampleTime?: string
   reportingTime?: string
   status: string
+  sampleType?: 'normal' | 'urgent' | 'stat'
 }
 
-type LabTest = { id: string; name: string; turnaroundTime?: number }
+type LabTest = { 
+  id: string; 
+  name: string; 
+  turnaroundTime?: number;
+  turnaroundTimeNormal?: number;
+  turnaroundTimeUrgent?: number;
+  turnaroundTimeStat?: number;
+}
 
 type TATRecord = {
   tokenNo: string
@@ -29,6 +37,7 @@ type TATRecord = {
   reportTATMin: number | null
   totalTATMin: number | null
   status: string
+  priority: 'normal' | 'urgent' | 'stat'
 }
 
 function diffMin(a: string, b: string): number | null {
@@ -49,6 +58,7 @@ export default function Lab_TAT() {
   const [tatLimit, setTatLimit] = useState(60)
   const [from, setFrom] = useState(todayIso)
   const [to, setTo] = useState(todayIso)
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'normal' | 'urgent' | 'stat'>('all')
 
   const testsMap = useMemo(() => {
     const m = new Map<string, LabTest>()
@@ -89,7 +99,14 @@ export default function Lab_TAT() {
         status: x.status,
       }))
       setOrders(list)
-      setTests((tRes?.items || []).map((t: any) => ({ id: String(t._id), name: t.name, turnaroundTime: t.turnaroundTime || 0 })))
+      setTests((tRes?.items || []).map((t: any) => ({ 
+        id: String(t._id), 
+        name: t.name, 
+        turnaroundTime: t.turnaroundTime || 0,
+        turnaroundTimeNormal: t.turnaroundTimeNormal || t.turnaroundTime || 0,
+        turnaroundTimeUrgent: t.turnaroundTimeUrgent || t.turnaroundTime || 0,
+        turnaroundTimeStat: t.turnaroundTimeStat || t.turnaroundTime || 0,
+      })))
       setResults(rRes?.items || [])
     } catch (e) { console.error(e); setOrders([]) }
     finally { setLoading(false) }
@@ -102,6 +119,7 @@ export default function Lab_TAT() {
     for (const o of orders) {
       const res = resultByOrderId.get(String(o.id))
       const approvedAt = res?.approvedAt || null
+      const priority = o.sampleType || 'normal'
       for (const t of o.tests) {
         const sampleT = t.sampleTime || o.sampleTime || null
         const reportT = approvedAt || o.reportingTime || null
@@ -109,7 +127,22 @@ export default function Lab_TAT() {
         const reportTAT = (sampleT && reportT) ? diffMin(reportT, sampleT) : null
         const totalTAT = reportT ? diffMin(reportT, o.createdAt) : null
         const testDef = testsMap.get(t.testId)
-        const expectedTAT = testDef?.turnaroundTime || null
+        
+        // Get expected TAT based on priority
+        let expectedTAT: number | null = null
+        if (testDef) {
+          switch (priority) {
+            case 'urgent':
+              expectedTAT = testDef.turnaroundTimeUrgent || testDef.turnaroundTime || null
+              break
+            case 'stat':
+              expectedTAT = testDef.turnaroundTimeStat || testDef.turnaroundTime || null
+              break
+            default:
+              expectedTAT = testDef.turnaroundTimeNormal || testDef.turnaroundTime || null
+          }
+        }
+        
         records.push({
           tokenNo: o.tokenNo || o.id.slice(-6),
           patient: o.patient?.fullName || '-',
@@ -123,6 +156,7 @@ export default function Lab_TAT() {
           reportTATMin: reportTAT,
           totalTATMin: totalTAT,
           status: t.status,
+          priority,
         })
       }
     }
@@ -130,14 +164,21 @@ export default function Lab_TAT() {
   }, [orders, testsMap, resultByOrderId])
 
   const filtered = useMemo(() => {
+    let records = tatRecords
+    
+    // Apply priority filter
+    if (priorityFilter !== 'all') {
+      records = records.filter(r => r.priority === priorityFilter)
+    }
+    
     const qq = q.trim().toLowerCase()
-    if (!qq) return tatRecords
-    return tatRecords.filter(r =>
+    if (!qq) return records
+    return records.filter(r =>
       r.tokenNo.toLowerCase().includes(qq) ||
       r.patient.toLowerCase().includes(qq) ||
       r.testName.toLowerCase().includes(qq)
     )
-  }, [tatRecords, q])
+  }, [tatRecords, q, priorityFilter])
 
   const avgTotalTAT = useMemo(() => {
     const vals = filtered.map(r => r.totalTATMin).filter((v): v is number => v != null)
@@ -197,6 +238,32 @@ export default function Lab_TAT() {
         { label: 'Completed', value: completedCount, icon: CheckCircle2, color: 'bg-emerald-500' },
       ]} />
 
+      {/* Priority Filter Bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-slate-600">Filter by Priority:</span>
+        {(['all', 'normal', 'urgent', 'stat'] as const).map((p) => (
+          <button
+            key={p}
+            onClick={() => setPriorityFilter(p)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              priorityFilter === p
+                ? p === 'all' ? 'bg-slate-800 text-white' :
+                  p === 'normal' ? 'bg-blue-600 text-white' :
+                  p === 'urgent' ? 'bg-amber-500 text-white' :
+                  'bg-rose-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {p === 'all' ? 'All' : p === 'normal' ? 'Normal' : p === 'urgent' ? 'Urgent' : 'STAT'}
+            {p !== 'all' && (
+              <span className="ml-1 opacity-75">
+                ({tatRecords.filter(r => r.priority === p).length})
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -218,6 +285,7 @@ export default function Lab_TAT() {
               <th className="px-4 py-2.5">Token</th>
               <th className="px-4 py-2.5">Patient</th>
               <th className="px-4 py-2.5">Test</th>
+              <th className="px-4 py-2.5">Priority</th>
               <th className="px-4 py-2.5">Created</th>
               <th className="px-4 py-2.5">Expected</th>
               <th className="px-4 py-2.5">Sample TAT</th>
@@ -236,6 +304,15 @@ export default function Lab_TAT() {
                   <td className="px-4 py-2.5 font-mono text-sm font-semibold text-slate-800">{r.tokenNo}</td>
                   <td className="px-4 py-2.5 text-sm text-slate-700">{r.patient}</td>
                   <td className="px-4 py-2.5 text-sm text-slate-700">{r.testName}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      r.priority === 'stat' ? 'bg-rose-100 text-rose-700' :
+                      r.priority === 'urgent' ? 'bg-amber-100 text-amber-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {r.priority === 'stat' ? 'STAT' : r.priority === 'urgent' ? 'Urgent' : 'Normal'}
+                    </span>
+                  </td>
                   <td className="px-4 py-2.5 whitespace-nowrap text-xs text-slate-500">{new Date(r.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-sm">
                     {r.expectedTATMin ? (

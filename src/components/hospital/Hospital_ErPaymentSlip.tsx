@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
+import { fmtDateTime12 } from '../../utils/timeFormat'
 
 export type ErPaymentSlipData = {
   encounterId: string
@@ -65,7 +66,7 @@ export default function Hospital_ErPaymentSlip({ open, onClose, data, autoPrint 
 
   if (!open) return null
 
-  const dt = data?.payment?.receivedAt ? new Date(data.payment.receivedAt) : new Date()
+  const receivedAtIso = data?.payment?.receivedAt || new Date().toISOString()
   const total = Number(data?.totals?.total || 0)
   const paid = Number(data?.totals?.paid || 0)
   const pending = Number(data?.totals?.pending || Math.max(0, total - paid))
@@ -87,7 +88,7 @@ export default function Hospital_ErPaymentSlip({ open, onClose, data, autoPrint 
 
         <div className="mt-2 flex flex-wrap justify-between gap-1 text-xs text-slate-700">
           <div>User: {user || getReceptionUser()}</div>
-          <div>{dt.toLocaleDateString()} {dt.toLocaleTimeString()}</div>
+          <div>{fmtDateTime12(receivedAtIso)}</div>
         </div>
 
         <hr className="my-2 border-dashed" />

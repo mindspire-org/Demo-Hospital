@@ -12,9 +12,6 @@ export default function Pharmacy_Settings() {
   const [email, setEmail] = useState('')
   const [billingFooter, setBillingFooter] = useState('')
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
-  const [selectedPrinter, setSelectedPrinter] = useState('')
-  const [silentPrint, setSilentPrint] = useState(false)
-  const [printers, setPrinters] = useState<string[]>([])
 
   // System Settings form state
   const [taxRate, setTaxRate] = useState<number>(0)
@@ -35,33 +32,15 @@ export default function Pharmacy_Settings() {
         setEmail(s.email || '')
         setBillingFooter(s.billingFooter || '')
         setLogoDataUrl(s.logoDataUrl || null)
-        setSelectedPrinter(s.selectedPrinter || '')
-        setSilentPrint(!!s.silentPrint)
       } catch (e) {
         console.error(e)
       }
     })()
-
-    // Try to get system printers if running in a supported environment (like Electron)
-    // or just provide common defaults for web
-    if ((window as any).electron) {
-      ;(window as any).electron.getPrinters().then((list: any[]) => {
-        setPrinters(list.map(p => p.name))
-      }).catch(() => {})
-    } else {
-      setPrinters(['Default Printer', 'Thermal Printer 58mm', 'Thermal Printer 80mm', 'Microsoft Print to PDF'])
-    }
-
     return () => { mounted = false }
   }, [])
 
   const savePharmacy = async () => {
-    await pharmacyApi.updateSettings({ 
-      pharmacyName, phone, address, email, billingFooter, 
-      logoDataUrl: logoDataUrl || '',
-      selectedPrinter,
-      silentPrint
-    })
+    await pharmacyApi.updateSettings({ pharmacyName, phone, address, email, billingFooter, logoDataUrl: logoDataUrl || '' })
     setToast({ type: 'success', message: 'Pharmacy settings saved' })
   }
 
@@ -132,43 +111,6 @@ export default function Pharmacy_Settings() {
                   <span>Preview</span>
                 </div>
               )}
-            </div>
-
-            <div className="pt-4 border-t border-slate-100">
-              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-sky-600">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.821L2.25 12l4.47-1.821L12 7.5l5.28 2.679L21.75 12l-4.47 1.821L12 16.5l-5.28-2.679z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V21m0 0l-1.5-1.5M12 21l1.5-1.5" />
-                </svg>
-                Printing Preferences
-              </h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm text-slate-700">Target Printer</label>
-                  <select 
-                    value={selectedPrinter} 
-                    onChange={e => setSelectedPrinter(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                  >
-                    <option value="">System Default</option>
-                    {printers.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <p className="mt-1 text-[10px] text-slate-500 italic">Select the hardware printer for POS receipts</p>
-                </div>
-                <div className="flex items-center gap-3 pt-6">
-                  <button 
-                    type="button"
-                    onClick={() => setSilentPrint(!silentPrint)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${silentPrint ? 'bg-sky-600' : 'bg-slate-200'}`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${silentPrint ? 'translate-x-5' : 'translate-x-0'}`} />
-                  </button>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-slate-700">Silent Printing</span>
-                    <span className="text-[10px] text-slate-500">Bypass Windows print dialog (Requires Local Agent)</span>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center justify-end">

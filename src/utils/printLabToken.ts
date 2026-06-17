@@ -1,10 +1,12 @@
 import { labApi } from './api'
+import { fmtDateTime12, fmtDate } from './timeFormat'
 
 export type LabSlipOrderInput = {
   tokenNo: string
+  labNumber?: string
   createdAt?: string
   patient: { fullName: string; mrn?: string; phone?: string; age?: string; gender?: string }
-  tests: Array<{ name: string; price: number; turnaroundTime?: number }>
+  tests: Array<{ name: string; price: number }>
   subtotal: number
   discount: number
   net: number
@@ -39,27 +41,26 @@ export async function printLabTokenSlip(order: LabSlipOrderInput){
   const footer = settings?.reportFooter || 'Powered by Hospital MIS'
   const logo = settings?.logoDataUrl || ''
   const nowIso = order.createdAt || new Date().toISOString()
-  const dt = new Date(nowIso)
-  const dateStr = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString()
+  const dateStr = fmtDateTime12(nowIso)
 
   const fbrStatus = String(order?.fbr?.status || '').toUpperCase().trim()
   const isFbrSuccess = fbrStatus === 'SUCCESS' && Boolean(order?.fbr?.qrCode)
-  const fbrHtml = isFbrSuccess ? `
+  const isFbrDisabled = !order?.fbr || !fbrStatus
+  const fbrHtml = isFbrDisabled ? '' : `
     <div class="section-title">FBR</div>
     <div style="text-align:center;margin-top:6px">
-      <img src="${esc(order.fbr!.qrCode!)}" alt="FBR QR" style="height:96px;width:96px;object-fit:contain"/>
+      ${isFbrSuccess && order?.fbr?.qrCode ? `<img src="${esc(order.fbr.qrCode)}" alt="FBR QR" style="height:96px;width:96px;object-fit:contain"/>` : `<div style="font-weight:700;color:#e11d48">FBR FAILED</div>`}
     </div>
     <div style="margin-top:6px;font-size:11px;color:#334155">
       <div>FBR No: ${esc(order?.fbr?.fbrInvoiceNo || '—')}</div>
       <div>Mode: ${esc(order?.fbr?.mode || '—')}</div>
+      <div>Error: ${esc(order?.fbr?.error || '—')}</div>
     </div>
-  ` : ''
+  `
 
-  const fmtTAT = (m?: number) => { if (!m) return '-'; if (m < 60) return `${m}m`; if (m < 1440) return `${Math.floor(m/60)}h ${m%60}m`; return `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h` }
   const rowsHtml = order.tests.map((t, i)=> `<tr>
     <td style="padding:6px 8px;border-bottom:1px dashed #cbd5e1">${i+1}</td>
     <td style="padding:6px 8px;border-bottom:1px dashed #cbd5e1">${esc(t.name)}</td>
-    <td style="padding:6px 8px;border-bottom:1px dashed #cbd5e1;text-align:right">${fmtTAT(t.turnaroundTime)}</td>
     <td style="padding:6px 8px;border-bottom:1px dashed #cbd5e1;text-align:right">${t.price.toFixed(2)}</td>
   </tr>`).join('')
   // Build overlay modal inside the app
@@ -135,6 +136,8 @@ export async function printLabTokenSlip(order: LabSlipOrderInput){
       <div class="kv">
         <div>User:</div><div>${esc(order.printedBy || '—')}</div>
         <div>Date/Time:</div><div>${esc(dateStr)}</div>
+        <div>Token #:</div><div>${esc(order.tokenNo)}</div>
+        ${order.labNumber ? `<div>Lab #:</div><div style="font-weight:700;color:#6366F1">${esc(order.labNumber)}</div>` : ''}
         <div>MR #:</div><div>${esc(order.patient.mrn||'-')}</div>
         <div>Patient Name:</div><div>${esc(order.patient.fullName)}</div>
         <div>Age:</div><div>${esc(order.patient.age||'-')}</div>
@@ -144,9 +147,9 @@ export async function printLabTokenSlip(order: LabSlipOrderInput){
         ${order.corporatePreAuthNo ? `<div>Pre-Auth #:</div><div>${esc(order.corporatePreAuthNo)}</div>` : ''}
         ${typeof order.corporateCoPayPercent === 'number' ? `<div>Co-Pay %:</div><div>${String(order.corporateCoPayPercent)}%</div>` : ''}
       </div>
-      <div class="token">${esc(order.tokenNo)}</div>
+      <div class="token">${esc(order.labNumber || order.tokenNo)}</div>
       <table>
-        <thead><tr><th style="text-align:left">Sr</th><th style="text-align:left">Test Name</th><th style="text-align:right">TAT</th><th style="text-align:right">Charges</th></tr></thead>
+        <thead><tr><th style="text-align:left">Sr</th><th style="text-align:left">Test Name</th><th style="text-align:right">Charges</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
       <div class="frow"><div>Total Amount:</div><div style="text-align:left">${order.subtotal.toFixed(2)}</div></div>
@@ -183,10 +186,15 @@ async function printLabTokenSlipA4(order: LabSlipOrderInput, settings: any){
   const email = settings?.email || ''
   const footer = settings?.reportFooter || ''
   const logo = settings?.logoDataUrl || ''
-  const dtObj = (()=>{ try{ return order.createdAt? new Date(order.createdAt) : new Date() }catch{ return new Date() } })()
-  const dt = dtObj.toLocaleDateString()+', '+dtObj.toLocaleTimeString()
-  const dtDate = dtObj.toLocaleDateString()
-  const dtTime = dtObj.toLocaleTimeString().slice(0,5)
+  const nowIso2 = order.createdAt || new Date().toISOString()
+  const dt = fmtDateTime12(nowIso2)
+  const dtDate = fmtDate(nowIso2)
+  function fmtPakTime24(iso: string) {
+    const d = new Date(iso)
+    const p = new Date(d.getTime() + 5 * 60 * 60 * 1000)
+    return `${String(p.getUTCHours()).padStart(2,'0')}:${String(p.getUTCMinutes()).padStart(2,'0')}`
+  }
+  const dtTime = fmtPakTime24(nowIso2)
   const qr = await makeQrPng(order.tokenNo).catch(()=> '')
   const { jsPDF } = await import('jspdf')
   const autoTable = (await import('jspdf-autotable')).default as any
@@ -227,16 +235,14 @@ async function printLabTokenSlipA4(order: LabSlipOrderInput, settings: any){
   const L = 40, R = 300
   doc.setFontSize(10)
   drawKV('Token No :', String(order.tokenNo), L, y)
+  drawKV('Lab No :', String(order.labNumber || '-'), R, y); y += 14
   drawKV('Date/Time :', String(dt), R, y); y += 14
   drawKV('MR # :', String((order.patient as any).mrn||'-'), L, y)
   drawKV('Patient Name :', String(order.patient.fullName||'-'), R, y); y += 14
   drawKV('Age / Sex :', `${order.patient.age||''} / ${order.patient.gender||''}`, L, y)
   drawKV('Mobile # :', String(order.patient.phone||'-'), R, y); y += 14
-  const head = [['Sr.','Test Name','Expected TAT','Reporting Date & Time','Rate']]
-  const body = order.tests.map((t, i)=> {
-    const tat = t.turnaroundTime ? (t.turnaroundTime < 60 ? `${t.turnaroundTime}m` : t.turnaroundTime < 1440 ? `${Math.floor(t.turnaroundTime/60)}h ${t.turnaroundTime%60}m` : `${Math.floor(t.turnaroundTime/1440)}d`) : '-'
-    return [String(i+1), String(t.name||''), tat, `${dtDate} - ${dtTime}`, (Number(t.price||0)).toFixed(2)]
-  })
+  const head = [['Sr.','Test Name','Reporting Date & Time','Rate']]
+  const body = order.tests.map((t, i)=> [String(i+1), String(t.name||''), `${dtDate} - ${dtTime}`, (Number(t.price||0)).toFixed(2)])
   autoTable(doc, {
     startY: y + 12,
     head,
@@ -335,6 +341,260 @@ async function printLabTokenSlipA4(order: LabSlipOrderInput, settings: any){
   }
   iframe.src = url
   document.body.appendChild(iframe)
+}
+
+export async function printLabTrackingActivity(token: any, events: any[], order?: any) {
+  const { jsPDF } = await import('jspdf')
+  const autoTable = (await import('jspdf-autotable')).default as any
+  const doc = new jsPDF('p', 'pt', 'a4')
+  
+  const settings = await labApi.getSettings().catch(() => ({})) as any
+  const labName = settings?.labName || 'Laboratory'
+  const logo = settings?.logoDataUrl || ''
+
+  let y = 40
+  if (logo) {
+    try {
+      const normalized = await ensurePngDataUrl(logo)
+      doc.addImage(normalized, 'PNG' as any, 40, y - 10, 60, 60, undefined, 'FAST')
+    } catch {}
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.text(String(labName), 297.5, y + 15, { align: 'center' })
+  doc.setFontSize(14)
+  doc.text('Test Activity Tracking Report', 297.5, y + 35, { align: 'center' })
+  
+  y += 70
+  doc.setDrawColor(200)
+  doc.line(40, y, 555, y)
+  y += 20
+
+  const drawKV = (label: string, value: string, x: number, yy: number) => {
+    doc.setFont('helvetica', 'bold'); doc.text(label, x, yy)
+    const w = doc.getTextWidth(label + ' ')
+    doc.setFont('helvetica', 'normal'); doc.text(value, x + w, yy)
+  }
+
+  doc.setFontSize(10)
+  drawKV('Token No:', token.tokenNo, 40, y)
+  drawKV('Lab No:', String(token.labNumber || '-'), 300, y); y += 15
+  drawKV('Patient:', token.patient?.fullName || '-', 40, y)
+  drawKV('MR No:', token.patient?.mrn || '-', 300, y); y += 15
+  drawKV('Age / Gender:', `${token.patient?.age || '-'} / ${token.patient?.gender || '-'}`, 40, y)
+  drawKV('Barcode:', token.barcode || '-', 300, y); y += 15
+  drawKV('Overall Status:', (token.status || '').replace(/_/g, ' ').toUpperCase(), 40, y)
+  drawKV('Sample Type:', (token.sampleType || 'normal').toUpperCase(), 300, y); y += 25
+
+  // 1. Tests Tracking Section
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text('Tests Tracking:', 40, y); y += 10
+  
+  const testsHead = [['Test Name', 'Status', 'Sample Time']]
+  const testsBody = (token.testStatuses || []).map((ts: any) => [
+    ts.testName || ts.testId,
+    (ts.status || '').replace(/_/g, ' ').toUpperCase(),
+    ts.sampleTime ? fmtDateTime12(ts.sampleTime) : '-'
+  ])
+
+  autoTable(doc, {
+    startY: y,
+    head: testsHead,
+    body: testsBody,
+    theme: 'grid',
+    headStyles: { fillColor: [100, 116, 139] },
+    styles: { fontSize: 9 },
+    margin: { left: 40, right: 40 }
+  })
+  
+  y = (doc as any).lastAutoTable.finalY + 25
+
+  // 2. Financial Summary Section
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text('Financial Summary:', 40, y); y += 15
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal')
+  
+  const subtotal = token.subtotal || 0
+  const discount = token.discount || 0
+  const net = token.net || (subtotal - discount)
+  const received = order?.receivedAmount || token.receivedAmount || 0
+  const receivable = order?.receivableAmount || token.receivableAmount || (net - received)
+
+  drawKV('Subtotal:', `Rs ${subtotal.toLocaleString()}`, 40, y)
+  drawKV('Discount:', `Rs ${discount.toLocaleString()}`, 200, y)
+  drawKV('Net Amount:', `Rs ${net.toLocaleString()}`, 380, y); y += 15
+  drawKV('Received:', `Rs ${received.toLocaleString()}`, 40, y)
+  drawKV('Receivable:', `Rs ${receivable.toLocaleString()}`, 200, y); y += 30
+
+  // 3. Activity Timeline Section
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text('Activity Timeline (Step by Step):', 40, y); y += 10
+  
+  const timelineHead = [['Step', 'Event', 'Date & Time', 'Performed By', 'Details']]
+  const timelineBody = events.map((e, idx) => [
+    idx + 1,
+    e.event.replace(/_/g, ' ').toUpperCase(),
+    fmtDateTime12(e.at),
+    e.by || '-',
+    e.details || '-'
+  ])
+
+  autoTable(doc, {
+    startY: y,
+    head: timelineHead,
+    body: timelineBody,
+    theme: 'striped',
+    headStyles: { fillColor: [79, 70, 229] },
+    styles: { fontSize: 8 },
+    margin: { left: 40, right: 40 }
+  })
+  
+  // Preview via Electron or browser
+  try {
+    const api = (window as any).electronAPI
+    if (api && typeof api.printPreviewPdf === 'function') {
+      const dataUrl = doc.output('datauristring') as string
+      await api.printPreviewPdf(dataUrl)
+      return
+    }
+  } catch {}
+
+  doc.autoPrint()
+  const blob = doc.output('blob')
+  const url = URL.createObjectURL(blob)
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+  iframe.style.visibility = 'hidden'
+  iframe.src = url
+  document.body.appendChild(iframe)
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    } catch (e) { console.error(e) }
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(url)
+        iframe.remove()
+      } catch {}
+    }, 10000)
+  }
+}
+
+export async function downloadLabTrackingActivityPdf(token: any, events: any[], order?: any) {
+  const { jsPDF } = await import('jspdf')
+  const autoTable = (await import('jspdf-autotable')).default as any
+  const doc = new jsPDF('p', 'pt', 'a4')
+  
+  const settings = await labApi.getSettings().catch(() => ({})) as any
+  const labName = settings?.labName || 'Laboratory'
+  const logo = settings?.logoDataUrl || ''
+
+  let y = 40
+  if (logo) {
+    try {
+      const normalized = await ensurePngDataUrl(logo)
+      doc.addImage(normalized, 'PNG' as any, 40, y - 10, 60, 60, undefined, 'FAST')
+    } catch {}
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.text(String(labName), 297.5, y + 15, { align: 'center' })
+  doc.setFontSize(14)
+  doc.text('Test Activity Tracking Report', 297.5, y + 35, { align: 'center' })
+  
+  y += 70
+  doc.setDrawColor(200)
+  doc.line(40, y, 555, y)
+  y += 20
+
+  const drawKV = (label: string, value: string, x: number, yy: number) => {
+    doc.setFont('helvetica', 'bold'); doc.text(label, x, yy)
+    const w = doc.getTextWidth(label + ' ')
+    doc.setFont('helvetica', 'normal'); doc.text(value, x + w, yy)
+  }
+
+  doc.setFontSize(10)
+  drawKV('Token No:', token.tokenNo, 40, y)
+  drawKV('Lab No:', String(token.labNumber || '-'), 300, y); y += 15
+  drawKV('Patient:', token.patient?.fullName || '-', 40, y)
+  drawKV('MR No:', token.patient?.mrn || '-', 300, y); y += 15
+  drawKV('Age / Gender:', `${token.patient?.age || '-'} / ${token.patient?.gender || '-'}`, 40, y)
+  drawKV('Barcode:', token.barcode || '-', 300, y); y += 15
+  drawKV('Overall Status:', (token.status || '').replace(/_/g, ' ').toUpperCase(), 40, y)
+  drawKV('Sample Type:', (token.sampleType || 'normal').toUpperCase(), 300, y); y += 25
+
+  // 1. Tests Tracking Section
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text('Tests Tracking:', 40, y); y += 10
+  
+  const testsHead = [['Test Name', 'Status', 'Sample Time']]
+  const testsBody = (token.testStatuses || []).map((ts: any) => [
+    ts.testName || ts.testId,
+    (ts.status || '').replace(/_/g, ' ').toUpperCase(),
+    ts.sampleTime ? fmtDateTime12(ts.sampleTime) : '-'
+  ])
+
+  autoTable(doc, {
+    startY: y,
+    head: testsHead,
+    body: testsBody,
+    theme: 'grid',
+    headStyles: { fillColor: [100, 116, 139] },
+    styles: { fontSize: 9 },
+    margin: { left: 40, right: 40 }
+  })
+  
+  y = (doc as any).lastAutoTable.finalY + 25
+
+  // 2. Financial Summary Section
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text('Financial Summary:', 40, y); y += 15
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal')
+  
+  const subtotal = token.subtotal || 0
+  const discount = token.discount || 0
+  const net = token.net || (subtotal - discount)
+  const received = order?.receivedAmount || token.receivedAmount || 0
+  const receivable = order?.receivableAmount || token.receivableAmount || (net - received)
+
+  drawKV('Subtotal:', `Rs ${subtotal.toLocaleString()}`, 40, y)
+  drawKV('Discount:', `Rs ${discount.toLocaleString()}`, 200, y)
+  drawKV('Net Amount:', `Rs ${net.toLocaleString()}`, 380, y); y += 15
+  drawKV('Received:', `Rs ${received.toLocaleString()}`, 40, y)
+  drawKV('Receivable:', `Rs ${receivable.toLocaleString()}`, 200, y); y += 30
+
+  // 3. Activity Timeline Section
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text('Activity Timeline (Step by Step):', 40, y); y += 10
+  
+  const timelineHead = [['Step', 'Event', 'Date & Time', 'Performed By', 'Details']]
+  const timelineBody = events.map((e, idx) => [
+    idx + 1,
+    e.event.replace(/_/g, ' ').toUpperCase(),
+    fmtDateTime12(e.at),
+    e.by || '-',
+    e.details || '-'
+  ])
+
+  autoTable(doc, {
+    startY: y,
+    head: timelineHead,
+    body: timelineBody,
+    theme: 'striped',
+    headStyles: { fillColor: [79, 70, 229] },
+    styles: { fontSize: 8 },
+    margin: { left: 40, right: 40 }
+  })
+  
+  doc.save(`activity-tracking-${token.tokenNo}.pdf`)
 }
 
 async function makeQrPng(data: string): Promise<string> {

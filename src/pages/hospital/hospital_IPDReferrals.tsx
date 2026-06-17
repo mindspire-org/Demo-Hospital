@@ -18,7 +18,7 @@ export default function Hospital_IPDReferrals(){
   const [toast, setToast] = useState<ToastState>(null)
 
   useEffect(()=>{ load() }, [status])
-  useEffect(()=>{ (async()=>{ try{ const [a,b] = await Promise.all([hospitalApi.listDepartments() as any, hospitalApi.listDoctors() as any]); setDeps((a?.departments||a)||[]); setDocs((b?.doctors||b)||[]);}catch{}})() }, [])
+  useEffect(()=>{ (async()=>{ try{ const [a,b] = await Promise.all([hospitalApi.listDepartments({ limit: 1000 }) as any, hospitalApi.listDoctors() as any]); setDeps((a?.departments||a)||[]); setDocs((b?.doctors||b)||[]);}catch{}})() }, [])
   useEffect(()=>{ if (openAdmit?.open) loadBeds() }, [openAdmit])
 
   function bedDisplayName(b: any){
@@ -205,7 +205,6 @@ export default function Hospital_IPDReferrals(){
                 const p = r.patientSnapshot || r.patient || {}
                 const mrn = p.mrn || p.mrNumber || '-'
                 const name = p.fullName || p.name || '-'
-                const refTo = r.referredTo?.departmentName || r.referredTo?.doctorName || r.referredTo?.departmentId || r.referredTo?.doctorId || '-'
                 return (
                   <tr key={id} className="hover:bg-slate-50/50">
                     <td className="px-4 py-2 font-mono text-xs">{r.serial || id.slice(-6)}</td>
@@ -213,7 +212,7 @@ export default function Hospital_IPDReferrals(){
                     <td className="px-4 py-2 capitalize">{name}</td>
                     <td className="px-4 py-2">{r.reasonOfReferral || '-'}</td>
                     <td className="px-4 py-2">{r.provisionalDiagnosis || '-'}</td>
-                    <td className="px-4 py-2">{refTo}</td>
+                    <td className="px-4 py-2">{r.referredTo?.departmentName || r.referredTo?.doctorName || r.referredTo?.departmentId || r.referredTo?.doctorId || '-'}</td>
                     <td className="px-4 py-2">{numericDate(r.referralDate || r.createdAt)}</td>
                     <td className="px-4 py-2">{formatTime(r.referralTime)}</td>
                     <td className="px-4 py-2"><StatusBadge status={r.status} /></td>

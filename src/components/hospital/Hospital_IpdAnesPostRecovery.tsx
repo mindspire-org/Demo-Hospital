@@ -1,148 +1,185 @@
-import React, { useEffect, useState } from 'react'
-import { hospitalApi } from '../../utils/api'
-import { useEncounterDefaults } from '../../hooks/useEncounterDefaults'
-import { ClinicalDialogShell, ClinicalDatePicker, clinicalInp, clinicalLbl } from '../ui/ClinicalDialog'
-import { ClipboardCheck, Pencil, Trash2, Printer, Plus } from 'lucide-react'
-import ConfirmDialog from '../ui/ConfirmDialog'
-
-type PostRow = { id: string; when: string; bp?: string; pulse?: string; rr?: string; spo2?: string; pain?: string; temp?: string; aldreteScore?: string; vomiting?: string; shivering?: string; siteBleedingHematoma?: string; doctorName?: string; sign?: string }
+import React, { useEffect, useState, useRef } from 'react'
+import { ipdApi, hospitalApi } from '../../utils/api'
 
 export default function Hospital_IpdAnesPostRecovery({ encounterId }: { encounterId: string }){
-  const [rows, setRows] = useState<PostRow[]>([])
+  const [rows, setRows] = useState<Array<{ id: string; when: string; bp?: string; pulse?: string; rr?: string; spo2?: string; pain?: string; temp?: string; aldreteScore?: string; vomiting?: string; shivering?: string; siteBleedingHematoma?: string; doctorName?: string }>>([])
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<PostRow | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const encDefaults = useEncounterDefaults(encounterId)
+  const [doctors, setDoctors] = useState<Array<{ _id: string; name: string }>>([])
+
+  useEffect(()=>{ (async()=>{ try { const res = await hospitalApi.listDoctors() as any; const items = (res?.doctors || res || []) as Array<{ _id: string; name: string }>; setDoctors(items) } catch { setDoctors([]) } })() }, [])
 
   useEffect(()=>{ if(encounterId){ reload() } }, [encounterId])
 
   async function reload(){
     try{
-      const res = await hospitalApi.listIpdClinicalNotes(encounterId, { type: 'anes-post-recovery', limit: 200 }) as any
-      const items = (res.notes || []).map((n: any)=>({
-        id: String(n._id),
-        when: String(n.recordedAt || n.createdAt || ''),
-        bp: (n.data||{}).bp || '',
-        pulse: (n.data||{}).pulse || '',
-        rr: (n.data||{}).rr || '',
-        spo2: (n.data||{}).spo2 || '',
-        pain: (n.data||{}).pain || '',
-        temp: (n.data||{}).temp || '',
-        aldreteScore: (n.data||{}).aldreteScore || '',
-        vomiting: (n.data||{}).vomiting || '',
-        shivering: (n.data||{}).shivering || '',
-        siteBleedingHematoma: (n.data||{}).siteBleedingHematoma || '',
-        doctorName: n.doctorName || '',
-        sign: n.sign || '',
-      }))
+      const res = await ipdApi.listIpdAnesthesiaRecords(encounterId, { status: 'completed', limit: 200 }) as any
+      const items = (res.anesthesiaRecords || []).map((n: any)=>{
+        // Parse postAnesthesiaNotes to extract individual fields
+        const notes = n.postAnesthesiaNotes || ''
+        const parsed: any = {}
+        notes.split(', ').forEach((part: string) => {
+          const [key, val] = part.split(': ')
+          if (key && val !== undefined) parsed[key.toLowerCase().trim()] = val.trim()
+        })
+        return {
+          id: String(n._id),
+          when: String(n.extubationTime || n.createdAt || ''),
+          bp: parsed.bp || '',
+          pulse: parsed.pulse || '',
+          rr: parsed.rr || '',
+          spo2: parsed.spo2 || '',
+          pain: n.postOpAnalgesia || '',
+          temp: parsed.temp || '',
+          aldreteScore: parsed.aldrete || '',
+          vomiting: parsed.vomiting || '',
+          shivering: parsed.shivering || '',
+          siteBleedingHematoma: n.complicationDetails || '',
+          doctorName: n.anesthesiologistName || '',
+        }
+      })
       setRows(items)
     }catch{}
   }
 
-  const add = async (d: any) => {
+  const add = async (d: { when?: string; bp?: string; pulse?: string; rr?: string; spo2?: string; pain?: string; temp?: string; aldreteScore?: string; vomiting?: string; shivering?: string; siteBleedingHematoma?: string; doctorName?: string }) => {
     try{
-      if (editing?.id) {
-        await hospitalApi.updateIpdClinicalNote(editing.id, { recordedAt: d.when || new Date().toISOString(), doctorName: d.doctorName, sign: d.sign, data: { bp: d.bp, pulse: d.pulse, rr: d.rr, spo2: d.spo2, pain: d.pain, temp: d.temp, aldreteScore: d.aldreteScore, vomiting: d.vomiting, shivering: d.shivering, siteBleedingHematoma: d.siteBleedingHematoma } })
-      } else {
-        await hospitalApi.createIpdClinicalNote(encounterId, { type: 'anes-post-recovery', recordedAt: d.when || new Date().toISOString(), doctorName: d.doctorName, sign: d.sign, data: { bp: d.bp, pulse: d.pulse, rr: d.rr, spo2: d.spo2, pain: d.pain, temp: d.temp, aldreteScore: d.aldreteScore, vomiting: d.vomiting, shivering: d.shivering, siteBleedingHematoma: d.siteBleedingHematoma } })
-      }
-      setOpen(false); setEditing(null); await reload()
+      await ipdApi.createIpdAnesthesiaRecord(encounterId, {
+        extubationTime: d.when || new Date().toISOString(),
+        anesthesiologistName: d.doctorName,
+        postOpAnalgesia: d.pain,
+        complicationDetails: d.siteBleedingHematoma,
+        postAnesthesiaNotes: `BP: ${d.bp}, Pulse: ${d.pulse}, RR: ${d.rr}, SpO2: ${d.spo2}, Temp: ${d.temp}, Aldrete: ${d.aldreteScore}, Vomiting: ${d.vomiting}, Shivering: ${d.shivering}`,
+        status: 'completed',
+      })
+      setOpen(false); await reload()
     }catch(e: any){ alert(e?.message || 'Failed to save post-recovery note') }
   }
 
-  const deleteRow = async () => {
-    if (!confirmDeleteId) return
-    try { await hospitalApi.deleteIpdClinicalNote(confirmDeleteId); setConfirmDeleteId(null); await reload() } catch (e: any) { alert(e?.message || 'Failed to delete') }
-  }
-
-  const printRow = (r: PostRow) => {
-    const w = window.open('', '_blank'); if (!w) return
-    const esc = (v?: string) => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"/><style>@page{size:A4;margin:12mm}body{font-family:system-ui;color:#111;font-size:13px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #e2e8f0;padding:6px 10px;text-align:left}</style></head><body><h2 style="text-align:center">Post Anesthesia Notes</h2><div style="font-size:11px;color:#666;margin-bottom:12px">${esc(new Date(r.when).toLocaleString())} | Dr: ${esc(r.doctorName)}</div><table><tr><th>BP</th><th>Pulse</th><th>RR</th><th>SpO2</th><th>Pain</th><th>Temp</th></tr><tr><td>${esc(r.bp)}</td><td>${esc(r.pulse)}</td><td>${esc(r.rr)}</td><td>${esc(r.spo2)}</td><td>${esc(r.pain)}</td><td>${esc(r.temp)}</td></tr></table><table style="margin-top:8px"><tr><th>Aldrete</th><th>Vomiting</th><th>Shivering</th><th>Site Bleeding/Hematoma</th></tr><tr><td>${esc(r.aldreteScore)}</td><td>${esc(r.vomiting)}</td><td>${esc(r.shivering)}</td><td>${esc(r.siteBleedingHematoma)}</td></tr></table><div style="margin-top:12px;font-size:11px;color:#666">Sign: ${esc(r.sign)}</div><script>setTimeout(()=>window.print(),200)</script></body></html>`)
-    w.document.close(); w.focus()
-  }
-
-  const onEdit = (r: PostRow) => { setEditing(r); setOpen(true) }
-  const onAdd = () => { setEditing(null); setOpen(true) }
-  const onClose = () => { setOpen(false); setEditing(null) }
-
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4" data-encounterid={encounterId}>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white"><ClipboardCheck className="h-4 w-4" /></div>
-          <span className="text-sm font-bold text-slate-900">Post Anesthesia Notes (at Shifting from Recovery Room)</span>
-        </div>
-        <button onClick={onAdd} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"><Plus className="h-3.5 w-3.5 inline mr-1" />Add Note</button>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-lg font-semibold text-slate-900">Post Anesthesia Notes (at Shifting from Recovery Room)</div>
+        <button onClick={()=>setOpen(true)} className="btn">Add Post-Recovery Note</button>
       </div>
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-400">No post-recovery notes yet.</div>
+        <div className="text-slate-500">No post-recovery notes yet.</div>
       ) : (
-        <div className="space-y-3">
-          {rows.map(r => (
-            <div key={r.id} className="rounded-lg border border-slate-200 p-4 transition-shadow hover:shadow-sm">
-              <div className="grid gap-2 text-sm sm:grid-cols-4">
-                <div><span className="text-xs font-semibold text-slate-400">BP</span><div className="font-bold text-slate-800">{r.bp || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">Pulse</span><div className="font-bold text-slate-800">{r.pulse || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">RR</span><div className="font-bold text-slate-800">{r.rr || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">SpO2</span><div className="font-bold text-slate-800">{r.spo2 || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">Pain</span><div className="font-bold text-slate-800">{r.pain || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">Temp</span><div className="font-bold text-slate-800">{r.temp || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">Aldrete</span><div className="font-bold text-slate-800">{r.aldreteScore || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">Vomiting</span><div className="font-bold text-slate-800">{r.vomiting || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">Shivering</span><div className="font-bold text-slate-800">{r.shivering || '-'}</div></div>
-                <div><span className="text-xs font-semibold text-slate-400">Site Bleeding/Hematoma</span><div className="font-bold text-slate-800">{r.siteBleedingHematoma || '-'}</div></div>
-                <div className="sm:col-span-2"><span className="text-xs font-semibold text-slate-400">Doctor/Sign</span><div className="font-bold text-slate-800">{r.doctorName || '-'} {r.sign ? `/ ${r.sign}` : ''}</div></div>
-              </div>
-              <div className="text-xs text-slate-400 mt-2">{new Date(r.when).toLocaleString()}</div>
-              <div className="mt-2 flex items-center justify-end gap-2 border-t border-slate-100 pt-2">
-                <button onClick={()=>onEdit(r)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"><Pencil className="h-3 w-3" />Edit</button>
-                <button onClick={()=>setConfirmDeleteId(r.id)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"><Trash2 className="h-3 w-3" />Delete</button>
-                <button onClick={()=>printRow(r)} className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"><Printer className="h-3 w-3" />Print</button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-slate-50 text-slate-700">
+            <tr>
+              <th className="px-3 py-2">Date/Time</th>
+              <th className="px-3 py-2">BP</th>
+              <th className="px-3 py-2">Pulse</th>
+              <th className="px-3 py-2">RR</th>
+              <th className="px-3 py-2">SpO2</th>
+              <th className="px-3 py-2">Pain</th>
+              <th className="px-3 py-2">Temp</th>
+              <th className="px-3 py-2">Aldrete</th>
+              <th className="px-3 py-2">Vomiting</th>
+              <th className="px-3 py-2">Shivering</th>
+              <th className="px-3 py-2">Site Bleeding/Hematoma</th>
+              <th className="px-3 py-2">Doctor</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {rows.map(r => (
+              <tr key={r.id}>
+                <td className="px-3 py-2 text-xs text-slate-600">{new Date(r.when).toLocaleString()}</td>
+                <td className="px-3 py-2">{r.bp || '-'}</td>
+                <td className="px-3 py-2">{r.pulse || '-'}</td>
+                <td className="px-3 py-2">{r.rr || '-'}</td>
+                <td className="px-3 py-2">{r.spo2 || '-'}</td>
+                <td className="px-3 py-2">{r.pain || '-'}</td>
+                <td className="px-3 py-2">{r.temp || '-'}</td>
+                <td className="px-3 py-2">{r.aldreteScore || '-'}</td>
+                <td className="px-3 py-2">{r.vomiting || '-'}</td>
+                <td className="px-3 py-2">{r.shivering || '-'}</td>
+                <td className="px-3 py-2">{r.siteBleedingHematoma || '-'}</td>
+                <td className="px-3 py-2 text-xs text-slate-600">{r.doctorName || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
-      <PostRecDialog open={open} onClose={onClose} onSave={add} defaults={encDefaults} initial={editing} />
-      <ConfirmDialog open={!!confirmDeleteId} title="Delete Post-Recovery Note" message="Are you sure you want to delete this post-recovery note?" confirmText="Delete" onCancel={()=>setConfirmDeleteId(null)} onConfirm={deleteRow} />
+      <PostRecDialog open={open} onClose={()=>setOpen(false)} onSave={add} doctors={doctors} />
     </div>
   )
 }
 
-function PostRecDialog({ open, onClose, onSave, defaults, initial }: { open: boolean; onClose: ()=>void; onSave: (d: any)=>void; defaults?: any; initial?: PostRow | null }){
-  const [form, setForm] = useState({ when: '', bp: '', pulse: '', rr: '', spo2: '', pain: '', temp: '', aldreteScore: '', vomiting: '', shivering: '', siteBleedingHematoma: '', doctorName: '', sign: '' })
+function PostRecDialog({ open, onClose, onSave, doctors }: { open: boolean; onClose: ()=>void; onSave: (d: { when?: string; bp?: string; pulse?: string; rr?: string; spo2?: string; pain?: string; temp?: string; aldreteScore?: string; vomiting?: string; shivering?: string; siteBleedingHematoma?: string; doctorName?: string })=>void; doctors: Array<{ _id: string; name: string }> }){
+  const now = new Date()
+  const defaultDateTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16)
+  const [doctorSearch, setDoctorSearch] = useState('')
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false)
+  const [selectedDoctor, setSelectedDoctor] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const filteredDoctors = doctors.filter(d => d.name.toLowerCase().includes(doctorSearch.toLowerCase()))
 
-  useEffect(()=>{
-    if (!open) return
-    if (initial) {
-      setForm({ when: initial.when ? new Date(initial.when).toISOString().slice(0,16) : '', bp: initial.bp||'', pulse: initial.pulse||'', rr: initial.rr||'', spo2: initial.spo2||'', pain: initial.pain||'', temp: initial.temp||'', aldreteScore: initial.aldreteScore||'', vomiting: initial.vomiting||'', shivering: initial.shivering||'', siteBleedingHematoma: initial.siteBleedingHematoma||'', doctorName: initial.doctorName||'', sign: initial.sign||'' })
-    } else {
-      setForm({ when: new Date().toISOString().slice(0,16), bp: '', pulse: '', rr: '', spo2: '', pain: '', temp: '', aldreteScore: '', vomiting: '', shivering: '', siteBleedingHematoma: '', doctorName: defaults?.doctorName || '', sign: '' })
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDoctorDropdown(false)
+      }
     }
-  }, [open, initial])
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
-  const submit = (e: React.FormEvent) => { e.preventDefault(); onSave(form) }
+  if (!open) return null
 
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const get = (k: string) => String(fd.get(k) || '')
+    onSave({ when: get('when'), bp: get('bp'), pulse: get('pulse'), rr: get('rr'), spo2: get('spo2'), pain: get('pain'), temp: get('temp'), aldreteScore: get('aldreteScore'), vomiting: get('vomiting'), shivering: get('shivering'), siteBleedingHematoma: get('siteBleedingHematoma'), doctorName: selectedDoctor })
+  }
   return (
-    <ClinicalDialogShell open={open} title={initial ? 'Edit Post-Recovery Note' : 'Add Post-Recovery Note'} subtitle="Shifting from Recovery Room" icon={ClipboardCheck} onClose={onClose} onSubmit={submit} maxWidth="max-w-4xl">
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <ClinicalDatePicker label="Date/Time" value={form.when} onChange={v=>setForm({...form,when:v})} />
-          <div><label className={clinicalLbl}>BP</label><input value={form.bp} onChange={e=>setForm({...form,bp:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Pulse</label><input value={form.pulse} onChange={e=>setForm({...form,pulse:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>RR</label><input value={form.rr} onChange={e=>setForm({...form,rr:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>SpO2</label><input value={form.spo2} onChange={e=>setForm({...form,spo2:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Pain</label><input value={form.pain} onChange={e=>setForm({...form,pain:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Temp</label><input value={form.temp} onChange={e=>setForm({...form,temp:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Aldrete Score</label><input value={form.aldreteScore} onChange={e=>setForm({...form,aldreteScore:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Vomiting</label><input value={form.vomiting} onChange={e=>setForm({...form,vomiting:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Shivering</label><input value={form.shivering} onChange={e=>setForm({...form,shivering:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Site Bleeding/Hematoma</label><input value={form.siteBleedingHematoma} onChange={e=>setForm({...form,siteBleedingHematoma:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Doctor Name</label><input value={form.doctorName} onChange={e=>setForm({...form,doctorName:e.target.value})} className={clinicalInp} /></div>
-          <div><label className={clinicalLbl}>Sign</label><input value={form.sign} onChange={e=>setForm({...form,sign:e.target.value})} className={clinicalInp} /></div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <form onSubmit={submit} className="w-full max-w-3xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+        <div className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-800">Add Post-Recovery Note</div>
+        <div className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600" htmlFor="when">Date/Time</label>
+            <input id="when" name="when" type="datetime-local" defaultValue={defaultDateTime} className="w-full rounded-md border border-slate-300 px-3 py-2" />
+          </div>
+          {['bp','pulse','rr','spo2','pain','temp','aldreteScore','vomiting','shivering','siteBleedingHematoma'].map(name => (
+            <div key={name}>
+              <label className="block text-xs font-medium text-slate-600" htmlFor={name}>{name.toUpperCase()}</label>
+              <input id={name} name={name} className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            </div>
+          ))}
+          <div>
+            <label className="block text-xs font-medium text-slate-600">DOCTORNAME</label>
+            <div className="relative" ref={dropdownRef}>
+              <input
+                type="text"
+                value={selectedDoctor || doctorSearch}
+                onChange={(e) => { setDoctorSearch(e.target.value); setShowDoctorDropdown(true); setSelectedDoctor(''); }}
+                onFocus={() => setShowDoctorDropdown(true)}
+                placeholder="Search doctor..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2"
+              />
+              {showDoctorDropdown && filteredDoctors.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-md border border-slate-300 bg-white shadow-lg">
+                  {filteredDoctors.map(d => (
+                    <div
+                      key={d._id}
+                      onClick={() => { setSelectedDoctor(d.name); setDoctorSearch(d.name); setShowDoctorDropdown(false); }}
+                      className="cursor-pointer px-3 py-2 hover:bg-slate-100"
+                    >
+                      {d.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-    </ClinicalDialogShell>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-outline-navy">Cancel</button>
+          <button type="submit" className="btn">Save</button>
+        </div>
+      </form>
+    </div>
   )
 }

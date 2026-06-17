@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, User, Building } from 'lucide-react'
 import { labApi } from '../../utils/api'
+import { printLabTrackingActivity, downloadLabTrackingActivityPdf } from '../../utils/printLabToken'
 
 type TimelineEvent = {
   event: string
@@ -40,6 +41,7 @@ type TokenData = {
   net?: number
   receivedAmount?: number
   receivableAmount?: number
+  sampleType?: 'normal' | 'urgent' | 'stat'
   testStatuses?: Array<{
     testId: string
     testName: string
@@ -175,6 +177,12 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
                   <div>
                     <span className="text-slate-500 dark:text-slate-400">Token No:</span>
                     <span className="ml-2 font-mono font-semibold text-slate-800 dark:text-slate-200">{token.tokenNo}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400">Type:</span>
+                    <span className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${token.sampleType === 'urgent' ? 'bg-rose-100 text-rose-700' : token.sampleType === 'stat' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {token.sampleType || 'normal'}
+                    </span>
                   </div>
                   <div>
                     <span className="text-slate-500 dark:text-slate-400">Barcode:</span>
@@ -344,7 +352,21 @@ export default function Lab_TrackDialog({ open, onClose, tokenId, tokenNo }: Tra
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 justify-end border-t border-slate-200 px-5 py-3 dark:border-slate-700">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-700">
+          <button
+            type="button"
+            onClick={async () => { if (!token) return; try { await printLabTrackingActivity(token, events, order) } catch (e){ console.error(e) } }}
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+          >
+            Print
+          </button>
+          <button
+            type="button"
+            onClick={async () => { if (!token) return; try { await downloadLabTrackingActivityPdf(token, events, order) } catch (e){ console.error(e) } }}
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+          >
+            Download PDF
+          </button>
           <button
             type="button"
             onClick={onClose}

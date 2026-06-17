@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Calendar, Printer, RotateCcw, Barcode, Clock, DollarSign, ListChecks, FlaskConical, CheckCircle2, RefreshCw } from 'lucide-react'
+import { Search, Calendar, Printer, RotateCcw, Barcode, Clock, DollarSign, ListChecks, FlaskConical, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react'
 import { labApi } from '../../utils/api'
 import Lab_ReasonDialog from '../../components/lab/lab_ReasonDialog'
 import Lab_TrackDialog from '../../components/lab/lab_TrackDialog'
@@ -12,7 +12,7 @@ type OrderTest = {
   testId: string
   testName: string
   price: number
-  status: 'pending' | 'sample_collected' | 'in_progress' | 'result_entered' | 'approved' | 'completed' | 'returned'
+  status: 'pending' | 'sample_collected' | 'in_progress' | 'result_entered' | 'approved' | 'completed' | 'returned' | 'cancelled'
   sampleTime?: string
   isReturned: boolean
   returnedAt?: string
@@ -28,6 +28,7 @@ type Order = {
   status: 'received'|'in_progress'|'completed'|'cancelled'
   tokenNo?: string
   barcode?: string
+  sampleType?: 'normal' | 'urgent' | 'stat'
   sampleCollectedAt?: string
   referringConsultant?: string
   collectionCenterName?: string
@@ -72,7 +73,7 @@ export default function Lab_Tracking() {
 
   // Reason dialog state
   const [reasonOpen, setReasonOpen] = useState(false)
-  const [reasonMode, setReasonMode] = useState<'return'|'undo'>('return')
+  const [reasonMode, setReasonMode] = useState<'return'|'undo'|'reject'>('return')
   const [reasonCtx, setReasonCtx] = useState<{ id: string; testId: string } | null>(null)
 
   // Patient info dialog
@@ -121,10 +122,11 @@ export default function Lab_Tracking() {
           id: x._id,
           createdAt: x.createdAt || new Date().toISOString(),
           patient: x.patient || { fullName: '-', phone: '' },
-          tests: x.tests || [], // LabOrderTest documents from API
+          tests: (x.tests||[]).map((t:any)=> ({ ...t, status: t.status || 'pending' })), // LabOrderTest documents from API
           status: x.status || 'received',
           tokenNo: x.tokenNo,
           barcode: x.barcode,
+          sampleType: x.sampleType || 'normal',
           sampleCollectedAt: x.sampleCollectedAt,
           referringConsultant: x.referringConsultant,
           collectionCenterName: x.collectionCenterName,
@@ -141,7 +143,10 @@ export default function Lab_Tracking() {
   const curPage = Math.min(page, pageCount)
   const start = Math.min((curPage - 1) * rows + 1, total)
   const end = Math.min((curPage - 1) * rows + orders.length, total)
-  const items = orders
+  const items = useMemo(() => {
+    if (priorityFilter === 'all') return orders
+    return orders.filter(o => (o.sampleType || 'normal') === priorityFilter)
+  }, [orders, priorityFilter])
 
   const downloadRegister = () => {
     const win = window.open('', 'print', 'width=900,height=700')
@@ -154,6 +159,7 @@ export default function Lab_Tracking() {
           <td>${formatDateTime(o.createdAt)}</td>
           <td>${o.patient.fullName}</td>
           <td>${token}</td>
+          <td>${o.sampleType || 'normal'}</td>
           <td>${tname}</td>
           <td>${o.patient.mrn || '-'}</td>
           <td>${o.patient.phone || '-'}</td>
@@ -177,7 +183,7 @@ export default function Lab_Tracking() {
     win.document.write(`<div class="meta">Generated: ${new Date().toLocaleString()}</div>`)
     win.document.write(`<div class="meta">Filters — Status: ${status}, From: ${from||'-'} To: ${to||'-'}; Search: ${q||'-'}; Page Count: ${total}</div>`)
     win.document.write(`<table><thead><tr>
-      <th>Date</th><th>Patient</th><th>Token</th><th>Tests</th><th>MR No</th><th>Phone</th><th>Sample Time</th><th>Status</th><th>Performed By</th>
+      <th>Date</th><th>Patient</th><th>Token</th><th>Sample Type</th><th>Tests</th><th>MR No</th><th>Phone</th><th>Sample Time</th><th>Status</th><th>Performed By</th>
     </tr></thead><tbody>${rowsHtml}</tbody></table>`)
     win.document.write('</body></html>')
     win.document.close(); win.focus(); win.print();
@@ -213,20 +219,10 @@ export default function Lab_Tracking() {
     setReceiveOpen(true)
   }
 
-  const setSampleTimeFor = async (id: string, testId: string, time: string) => {
-    try {
-      await labApi.updateOrderTrack(id, { testId, sampleTime: time })
-      setOrders(prev => prev.map(o => o.id === id ? { 
-        ...o, 
-        tests: o.tests.map(t => 
-          String(t.testId) === String(testId) ? { ...t, sampleTime: time } : t
-        ) 
-      } : o))
-    } catch (e) { console.error(e) }
-  }
 
   const openReturn = (id: string, testId: string) => { setReasonMode('return'); setReasonCtx({ id, testId }); setReasonOpen(true) }
   const openUndo = (id: string, testId: string) => { setReasonMode('undo'); setReasonCtx({ id, testId }); setReasonOpen(true) }
+  const openReject = (id: string, testId: string) => { setReasonMode('reject'); setReasonCtx({ id, testId }); setReasonOpen(true) }
 
   const onReasonConfirm = async (note: string) => {
     if (!reasonCtx) return
@@ -258,6 +254,23 @@ export default function Lab_Tracking() {
           )
           return { ...x, tests: updatedTests }
         }))
+      } else if (reasonMode === 'reject') {
+        const test = o.tests.find(t => String(t.testId) === String(testId))
+        await labApi.updateOrderTrack(id, { 
+          testId: String(testId), 
+          orderTestId: (test as any)?.orderTestId,
+          status: 'cancelled',
+          returnReason: note || 'Sample Rejected'
+        })
+        setOrders(prev => prev.map(x => {
+          if (x.id !== id) return x
+          const updatedTests = x.tests.map(t => 
+            String(t.testId) === String(testId) 
+              ? { ...t, status: 'cancelled' as any }
+              : t
+          )
+          return { ...x, tests: updatedTests }
+        }))
       } else {
         // Undo return
         const test = o.tests.find(t => String(t.testId) === String(testId))
@@ -278,7 +291,7 @@ export default function Lab_Tracking() {
           return { ...x, tests: updatedTests }
         }))
       }
-    } catch (e){ console.error(e); setNotice({ text: `Failed to ${reasonMode==='return'?'return':'undo'} test`, kind: 'error' }); try { setTimeout(()=> setNotice(null), 2500) } catch {} }
+    } catch (e){ console.error(e); setNotice({ text: `Failed to ${reasonMode === 'reject' ? 'reject' : reasonMode==='return'?'return':'undo'} test`, kind: 'error' }); try { setTimeout(()=> setNotice(null), 2500) } catch {} }
     setReasonOpen(false)
   }
 
@@ -361,7 +374,14 @@ export default function Lab_Tracking() {
         const h = localStorage.getItem('hospital.session'); if (h){ const u = JSON.parse(h||'{}'); printedBy = u?.username || '' }
       }
     } catch {}
-    await printLabTokenSlip({ tokenNo, createdAt: o.createdAt, patient: { fullName: o.patient.fullName, mrn: o.patient.mrn, phone: o.patient.phone, gender, age }, tests: rows, subtotal, discount, net, receivedAmount, receivableAmount, printedBy })
+    
+    // Updated to print activity tracking instead of token slip as requested
+    if (tlToken && tl?.events) {
+      await printLabTrackingActivity(tlToken, tl.events, tl.order)
+    } else {
+      // Fallback if timeline fetch failed
+      await printLabTokenSlip({ tokenNo, createdAt: o.createdAt, patient: { fullName: o.patient.fullName, mrn: o.patient.mrn, phone: o.patient.phone, gender, age }, tests: rows, subtotal, discount, net, receivedAmount, receivableAmount, printedBy })
+    }
   }
 
   const statusCounts = useMemo(() => {
@@ -422,7 +442,6 @@ export default function Lab_Tracking() {
               ['outsource', 'Outsource'],
               ['deleted', 'Deleted'],
               ['approved', 'Approved'],
-              ['whatsapp_pending', 'Approved & Pending WhatsApp'],
               ['whatsapp_sent', 'WhatsApp Sent'],
             ] as const).map(([val, label]) => (
               <button key={val} type="button" onClick={()=>{setStatus(val as any); setPage(1)}} className={`rounded-md px-3 py-1.5 border text-xs ${status===val?'bg-sky-600 text-white border-sky-600':'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>{label}</button>
@@ -470,74 +489,108 @@ export default function Lab_Tracking() {
               <th className="px-4 py-2">Patient</th>
               <th className="px-4 py-2">Token No</th>
               <th className="px-4 py-2">Barcode</th>
+              <th className="px-4 py-2">Type</th>
               <th className="px-4 py-2">Test(s)</th>
-              <th className="px-4 py-2">Sample Time</th>
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2">Performed By</th>
               <th className="px-4 py-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {items.reduce((acc: any[], o) => {
+            {items.map((o) => {
               const token = o.tokenNo || o.id
-              if (Array.isArray(o.tests)) {
-                o.tests.forEach((t, idx) => {
-                  const tid = t.testId
-                  const tname = t.testName || tid || '—'
-                  const rowStatus = t.status
-                  const isReturned = t.isReturned || rowStatus === 'returned'
-                  
-                  acc.push(
-                    <tr key={`${o.id}-${tid}-${idx}`} className={`border-b border-slate-100 text-slate-700 hover:bg-slate-50/70 ${isReturned ? 'bg-rose-50/30' : ''}`}>
-                      <td className="px-4 py-2 whitespace-nowrap">{formatDateTime(o.createdAt)}</td>
-                      <td className="px-4 py-2 whitespace-nowrap">{o.patient.fullName}</td>
-                      <td className="px-4 py-2 whitespace-nowrap">{token}</td>
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        <div className="flex items-center gap-1 text-xs">
-                          <Barcode className="h-4 w-4 text-slate-400" />
-                          <span className="font-mono">{o.barcode || genBarcode(o)}</span>
-                        </div>
-                      </td>
-                      <td className={`px-4 py-2 ${isReturned ? 'line-through text-slate-400' : ''}`}>{tname}</td>
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        <input type="time" disabled={isReturned} value={t.sampleTime || ''} onChange={e=>setSampleTimeFor(o.id, String(tid), e.target.value)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-slate-900 disabled:opacity-50" />
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        <span className={`rounded-full px-2 py-0.5 text-xs ${
-                          rowStatus === 'completed' || rowStatus === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-                          rowStatus === 'result_entered' ? 'bg-orange-100 text-orange-700' :
-                          rowStatus === 'sample_collected' ? 'bg-blue-100 text-blue-700' :
-                          rowStatus === 'returned' ? 'bg-rose-100 text-rose-700' :
-                          rowStatus === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                          rowStatus === 'pending' ? 'bg-slate-100 text-slate-500' :
-                          'bg-slate-100 text-slate-700'
-                        }`}>{rowStatus}</span>
-                        {(o as any).sampleType === 'urgent' && <span className="ml-1 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">URG</span>}
-                        {(o as any).sampleType === 'stat' && <span className="ml-1 rounded bg-rose-700 px-1.5 py-0.5 text-[10px] font-bold text-white">STAT</span>}
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-600">{t.performedBy || '—'}</td>
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1">
-                          <button type="button" onClick={()=>printToken(o.id)} title="Print Token" className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"><Printer className="h-4 w-4" /></button>
-                          <button
-                            type="button"
-                            onClick={() => { setTrackTokenNo(token); setTrackOpen(true) }}
-                            title="Test Tracking"
-                            className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              const hasReturned = o.tests.some(t => t.isReturned || t.status === 'returned')
+              const allStatuses = o.tests.map(t => t.status || 'pending')
+              const overallStatus: string = allStatuses.includes('approved') || (allStatuses as string[]).includes('completed')
+                ? 'approved'
+                : allStatuses.includes('result_entered')
+                ? 'result_entered'
+                : allStatuses.includes('in_progress')
+                ? 'in_progress'
+                : allStatuses.includes('sample_collected')
+                ? 'sample_collected'
+                : allStatuses.includes('returned')
+                ? 'returned'
+                : 'pending'
+              return (
+                <tr key={o.id} className={`border-b border-slate-100 text-slate-700 hover:bg-slate-50/70 ${hasReturned ? 'bg-rose-50/30' : ''}`}>
+                  <td className="px-4 py-2 whitespace-nowrap">{formatDateTime(o.createdAt)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{o.patient.fullName}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{token}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    <div className="flex items-center gap-1 text-xs">
+                      <Barcode className="h-4 w-4 text-slate-400" />
+                      <span className="font-mono">{o.barcode || genBarcode(o)}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                      o.sampleType === 'urgent' ? 'bg-rose-100 text-rose-700' : 
+                      o.sampleType === 'stat' ? 'bg-orange-100 text-orange-700' : 
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {o.sampleType || 'normal'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {o.tests.map((t, idx) => {
+                        const tname = t.testName || t.testId || '—'
+                        const isReturned = t.isReturned || t.status === 'returned'
+                        const rowStatus = t.status
+                        return (
+                          <span key={`${t.testId}-${idx}`} className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold ${isReturned ? 'line-through bg-rose-100 text-rose-500' : ''}`}
+                            style={!isReturned ? {
+                              background: (rowStatus as string) === 'completed' || rowStatus === 'approved' ? '#ECFDF5' : rowStatus === 'result_entered' ? '#FFF7ED' : rowStatus === 'sample_collected' ? '#EFF6FF' : rowStatus === 'in_progress' ? '#FFFBEB' : '#F8FAFC',
+                              color: (rowStatus as string) === 'completed' || rowStatus === 'approved' ? '#065F46' : rowStatus === 'result_entered' ? '#C2410C' : rowStatus === 'sample_collected' ? '#1D4ED8' : rowStatus === 'in_progress' ? '#B45309' : '#475569',
+                            } : undefined}
                           >
-                            <Clock className="h-4 w-4" />
-                          </button>
-                          <button type="button" onClick={()=>openReceive(token)} title="Receive Payment" className="inline-flex items-center justify-center rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"><DollarSign className="h-4 w-4" /></button>
-                          {session.isMainLab && <button type="button" onClick={()=>openReturn(o.id, String(tid))} title="Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><RotateCcw className="h-4 w-4" /></button>}
-                          {session.isMainLab && <button type="button" onClick={()=>openUndo(o.id, String(tid))} title="Undo Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-violet-600 hover:bg-violet-50 hover:text-violet-700"><RotateCcw className="h-4 w-4" /></button>}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              }
-              return acc
-            }, [] as any[])}
+                            <FlaskConical className="h-3 w-3" />
+                            {tname}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${
+                      overallStatus === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                      overallStatus === 'result_entered' ? 'bg-orange-100 text-orange-700' :
+                      overallStatus === 'sample_collected' ? 'bg-blue-100 text-blue-700' :
+                      overallStatus === 'returned' ? 'bg-rose-100 text-rose-700' :
+                      overallStatus === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                      overallStatus === 'pending' ? 'bg-slate-100 text-slate-500' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>{overallStatus}</span>
+                    {(o as any).sampleType === 'urgent' && <span className="ml-1 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">URG</span>}
+                    {(o as any).sampleType === 'stat' && <span className="ml-1 rounded bg-rose-700 px-1.5 py-0.5 text-[10px] font-bold text-white">STAT</span>}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-600">{o.tests[0]?.performedBy || '—'}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1">
+                      <button type="button" onClick={()=>printToken(o.id)} title="Print Token" className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"><Printer className="h-4 w-4" /></button>
+                      <button
+                        type="button"
+                        onClick={() => { setTrackTokenNo(token); setTrackOpen(true) }}
+                        title="Test Tracking"
+                        className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      >
+                        <Clock className="h-4 w-4" />
+                      </button>
+                      <button type="button" onClick={()=>openReceive(token)} title="Receive Payment" className="inline-flex items-center justify-center rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"><DollarSign className="h-4 w-4" /></button>
+                      {session.isMainLab && o.tests.some(t => t.status === 'cancelled') && <button type="button" onClick={()=>openUndo(o.id, String(o.tests.find(t => t.status === 'cancelled')?.testId || ''))} title="Restore Rejected" className="inline-flex items-center justify-center rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"><RotateCcw className="h-4 w-4" /></button>}
+                      {session.isMainLab && o.tests.some(t => !t.isReturned && t.status !== 'returned' && t.status !== 'cancelled') && (
+                        <>
+                          <button type="button" onClick={()=>openReturn(o.id, String(o.tests.find(t => !t.isReturned && t.status !== 'returned' && t.status !== 'cancelled')?.testId || ''))} title="Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"><RotateCcw className="h-4 w-4" /></button>
+                          <button type="button" onClick={()=>openReject(o.id, String(o.tests.find(t => !t.isReturned && t.status !== 'returned' && t.status !== 'cancelled')?.testId || ''))} title="Reject Sample" className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>
+                        </>
+                      )}
+                      {session.isMainLab && o.tests.some(t => t.isReturned || t.status === 'returned') && <button type="button" onClick={()=>openUndo(o.id, String(o.tests.find(t => t.isReturned || t.status === 'returned')?.testId || ''))} title="Undo Return" className="inline-flex items-center justify-center rounded-md p-1.5 text-violet-600 hover:bg-violet-50 hover:text-violet-700"><RotateCcw className="h-4 w-4" /></button>}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
         {orders.length === 0 && (

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { z } from 'zod'
-import { AestheticFinanceJournal } from '../models/FinanceJournal'
+import { FinanceJournal } from '../../finance/models/FinanceJournal'
 import { createDoctorPayout, manualDoctorEarning, computeDoctorBalance, reverseJournalById } from './finance_ledger'
 import { AuditLog } from '../models/AuditLog'
 import { AestheticDoctor } from '../models/Doctor'
@@ -13,7 +13,7 @@ function getActor(req: Request){
 const manualDoctorEarningSchema = z.object({
   doctorId: z.string().min(1),
   amount: z.number().positive(),
-  revenueAccount: z.enum(['OPD_REVENUE','PROCEDURE_REVENUE','IPD_REVENUE']).optional(),
+  revenueAccount: z.enum(['AESTHETIC_REVENUE','PROCEDURE_REVENUE']).optional(),
   paidMethod: z.enum(['Cash','Bank','AR']).optional(),
   memo: z.string().optional(),
   patientName: z.string().optional(),
@@ -56,8 +56,8 @@ export async function listDoctorEarnings(req: Request, res: Response){
   const matchDate = (from && to) ? { dateIso: { $gte: from, $lte: to } } : {}
   const matchDoctor = doctorId ? { 'lines.tags.doctorId': String(doctorId) } : {}
 
-  const rows = await AestheticFinanceJournal.aggregate([
-    { $match: { ...matchDate } },
+  const rows = await FinanceJournal.aggregate([
+    { $match: { ...matchDate, module: 'aesthetic' } },
     {
       $facet: {
         earnings: [
@@ -65,9 +65,9 @@ export async function listDoctorEarnings(req: Request, res: Response){
           { $unwind: '$lines' },
           { $match: { 'lines.account': 'DOCTOR_PAYABLE', 'lines.credit': { $gt: 0 }, ...(doctorId? matchDoctor : {}) } },
           { $lookup: {
-              from: 'aesthetic_finance_journals',
+              from: 'hospital_finance_journals',
               let: { origId: '$_id' },
-              pipeline: [ { $match: { $expr: { $eq: ['$refId', { $toString: '$$origId' }] } } } ],
+              pipeline: [ { $match: { $expr: { $eq: ['$refId', { $toString: '$$origId' }] }, module: 'aesthetic' } } ],
               as: 'reversals'
             }
           },
@@ -75,10 +75,10 @@ export async function listDoctorEarnings(req: Request, res: Response){
           { $match: { _revCount: { $eq: 0 } } },
           { $addFields: { _tidStr: { $toString: '$lines.tags.tokenId' } } },
           { $lookup: {
-              from: 'aesthetic_finance_journals',
+              from: 'hospital_finance_journals',
               let: { tidStr: '$_tidStr' },
               pipeline: [
-                { $match: { $expr: { $and: [ { $eq: ['$refType','opd_token_reversal'] }, { $eq: ['$refId','$$tidStr'] } ] } } },
+                { $match: { $expr: { $and: [ { $eq: ['$refType','aesthetic_opd_token_reversal'] }, { $eq: ['$refId','$$tidStr'] } ] }, module: 'aesthetic' } },
                 { $sort: { createdAt: -1 } },
                 { $limit: 1 },
               ],
@@ -120,14 +120,14 @@ export async function listDoctorEarnings(req: Request, res: Response){
           },
         ],
         payouts: [
-          { $match: { refType: 'doctor_payout', ...(doctorId ? { refId: String(doctorId) } : {}) } },
+          { $match: { refType: 'aesthetic_doctor_payout', module: 'aesthetic', ...(doctorId ? { refId: String(doctorId) } : {}) } },
           { $addFields: { allLines: '$lines' } },
           { $unwind: '$lines' },
           { $match: { 'lines.account': 'DOCTOR_PAYABLE', 'lines.debit': { $gt: 0 } } },
           { $lookup: {
-              from: 'aesthetic_finance_journals',
+              from: 'hospital_finance_journals',
               let: { origId: '$_id' },
-              pipeline: [ { $match: { $expr: { $eq: ['$refId', { $toString: '$$origId' }] } } } ],
+              pipeline: [ { $match: { $expr: { $eq: ['$refId', { $toString: '$$origId' }] }, module: 'aesthetic' } } ],
               as: 'reversals'
             }
           },
@@ -216,7 +216,7 @@ export async function getDoctorBalance(req: Request, res: Response){
 export async function listDoctorPayouts(req: Request, res: Response){
   const id = String(req.params.id)
   const limit = Math.min(parseInt(String((req.query as any)?.limit || '20')) || 20, 100)
-  const rows = await AestheticFinanceJournal.find({ refType: 'doctor_payout', refId: id }).sort({ createdAt: -1 }).limit(limit).lean()
+  const rows = await FinanceJournal.find({ refType: 'aesthetic_doctor_payout', refId: id, module: 'aesthetic' }).sort({ createdAt: -1 }).limit(limit).lean()
   const items = rows.map((j: any) => {
     const cash = (j.lines || [])
       .filter((l: any) => l.account === 'CASH' || l.account === 'BANK')
@@ -231,7 +231,7 @@ export async function listDoctorPayouts(req: Request, res: Response){
 
 export async function listRecentPayouts(req: Request, res: Response){
   const limit = Math.min(parseInt(String((req.query as any)?.limit || '20')) || 20, 100)
-  const rows = await AestheticFinanceJournal.find({ refType: 'doctor_payout' }).sort({ createdAt: -1 }).limit(limit).lean()
+  const rows = await FinanceJournal.find({ refType: 'aesthetic_doctor_payout', module: 'aesthetic' }).sort({ createdAt: -1 }).limit(limit).lean()
   const items = rows.map((j: any) => {
     const cash = (j.lines || [])
       .filter((l: any) => l.account === 'CASH' || l.account === 'BANK')
@@ -245,7 +245,8 @@ export async function listRecentPayouts(req: Request, res: Response){
 }
 
 export async function payablesSummary(_req: Request, res: Response){
-  const rows: any[] = await AestheticFinanceJournal.aggregate([
+  const rows: any[] = await FinanceJournal.aggregate([
+    { $match: { module: 'aesthetic' } },
     { $unwind: '$lines' },
     { $match: { 'lines.account': 'DOCTOR_PAYABLE' } },
     { $group: { _id: null, credits: { $sum: { $ifNull: ['$lines.credit', 0] } }, debits: { $sum: { $ifNull: ['$lines.debit', 0] } } } },

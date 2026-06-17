@@ -28,7 +28,28 @@ export async function list(req: Request, res: Response) {
     LabPatientCard.find(filter).sort({ createdAt: -1 }).skip((pg - 1) * lim).limit(lim).lean(),
     LabPatientCard.countDocuments(filter),
   ])
-  res.json({ items, total, page: pg, totalPages: Math.max(1, Math.ceil(total / lim)) })
+
+  const patientIds = items.map(i => i.patientId).filter(Boolean)
+  const patients = await LabPatient.find({ _id: { $in: patientIds } }).lean()
+  const patientMap = new Map(patients.map(p => [String(p._id), p]))
+
+  const enrichedItems = items.map(item => {
+    const p = patientMap.get(String(item.patientId))
+    return {
+      ...item,
+      patientName: p?.fullName || '',
+      mrn: p?.mrn || '',
+      hospitalRegistrationNumber: p?.hospitalRegistrationNumber || '',
+      patientImageUrl: p?.patientImageUrl || '',
+      phone: p?.phoneNormalized || '',
+      cnic: p?.cnicNormalized || '',
+      bloodGroup: p?.bloodGroup || '',
+      gender: p?.gender || '',
+      age: p?.age || '',
+    }
+  })
+
+  res.json({ items: enrichedItems, total, page: pg, totalPages: Math.max(1, Math.ceil(total / lim)) })
 }
 
 export async function get(req: Request, res: Response) {

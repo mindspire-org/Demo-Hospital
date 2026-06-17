@@ -1,9 +1,10 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Lab_Sidebar from '../../components/lab/lab_Sidebar'
 import Lab_Header from '../../components/lab/lab_Header'
 
 export default function Lab_Layout() {
+  const location = useLocation()
   const [collapsed, setCollapsed] = useState<boolean>(()=>{
     try { return localStorage.getItem('lab.sidebar.collapsed') === '1' } catch { return false }
   })
@@ -61,17 +62,22 @@ export default function Lab_Layout() {
       const labSession = localStorage.getItem('lab.session')
       const receptionSession = localStorage.getItem('reception.session')
       const labToken = localStorage.getItem('lab.token')
-      if ((!labSession && !receptionSession) || !labToken) navigate('/lab/login')
+      if ((!labSession && !receptionSession) || !labToken) {
+        try { sessionStorage.setItem('lab.redirect', location.pathname + location.search) } catch {}
+        navigate('/lab/login')
+      }
     } catch {
       navigate('/lab/login')
     }
-  }, [navigate])
+  }, [navigate, location.pathname])
   const shell = theme === 'dark' ? 'h-dvh bg-slate-900 text-slate-100' : 'h-dvh bg-white text-slate-900'
   return (
     <div className={theme === 'dark' ? 'lab-scope dark' : 'lab-scope'}>
       <div className={shell}>
-        <div className="sticky top-0 z-20 w-full border-b border-slate-200/80 bg-white/80 shadow-sm backdrop-blur-md dark:border-slate-700 dark:bg-slate-900">
-          <Lab_Header onToggleSidebar={toggle} onToggleTheme={toggleTheme} theme={theme} />
+        <div className="sticky top-0 z-20 w-full md:border-b border-slate-200" style={{ background: '#f1f5f9' }}>
+          <div className="flex h-14">
+            <Lab_Header onToggleSidebar={toggle} onToggleTheme={toggleTheme} theme={theme} variant="default" />
+          </div>
         </div>
 
         <div className="flex">

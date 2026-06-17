@@ -165,7 +165,7 @@ export default function Store_IssueModal({ isOpen, onClose, onSuccess, editIssue
       setLoading(true)
       try {
         const [depRes, itemRes] = await Promise.all([
-          hospitalApi.listDepartments() as any,
+          hospitalApi.listDepartments({ limit: 1000 }) as any,
           hospitalApi.listStoreInventory({ limit: 10000 }) as any,
         ])
         if (!cancelled) {

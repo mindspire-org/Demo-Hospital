@@ -10,7 +10,7 @@
  * - KPIs
  */
 
-import { api, withQuery } from '@/api'
+import { api, withQuery } from '../../../api'
 import { equipmentSupplierApi } from './api/equipmentSupplier.api'
 
 export const equipmentApi = {
@@ -24,7 +24,7 @@ export const equipmentApi = {
   updateEquipment: (id: string, data: any) => api(`/hospital/equipment/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteEquipment: (id: string) => api(`/hospital/equipment/${id}`, { method: 'DELETE' }),
 
-  listDepartments: () => api('/hospital/departments'),
+  listDepartments: (params?: { limit?: number }) => api(withQuery('/hospital/departments', params)),
 
   // -------------------------------------------------------------------------
   // Equipment Maintenance (Unified: PPM, Calib, Repair)

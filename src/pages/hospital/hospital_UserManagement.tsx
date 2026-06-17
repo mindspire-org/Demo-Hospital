@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
-import { hospitalApi, financeApi } from '../../utils/api'
+import { hospitalApi } from '../../utils/api'
 import { fmt12 } from '../../utils/timeFormat'
+import { 
+  Users, 
+  UserPlus, 
+  ShieldCheck, 
+  Trash2, 
+  Edit, 
+  Clock, 
+  AlertCircle,
+  Plus,
+  Search
+} from 'lucide-react'
 
 type Shift = { _id: string; name: string; start: string; end: string }
 type User = { _id: string; username: string; role: string; shiftId?: string; shiftRestricted?: boolean }
@@ -14,7 +25,6 @@ export default function Hospital_UserManagement() {
   const [newUsername, setNewUsername] = useState('')
   const [newRole, setNewRole] = useState<string>('staff')
   const [newPassword, setNewPassword] = useState('')
-  const [createFinanceAccount, setCreateFinanceAccount] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<{ _id: string; username: string; role: string; shiftId?: string; shiftRestricted?: boolean; password?: string } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -22,6 +32,7 @@ export default function Hospital_UserManagement() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [addUserError, setAddUserError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -67,22 +78,8 @@ export default function Hospital_UserManagement() {
       const created = await hospitalApi.createHospitalUser({ username: newUsername.trim(), password: newPassword, role: newRole }) as any
       const u = created?.user || created
       
-      // Create finance account if checkbox is checked
-      if (createFinanceAccount && u?._id) {
-        try {
-          await financeApi.createUserAccount({
-            portal: 'hospital',
-            userId: String(u._id),
-            username: u.username
-          })
-        } catch (e) {
-          console.error('Failed to create finance account:', e)
-        }
-      }
-      
       if (u) setUsers(prev => [...prev, { _id: String(u._id || u.id), username: u.username, role: u.role }])
       setNewUsername(''); setNewPassword(''); setNewRole(roles[0] || 'staff')
-      setCreateFinanceAccount(false)
       setNotice({ text: 'User added', kind: 'success' })
       try { setTimeout(()=> setNotice(null), 2500) } catch {}
     } catch (e: any) {
@@ -154,185 +151,340 @@ export default function Hospital_UserManagement() {
     } finally { setCreatingRole(false) }
   }
 
+  const filteredUsers = users.filter(u => 
+    u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    u.role.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-indigo-500/30 via-fuchsia-300/30 to-cyan-300/30 p-6">
-      <div className="mx-auto w-full max-w-7xl rounded-xl bg-white p-6 shadow">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="text-xl font-bold text-slate-800">User Management</div>
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${loading? 'border-slate-200 bg-white text-slate-600':'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-            <span className={`h-2 w-2 rounded-full ${loading? 'bg-slate-400':'bg-emerald-500'}`} />
-            {loading? 'Loading…' : `${users.length} user${users.length===1?'':'s'}`}
+    <div className="min-h-[70dvh] space-y-6 p-4 max-w-[1600px] mx-auto">
+      {/* Header & Stats */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">User Management</h1>
+          <p className="text-slate-500 text-sm">Manage system access, roles, and shift restrictions</p>
+        </div>
+        <div className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm transition-all ${loading ? 'border-slate-200 bg-white text-slate-400' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}`}>
+          <div className={`h-2 w-2 rounded-full ${loading ? 'bg-slate-300 animate-pulse' : 'bg-emerald-500'}`} />
+          {loading ? 'Refreshing...' : `${users.length} Total Users`}
+        </div>
+      </div>
+
+      {notice && (
+        <div className={`animate-in fade-in slide-in-from-top-4 duration-300 rounded-xl border px-4 py-3 shadow-md flex items-center gap-3 ${notice.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+          {notice.kind === 'success' ? <ShieldCheck className="h-5 w-5 text-emerald-500" /> : <AlertCircle className="h-5 w-5 text-rose-500" />}
+          <span className="font-medium">{notice.text}</span>
+        </div>
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
+        {/* Left Column: User List */}
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input 
+              type="text"
+              placeholder="Search by username or role..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 shadow-sm transition-all"
+            />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase tracking-wider text-[11px] font-bold">
+                  <tr>
+                    <th className="px-6 py-4">User</th>
+                    <th className="px-6 py-4">Role & Access</th>
+                    <th className="px-6 py-4">Shift Details</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredUsers.map(u => {
+                    const assignedShift = shifts.find(s => s._id === u.shiftId)
+                    return (
+                      <tr key={u._id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-11 w-11 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-inner bg-gradient-to-br from-blue-500 to-indigo-600">
+                              {(u.username||'U').slice(0,1).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-800 text-base">{u.username}</div>
+                              <div className="text-[10px] font-mono text-slate-400">UUID: {String(u._id).slice(-8)}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tight bg-slate-100 text-slate-700 border border-slate-200">
+                            <ShieldCheck className="h-3 w-3" />
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {assignedShift ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                                <Clock className="h-3 w-3 text-blue-500" />
+                                {assignedShift.name}
+                              </div>
+                              <div className="text-xs text-slate-500 font-medium">
+                                {fmt12(assignedShift.start)} — {fmt12(assignedShift.end)}
+                              </div>
+                              {u.shiftRestricted && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase bg-amber-100 text-amber-700 border border-amber-200">
+                                  Restricted
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 italic text-xs">No shift assigned</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2 transition-opacity">
+                            <button 
+                              onClick={()=>setEditing({ _id: u._id, username: u.username, role: u.role, shiftId: u.shiftId, shiftRestricted: u.shiftRestricted })}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Edit User"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={()=>{ setDeleteId(u._id); setDeleteOpen(true) }}
+                              className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Delete User"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {filteredUsers.length === 0 && !loading && (
+                    <tr>
+                      <td className="px-6 py-12 text-center" colSpan={4}>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="p-3 bg-slate-50 rounded-full">
+                            <Users className="h-6 w-6 text-slate-300" />
+                          </div>
+                          <p className="text-slate-400 font-medium">No users found matching your search</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        {notice && (
-          <div className={`mb-4 rounded-md border px-3 py-2 text-sm ${notice.kind==='success'? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>{notice.text}</div>
-        )}
-
-        <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-          <div className="rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-              <div className="text-sm font-semibold text-slate-800">All Users</div>
+        {/* Right Column: Creation Forms */}
+        <div className="space-y-8">
+          {/* Create Role Card */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-2 bg-slate-100 rounded-lg">
+                <ShieldCheck className="h-5 w-5 text-slate-600" />
+              </div>
+              <h3 className="font-bold text-slate-800">System Roles</h3>
             </div>
-            <div className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
-                    <tr>
-                      <th className="px-5 py-3 text-[13px] font-extrabold uppercase tracking-wider">User</th>
-                      <th className="px-5 py-3 text-[13px] font-extrabold uppercase tracking-wider">Role</th>
-                      <th className="px-5 py-3 text-[13px] font-extrabold uppercase tracking-wider">Shift</th>
-                      <th className="px-5 py-3 text-[13px] font-extrabold uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 text-slate-800">
-                    {users.map(u => {
-                      const assignedShift = shifts.find(s => s._id === u.shiftId)
-                      return (
-                        <tr key={u._id} className="hover:bg-slate-50/70">
-                          <td className="px-5 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-sm font-semibold text-slate-800 ring-1 ring-slate-200">
-                                {(u.username||'U').slice(0,1).toUpperCase()}
-                              </div>
-                              <div>
-                                <div className="font-semibold text-slate-900">{u.username}</div>
-                                <div className="text-xs text-slate-500">ID: {String(u._id).slice(-6)}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3"><span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{u.role}</span></td>
-                          <td className="px-5 py-3">
-                            <div className="text-xs">
-                              {assignedShift ? (
-                                <div>
-                                  <div className="font-medium text-slate-700">{assignedShift.name}</div>
-                                  <div className="text-slate-500">{fmt12(assignedShift.start)}-{fmt12(assignedShift.end)}</div>
-                                  {u.shiftRestricted && <span className="mt-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200">Restricted</span>}
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 italic">No shift</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-5 py-3">
-                            <div className="flex flex-wrap gap-2">
-                              <button onClick={()=>setEditing({ _id: u._id, username: u.username, role: u.role, shiftId: u.shiftId, shiftRestricted: u.shiftRestricted })} className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700">Edit</button>
-                              <button onClick={()=>{ setDeleteId(u._id); setDeleteOpen(true) }} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Delete</button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                    {users.length===0 && !loading && (
-                      <tr><td className="px-5 py-8 text-center text-slate-500" colSpan={4}>No users yet.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2 mb-4">
+                {roles.map(r => (
+                  <span key={r} className="px-2.5 py-1 bg-slate-50 text-slate-600 text-[11px] font-bold rounded-md border border-slate-100 uppercase">
+                    {r}
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input 
+                  value={newRoleName} 
+                  onChange={e=>setNewRoleName(e.target.value)} 
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all" 
+                  placeholder="New role name..." 
+                />
+                <button 
+                  type="button" 
+                  onClick={createRole} 
+                  disabled={creatingRole || !newRoleName.trim()} 
+                  className="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all disabled:opacity-30"
+                >
+                  {creatingRole ? <Plus className="h-4 w-4 animate-spin" /> : 'Add'}
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <div className="text-sm font-semibold text-slate-800">Create Role</div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
-                <input value={newRoleName} onChange={e=>setNewRoleName(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. ward-admin" />
-                <button type="button" onClick={createRole} disabled={creatingRole || !newRoleName.trim()} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black/90 disabled:opacity-50">{creatingRole? 'Creating…' : 'Create'}</button>
+          {/* Add User Card */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <UserPlus className="h-5 w-5 text-blue-600" />
               </div>
+              <h3 className="font-bold text-slate-800">Add New User</h3>
             </div>
+            
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">Username</label>
+                <input 
+                  value={newUsername} 
+                  onChange={e=>setNewUsername(e.target.value)} 
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all" 
+                  placeholder="Login identifier" 
+                />
+              </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <div className="text-sm font-semibold text-slate-800">Add New User</div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)_auto]">
-                <input value={newUsername} onChange={e=>setNewUsername(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Username" />
-                <select value={newRole} onChange={e=>setNewRole(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[140px]">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">Access Level</label>
+                <select 
+                  value={newRole} 
+                  onChange={e=>setNewRole(e.target.value)} 
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all appearance-none bg-white"
+                >
                   {(roles||[]).map(r=> <option key={r} value={r}>{r}</option>)}
                 </select>
-                <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Password (min 4 chars)" />
-                <label className="flex items-center gap-2 cursor-pointer sm:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={createFinanceAccount}
-                    onChange={e => setCreateFinanceAccount(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-slate-700">Create Finance Account</span>
-                </label>
-                <button onClick={addUser} className="rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">Add User</button>
-                {addUserError && <div className="sm:col-span-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{addUserError}</div>}
               </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">Password</label>
+                <input 
+                  type="password" 
+                  value={newPassword} 
+                  onChange={e=>setNewPassword(e.target.value)} 
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all" 
+                  placeholder="Min 4 characters" 
+                />
+              </div>
+
+              <button 
+                onClick={addUser} 
+                className="w-full mt-2 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2"
+              >
+                <UserPlus className="h-4 w-4" />
+                Create Account
+              </button>
+
+              {addUserError && (
+                <div className="p-3 rounded-xl border border-rose-100 bg-rose-50 text-[11px] text-rose-700 font-medium flex gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {addUserError}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
+      {/* Edit Modal */}
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-            <div className="px-5 py-3 text-base font-semibold text-white" style={{ background: 'linear-gradient(90deg, #0284c7, #2563eb)' }}>Edit User</div>
-            <div className="space-y-3 p-5">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Username</label>
-                <input value={editing.username} onChange={e=>setEditing(prev=> prev? { ...prev, username: e.target.value } : prev)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
+              <h3 className="font-bold text-slate-800">Edit User Profile</h3>
+              <button onClick={()=>setEditing(null)} className="p-1 hover:bg-white rounded-full transition-colors text-slate-400">
+                <Plus className="h-5 w-5 rotate-45" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">Username</label>
+                <input value={editing.username} onChange={e=>setEditing(prev=> prev? { ...prev, username: e.target.value } : prev)} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none" />
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Role</label>
-                <select value={editing.role} onChange={e=>setEditing(prev=> prev? { ...prev, role: e.target.value } : prev)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">System Role</label>
+                <select value={editing.role} onChange={e=>setEditing(prev=> prev? { ...prev, role: e.target.value } : prev)} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm appearance-none bg-white">
                   {(roles||[]).map(r=> <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">New Password</label>
-                <input type="password" value={editing.password || ''} onChange={e=>setEditing(prev=> prev? { ...prev, password: e.target.value } : prev)} placeholder="Leave blank to keep current" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">Reset Password</label>
+                <input type="password" value={editing.password || ''} onChange={e=>setEditing(prev=> prev? { ...prev, password: e.target.value } : prev)} placeholder="Keep blank to remain unchanged" className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm" />
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Assigned Shift</label>
+
+              <div className="space-y-1.5 pt-2 border-t border-slate-50">
+                <label className="text-[11px] font-bold text-slate-500 uppercase ml-1 flex items-center gap-1.5">
+                  <Clock className="h-3 w-3" />
+                  Duty Shift Assignment
+                </label>
                 <select 
                   value={editing.shiftId || ''} 
                   onChange={e=>setEditing(prev=> prev? { ...prev, shiftId: e.target.value || undefined } : prev)} 
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm appearance-none bg-white"
                 >
-                  <option value="">No shift (no restriction)</option>
+                  <option value="">No shift (Unrestricted access)</option>
                   {shifts.map(s => (
                     <option key={s._id} value={s._id}>{s.name} ({fmt12(s.start)}-{fmt12(s.end)})</option>
                   ))}
                 </select>
               </div>
-              <div className="flex items-center gap-2 pt-1">
+
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/50 cursor-pointer group hover:border-amber-200 transition-colors">
                 <input 
                   type="checkbox" 
-                  id="shiftRestricted"
                   checked={!!editing.shiftRestricted} 
                   onChange={e=>setEditing(prev=> prev? { ...prev, shiftRestricted: e.target.checked } : prev)}
-                  className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 />
-                <label htmlFor="shiftRestricted" className="text-sm font-medium text-slate-700">
-                  Restrict login to shift timing only
-                </label>
-              </div>
+                <div>
+                  <div className="text-sm font-bold text-slate-700">Strict Shift Timing</div>
+                  <div className="text-[10px] text-slate-500">Prevent login outside of assigned hours</div>
+                </div>
+              </label>
+
               {editing.shiftRestricted && !editing.shiftId && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Warning: Shift restriction is enabled but no shift is assigned. User will not be able to login.
+                <div className="p-3 rounded-xl border border-amber-100 bg-amber-50 text-[11px] text-amber-700 flex gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  Crucial: Assign a shift before enabling timing restrictions.
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-              <button type="button" onClick={()=>setEditing(null)} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
-              <button type="button" onClick={saveEdit} disabled={savingEdit} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black/90 disabled:opacity-50">{savingEdit? 'Saving…' : 'Save'}</button>
+
+            <div className="px-6 py-4 bg-slate-50/50 flex items-center justify-end gap-3">
+              <button type="button" onClick={()=>setEditing(null)} className="px-5 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
+              <button 
+                type="button" 
+                onClick={saveEdit} 
+                disabled={savingEdit} 
+                className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all disabled:opacity-30 shadow-md"
+              >
+                {savingEdit ? 'Updating...' : 'Update User'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Delete Confirmation */}
       {deleteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-            <div className="border-b border-slate-200 px-5 py-3 text-base font-semibold text-slate-800">Confirm Delete</div>
-            <div className="px-5 py-4 text-sm text-slate-700">Delete this user?</div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-              <button onClick={()=>{ setDeleteOpen(false); setDeleteId(null) }} className="btn-outline-navy">Cancel</button>
-              <button onClick={performDelete} className="btn bg-rose-600 hover:bg-rose-700">Delete</button>
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm rounded-[32px] bg-white shadow-2xl p-8 text-center animate-in zoom-in-95 duration-200">
+            <div className="mx-auto w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-5">
+              <Trash2 className="h-8 w-8 text-rose-500" />
+            </div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">Delete User?</h3>
+            <p className="text-slate-500 mb-8 text-sm leading-relaxed">This will permanently remove access for this user. This action cannot be undone.</p>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={()=>{ setDeleteOpen(false); setDeleteId(null) }} 
+                className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-colors"
+              >
+                Keep User
+              </button>
+              <button 
+                onClick={performDelete} 
+                className="flex-1 py-3 bg-rose-600 text-white rounded-2xl font-bold hover:bg-rose-700 shadow-lg shadow-rose-200 transition-all"
+              >
+                Confirm Delete
+              </button>
             </div>
           </div>
         </div>

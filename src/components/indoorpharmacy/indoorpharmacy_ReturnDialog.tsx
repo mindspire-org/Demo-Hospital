@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { pharmacyApi } from '../../utils/api'
+import { indoorPharmacyApi } from '../../utils/api'
 
 type SaleLine = { medicineId?: string; name: string; unitPrice: number; qty: number }
 type Sale = { billNo: string; datetime: string; customer?: string; customerPhone?: string; payment: 'Cash'|'Card'|'Credit'; discountPct?: number; lines: SaleLine[] }
@@ -36,10 +36,10 @@ export default function Pharmacy_ReturnDialog({ open, onClose, sale, onSubmitted
     })
     if (!retLines.length){ onClose(); return }
     const body = { type: 'Customer', datetime: new Date().toISOString(), reference: sale.billNo, party: sale.customer || 'Walk-in', phone: sale.customerPhone || '', discountPct: Number(discountPct||0), lines: retLines }
-    const res = await pharmacyApi.createReturn(body)
+    const res = await indoorPharmacyApi.createReturn(body)
     const retDoc = (res?.return) || res
     onSubmitted({ sale: res?.sale || null, returnDoc: retDoc })
-    try { window.dispatchEvent(new CustomEvent('pharmacy:return', { detail: { reference: sale.billNo } })) } catch {}
+    try { window.dispatchEvent(new CustomEvent('indoor-pharmacy:return', { detail: { reference: sale.billNo } })) } catch {}
   }
 
   if (!open || !sale) return null

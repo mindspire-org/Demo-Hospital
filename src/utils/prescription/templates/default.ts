@@ -2,7 +2,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { PrescriptionPdfData } from '../../prescriptionPdf'
 import { ensurePoppins } from '../ensurePoppins'
-import { ensureUrduNastaleeq } from '../ensureUrduNastaleeq'
+import { ensureUrduNastaleeq, drawUrduText } from '../ensureUrduNastaleeq'
 
 export async function buildRxDefault(data: PrescriptionPdfData){
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true })
@@ -10,7 +10,7 @@ export async function buildRxDefault(data: PrescriptionPdfData){
   const pageHeight = pdf.internal.pageSize.getHeight()
 
   await ensurePoppins(pdf)
-  await ensureUrduNastaleeq(pdf)
+  const urduOk = await ensureUrduNastaleeq(pdf)
   try { pdf.setFont('Poppins', 'normal') } catch {}
   // Header bar with centered hospital logo + info
   const headerH = 18
@@ -224,12 +224,11 @@ export async function buildRxDefault(data: PrescriptionPdfData){
       5: { halign: 'right' },
     },
     didParseCell: (d) => {
-      // Instruction column: render Urdu in Nastaleeq when the font is available.
+      // Instruction column: RTL align for Urdu text
       if (d.section === 'body' && d.column.index === 5) {
         const txt = String(d.cell.raw || '')
         const hasUrdu = /[\u0600-\u06FF]/.test(txt)
         if (hasUrdu) {
-          try { (d.cell.styles as any).font = 'AlQalamTajNastaleeq' } catch {}
           ;(d.cell.styles as any).halign = 'right'
         }
       }
@@ -239,8 +238,8 @@ export async function buildRxDefault(data: PrescriptionPdfData){
   // Urdu instructions box (ہدایت)
   try {
     const lastY = Number((pdf as any).lastAutoTable?.finalY || y) + 8
-    const urdu = String(data.advice || '').trim()
-    if (urdu) {
+    const urduAdvice = String(data.advice || '').trim()
+    if (urduAdvice && urduOk) {
       const boxY = Math.min(lastY, pageHeight - 42)
       const boxH = 30
       pdf.setFillColor(254, 242, 242)
@@ -249,14 +248,11 @@ export async function buildRxDefault(data: PrescriptionPdfData){
 
       pdf.setTextColor(185, 28, 28)
       pdf.setFontSize(14)
-      try { pdf.setFont('AlQalamTajNastaleeq', 'normal') } catch { try { pdf.setFont('Poppins', 'bold') } catch {} }
-      pdf.text('ہدایت', pageWidth - 16, boxY + 9, { align: 'right' })
+      drawUrduText(pdf, 'ہدایت', pageWidth - 16, boxY + 9, { align: 'right' })
 
       pdf.setTextColor(15, 23, 42)
       pdf.setFontSize(12)
-      try { pdf.setFont('AlQalamTajNastaleeq', 'normal') } catch { try { pdf.setFont('Poppins', 'normal') } catch {} }
-      const lines = pdf.splitTextToSize(urdu, pageWidth - 36)
-      pdf.text(lines.slice(0, 3), pageWidth - 16, boxY + 20, { align: 'right' })
+      drawUrduText(pdf, urduAdvice, pageWidth - 16, boxY + 20, { align: 'right' })
     }
   } catch {}
 

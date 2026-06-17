@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { labApi } from '../../utils/api'
 import Lab_StaffReportDialog from '../../components/lab/lab_StaffReportDialog'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 type Staff = { id: string; name: string; position?: string; shiftId?: string; salary?: number }
 type Attendance = { id?: string; staffId: string; date: string; shiftId?: string; status: 'present'|'absent'|'leave'; clockIn?: string; clockOut?: string; notes?: string }
@@ -9,7 +10,7 @@ function toMinutes(hm?: string){ if(!hm) return 0; const [h,m] = (hm||'').split(
 function fmtHours(min: number){ const h = Math.floor(min/60); const m = Math.round(min%60); return `${h}h ${m}m` }
 function nowTime(){ const d=new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` }
 
-export default function Pharmacy_StaffMonthly(){
+export default function Lab_StaffMonthly(){
   const [month, setMonth] = useState<string>(new Date().toISOString().slice(0,7))
   const [selectedStaffId, setSelectedStaffId] = useState<string>('')
   const [reportOpen, setReportOpen] = useState(false)
@@ -123,9 +124,12 @@ export default function Pharmacy_StaffMonthly(){
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-sm text-slate-700">Staff</label>
-            <select value={selectedStaffId} onChange={e=>setSelectedStaffId(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[220px]">
-              {staff.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
-            </select>
+            <SearchableSelect
+              value={selectedStaffId} 
+              onChange={setSelectedStaffId} 
+              options={staff.map(s => ({ value: s.id, label: s.name }))}
+              className="min-w-[220px]"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-700">Month</label>
