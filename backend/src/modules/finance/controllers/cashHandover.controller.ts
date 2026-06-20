@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { CashHandover, CashHandoverDoc } from '../models/CashHandover'
 import { ChartOfAccount } from '../models/ChartOfAccount'
 import { FinanceJournal, JournalLine } from '../models/FinanceJournal'
+import { logActivity } from '../services/activityLog.service'
 
 function todayIso() {
   const now = new Date()
@@ -47,6 +48,22 @@ export async function create(req: Request, res: Response) {
     status: 'pending',
     notes,
   })
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: handoverBy,
+      portal: 'finance',
+      action: 'Cash Handover Requested',
+      module: 'Handover',
+      entityId: String(handover._id),
+      entityLabel: `Handover ${fromAccountId} → ${toAccountId}`,
+      amount: Number(handover.amount || 0),
+      method: 'Cash',
+      meta: { fromAccountId, toAccountId, shiftId: shiftId || '', shiftName: shiftName || '', notes: notes || '' }
+    })
+  } catch {}
 
   res.status(201).json(handover)
 }
@@ -130,6 +147,22 @@ export async function approve(req: Request, res: Response) {
   handover.journalId = journal._id
   handover.receivedBy = approvedBy
   await handover.save()
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: approvedBy,
+      portal: 'finance',
+      action: 'Cash Handover Approved',
+      module: 'Handover',
+      entityId: String(handover._id),
+      entityLabel: `Handover ${fromAccount.name} → ${toAccount.name}`,
+      amount: Number(handover.amount || 0),
+      method: 'Cash',
+      meta: { fromAccountCode: fromAccount.code, toAccountCode: toAccount.code, journalId: String(journal._id), shiftName: handover.shiftName || '' }
+    })
+  } catch {}
 
   res.json({ handover, journal })
 }

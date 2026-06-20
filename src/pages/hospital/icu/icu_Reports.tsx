@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../../utils/api'
-import { ArrowLeft, FileText, BarChart3, Users, Bed, Activity, AlertCircle, Calendar, Download, TrendingUp, Wind, Clock } from 'lucide-react'
+import { ArrowLeft, FileText, BarChart3, Users, Bed, Activity, AlertCircle, Calendar, Download, TrendingUp, Wind, Clock, Printer } from 'lucide-react'
+import { fmtDateTime12 } from '../../../utils/timeFormat'
+
+function escHtml(v: any){ return String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'} as any)[c]||c) }
 
 export default function ICU_Reports() {
   const navigate = useNavigate()
@@ -45,6 +48,103 @@ export default function ICU_Reports() {
     a.click()
   }
 
+  async function exportPdf() {
+    if (!stats) return
+    const s: any = await hospitalApi.getSettings().catch(()=>({}))
+    const hospital = {
+      name: s?.settings?.name || s?.name || 'Hospital',
+      address: s?.settings?.address || s?.address || '',
+      phone: s?.settings?.phone || s?.phone || '',
+      logoDataUrl: s?.settings?.logoDataUrl || s?.logoDataUrl || '',
+    }
+    const printedAt = fmtDateTime12(new Date().toISOString())
+    const filterText = `Date Range: ${dateRange.from || 'All'} to ${dateRange.to || 'All'}`
+
+    const rows = [
+      ['Total Beds', String(stats.beds?.total || 0)],
+      ['Occupied Beds', String(stats.beds?.occupied || 0)],
+      ['Available Beds', String(stats.beds?.available || 0)],
+      ['Maintenance Beds', String(stats.beds?.maintenance || 0)],
+      ['Active Admissions', String(stats.admissions?.active || 0)],
+      ['Today Admissions', String(stats.admissions?.today || 0)],
+      ['This Week Admissions', String(stats.admissions?.thisWeek || 0)],
+      ['This Month Admissions', String(stats.admissions?.thisMonth || 0)],
+      ['Total Admissions', String(stats.admissions?.total || 0)],
+      ['Average LOS (hours)', stats.averageLOS ? `${stats.averageLOS.toFixed(1)}h` : 'N/A'],
+      ['Mortality Rate', `${stats.mortalityRate?.toFixed(1) || 0}%`],
+      ['Patients on Ventilator', String(stats.admissions?.onVentilator || 0)],
+    ]
+
+    const severityRows = stats.admissions?.severityBreakdown
+      ? Object.entries(stats.admissions.severityBreakdown).map(([sev, count]: [string, any]) => `<tr><td style="text-transform:capitalize">${escHtml(sev)}</td><td>${escHtml(String(count))}</td></tr>`).join('')
+      : ''
+
+    const dischargeRows = stats.dischargeDestinations
+      ? Object.entries(stats.dischargeDestinations).map(([dest, count]: [string, any]) => `<tr><td style="text-transform:capitalize">${escHtml(dest)}</td><td>${escHtml(String(count))}</td></tr>`).join('')
+      : ''
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>ICU Report</title>
+      <style>
+        @page { size: A4 portrait; margin: 10mm }
+        body{ font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; color:#0f172a; font-size:11px; line-height:1.4 }
+        .wrap{ max-width:190mm; margin:0 auto }
+        .header{ border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:10px }
+        .hdr{ display:grid; grid-template-columns: 70px 1fr 70px; align-items:center; gap:10px }
+        .logo{ width:60px; height:60px; object-fit:contain }
+        .hname{ font-size:16px; font-weight:800; text-align:center }
+        .hmeta{ font-size:11px; text-align:center; color:#475569 }
+        .title{ margin-top:8px; font-size:14px; font-weight:800 }
+        .meta{ margin-top:4px; display:flex; justify-content:space-between; gap:12px; color:#334155 }
+        table{ width:100%; border-collapse:collapse }
+        th,td{ border:1px solid #e2e8f0; padding:6px 8px; vertical-align:top }
+        th{ background:#f8fafc; font-weight:800; color:#334155 }
+        .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin:10px 0 }
+        .box{ border:1px solid #e2e8f0; border-radius:8px; padding:10px }
+        .box h4{ margin:0 0 6px 0; font-size:12px; color:#334155 }
+        .footer{ margin-top:10px; color:#94a3b8; font-size:10px; text-align:center }
+      </style></head><body>
+      <div class="wrap">
+        <div class="header">
+          <div class="hdr">
+            ${hospital.logoDataUrl ? `<img src="${escHtml(hospital.logoDataUrl)}" class="logo" alt="logo"/>` : '<div></div>'}
+            <div>
+              <div class="hname">${escHtml(hospital.name)}</div>
+              <div class="hmeta">${escHtml(hospital.address)} ${hospital.phone ? `| Tel: ${escHtml(hospital.phone)}` : ''}</div>
+            </div>
+            <div></div>
+          </div>
+          <div class="title">ICU Report</div>
+          <div class="meta"><div><b>Filters:</b> ${escHtml(filterText)}</div><div><b>Printed:</b> ${escHtml(printedAt)}</div></div>
+        </div>
+        <table>
+          <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+          <tbody>${rows.map(([k,v]) => `<tr><td>${escHtml(k)}</td><td>${escHtml(v)}</td></tr>`).join('')}</tbody>
+        </table>
+        <div class="grid2">
+          <div class="box">
+            <h4>Severity Distribution</h4>
+            ${severityRows ? `<table><thead><tr><th>Severity</th><th>Count</th></tr></thead><tbody>${severityRows}</tbody></table>` : '<div style="color:#64748b">No data</div>'}
+          </div>
+          <div class="box">
+            <h4>Discharge Destinations</h4>
+            ${dischargeRows ? `<table><thead><tr><th>Destination</th><th>Count</th></tr></thead><tbody>${dischargeRows}</tbody></table>` : '<div style="color:#64748b">No data</div>'}
+          </div>
+        </div>
+        <div class="footer">System Generated Report &bull; ${escHtml(hospital.name)}</div>
+      </div>
+    </body></html>`
+
+    const api = (window as any).electronAPI
+    if (api && typeof api.printPreviewHtml === 'function') {
+      await api.printPreviewHtml(html, { printBackground: true, marginsType: 0 })
+    } else {
+      const w = window.open('', 'print', 'width=1100,height=750')
+      if (!w) return
+      w.document.write(html + '<script>window.onload=()=>{window.print();}</script>')
+      w.document.close()
+    }
+  }
+
   const bedOccupancy = stats?.beds ? (stats.beds.occupied / (stats.beds.total || 1)) * 100 : 0
 
   return (
@@ -54,14 +154,24 @@ export default function ICU_Reports() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <h1 className="text-xl font-semibold text-slate-800">ICU Reports & Analytics</h1>
-        <button
-          onClick={exportCSV}
-          disabled={!stats || loading}
-          className="ml-auto inline-flex items-center gap-2 rounded-md bg-rose-600 px-3 py-2 text-sm text-white hover:bg-rose-700 disabled:opacity-50"
-        >
-          <Download className="h-4 w-4" />
-          Export CSV
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={exportPdf}
+            disabled={!stats || loading}
+            className="inline-flex items-center gap-2 rounded-md bg-rose-600 px-3 py-2 text-sm text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            <Printer className="h-4 w-4" />
+            Export PDF
+          </button>
+          <button
+            onClick={exportCSV}
+            disabled={!stats || loading}
+            className="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Date Filter */}

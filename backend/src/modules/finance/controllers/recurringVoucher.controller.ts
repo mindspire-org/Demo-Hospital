@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { RecurringVoucher } from '../models/RecurringVoucher'
 import { Voucher } from '../models/Voucher'
 import { ChartOfAccount } from '../models/ChartOfAccount'
+import { logActivity } from '../services/activityLog.service'
 
 function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100
@@ -188,6 +189,23 @@ export async function generateDue(req: Request, res: Response) {
         status: 'draft',
         createdBy: 'recurring_system',
       })
+
+      // Activity log
+      try {
+        const totalAmount = (tmpl.lines || []).reduce((s: number, l: any) => s + (l.debit || l.credit || 0), 0)
+        logActivity({
+          userId: 'system',
+          userName: 'Recurring System',
+          portal: 'finance',
+          action: 'Recurring Voucher Generated',
+          module: tmpl.module || 'general',
+          entityId: String(voucher._id),
+          entityLabel: `${tmpl.voucherType} — ${voucherNo}`,
+          amount: Number(totalAmount || 0),
+          method: '',
+          meta: { templateName: tmpl.name, recurringId: String(tmpl._id), voucherNo }
+        })
+      } catch {}
 
       generated.push(voucher)
 

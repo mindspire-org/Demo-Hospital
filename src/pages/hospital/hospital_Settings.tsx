@@ -24,6 +24,11 @@ const MANUAL_RX_FIELD_LABELS: Record<keyof ManualRxFields, string> = {
   showRxSymbol: 'Rx Symbol',
 }
 
+type BillingRule = {
+  feeMode?: 'department-only' | 'doctor-only' | 'both' | 'none'
+  doctorCommissionPercent?: number
+}
+
 type Settings = {
   name: string
   phone: string
@@ -35,7 +40,10 @@ type Settings = {
   mrnFormat?: string
   manualRxFields?: ManualRxFields
   eyeRxEnabled?: boolean
+  timeFormat?: '12h' | '24h'
   icuLabel?: string
+  corporateLabel?: string
+  departmentBillingRules?: Record<string, BillingRule>
 }
 
 export default function Hospital_Settings() {
@@ -50,8 +58,12 @@ export default function Hospital_Settings() {
     mrnFormat: '',
     manualRxFields: { ...DEFAULT_MANUAL_RX_FIELDS },
     eyeRxEnabled: true,
+    timeFormat: '12h',
     icuLabel: 'ICU',
+    corporateLabel: 'Corporate',
+    departmentBillingRules: {},
   })
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([])
   const [savedBanner, setSavedBanner] = useState<string>('')
 
   useEffect(() => {
@@ -63,6 +75,15 @@ export default function Hospital_Settings() {
           const s: any = raw?.settings || raw
           const apiEyeRx = s?.eyeRxEnabled
           const apiManualRx = s?.manualRxFields
+          // Load custom labels from localStorage
+          let icuLabel = 'ICU'
+          let corporateLabel = 'Corporate'
+          let timeFormat: '12h' | '24h' = '12h'
+          try {
+            icuLabel = localStorage.getItem('hospital.icuLabel') || icuLabel
+            corporateLabel = localStorage.getItem('hospital.corporateLabel') || corporateLabel
+            timeFormat = (s?.timeFormat || localStorage.getItem('hospital.timeFormat') || '12h') as '12h' | '24h'
+          } catch {}
           setSettings(prev => ({
             ...prev,
             ...s,
@@ -72,6 +93,10 @@ export default function Hospital_Settings() {
             eyeRxEnabled: (apiEyeRx === false || apiEyeRx === true)
               ? apiEyeRx !== false
               : true,
+            timeFormat,
+            icuLabel,
+            corporateLabel,
+            departmentBillingRules: s?.departmentBillingRules || prev.departmentBillingRules || {},
           }))
         }
       } catch {}
@@ -80,7 +105,37 @@ export default function Hospital_Settings() {
     return () => { cancelled = true }
   }, [])
 
+  // Load departments for billing rules
+  useEffect(() => {
+    let cancelled = false
+    async function loadDeps() {
+      try {
+        const dRes = await hospitalApi.listDepartments({ limit: 1000 }) as any
+        const deps = (dRes.departments || dRes || []).map((d: any) => ({ id: String(d._id || d.id), name: d.name }))
+        if (!cancelled) setDepartments(deps)
+      } catch {}
+    }
+    loadDeps()
+    return () => { cancelled = true }
+  }, [])
+
   const update = (k: keyof Settings, v: string) => setSettings(s => ({ ...s, [k]: v }))
+
+  const updateBillingRule = (depId: string, patch: Partial<BillingRule>) => {
+    setSettings(s => {
+      const rules = { ...(s.departmentBillingRules || {}) }
+      rules[depId] = { ...(rules[depId] || {}), ...patch }
+      return { ...s, departmentBillingRules: rules }
+    })
+  }
+
+  const removeBillingRule = (depId: string) => {
+    setSettings(s => {
+      const rules = { ...(s.departmentBillingRules || {}) }
+      delete rules[depId]
+      return { ...s, departmentBillingRules: rules }
+    })
+  }
 
   const toggleRxField = (k: keyof ManualRxFields) =>
     setSettings(s => ({
@@ -105,7 +160,16 @@ export default function Hospital_Settings() {
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await hospitalApi.updateSettings(settings)
+      // Remove frontend-only fields before sending to backend
+      const { icuLabel, corporateLabel, ...apiPayload } = settings
+      await hospitalApi.updateSettings(apiPayload)
+      // Persist custom labels and time format to localStorage so the app picks them up instantly
+      try {
+        if (settings.icuLabel) localStorage.setItem('hospital.icuLabel', settings.icuLabel)
+        if (settings.corporateLabel) localStorage.setItem('hospital.corporateLabel', settings.corporateLabel)
+        if (settings.timeFormat) localStorage.setItem('hospital.timeFormat', settings.timeFormat)
+        window.dispatchEvent(new Event('hospital:labels:updated'))
+      } catch {}
       setSavedBanner('Settings saved successfully')
       logAudit('user_edit', 'hospital settings saved')
       setTimeout(() => setSavedBanner(''), 2000)
@@ -184,6 +248,12 @@ export default function Hospital_Settings() {
               <p className="mt-1 text-xs text-slate-500">Rename the ICU module label across the system (e.g., HDU, CCU, MICU).</p>
             </div>
 
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Corporate Label</label>
+              <input value={settings.corporateLabel || 'Corporate'} onChange={e=>update('corporateLabel', e.target.value)} placeholder="e.g., Corporate, Zakat & Donations" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+              <p className="mt-1 text-xs text-slate-500">Rename the Corporate module label across the system (e.g., Zakat & Donations, Corporate & Insurance).</p>
+            </div>
+
             <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-medium text-slate-700">Token Slip Footer</label>
               <input value={settings.slipFooter || ''} onChange={e=>update('slipFooter', e.target.value)} placeholder="e.g., Powered by Hospital MIS" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
@@ -219,6 +289,28 @@ export default function Hospital_Settings() {
                   </>
                 )}
               </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-slate-700">Time Format</label>
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={settings.timeFormat || '12h'}
+                  onChange={e => setSettings(s => ({ ...s, timeFormat: e.target.value as '12h' | '24h' }))}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 md:w-48"
+                >
+                  <option value="12h">12-Hour (03:45 PM)</option>
+                  <option value="24h">24-Hour (15:45)</option>
+                </select>
+                <span className="text-sm text-slate-500">
+                  Preview: <span className="font-mono font-medium text-slate-700">{
+                    settings.timeFormat === '24h'
+                      ? new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+                      : new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+                  }</span>
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">Applies to all timestamps across the application (patient profiles, tokens, reports, billing).</p>
             </div>
 
           </div>
@@ -286,6 +378,90 @@ export default function Hospital_Settings() {
                 })}
               </div>
             </div>
+          </div>
+
+          <div className="border-t border-slate-200 px-4 py-3">
+            <button type="submit" className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">Save Settings</button>
+            {savedBanner && <span className="ml-3 text-sm text-emerald-600">{savedBanner}</span>}
+          </div>
+        </div>
+
+        {/* ── Department Billing Rules ─────────────────────────────── */}
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <div className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+              <span>Department Billing Rules</span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">Configure how consultation fees are calculated per department and set doctor commission.</p>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {departments.length === 0 && (
+              <p className="text-sm text-slate-500">Loading departments...</p>
+            )}
+            {departments.map(dep => {
+              const rule = settings.departmentBillingRules?.[dep.id]
+              const hasRule = !!rule
+              return (
+                <div key={dep.id} className={`rounded-lg border p-3 transition-colors ${hasRule ? 'border-sky-300 bg-sky-50' : 'border-slate-200 bg-white'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-slate-800">{dep.name}</span>
+                    {!hasRule ? (
+                      <button
+                        type="button"
+                        onClick={() => updateBillingRule(dep.id, { feeMode: 'both', doctorCommissionPercent: 0 })}
+                        className="rounded-md bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-700"
+                      >
+                        Add Rule
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => removeBillingRule(dep.id)}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  {hasRule && (
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-600">Fee Mode</label>
+                        <select
+                          value={rule.feeMode || 'both'}
+                          onChange={e => updateBillingRule(dep.id, { feeMode: e.target.value as BillingRule['feeMode'] })}
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+                        >
+                          <option value="both">Both (Department + Doctor)</option>
+                          <option value="department-only">Department Fee Only</option>
+                          <option value="doctor-only">Doctor Fee Only</option>
+                          <option value="none">No Fee</option>
+                        </select>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          {rule.feeMode === 'department-only' && 'Only department base fee will be charged.'}
+                          {rule.feeMode === 'doctor-only' && 'Only doctor fee will be charged.'}
+                          {rule.feeMode === 'both' && 'Department fee + doctor fee will be combined.'}
+                          {rule.feeMode === 'none' && 'No consultation fee will be charged.'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-600">Doctor Commission (%)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={rule.doctorCommissionPercent ?? 0}
+                          onChange={e => updateBillingRule(dep.id, { doctorCommissionPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+                        />
+                        <p className="mt-1 text-[10px] text-slate-500">Percentage of fee that goes to the doctor.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           <div className="border-t border-slate-200 px-4 py-3">

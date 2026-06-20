@@ -273,6 +273,30 @@ export const financeApi = {
     api('/finance/shift-settings', { method: 'PUT', body: JSON.stringify(data) }),
   getCurrentShiftTimeSlot: () =>
     api('/finance/shift-settings/current-slot'),
+
+  // -------------------------------------------------------------------------
+  // Reception Expense Approvals
+  // -------------------------------------------------------------------------
+  listReceptionExpenses: (params?: { status?: 'pending' | 'approved' | 'rejected'; from?: string; to?: string; search?: string; page?: number; limit?: number }) =>
+    api(withQuery('/reception/expenses/all', params)),
+  approveReceptionExpense: (id: string) =>
+    api(`/reception/expenses/${id}/approve`, { method: 'POST' }),
+  rejectReceptionExpense: (id: string, reason?: string) =>
+    api(`/reception/expenses/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+
+  // -------------------------------------------------------------------------
+  // Activity Log
+  // -------------------------------------------------------------------------
+  listActivityLogs: (params?: { userId?: string; userName?: string; portal?: string; action?: string; module?: string; from?: string; to?: string; search?: string; page?: number; limit?: number }) =>
+    api(withQuery('/finance/activity-log', params)),
+  getActivitySummary: (params?: { userId?: string; from?: string; to?: string }) =>
+    api(withQuery('/finance/activity-log/summary', params)),
+  listActivityUsers: () => api('/finance/activity-log/users'),
+  listActivityActions: () => api('/finance/activity-log/actions'),
+  exportActivityLogs: (params?: { userId?: string; userName?: string; portal?: string; action?: string; module?: string; from?: string; to?: string; search?: string }) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString()
+    return `/finance/activity-log/export${qs ? `?${qs}` : ''}`
+  },
 }
 
 export default financeApi

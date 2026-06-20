@@ -2,6 +2,23 @@ import { useEffect, useMemo, useState, forwardRef, useImperativeHandle } from 'r
 import { hospitalApi, labApi } from '../../utils/api'
 import Toast, { type ToastState } from '../ui/Toast'
 
+type PrescriptionSnapshot = {
+  primaryComplaint?: string
+  primaryComplaintHistory?: string
+  familyHistory?: string
+  allergyHistory?: string
+  treatmentHistory?: string
+  history?: string
+  examFindings?: string
+  diagnosis?: string
+  advice?: string
+  nextFollowUp?: string
+  items?: Array<{ name?: string; dose?: string; frequency?: string; duration?: string; instruction?: string; route?: string; notes?: string }>
+  vitals?: { pulse?: number; temperatureC?: number; bloodPressureSys?: number; bloodPressureDia?: number; respiratoryRate?: number; bloodSugar?: number; weightKg?: number; heightCm?: number; spo2?: number }
+  labTests?: string[]
+  diagnosticTests?: string[]
+}
+
 type Props = {
   mrn?: string
   doctor?: { id?: string; name?: string }
@@ -17,9 +34,10 @@ type Props = {
     remarks?: string
     signStamp?: string
   }
+  prescriptionSnapshot?: PrescriptionSnapshot
 }
 
-export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved, initialData }: Props, ref: any){
+export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved, initialData, prescriptionSnapshot }: Props, ref: any){
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [patient, setPatient] = useState<any | null>(null)
@@ -141,7 +159,7 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
         signStamp: form.signStamp,
         referredBy: doctor?.name || '',
       }
-      return { patient: patientObj, referral: referralObj }
+      return { patient: patientObj, referral: referralObj, prescriptionSnapshot }
     }
   }), [deps, docs, form, patient, patientAge, doctor?.name, mrn])
 
@@ -168,6 +186,7 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
         referredTo: { departmentId: depId, doctorId: docId },
         condition: { stability: form.stability, consciousness: form.consciousness },
         remarks: form.remarks || undefined,
+        prescriptionSnapshot: prescriptionSnapshot || undefined,
       }
       
       let res: any
@@ -214,6 +233,7 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
           vitals: { ...form.vitals },
           condition: { stability: form.stability, consciousness: form.consciousness },
           remarks: form.remarks,
+          prescriptionSnapshot: prescriptionSnapshot || undefined,
           status: 'New',
           createdAt: new Date().toISOString(),
         }
@@ -303,6 +323,63 @@ export default forwardRef(function Doctor_IpdReferralForm({ mrn, doctor, onSaved
       </div>
 
       {loading && <div className="mt-2 text-sm text-slate-500">Loading patient…</div>}
+      {/* Prescription Snapshot Preview */}
+      {prescriptionSnapshot && (
+        <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/40 p-4">
+          <div className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-sky-600"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            OPD Prescription Summary (will be included in referral)
+          </div>
+          {prescriptionSnapshot.diagnosis && (
+            <div className="text-xs mb-1"><span className="font-medium text-slate-600">Diagnosis:</span> <span className="text-slate-800">{prescriptionSnapshot.diagnosis}</span></div>
+          )}
+          {prescriptionSnapshot.primaryComplaint && (
+            <div className="text-xs mb-1"><span className="font-medium text-slate-600">Complaint:</span> <span className="text-slate-800">{prescriptionSnapshot.primaryComplaint}</span></div>
+          )}
+          {prescriptionSnapshot.items && prescriptionSnapshot.items.length > 0 && (
+            <div className="mt-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Medications ({prescriptionSnapshot.items.length})</div>
+              <div className="space-y-1">
+                {prescriptionSnapshot.items.map((it, idx) => (
+                  <div key={idx} className="text-xs bg-white rounded-md border border-slate-200 px-2 py-1 flex items-center gap-2">
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-sky-100 text-sky-600 text-[9px] font-bold shrink-0">{idx + 1}</span>
+                    <span className="font-medium text-slate-700">{it.name}</span>
+                    {it.dose && <span className="text-slate-500">· {it.dose}</span>}
+                    {it.frequency && <span className="text-slate-500">· {it.frequency}</span>}
+                    {it.duration && <span className="text-slate-500">· {it.duration}</span>}
+                    {it.instruction && <span className="text-slate-500">· {it.instruction}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {prescriptionSnapshot.vitals && Object.values(prescriptionSnapshot.vitals).some(v => v != null) && (
+            <div className="mt-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Vitals</div>
+              <div className="flex flex-wrap gap-2">
+                {prescriptionSnapshot.vitals.pulse != null && <span className="text-xs bg-white rounded-md border border-slate-200 px-2 py-0.5">Pulse: {prescriptionSnapshot.vitals.pulse}</span>}
+                {prescriptionSnapshot.vitals.temperatureC != null && <span className="text-xs bg-white rounded-md border border-slate-200 px-2 py-0.5">Temp: {prescriptionSnapshot.vitals.temperatureC}°C</span>}
+                {prescriptionSnapshot.vitals.bloodPressureSys != null && <span className="text-xs bg-white rounded-md border border-slate-200 px-2 py-0.5">BP: {prescriptionSnapshot.vitals.bloodPressureSys}/{prescriptionSnapshot.vitals.bloodPressureDia}</span>}
+                {prescriptionSnapshot.vitals.respiratoryRate != null && <span className="text-xs bg-white rounded-md border border-slate-200 px-2 py-0.5">RR: {prescriptionSnapshot.vitals.respiratoryRate}</span>}
+                {prescriptionSnapshot.vitals.spo2 != null && <span className="text-xs bg-white rounded-md border border-slate-200 px-2 py-0.5">SpO2: {prescriptionSnapshot.vitals.spo2}%</span>}
+              </div>
+            </div>
+          )}
+          {prescriptionSnapshot.labTests && prescriptionSnapshot.labTests.length > 0 && (
+            <div className="mt-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Lab Tests</div>
+              <div className="text-xs text-slate-700">{prescriptionSnapshot.labTests.join(', ')}</div>
+            </div>
+          )}
+          {prescriptionSnapshot.diagnosticTests && prescriptionSnapshot.diagnosticTests.length > 0 && (
+            <div className="mt-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Diagnostic Tests</div>
+              <div className="text-xs text-slate-700">{prescriptionSnapshot.diagnosticTests.join(', ')}</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {!patient && !loading && mrn && <div className="mt-2 text-sm text-rose-600">No patient found for MRN: {mrn}</div>}
 
       <Toast toast={toast} onClose={()=>setToast(null)} />

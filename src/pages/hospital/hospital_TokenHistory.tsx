@@ -20,9 +20,9 @@ import {
 
   Search, FileDown, RefreshCcw, Ticket, Banknote, CreditCard, Building, 
 
-  Tag, RotateCcw, Filter, Printer, Edit2, Clock, Smartphone,
+  Tag, RotateCcw, Filter, Printer, Edit2, Clock, Smartphone, Calendar,
 
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, ChevronDown
 
 } from 'lucide-react'
 
@@ -347,8 +347,9 @@ export default function Hospital_TokenHistory() {
   const today = getLocalDate()
 
   const [from, setFrom] = useState(today)
-
   const [to, setTo] = useState(today)
+  const [fromTime, setFromTime] = useState('')
+  const [toTime, setToTime] = useState('')
 
   const [department, setDepartment] = useState<string>('All')
 
@@ -625,10 +626,19 @@ export default function Hospital_TokenHistory() {
 
 
     let result = rows.filter(r => {
-
       const d = new Date(r.date)
-
       if (d < start || d > end) return false
+
+      // Time filter
+      if (fromTime || toTime) {
+        const t = String(r.time || '').trim()
+        if (t) {
+          const parts = t.split(', ')
+          const timePart = parts[1] || parts[0] || ''
+          if (fromTime && timePart < fromTime) return false
+          if (toTime && timePart > toTime) return false
+        }
+      }
 
       if (department !== 'All' && r.department !== (departments.find(x=>x._id===department)?.name || r.department)) return false
 
@@ -1165,93 +1175,85 @@ export default function Hospital_TokenHistory() {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-4">
 
           <div className="space-y-1.5 lg:col-span-1">
-
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">From Date</label>
-
-            <input type="date" value={from} onChange={e=>{setFrom(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 text-sm focus:border-blue-500 transition-all font-medium" />
-
+            <div className="relative">
+              <input type="date" value={from} onChange={e=>{setFrom(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium" />
+              <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
-
           <div className="space-y-1.5 lg:col-span-1">
-
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">From Time</label>
+            <div className="relative">
+              <input type="time" value={fromTime} onChange={e=>{setFromTime(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium" />
+              <Clock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+          <div className="space-y-1.5 lg:col-span-1">
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">To Date</label>
-
-            <input type="date" value={to} onChange={e=>{setTo(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 text-sm focus:border-blue-500 transition-all font-medium" />
-
+            <div className="relative">
+              <input type="date" value={to} onChange={e=>{setTo(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium" />
+              <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+          <div className="space-y-1.5 lg:col-span-1">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">To Time</label>
+            <div className="relative">
+              <input type="time" value={toTime} onChange={e=>{setToTime(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium" />
+              <Clock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
 
           <div className="space-y-1.5 lg:col-span-1">
-
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Department</label>
-
-            <select value={department} onChange={e=>{setDepartment(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 text-sm focus:border-blue-500 transition-all font-medium">
-
-              <option value="All">All Departments</option>
-
-              {departments.map((d:any)=> <option key={d._id} value={d._id}>{d.name}</option>)}
-
-            </select>
-
+            <div className="relative">
+              <select value={department} onChange={e=>{setDepartment(e.target.value); setPage(1)}} className="w-full appearance-none rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium">
+                <option value="All">All Departments</option>
+                {departments.map((d:any)=> <option key={d._id} value={d._id}>{d.name}</option>)}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
-
           <div className="space-y-1.5 lg:col-span-1">
-
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Doctor</label>
-
-            <select value={doctor} onChange={e=>{setDoctor(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 text-sm focus:border-blue-500 transition-all font-medium">
-
-              <option value="All">All Doctors</option>
-
-              {doctors.map((d:any)=> <option key={d._id} value={d._id}>{d.name}</option>)}
-
-            </select>
-
+            <div className="relative">
+              <select value={doctor} onChange={e=>{setDoctor(e.target.value); setPage(1)}} className="w-full appearance-none rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium">
+                <option value="All">All Doctors</option>
+                {doctors.map((d:any)=> <option key={d._id} value={d._id}>{d.name}</option>)}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
-
           <div className="space-y-1.5 lg:col-span-1">
-
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Service</label>
-
-            <select value={serviceId} onChange={e=>{setServiceId(e.target.value); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 text-sm focus:border-blue-500 transition-all font-medium">
-
-              <option value="All">All Services</option>
-
-              {services.map((s:any)=> <option key={s._id} value={s._id}>{s.name}</option>)}
-
-            </select>
-
+            <div className="relative">
+              <select value={serviceId} onChange={e=>{setServiceId(e.target.value); setPage(1)}} className="w-full appearance-none rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium">
+                <option value="All">All Services</option>
+                {services.map((s:any)=> <option key={s._id} value={s._id}>{s.name}</option>)}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
-
           <div className="space-y-1.5 lg:col-span-1">
-
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Type</label>
-
-            <select value={tokenType} onChange={e=>{setTokenType(e.target.value as any); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 text-sm focus:border-blue-500 transition-all font-medium">
-
-              <option value="All">All Types</option>
-
-              <option value="Cash">Cash</option>
-
-              <option value="Corporate">Corporate</option>
-
-            </select>
-
+            <div className="relative">
+              <select value={tokenType} onChange={e=>{setTokenType(e.target.value as any); setPage(1)}} className="w-full appearance-none rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium">
+                <option value="All">All Types</option>
+                <option value="Cash">Cash</option>
+                <option value="Corporate">Corporate</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
-
           <div className="space-y-1.5 lg:col-span-1">
-
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Category</label>
-
-            <select value={visitCategory} onChange={e=>{setVisitCategory(e.target.value as any); setPage(1)}} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 text-sm focus:border-blue-500 transition-all font-medium">
-
-              <option value="All">All Categories</option>
-
-              <option value="Public">General</option>
-
-              <option value="Private">Private</option>
-
-            </select>
-
+            <div className="relative">
+              <select value={visitCategory} onChange={e=>{setVisitCategory(e.target.value as any); setPage(1)}} className="w-full appearance-none rounded-xl border-slate-200 bg-slate-50/50 py-2 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium">
+                <option value="All">All Categories</option>
+                <option value="Public">General</option>
+                <option value="Private">Private</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
 
         </div>
@@ -1268,7 +1270,7 @@ export default function Hospital_TokenHistory() {
 
             placeholder="Search by name, token#, MR#, phone, doctor, department..."
 
-            className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 focus:ring-blue-200 transition-all font-medium placeholder:text-slate-400"
+            className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium placeholder:text-slate-400"
 
           />
 

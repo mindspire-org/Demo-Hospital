@@ -1,8 +1,10 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 import { PharmacyUser } from '../models/indoorUser'
 import { userCreateSchema, userUpdateSchema } from '../validators/indooruser'
 import { AuditLog } from '../models/indoorAuditLog'
+import { env } from '../../../config/env'
 
 export async function list(_req: Request, res: Response){
   const items = await PharmacyUser.find().sort({ username: 1 }).lean()
@@ -105,7 +107,8 @@ export async function login(req: Request, res: Response){
       detail: `User ${u.username} login`,
     })
   } catch {}
-  res.json({ user: { id: String(u._id), username: u.username, role: u.role } })
+  const token = jwt.sign({ sub: String(u._id), username: u.username, role: u.role, scope: 'indoorpharmacy' }, env.JWT_SECRET, { expiresIn: '1d' })
+  res.json({ token, user: { id: String(u._id), username: u.username, role: u.role } })
 }
 
 export async function logout(req: Request, res: Response){

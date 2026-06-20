@@ -80,8 +80,10 @@ export const sharedApi = {
   getDoctor: (id: string) => api(`/hospital/doctors/${id}`),
   createDoctor: (data: { name: string; departmentIds?: string[]; primaryDepartmentId?: string; opdPublicFee?: number; opdPrivateFee?: number; opdSubsidizedFee?: number; opdFollowupFee?: number; followupWindowDays?: number; username?: string; password?: string; phone?: string; specialization?: string; qualification?: string; cnic?: string; pmdcNo?: string; shares?: number; opdShare?: number; ipdShare?: number; active?: boolean }) =>
     api('/hospital/doctors', { method: 'POST', body: JSON.stringify(data) }),
-  updateDoctor: (id: string, data: { name?: string; departmentIds?: string[]; primaryDepartmentId?: string; opdPublicFee?: number; opdPrivateFee?: number; opdSubsidizedFee?: number; opdFollowupFee?: number; followupWindowDays?: number; username?: string; password?: string; phone?: string; specialization?: string; qualification?: string; cnic?: string; pmdcNo?: string; shares?: number; opdShare?: number; ipdShare?: number; active?: boolean; prescriptionTemplate?: string }) =>
+  updateDoctor: (id: string, data: { name?: string; departmentIds?: string[]; primaryDepartmentId?: string; opdPublicFee?: number; opdPrivateFee?: number; opdSubsidizedFee?: number; opdFollowupFee?: number; followupWindowDays?: number; username?: string; password?: string; phone?: string; specialization?: string; qualification?: string; cnic?: string; pmdcNo?: string; shares?: number; opdShare?: number; ipdShare?: number; active?: boolean; prescriptionTemplate?: string; prescriptionLanguage?: string; prescriptionDesign?: any }) =>
     api(`/hospital/doctors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  updateDoctorProfile: (id: string, data: { name?: string; phone?: string; specialization?: string; qualification?: string; prescriptionTemplate?: string; prescriptionLanguage?: string; prescriptionDesign?: any }) =>
+    api(`/hospital/doctors/${id}/profile`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteDoctor: (id: string) => api(`/hospital/doctors/${id}`, { method: 'DELETE' }),
 
   // -------------------------------------------------------------------------

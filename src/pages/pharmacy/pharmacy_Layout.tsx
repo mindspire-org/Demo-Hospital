@@ -4,6 +4,23 @@ import Pharmacy_Header from '../../components/pharmacy/pharmacy_Header'
 import { useEffect, useState } from 'react'
 
 export default function Pharmacy_Layout() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // Auth guard: detect invalid or fake token and force re-login
+  useEffect(() => {
+    const token = localStorage.getItem('pharmacy.token') || ''
+    const isBad = !token || token === 'ok' || token.length < 10
+    if (isBad && !location.pathname.startsWith('/pharmacy/login')) {
+      try {
+        localStorage.removeItem('pharmacy.token')
+        localStorage.removeItem('pharmacy.user')
+        localStorage.removeItem('pharma_user')
+      } catch {}
+      navigate('/pharmacy/login', { replace: true })
+    }
+  }, [location.pathname, navigate])
+
   const [collapsed, setCollapsed] = useState(false)
   const [theme, setTheme] = useState<'light'|'dark'>(()=>{
     try { return (localStorage.getItem('pharmacy.theme') as 'light'|'dark') || 'light' } catch { return 'light' }
@@ -35,8 +52,6 @@ export default function Pharmacy_Layout() {
       } catch {}
     }
   }, [])
-  const navigate = useNavigate()
-  const location = useLocation()
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null

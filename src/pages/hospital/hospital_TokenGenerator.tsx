@@ -219,6 +219,7 @@ export default function Hospital_TokenGenerator() {
   const [doctors, setDoctors] = useState<Array<{ id: string; name: string; publicFee?: number; privateFee?: number; subsidizedFee?: number; fee?: number }>>([])
   const [services, setServices] = useState<Array<{ id: string; name: string; price: number }>>([])
   const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([])
+  const [billingRules, setBillingRules] = useState<Record<string, { feeMode?: 'department-only' | 'doctor-only' | 'both' | 'none'; doctorCommissionPercent?: number }>>({})
   const lastAutoConsultationFeeRef = useRef<string | null>(null)
   const feeManuallyEditedRef = useRef(false)
   useEffect(() => {
@@ -247,6 +248,12 @@ export default function Hospital_TokenGenerator() {
         try {
           const cRes = await corporateApi.listCompanies() as any
           comps = (cRes?.companies || []).map((c: any) => ({ id: String(c._id || c.id), name: c.name }))
+        } catch { }
+        // load billing rules from settings
+        try {
+          const settingsRes = await hospitalApi.getSettings() as any
+          const s = settingsRes?.settings || settingsRes
+          if (s?.departmentBillingRules) setBillingRules(s.departmentBillingRules)
         } catch { }
         if (!cancelled) { setDepartments(deps); setDoctors(docs); setCompanies(comps) }
       } catch { }
@@ -412,6 +419,13 @@ export default function Hospital_TokenGenerator() {
     const name = (dep?.name || '').trim().toLowerCase()
     return name === 'emergency' || name === 'er'
   }, [departments, form.departmentId])
+
+  // ICU check
+  const isICU = useMemo(() => {
+    const dep = departments.find(d => String(d.id) === String(form.departmentId))
+    const name = (dep?.name || '').trim().toLowerCase()
+    return name === 'icu' || name.includes('intensive care')
+  }, [departments, form.departmentId])
   const [ipdBeds, setIpdBeds] = useState<Array<{ _id: string; label: string; charges?: number; floorName?: string; locationType?: 'room'|'ward'; locationName?: string }>>([])
   const [ipdBedId, setIpdBedId] = useState('')
   const [ipdDeposit, setIpdDeposit] = useState('')
@@ -431,7 +445,24 @@ export default function Hospital_TokenGenerator() {
   const [erBedId, setErBedId] = useState('')
 
   const ipdBedOptions = useMemo(() => {
-    const items = (ipdBeds || []).slice()
+    let items = (ipdBeds || []).slice()
+    // When Emergency is selected, only show ER category beds
+    if (isER) {
+      items = items.filter((b: any) => String(b.category || '').toUpperCase() === 'ER')
+    }
+    // When ICU is selected, only show ICU-related beds
+    if (isICU) {
+      items = items.filter((b: any) => {
+        const cat = String(b.category || '').toLowerCase()
+        const loc = String(b.locationName || '').toLowerCase()
+        const floor = String(b.floorName || '').toLowerCase()
+        const label = String(b.label || '').toLowerCase()
+        return cat.includes('icu') || cat.includes('intensive') ||
+               loc.includes('icu') || loc.includes('intensive') ||
+               floor.includes('icu') || floor.includes('intensive') ||
+               label.includes('icu') || label.includes('intensive')
+      })
+    }
     // Sort ascending: floor -> location type -> location name -> bed label (A-Z)
     items.sort((a: any, b: any) => {
       const aFloor = String(a.floorName || '').toLowerCase()
@@ -448,12 +479,12 @@ export default function Hospital_TokenGenerator() {
       return aLabel.localeCompare(bLabel)
     })
     return items
-  }, [ipdBeds])
+  }, [ipdBeds, isER, isICU])
 
   useEffect(() => {
     let cancelled = false
     async function loadBeds() {
-      if (!isIPD && !isER) return
+      if (!isIPD && !isER && !isICU) return
       try {
         const res = await hospitalApi.listBeds({ status: 'available' }) as any
         if (!cancelled) setIpdBeds(res.beds || [])
@@ -461,7 +492,7 @@ export default function Hospital_TokenGenerator() {
     }
     loadBeds()
     return () => { cancelled = true }
-  }, [isIPD, isER])
+  }, [isIPD, isER, isICU])
 
   // When a bed is selected, auto-fill Bed Charges from bed.charges
   useEffect(() => {
@@ -496,9 +527,21 @@ export default function Hospital_TokenGenerator() {
         const selDoc = doctors.find(d => String(d.id) === String(form.doctor))
         const docBase = form.visitCategory === 'private' ? selDoc?.privateFee : form.visitCategory === 'subsidized' ? selDoc?.subsidizedFee : selDoc?.publicFee
         const depBase = departments.find(d => String(d.id) === String(form.departmentId))?.fee
-        const base = Number.isFinite(docBase as any) && Number(docBase) > 0
-          ? Number(docBase)
-          : (Number.isFinite(depBase as any) && Number(depBase) > 0 ? Number(depBase) : 0)
+        const rule = billingRules[String(form.departmentId)]
+        const feeMode = rule?.feeMode || 'both'
+        let base = 0
+        if (feeMode === 'none') {
+          base = 0
+        } else if (feeMode === 'department-only') {
+          base = Number.isFinite(depBase as any) && Number(depBase) > 0 ? Number(depBase) : 0
+        } else if (feeMode === 'doctor-only') {
+          base = Number.isFinite(docBase as any) && Number(docBase) > 0 ? Number(docBase) : 0
+        } else {
+          // both: prefer doctor fee, fall back to department fee
+          base = Number.isFinite(docBase as any) && Number(docBase) > 0
+            ? Number(docBase)
+            : (Number.isFinite(depBase as any) && Number(depBase) > 0 ? Number(depBase) : 0)
+        }
         const nextFee = String(Number(base || 0))
         if (!cancelled) {
           setForm(prev => {
@@ -529,15 +572,26 @@ export default function Hospital_TokenGenerator() {
             const rank = (t: string) => t === 'doctor' ? 0 : t === 'department' ? 1 : 2
             return rank(a.ruleType) - rank(b.ruleType)
           })
-          const rule = candidates[0] || null
+          const corpRule = candidates[0] || null
           const selDoc = doctors.find(d => String(d.id) === String(form.doctor))
           const docBase = form.visitCategory === 'private' ? selDoc?.privateFee : form.visitCategory === 'subsidized' ? selDoc?.subsidizedFee : selDoc?.publicFee
           const depBase = departments.find(d => String(d.id) === String(form.departmentId))?.fee
-          let base = Number.isFinite(docBase!) && Number(docBase) > 0 ? Number(docBase) : (Number.isFinite(depBase!) && Number(depBase) > 0 ? Number(depBase) : NaN)
+          const depRule = billingRules[String(form.departmentId)]
+          const feeMode = depRule?.feeMode || 'both'
+          let base = 0
+          if (feeMode === 'none') {
+            base = 0
+          } else if (feeMode === 'department-only') {
+            base = Number.isFinite(depBase as any) && Number(depBase) > 0 ? Number(depBase) : 0
+          } else if (feeMode === 'doctor-only') {
+            base = Number.isFinite(docBase as any) && Number(docBase) > 0 ? Number(docBase) : 0
+          } else {
+            base = Number.isFinite(docBase as any) && Number(docBase) > 0 ? Number(docBase) : (Number.isFinite(depBase as any) && Number(depBase) > 0 ? Number(depBase) : NaN)
+          }
           if (!Number.isFinite(base) || base <= 0) base = await getBaseFromQuote()
           let eff = Number(base || 0)
-          if (rule) {
-            const mode = rule.mode; const val = Number(rule.value || 0)
+          if (corpRule) {
+            const mode = corpRule.mode; const val = Number(corpRule.value || 0)
             if (mode === 'fixedPrice') eff = Math.max(0, val)
             else if (mode === 'percentDiscount') eff = Math.max(0, eff - (eff * (val / 100)))
             else if (mode === 'fixedDiscount') eff = Math.max(0, eff - val)
@@ -618,6 +672,8 @@ export default function Hospital_TokenGenerator() {
     setToast({ type, message })
     setTimeout(() => setToast(null), 2500)
   }
+
+  const [dupModal, setDupModal] = useState<{ open: boolean; patientName?: string; mrn?: string }>({ open: false })
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -867,9 +923,9 @@ export default function Hospital_TokenGenerator() {
         setSearchParams({})
         return
       }
-      // Inline IPD admit flow: if department is IPD, require bed and admit immediately
-      if (isIPD) {
-        if (!ipdBedId) { showToast('error', 'Please select a bed for IPD admission'); return }
+      // Inline IPD/ICU admit flow: if department is IPD or ICU, require bed and admit immediately
+      if (isIPD || isICU) {
+        if (!ipdBedId) { showToast('error', `Please select a bed for ${isICU ? 'ICU' : 'IPD'} admission`); return }
         let createdTokenId: string = ''
         const payload: any = {
           departmentId: form.departmentId,
@@ -914,6 +970,11 @@ export default function Hospital_TokenGenerator() {
             bedFeeIncludedInPackage: ipdBedFeeInPackage,
           })
         } catch (admitErr: any) {
+          const errMsg = String(admitErr?.message || admitErr || '')
+          if (errMsg.toLowerCase().includes('already admitted') || errMsg.toLowerCase().includes('discharge the current admission')) {
+            setDupModal({ open: true, patientName: form.patientName, mrn: form.mrNumber })
+            return // Token was created but admission blocked — do not delete token, do not show slip
+          }
           try {
             await hospitalApi.deleteToken(createdTokenId)
           } catch {}
@@ -1313,7 +1374,7 @@ export default function Hospital_TokenGenerator() {
                   </>
                 )}
               </div>
-              {isIPD && (
+              {(isIPD || isICU) && (
                 <>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Select Bed</label>
@@ -1333,21 +1394,23 @@ export default function Hospital_TokenGenerator() {
                     <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Bed Charges</label>
                     <input value={ipdDeposit} onChange={e => setIpdDeposit(e.target.value)} onKeyDown={onEnterNext} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="e.g., Rs. 1000" />
                   </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Package Amount</label>
-                      <input value={ipdPackageAmount} onChange={e => setIpdPackageAmount(e.target.value)} onKeyDown={onEnterNext} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Total package cost" />
+                  {isIPD && (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Package Amount</label>
+                        <input value={ipdPackageAmount} onChange={e => setIpdPackageAmount(e.target.value)} onKeyDown={onEnterNext} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Total package cost" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Advance Amount</label>
+                        <input value={ipdAdvancedAmount} onChange={e => setIpdAdvancedAmount(e.target.value)} onKeyDown={onEnterNext} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Deposit paid" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Pending Amount</label>
+                        <div className="flex h-10 items-center rounded-md border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-700 dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-400">Rs. {ipdPendingAmount.toFixed(2)}</div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Advance Amount</label>
-                      <input value={ipdAdvancedAmount} onChange={e => setIpdAdvancedAmount(e.target.value)} onKeyDown={onEnterNext} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:placeholder-slate-500" placeholder="Deposit paid" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Pending Amount</label>
-                      <div className="flex h-10 items-center rounded-md border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-700 dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-400">Rs. {ipdPendingAmount.toFixed(2)}</div>
-                    </div>
-                  </div>
-                  {Number(ipdPackageAmount || 0) > 0 && (
+                  )}
+                  {isIPD && Number(ipdPackageAmount || 0) > 0 && (
                     <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:bg-slate-900/50 dark:border-slate-700">
                       <input
                         id="bedFeeInPackage"
@@ -1518,6 +1581,24 @@ export default function Hospital_TokenGenerator() {
                 clearPatientFieldsKeepPhone()
                 setShowPhonePicker(false)
               }} className="rounded-md bg-violet-700 px-3 py-1.5 text-sm font-medium text-white dark:bg-violet-600">Create New Patient</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {dupModal.open && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5 p-5">
+            <div className="flex items-center gap-2 text-amber-600 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span className="font-semibold">Patient Already Admitted</span>
+            </div>
+            <p className="text-sm text-slate-700 mb-1">
+              <strong>{dupModal.patientName || 'This patient'}</strong> is currently admitted in the hospital.
+            </p>
+            {dupModal.mrn && <p className="text-sm text-slate-500 mb-3">MR # {dupModal.mrn}</p>}
+            <p className="text-sm text-slate-600 mb-4">Please discharge the current admission before creating a new one.</p>
+            <div className="flex justify-end">
+              <button onClick={() => setDupModal({ open: false })} className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">OK</button>
             </div>
           </div>
         </div>

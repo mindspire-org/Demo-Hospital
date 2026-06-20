@@ -1,10 +1,12 @@
 import { Request, Response } from 'express'
-import { createIPDAdmissionSchema, dischargeIPDSchema, transferBedSchema } from '../validators/ipd'
+import { createIPDAdmissionSchema, dischargeIPDSchema, transferBedSchema, transferPatientSchema } from '../validators/ipd'
 import { HospitalDepartment } from '../models/Department'
 import { HospitalDoctor } from '../models/Doctor'
 import { HospitalEncounter } from '../models/Encounter'
 import { LabPatient } from '../../lab/models/Patient'
 import { HospitalBed } from '../models/Bed'
+import { ICUAdmission } from '../models/ICUAdmission'
+import { ICUBed } from '../models/ICUBed'
 import { HospitalToken } from '../models/Token'
 import { HospitalFloor } from '../models/Floor'
 import { HospitalRoom } from '../models/Room'
@@ -17,6 +19,16 @@ import { HospitalIpdBillingItem } from '../models/IpdBillingItem'
 import { HospitalIpdPayment } from '../models/IpdPayment'
 import { HospitalErCharge } from '../models/ErCharge'
 import { HospitalErPayment } from '../models/ErPayment'
+import { logActivity } from '../../finance/services/activityLog.service'
+
+async function hasActiveIpdAdmission(patientId: string) {
+  const active = await HospitalEncounter.findOne({
+    patientId,
+    type: 'IPD',
+    status: 'admitted',
+  }).lean()
+  return !!active
+}
 
 async function nextAdmissionNo(){
   const now = new Date()
@@ -31,9 +43,10 @@ async function nextAdmissionNo(){
 
 // Compute IPD billing totals
 async function computeIpdBillingTotals(encounterId: string){
-  const [charges, payments] = await Promise.all([
+  const [charges, payments, encounter] = await Promise.all([
     HospitalIpdBillingItem.find({ encounterId }).select('amount paidAmount').lean(),
-    HospitalIpdPayment.find({ encounterId }).select('amount allocations method type').lean()
+    HospitalIpdPayment.find({ encounterId }).select('amount allocations method type').lean(),
+    HospitalEncounter.findById(encounterId).select('advancedAmount').lean()
   ])
   const grandTotal = charges.reduce((s: number, c: any) => s + Number(c.amount || 0), 0)
   const allPayments = payments.map((p: any) => ({
@@ -42,12 +55,17 @@ async function computeIpdBillingTotals(encounterId: string){
     isSettlement: String(p.method || '').toLowerCase() === 'advance settlement',
     isRefund: String(p.type || '').toLowerCase() === 'refund'
   }))
-  const totalAdvanceReceived = allPayments
+  let totalAdvanceReceived = allPayments
     .filter(p => p.isAdvance && !p.isRefund)
     .reduce((s, p) => s + Number(p.amount || 0), 0)
     - allPayments
       .filter(p => p.isRefund && String(p.method || '').toLowerCase().includes('advance'))
       .reduce((s, p) => s + Number(p.amount || 0), 0)
+  // Fallback to encounter.advancedAmount for admissions created before the IpdPayment fix
+  const encAdv = Number((encounter as any)?.advancedAmount || 0)
+  if (totalAdvanceReceived === 0 && encAdv > 0) {
+    totalAdvanceReceived = encAdv
+  }
   const totalDirectPaid = allPayments
     .filter(p => !p.isAdvance && !p.isSettlement && !p.isRefund && String(p.method || '').toLowerCase() !== 'discount')
     .reduce((s, p) => s + Number(p.amount || 0), 0)
@@ -107,6 +125,9 @@ export async function admit(req: Request, res: Response){
   const patient = await LabPatient.findById(data.patientId).lean()
   if (!patient) return res.status(404).json({ error: 'Patient not found' })
 
+  const alreadyAdmitted = await hasActiveIpdAdmission(String(data.patientId))
+  if (alreadyAdmitted) return res.status(400).json({ error: 'Patient is already admitted. Discharge the current admission before creating a new one.' })
+
   const department = await HospitalDepartment.findById(data.departmentId).lean()
   if (!department) return res.status(400).json({ error: 'Invalid departmentId' })
 
@@ -156,6 +177,23 @@ export async function admit(req: Request, res: Response){
     bed.status = 'occupied'
     bed.occupiedByEncounterId = enc._id as any
     await bed.save()
+    // Prevent this patient from occupying multiple beds: clear any other beds
+    // occupied by this patient's other active encounters
+    const otherActiveEncounters = await HospitalEncounter.find({
+      patientId: data.patientId,
+      _id: { $ne: enc._id },
+      $or: [
+        { type: 'IPD', status: 'admitted' },
+        { type: 'ER', status: { $in: ['in-progress', 'admitted'] } },
+      ],
+    }).select('_id').lean()
+    const otherIds = otherActiveEncounters.map(e => String(e._id))
+    if (otherIds.length) {
+      await HospitalBed.updateMany(
+        { occupiedByEncounterId: { $in: otherIds } },
+        { $set: { status: 'available', occupiedByEncounterId: undefined } }
+      )
+    }
   }
 
   try {
@@ -191,7 +229,7 @@ export async function discharge(req: Request, res: Response){
     return res.status(400).json({ error: 'Already discharged' })
   }
 
-  // Check billing status before discharge - block if pending amount or unallocated advance
+  // Check billing status before discharge - block only if patient still owes money
   try {
     let totals: { unallocatedAdvance: number; netOutstanding: number; grandTotal: number }
     if (enc.type === 'IPD') {
@@ -199,20 +237,12 @@ export async function discharge(req: Request, res: Response){
     } else {
       totals = await computeErBillingTotals(String(enc._id))
     }
-    // Block discharge if there's pending amount or unallocated advance
+    // Block discharge only if patient still owes money.
+    // Unallocated advance (hospital owes patient) should not prevent discharge.
     if (totals.netOutstanding > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Cannot discharge: pending amount of Rs ${totals.netOutstanding.toLocaleString()} must be cleared first`,
         code: 'PENDING_AMOUNT',
-        netOutstanding: totals.netOutstanding,
-        unallocatedAdvance: totals.unallocatedAdvance,
-        grandTotal: totals.grandTotal
-      })
-    }
-    if (totals.unallocatedAdvance > 0) {
-      return res.status(400).json({ 
-        error: `Cannot discharge: unallocated advance of Rs ${totals.unallocatedAdvance.toLocaleString()} must be settled or refunded first`,
-        code: 'UNALLOCATED_ADVANCE',
         netOutstanding: totals.netOutstanding,
         unallocatedAdvance: totals.unallocatedAdvance,
         grandTotal: totals.grandTotal
@@ -268,6 +298,136 @@ export async function discharge(req: Request, res: Response){
   res.json({ encounter: enc })
 }
 
+export async function transferPatient(req: Request, res: Response){
+  const data = transferPatientSchema.parse(req.body)
+  const sourceEnc = await HospitalEncounter.findById(data.sourceEncounterId)
+  if (!sourceEnc) return res.status(404).json({ error: 'Source encounter not found' })
+  if (sourceEnc.type !== 'ER' && sourceEnc.type !== 'IPD') return res.status(400).json({ error: 'Source must be ER or IPD encounter' })
+  if (sourceEnc.status !== 'admitted' && sourceEnc.status !== 'in-progress') return res.status(400).json({ error: 'Source encounter is not active' })
+
+  // Validate target department and doctor
+  const department = await HospitalDepartment.findById(data.departmentId).lean()
+  if (!department) return res.status(400).json({ error: 'Invalid departmentId' })
+  if (data.doctorId) {
+    const doctor = await HospitalDoctor.findById(data.doctorId).lean()
+    if (!doctor) return res.status(400).json({ error: 'Invalid doctorId' })
+  }
+  if (data.corporateId) {
+    const comp = await CorporateCompany.findById(String(data.corporateId)).lean()
+    if (!comp) return res.status(400).json({ error: 'Invalid corporateId' })
+    if ((comp as any).active === false) return res.status(400).json({ error: 'Corporate company inactive' })
+  }
+
+  // Validate and prepare bed
+  let bed: any = null
+  if (data.bedId) {
+    bed = await HospitalBed.findById(data.bedId).populate({ path: 'occupiedByEncounterId', select: 'status type' })
+    if (!bed) return res.status(400).json({ error: 'Invalid bedId' })
+    const enc = bed.occupiedByEncounterId as any
+    const isTrulyOccupied = bed.status === 'occupied' && enc && enc.status === 'admitted' && (enc.type === 'IPD' || enc.type === 'ER')
+    if (isTrulyOccupied) return res.status(400).json({ error: 'Bed is already occupied' })
+    if (bed.status === 'occupied' && !isTrulyOccupied) {
+      bed.status = 'available'
+      bed.occupiedByEncounterId = undefined as any
+    }
+  }
+
+  // --- Discharge source encounter ---
+  sourceEnc.status = 'discharged'
+  sourceEnc.endAt = new Date()
+  if (sourceEnc.type === 'ER') (sourceEnc as any).disposition = 'transferred'
+  await sourceEnc.save()
+
+  // Free old bed
+  if (sourceEnc.bedId) {
+    const oldBed = await HospitalBed.findById(sourceEnc.bedId)
+    if (oldBed && String(oldBed.occupiedByEncounterId || '') === String(sourceEnc._id)) {
+      oldBed.status = 'available'
+      oldBed.occupiedByEncounterId = undefined as any
+      await oldBed.save()
+    }
+  }
+
+  // --- Transfer financial data ---
+  let transferredDeposit = 0
+  let transferredAdvance = 0
+  if (sourceEnc.type === 'ER') {
+    // Transfer ER advance payments
+    try {
+      const erPayments = await HospitalErPayment.find({ encounterId: sourceEnc._id, method: 'Advance', type: { $ne: 'refund' } }).lean()
+      const advanceTotal = erPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+      transferredAdvance = advanceTotal
+    } catch {}
+  } else {
+    // Transfer IPD deposit and advance
+    transferredDeposit = Number(sourceEnc.deposit || 0)
+    transferredAdvance = Number((sourceEnc as any).advancedAmount || 0)
+    // Also sum IpdPayment advances
+    try {
+      const ipdPayments = await HospitalIpdPayment.find({ encounterId: sourceEnc._id, method: 'Advance', type: { $ne: 'refund' } }).lean()
+      const advanceTotal = ipdPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+      if (advanceTotal > transferredAdvance) transferredAdvance = advanceTotal
+    } catch {}
+  }
+
+  // --- Create new encounter ---
+  const newEnc = await HospitalEncounter.create({
+    patientId: sourceEnc.patientId,
+    type: data.targetType,
+    status: data.targetType === 'IPD' ? 'admitted' : 'in-progress',
+    departmentId: data.departmentId,
+    doctorId: data.doctorId || sourceEnc.doctorId,
+    corporateId: data.corporateId || sourceEnc.corporateId,
+    corporatePreAuthNo: data.corporatePreAuthNo || sourceEnc.corporatePreAuthNo,
+    corporateCoPayPercent: data.corporateCoPayPercent || sourceEnc.corporateCoPayPercent,
+    corporateCoverageCap: data.corporateCoverageCap || sourceEnc.corporateCoverageCap,
+    startAt: new Date(),
+    bedId: data.bedId,
+    deposit: data.targetType === 'IPD' ? (data.deposit || transferredDeposit || transferredAdvance || 0) : undefined,
+    packageAmount: data.targetType === 'IPD' ? 0 : undefined,
+    advancedAmount: data.targetType === 'IPD' ? (transferredAdvance || 0) : undefined,
+    pendingAmount: data.targetType === 'IPD' ? Math.max(0, (data.deposit || transferredDeposit || 0) - (transferredAdvance || 0)) : undefined,
+    admissionNo: data.targetType === 'IPD' ? await nextAdmissionNo() : undefined,
+  })
+
+  // Occupy new bed
+  if (bed) {
+    bed.status = 'occupied'
+    bed.occupiedByEncounterId = newEnc._id as any
+    await bed.save()
+  }
+
+  // Create IPD advance payment record for transferred funds
+  if (data.targetType === 'IPD' && transferredAdvance > 0) {
+    try {
+      await HospitalIpdPayment.create({
+        encounterId: newEnc._id,
+        amount: transferredAdvance,
+        method: 'Advance',
+        receivedBy: (req as any).user?.name || (req as any).user?.email || 'system',
+        receivedAt: new Date(),
+        allocations: [],
+      } as any)
+    } catch {}
+  }
+
+  // Audit log
+  try {
+    const actor = (req as any).user?.name || (req as any).user?.email || 'system'
+    await HospitalAuditLog.create({
+      actor,
+      action: 'patient_transfer',
+      label: 'PATIENT_TRANSFER',
+      method: req.method,
+      path: req.originalUrl,
+      at: new Date().toISOString(),
+      detail: `Transferred patient from ${sourceEnc.type} (${sourceEnc._id}) to ${data.targetType} (${newEnc._id})`,
+    })
+  } catch {}
+
+  res.status(201).json({ encounter: newEnc, sourceEncounter: sourceEnc, transferredAdvance, transferredDeposit })
+}
+
 export async function list(req: Request, res: Response){
   const q = req.query as any
   const criteria: any = { type: 'IPD' }
@@ -296,6 +456,12 @@ export async function list(req: Request, res: Response){
       const t = new Date(to + 'T23:59:59.999')
       criteria.startAt.$lte = new Date(t.getTime() - (5 * 60 * 60 * 1000))
     }
+  }
+  // Exclude encounters currently in active ICU admission
+  const icuAdmissions = await ICUAdmission.find({ status: 'active' }).select('encounterId').lean()
+  const icuEncounterIds = icuAdmissions.map(a => String((a as any).encounterId))
+  if (icuEncounterIds.length) {
+    criteria._id = { $nin: icuEncounterIds }
   }
   let rows = await HospitalEncounter.find(criteria)
     .sort({ startAt: -1 })
@@ -357,8 +523,20 @@ export async function getById(req: Request, res: Response){
     .populate('departmentId', 'name')
     .lean()
   if (!enc) return res.status(404).json({ error: 'Encounter not found' })
-  if (enc.type !== 'IPD') return res.status(400).json({ error: 'Not an IPD encounter' })
-  if (enc.bedId){
+  if (enc.type !== 'IPD' && enc.type !== 'ER') return res.status(400).json({ error: 'Not an IPD or ER encounter' })
+
+  // Check for active ICU admission — if present, show ICU bed instead of original bed
+  const icuAdmission: any = await ICUAdmission.findOne({ encounterId: enc._id, status: 'active' }).populate('bedId').lean()
+  if (icuAdmission?.bedId) {
+    const icuBed: any = icuAdmission.bedId
+    enc = {
+      ...enc,
+      bedLabel: `ICU ${icuBed.name || icuBed.label || ''}`,
+      bedFullInfo: `ICU / ${icuBed.name || icuBed.label || ''}`,
+      inICU: true,
+      icuAdmissionId: String(icuAdmission._id || ''),
+    }
+  } else if (enc.bedId){
     const bed: any = await HospitalBed.findById(enc.bedId).lean()
     if (bed) {
       let locationName = ''
@@ -460,6 +638,10 @@ export async function admitFromToken(req: Request, res: Response){
   if (!patientId) return res.status(400).json({ error: 'Token has no patientId' })
   const patient = await LabPatient.findById(patientId).lean()
   if (!patient) return res.status(404).json({ error: 'Patient not found' })
+
+  const alreadyAdmitted = await hasActiveIpdAdmission(String(patientId))
+  if (alreadyAdmitted) return res.status(400).json({ error: 'Patient is already admitted. Discharge the current admission before creating a new one.' })
+
   // Department/doctor derive from token unless overridden
   const departmentId = data.departmentId || String((tok as any).departmentId || '')
   const doctorId = data.doctorId || (tok as any).doctorId || undefined
@@ -515,6 +697,19 @@ export async function admitFromToken(req: Request, res: Response){
     bed.status = 'occupied'
     bed.occupiedByEncounterId = enc._id as any
     await bed.save()
+  }
+  // Create an Advance payment record so billing pages can track it via IpdPayment
+  if (adv > 0) {
+    try {
+      await HospitalIpdPayment.create({
+        encounterId: enc._id,
+        amount: adv,
+        method: 'Advance',
+        receivedBy: (req as any).user?.name || (req as any).user?.email || 'system',
+        receivedAt: new Date(),
+        allocations: [],
+      } as any)
+    } catch {}
   }
   // Optionally mark OPD token completed
   const mark = data.markTokenCompleted !== false

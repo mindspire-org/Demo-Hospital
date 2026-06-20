@@ -4,6 +4,23 @@ import IndoorPharmacy_Header from '../../components/indoorpharmacy/indoorpharmac
 import { useEffect, useState } from 'react'
 
 export default function IndoorPharmacy_Layout() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // Auth guard: detect invalid or fake token and force re-login
+  useEffect(() => {
+    const token = localStorage.getItem('indoorpharmacy.token') || ''
+    const isBad = !token || token === 'ok' || token.length < 10
+    if (isBad && !location.pathname.startsWith('/indoor-pharmacy/login')) {
+      try {
+        localStorage.removeItem('indoorpharmacy.token')
+        localStorage.removeItem('indoorpharmacy.user')
+        localStorage.removeItem('indoorpharma_user')
+      } catch {}
+      navigate('/indoor-pharmacy/login', { replace: true })
+    }
+  }, [location.pathname, navigate])
+
   const [collapsed, setCollapsed] = useState(false)
   const [theme, setTheme] = useState<'light'|'dark'>(()=>{
     try { return (localStorage.getItem('indoorpharmacy.theme') as 'light'|'dark') || 'light' } catch { return 'light' }
@@ -35,8 +52,6 @@ export default function IndoorPharmacy_Layout() {
       } catch {}
     }
   }, [])
-  const navigate = useNavigate()
-  const location = useLocation()
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null

@@ -33,4 +33,6 @@ export const upsertDoctorSchema = z.object({
   ipdShare: z.number().min(0).max(100).optional(),
   active: z.boolean().optional(),
   prescriptionTemplate: z.string().optional(),
+  prescriptionLanguage: z.string().optional(),
+  prescriptionDesign: z.record(z.any()).optional(),
 })

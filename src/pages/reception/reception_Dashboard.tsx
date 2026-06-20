@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Ticket, ListChecks, BedSingle, Activity, FlaskConical, ClipboardList, FileText, DollarSign, Clock, Cog, UserCog } from 'lucide-react'
+import { Ticket, ListChecks, BedSingle, Activity, FlaskConical, ClipboardList, FileText, DollarSign } from 'lucide-react'
 import ModuleCard from '../../components/ModuleCard'
 
 export default function Reception_Dashboard(){
@@ -16,9 +16,6 @@ export default function Reception_Dashboard(){
     { to: '/reception/diagnostic/sample-tracking', title: 'Diagnostic Tracking', description: 'Track diagnostic samples', icon: <ClipboardList className="h-5 w-5 text-white" />, tone: 'sky' as const },
 
     { to: '/reception/my-activity-report', title: 'My Activity Report', description: 'View your daily activity report', icon: <FileText className="h-5 w-5 text-white" />, tone: 'emerald' as const },
-    { to: '/reception/staff-settings', title: 'Staff Settings', description: 'Manage shifts and deductions', icon: <Clock className="h-5 w-5 text-white" />, tone: 'sky' as const },
-    { to: '/reception/sidebar-permissions', title: 'Sidebar Permissions', description: 'Configure sidebar visibility', icon: <Cog className="h-5 w-5 text-white" />, tone: 'slate' as const },
-    { to: '/reception/user-management', title: 'User Management', description: 'Manage users and assign shifts', icon: <UserCog className="h-5 w-5 text-white" />, tone: 'violet' as const },
   ]), [])
 
   return (
@@ -36,7 +33,7 @@ export default function Reception_Dashboard(){
             title={c.title}
             description={c.description}
             icon={
-              <div className="rounded-lg bg-[var(--navy)] p-2">
+              <div className="rounded-lg bg-(--navy) p-2">
                 {c.icon}
               </div>
             }

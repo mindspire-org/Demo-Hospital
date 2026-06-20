@@ -4,8 +4,19 @@ import { env } from '../../../config/env'
 import { z } from 'zod'
 import { HospitalUser } from '../models/User'
 import { HospitalAuditLog } from '../models/AuditLog'
+import { HospitalSidebarPermission } from '../models/SidebarPermission'
 import bcrypt from 'bcryptjs'
 import { HospitalShift } from '../models/Shift'
+
+const KNOWN_ROLES = ['admin', 'staff', 'reception', 'receptionist', 'nurse', 'doctor', 'finance', 'superadmin']
+
+async function validateRole(role: string): Promise<boolean> {
+  const r = String(role || '').trim().toLowerCase()
+  if (!r) return false
+  if (KNOWN_ROLES.includes(r)) return true
+  const existing = await HospitalSidebarPermission.findOne({ role: r }).lean()
+  return !!existing
+}
 
 const createSchema = z.object({
   username: z.string().min(1),
@@ -75,6 +86,9 @@ export async function create(req: Request, res: Response){
   const username = data.username.trim().toLowerCase()
   const existing = await HospitalUser.findOne({ username }).lean()
   if (existing) return res.status(409).json({ error: 'Username already exists' })
+  if (!(await validateRole(data.role))) {
+    return res.status(400).json({ error: `Invalid role: ${data.role}` })
+  }
   const hashed = await bcrypt.hash(String(data.password || '123'), 10)
   const doc: any = await HospitalUser.create({
     username,
@@ -108,7 +122,12 @@ export async function update(req: Request, res: Response){
   const data = updateSchema.parse(req.body)
   const patch: any = { }
   if (data.username) patch.username = data.username.trim().toLowerCase()
-  if (data.role) patch.role = data.role
+  if (data.role) {
+    if (!(await validateRole(data.role))) {
+      return res.status(400).json({ error: `Invalid role: ${data.role}` })
+    }
+    patch.role = data.role
+  }
   if (data.fullName != null) patch.fullName = data.fullName
   if (data.phone != null) { patch.phone = data.phone; patch.phoneNormalized = data.phone ? data.phone.replace(/\D+/g,'') : undefined }
   if (data.email != null) patch.email = data.email

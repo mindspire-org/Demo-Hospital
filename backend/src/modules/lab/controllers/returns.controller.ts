@@ -11,6 +11,7 @@ import { LabOrderTest } from '../models/OrderTest'
 import { LabToken } from '../models/Token'
 import { LabTest } from '../models/Test'
 import { LabPayment } from '../models/Payment'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 function resolveActor(req: Request) {
   return (req as any).user?.username || (req as any).user?.name || (req as any).user?.email || 'system'
@@ -207,6 +208,23 @@ export async function create(req: Request, res: Response){
         detail: `Token ${token} — ${party}`,
       })
     } catch {}
+
+    // Activity log
+    try {
+      logActivity({
+        userId: String((req as any).user?._id || (req as any).user?.id || (req as any).user?.email || 'system'),
+        userName: actor,
+        portal: 'lab',
+        action: 'Lab Refund Issued',
+        module: 'Lab',
+        entityId: String(doc._id),
+        entityLabel: `Return ${token} — ${party}`,
+        amount: Number(total || 0),
+        method: String((order as any).paidMethod || 'Cash'),
+        meta: { orderId: String(order._id), tokenNo: token, tests: remainingTests }
+      })
+    } catch {}
+
     return res.status(201).json({ ok: true, order: { id: order._id, status: order.status }, return: doc })
   }
 

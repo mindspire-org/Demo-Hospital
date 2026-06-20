@@ -279,19 +279,13 @@ export async function previewLetterheadRxPdf(data: PrescriptionPdfData) {
         pdf.setFont('helvetica', 'bold'); pdf.text(name, mx + 7, y)
       }
 
-      // Details (dose / freq / dur / route)
-      const detail = [dose, freq, dur, route].filter(Boolean).join('   |   ')
+      // Details (dose / freq / dur / route / instruction) — all in one row
+      const detail = [dose, freq, dur, route, instr].filter(Boolean).join('   |   ')
       pdf.setFontSize(8); pdf.setTextColor(mid.r, mid.g, mid.b)
       if (detail) {
         const detailUrdu = hasUrdu(detail)
         if (detailUrdu) { safeUrduText(detail, W - mx - 7, y + 4, { align: 'right' }) }
         else { pdf.setFont('helvetica', 'normal'); pdf.text(detail, mx + 7, y + 4) }
-      }
-      if (instr) {
-        const instrUrdu = hasUrdu(instr)
-        if (instrUrdu) { pdf.setFontSize(9); pdf.setTextColor(mid.r, mid.g, mid.b); safeUrduText(instr, W - mx - 7, y + 8, { align: 'right' }) }
-        else { pdf.setFont('helvetica', 'italic'); pdf.setFontSize(7.5); pdf.setTextColor(mid.r, mid.g, mid.b); pdf.text(`Instructions: ${instr}`, mx + 7, y + 8) }
-        y += 4
       }
       y += 9
     })

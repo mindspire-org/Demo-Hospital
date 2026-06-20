@@ -88,6 +88,44 @@ async function listCollectionNames(){
 
 
 
+export async function dbStats(_req: Request, res: Response){
+  try {
+    const dbName = mongoose.connection.db!.databaseName
+    const names = await listCollectionNames()
+    const collections: { name: string; count: number }[] = []
+    let totalDocs = 0
+    for (const name of names) {
+      const count = await mongoose.connection.db!.collection(name).countDocuments()
+      totalDocs += count
+      collections.push({ name, count })
+    }
+    collections.sort((a, b) => b.count - a.count)
+    res.json({ dbName, collections, totalCollections: collections.length, totalDocs, at: new Date().toISOString() })
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Failed to get stats' })
+  }
+}
+
+export async function listAutoBackups(_req: Request, res: Response){
+  try {
+    const outDir = path.resolve(env.BACKUP_DIR || './backups')
+    await fs.mkdir(outDir, { recursive: true })
+    const items = (await fs.readdir(outDir)).filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+    const withStat = await Promise.all(items.map(async f => {
+      const stat = await fs.stat(path.join(outDir, f))
+      return {
+        file: f,
+        size: stat.size,
+        createdAt: stat.mtime.toISOString(),
+      }
+    }))
+    withStat.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    res.json({ backups: withStat })
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Failed to list backups' })
+  }
+}
+
 export async function exportAll(req: Request, res: Response){
 
   const dbName = mongoose.connection.db!.databaseName

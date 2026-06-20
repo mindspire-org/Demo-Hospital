@@ -161,7 +161,7 @@ export async function createRole(req: Request, res: Response){
 export async function deleteRole(req: Request, res: Response){
   const role = normRole(req.params.role)
   if (!role) return res.status(400).json({ message: 'Role is required' })
-  if (['admin','staff','reception','nurse','superadmin'].includes(role)) return res.status(400).json({ message: 'Default roles cannot be deleted' })
+  if (['admin','staff','reception','receptionist','nurse','doctor','finance','superadmin'].includes(role)) return res.status(400).json({ message: 'Default roles cannot be deleted' })
   await HospitalSidebarPermission.deleteOne({ role })
   res.json({ ok: true })
 }

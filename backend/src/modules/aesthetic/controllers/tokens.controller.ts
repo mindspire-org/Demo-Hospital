@@ -8,6 +8,7 @@ import { LabPatient } from '../../lab/models/Patient'
 import { nextGlobalMrn } from '../../../common/mrn'
 import { postOpdTokenJournal, postProcedurePaymentJournal, reverseJournalByRef } from './finance_ledger'
 import { postFbrInvoiceViaSDC } from '../../hospital/services/fbr'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 function dateKey(dateIso?: string) {
   const d = dateIso ? new Date(dateIso) : new Date()
@@ -334,6 +335,24 @@ export async function create(req: Request, res: Response) {
   } catch (e) {
     console.warn('Aesthetic finance posting failed', e)
   }
+
+  // Activity log
+  try {
+    const paidToday = Math.max(0, Number(body.depositToday || body.payable || 0))
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: String((req as any).user?.username || ''),
+      portal: 'aesthetic',
+      action: paidToday > 0 ? 'Aesthetic Payment Collected' : 'Token Generated',
+      module: 'Aesthetic',
+      entityId: String((doc as any)._id),
+      entityLabel: `Token ${number} — ${body.patientName || ''}`,
+      amount: Number(paidToday || 0),
+      method: String(body.method || 'Cash'),
+      meta: { patientName: body.patientName || '', mrn: String((doc as any)?.mrNumber || ''), doctorId: body.doctorId || '', fee: Number(fee || 0) }
+    })
+  } catch {}
+
   res.status(201).json({ token: doc })
 }
 

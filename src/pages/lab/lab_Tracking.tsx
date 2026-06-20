@@ -48,6 +48,16 @@ function genBarcode(order: Order) {
   return `BC-${y}-${part}`
 }
 
+function getCurrentActor(): string {
+  try {
+    const raw = localStorage.getItem('lab.session')
+    if (raw) { const s = JSON.parse(raw || '{}'); const n = s?.username || s?.user?.username || ''; if (n) return n }
+    const d = localStorage.getItem('diagnostic.user'); if (d) { const u = JSON.parse(d || '{}'); const n = u?.username || u?.name || ''; if (n) return n }
+    const h = localStorage.getItem('hospital.session'); if (h) { const u = JSON.parse(h || '{}'); const n = u?.username || ''; if (n) return n }
+  } catch {}
+  return ''
+}
+
 export default function Lab_Tracking() {
   const [orders, setOrders] = useState<Order[]>([])
   const [total, setTotal] = useState(0)
@@ -247,9 +257,10 @@ export default function Lab_Tracking() {
 
         setOrders(prev => prev.map(x => {
           if (x.id !== id) return x
-          const updatedTests = x.tests.map(t => 
-            String(t.testId) === String(testId) 
-              ? { ...t, isReturned: true, status: 'returned' as const, returnedAt: new Date().toISOString() }
+          const actor = getCurrentActor()
+          const updatedTests = x.tests.map(t =>
+            String(t.testId) === String(testId)
+              ? { ...t, isReturned: true, status: 'returned' as const, returnedAt: new Date().toISOString(), performedBy: actor || t.performedBy }
               : t
           )
           return { ...x, tests: updatedTests }
@@ -283,9 +294,10 @@ export default function Lab_Tracking() {
 
         setOrders(prev => prev.map(x => {
           if (x.id !== id) return x
-          const updatedTests = x.tests.map(t => 
-            String(t.testId) === String(testId) 
-              ? { ...t, isReturned: false, status: 'sample_collected' as const, returnedAt: undefined }
+          const actor = getCurrentActor()
+          const updatedTests = x.tests.map(t =>
+            String(t.testId) === String(testId)
+              ? { ...t, isReturned: false, status: 'sample_collected' as const, returnedAt: undefined, performedBy: actor || t.performedBy }
               : t
           )
           return { ...x, tests: updatedTests }
@@ -375,13 +387,7 @@ export default function Lab_Tracking() {
       }
     } catch {}
     
-    // Updated to print activity tracking instead of token slip as requested
-    if (tlToken && tl?.events) {
-      await printLabTrackingActivity(tlToken, tl.events, tl.order)
-    } else {
-      // Fallback if timeline fetch failed
-      await printLabTokenSlip({ tokenNo, createdAt: o.createdAt, patient: { fullName: o.patient.fullName, mrn: o.patient.mrn, phone: o.patient.phone, gender, age }, tests: rows, subtotal, discount, net, receivedAmount, receivableAmount, printedBy })
-    }
+    await printLabTokenSlip({ tokenNo, createdAt: o.createdAt, patient: { fullName: o.patient.fullName, mrn: o.patient.mrn, phone: o.patient.phone, gender, age }, tests: rows, subtotal, discount, net, receivedAmount, receivableAmount, printedBy })
   }
 
   const statusCounts = useMemo(() => {
@@ -565,7 +571,14 @@ export default function Lab_Tracking() {
                     {(o as any).sampleType === 'urgent' && <span className="ml-1 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">URG</span>}
                     {(o as any).sampleType === 'stat' && <span className="ml-1 rounded bg-rose-700 px-1.5 py-0.5 text-[10px] font-bold text-white">STAT</span>}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-600">{o.tests[0]?.performedBy || '—'}</td>
+                  <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-600">
+                    {o.tests.some(t => t.isReturned || t.status === 'returned')
+                      ? (() => {
+                          const returnedTest = o.tests.find(t => t.isReturned || t.status === 'returned')
+                          return returnedTest?.performedBy ? `Returned by ${returnedTest.performedBy}` : '—'
+                        })()
+                      : (o.tests[0]?.performedBy || '—')}
+                  </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1">
                       <button type="button" onClick={()=>printToken(o.id)} title="Print Token" className="inline-flex items-center justify-center rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"><Printer className="h-4 w-4" /></button>

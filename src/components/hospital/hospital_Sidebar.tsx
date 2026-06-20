@@ -146,6 +146,8 @@ const otSection: Section = {
     { to: '/hospital/ot/sterilization', label: 'Sterilization', icon: ScrollText },
     { to: '/hospital/ot/equipment', label: 'OT Equipment', icon: Settings },
     { to: '/hospital/ot/procedures', label: 'OT Procedures', icon: ClipboardList },
+    { to: '/hospital/ot/patients', label: 'OT Patients', icon: Users },
+    { to: '/hospital/ot/billing', label: 'OT Billing', icon: Wallet },
     { to: '/hospital/ot/reports', label: 'OT Reports', icon: ScrollText },
   ],
 }
@@ -154,10 +156,13 @@ const icuSection: Section = {
   label: 'ICU MANAGEMENT',
   items: [
     { to: '/hospital/icu', label: 'ICU Dashboard', icon: LayoutDashboard, end: true },
+    { to: '/hospital/icu/referrals', label: 'ICU Referrals', icon: Stethoscope },
     { to: '/hospital/icu/beds', label: 'ICU Bed Status', icon: Bed },
     { to: '/hospital/icu/monitoring', label: 'Vitals Monitoring', icon: Activity },
     { to: '/hospital/icu/scoring', label: 'Severity Scoring', icon: ScrollText },
     { to: '/hospital/icu/ventilator', label: 'Ventilator/Device', icon: Settings },
+    { to: '/hospital/icu/patients', label: 'ICU Patients', icon: Users },
+    { to: '/hospital/icu/billing', label: 'ICU Billing', icon: Wallet },
     { to: '/hospital/icu/reports', label: 'ICU Reports', icon: ScrollText },
   ],
 }
@@ -225,6 +230,8 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
   const navigate = useNavigate()
   const [role, setRole] = useState<string>('admin')
   const [permMap, setPermMap] = useState<Map<string, any>>(new Map())
+  const [icuLabel, setIcuLabel] = useState<string>('ICU')
+  const [corporateLabel, setCorporateLabel] = useState<string>('Corporate')
   const width = collapsed ? 'md:w-16' : 'md:w-72'
 
   useEffect(()=>{
@@ -235,6 +242,23 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
         if (u?.role) setRole(String(u.role).toLowerCase())
       }
     } catch {}
+  }, [])
+
+  // Load custom labels from localStorage and listen for changes
+  useEffect(() => {
+    const loadLabels = () => {
+      try {
+        setIcuLabel(localStorage.getItem('hospital.icuLabel') || 'ICU')
+        setCorporateLabel(localStorage.getItem('hospital.corporateLabel') || 'Corporate')
+      } catch {}
+    }
+    loadLabels()
+    window.addEventListener('storage', loadLabels)
+    window.addEventListener('hospital:labels:updated', loadLabels)
+    return () => {
+      window.removeEventListener('storage', loadLabels)
+      window.removeEventListener('hospital:labels:updated', loadLabels)
+    }
   }, [])
 
   useEffect(()=>{
@@ -260,6 +284,25 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
     const ob = permMap.get(b.to)?.order ?? Number.MAX_SAFE_INTEGER
     if (oa !== ob) return oa - ob
     return 0
+  }
+
+  // Apply custom labels to a section (ICU / Corporate renaming)
+  const applyLabels = (section: Section): Section => {
+    const replaceLabel = (text: string) => {
+      let t = text
+      t = t.replace(/\bICU\b/g, icuLabel)
+      t = t.replace(/ICU/g, icuLabel)
+      t = t.replace(/\bCorporate\b/g, corporateLabel)
+      t = t.replace(/Corporate/g, corporateLabel)
+      return t
+    }
+    return {
+      label: replaceLabel(section.label),
+      items: section.items.map(item => ({
+        ...item,
+        label: replaceLabel(item.label),
+      })),
+    }
   }
 
   const renderNavItem = (item: NavItem) => {
@@ -295,14 +338,15 @@ export default function Hospital_Sidebar({ collapsed = false }: { collapsed?: bo
   }
 
   const renderSection = (section: Section) => {
-    const visibleItems = section.items.filter(i => canShow(i.to)).sort(byOrder)
+    const labeled = applyLabels(section)
+    const visibleItems = labeled.items.filter(i => canShow(i.to)).sort(byOrder)
     if (visibleItems.length === 0) return null
 
     return (
-      <div key={section.label} className="space-y-1">
+      <div key={labeled.label} className="space-y-1">
         {!collapsed && (
           <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600 mt-4 first:mt-0">
-            {section.label}
+            {labeled.label}
           </div>
         )}
         {visibleItems.map(renderNavItem)}

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { FinanceJournal } from '../../finance/models/FinanceJournal'
 import { createDoctorPayout, manualDoctorEarning, computeDoctorBalance, reverseJournalById } from './finance_ledger'
 import { AuditLog } from '../models/AuditLog'
+import { logActivity } from '../../finance/services/activityLog.service'
 import { AestheticDoctor } from '../models/Doctor'
 
 function getActor(req: Request){
@@ -30,6 +31,24 @@ const doctorPayoutSchema = z.object({
 export async function postManualDoctorEarning(req: Request, res: Response){
   const data = manualDoctorEarningSchema.parse(req.body)
   const j = await manualDoctorEarning(data)
+
+  // Activity log
+  try {
+    const actor = getActor(req) as any
+    logActivity({
+      userId: String(actor.actorId || 'system'),
+      userName: String(actor.actorUsername || ''),
+      portal: 'aesthetic',
+      action: 'Manual Earning Recorded',
+      module: 'Doctor',
+      entityId: String((j as any)._id),
+      entityLabel: `Earning — ${data.patientName || data.doctorId}`,
+      amount: Number(data.amount || 0),
+      method: String(data.paidMethod || 'Cash'),
+      meta: { doctorId: data.doctorId, patientName: data.patientName, mrn: data.mrn || '' }
+    })
+  } catch {}
+
   try {
     const actor = getActor(req) as any
     await AuditLog.create({ actor: String(actor.actorUsername||'unknown'), action: 'aesthetic.finance.manual_doctor_earning', label: 'AESTHETIC_FINANCE_MANUAL_EARNING', path: req.path, method: req.method, at: new Date().toISOString(), detail: JSON.stringify({ doctorId: data.doctorId, amount: data.amount, journalId: String((j as any)?._id||'') }) })
@@ -200,6 +219,24 @@ export async function listDoctorEarnings(req: Request, res: Response){
 export async function postDoctorPayout(req: Request, res: Response){
   const data = doctorPayoutSchema.parse(req.body)
   const j = await createDoctorPayout(data.doctorId, data.amount, data.method, data.memo)
+
+  // Activity log
+  try {
+    const actor = getActor(req) as any
+    logActivity({
+      userId: String(actor.actorId || 'system'),
+      userName: String(actor.actorUsername || ''),
+      portal: 'aesthetic',
+      action: 'Doctor Payout',
+      module: 'Doctor',
+      entityId: String((j as any)._id),
+      entityLabel: `Payout — Dr. ${data.doctorId}`,
+      amount: Number(data.amount || 0),
+      method: String(data.method || 'Cash'),
+      meta: { doctorId: data.doctorId, memo: data.memo || '' }
+    })
+  } catch {}
+
   try {
     const actor = getActor(req) as any
     await AuditLog.create({ actor: String(actor.actorUsername||'unknown'), action: 'aesthetic.finance.doctor_payout', label: 'AESTHETIC_FINANCE_PAYOUT', path: req.path, method: req.method, at: new Date().toISOString(), detail: JSON.stringify({ doctorId: data.doctorId, amount: data.amount, journalId: String((j as any)?._id||'') }) })

@@ -174,6 +174,7 @@ export default function Hospital_BedManagement() {
             <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm" onClick={() => setOpenManageWards(true)}>Manage Wards</button>
             <button className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white" onClick={() => setOpenAddBed(true)}>Add Bed</button>
             <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm" onClick={() => setOpenManageBeds(true)}>Manage Beds</button>
+            <button className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white" onClick={() => navigate('/hospital/er-beds')}>ER Beds</button>
           </div>
         </div>
         {loading && <div className="mt-3 text-sm text-slate-500">Loading...</div>}

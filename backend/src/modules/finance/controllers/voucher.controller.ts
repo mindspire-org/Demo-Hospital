@@ -3,6 +3,7 @@ import { Voucher } from '../models/Voucher'
 import { ChartOfAccount } from '../models/ChartOfAccount'
 import { FinanceJournal, JournalLine } from '../models/FinanceJournal'
 import { FiscalPeriod } from '../models/FiscalPeriod'
+import { logActivity } from '../services/activityLog.service'
 
 function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100
@@ -357,6 +358,23 @@ export async function post(req: Request, res: Response) {
   voucher.postedBy = postedBy
   await voucher.save()
 
+  // Activity log
+  try {
+    const totalAmount = (voucher.lines || []).reduce((s: number, l: any) => s + (l.debit || l.credit || 0), 0)
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: postedBy,
+      portal: 'finance',
+      action: 'Voucher Posted',
+      module: voucher.module || voucher.costCenter || 'general',
+      entityId: String(voucher._id),
+      entityLabel: `${voucher.voucherType} — ${voucher.voucherNo}`,
+      amount: Number(totalAmount || 0),
+      method: String(voucher.payee || ''),
+      meta: { voucherNo: voucher.voucherNo, voucherType: voucher.voucherType, narration: voucher.narration || '' }
+    })
+  } catch {}
+
   res.json({ voucher, journalId: String(journal._id) })
 }
 
@@ -534,6 +552,22 @@ export async function createExpense(req: Request, res: Response) {
     createdBy,
   })
 
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: createdBy,
+      portal: 'finance',
+      action: 'Expense Voucher Created',
+      module: module || 'general',
+      entityId: String(voucher._id),
+      entityLabel: `${voucherType} — ${voucherNo}`,
+      amount: Number(amt || 0),
+      method: String(payee || method || ''),
+      meta: { payee, costCenter, note, expenseAccountCode: expAccCode }
+    })
+  } catch {}
+
   res.status(201).json(voucher)
 }
 
@@ -551,6 +585,22 @@ export async function approve(req: Request, res: Response) {
   voucher.approvedBy = approvedBy
   voucher.approvedAt = new Date().toISOString()
   await voucher.save()
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: approvedBy,
+      portal: 'finance',
+      action: 'Expense Approved',
+      module: voucher.module || voucher.costCenter || 'general',
+      entityId: String(voucher._id),
+      entityLabel: `${voucher.voucherType} — ${voucher.voucherNo}`,
+      amount: Number((voucher.lines || []).reduce((s: number, l: any) => s + (l.debit || l.credit || 0), 0)),
+      method: '',
+      meta: { voucherNo: voucher.voucherNo, voucherType: voucher.voucherType, approvedBy }
+    })
+  } catch {}
 
   res.json(voucher)
 }

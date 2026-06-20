@@ -18,7 +18,13 @@ export function useHospitalSettings() {
     async function load() {
       try {
         const s = await hospitalApi.getSettings() as any
-        if (!cancelled) setSettings(s || null)
+        if (!cancelled) {
+          setSettings(s || null)
+          // Persist time format preference so formatters can read it from localStorage instantly
+          if (s?.timeFormat) {
+            try { localStorage.setItem('hospital.timeFormat', s.timeFormat) } catch {}
+          }
+        }
       } catch {}
     }
     load()

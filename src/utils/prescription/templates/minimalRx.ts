@@ -1,5 +1,9 @@
 import type { PrescriptionPdfData } from './hospitalRxPdf'
 
+function roundedRect(pdf: any, x: number, y: number, w: number, h: number, r: number) {
+  try { pdf.roundedRect(x, y, w, h, r, r) } catch { pdf.rect(x, y, w, h) }
+}
+
 export async function previewMinimalRxPdf(data: PrescriptionPdfData) {
   const { jsPDF } = await import('jspdf')
   const { ensureUrduNastaleeq, drawUrduText } = await import('../ensureUrduNastaleeq')
@@ -20,8 +24,6 @@ export async function previewMinimalRxPdf(data: PrescriptionPdfData) {
   const mid    = { r: 80,  g: 80,  b: 80  }
   const light  = { r: 160, g: 160, b: 160 }
   const rule   = { r: 210, g: 210, b: 210 }
-  const bg     = { r: 248, g: 248, b: 248 }
-
   const settings = data.settings || {}
   const patient  = data.patient  || {}
   const doctor   = data.doctor   || {}
@@ -30,82 +32,85 @@ export async function previewMinimalRxPdf(data: PrescriptionPdfData) {
   const cw = W - 2 * mx
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 1. HEADER — minimal typographic header, no background fill
+  // 1. HEADER — modern clean header with navy accent
   // ══════════════════════════════════════════════════════════════════════════
 
-  // Thin top rule
-  pdf.setDrawColor(ink.r, ink.g, ink.b)
-  pdf.setLineWidth(1.2)
-  pdf.line(mx, 10, W - mx, 10)
+  // Navy top accent bar
+  pdf.setFillColor(30, 41, 59)
+  pdf.rect(mx, 6, cw, 3, 'F')
 
   // Logo
-  let nameX = mx
+  let nameX = mx + 2
   const logoSrc = String(settings.logoDataUrl || '')
   if (logoSrc) {
     try {
       const norm = await ensurePng(logoSrc)
-      pdf.addImage(norm, 'PNG' as any, mx, 13, 14, 14, undefined, 'FAST')
-      nameX = mx + 17
+      pdf.addImage(norm, 'PNG' as any, mx + 2, 14, 14, 14, undefined, 'FAST')
+      nameX = mx + 19
     } catch {}
   }
 
-  // Hospital name — large serif-style bold
+  // Hospital name — large bold
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(18)
   pdf.setTextColor(ink.r, ink.g, ink.b)
-  pdf.text(String(settings.name || 'Hospital'), nameX, 20)
+  pdf.text(String(settings.name || 'Hospital'), nameX, 24)
 
   // Address line
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(7.5)
   pdf.setTextColor(mid.r, mid.g, mid.b)
   const addrPhone = [settings.address, settings.phone].filter(Boolean).join('   ·   ')
-  pdf.text(addrPhone, nameX, 25.5)
+  pdf.text(addrPhone, nameX, 30)
 
-  // Doctor block — right aligned
-  const drX = W - mx
+  // Doctor block — right aligned with navy accent
+  const drX = W - mx - 4
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(11)
-  pdf.setTextColor(ink.r, ink.g, ink.b)
-  pdf.text(`Dr. ${String(doctor.name || '-')}`, drX, 17, { align: 'right' })
+  pdf.setFontSize(12)
+  pdf.setTextColor(30, 41, 59)
+  const drName2 = String(doctor.name || '-').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drName2}`, drX, 22, { align: 'right' })
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(7.5)
+  pdf.setFontSize(8)
   pdf.setTextColor(mid.r, mid.g, mid.b)
-  if (doctor.qualification) pdf.text(String(doctor.qualification), drX, 22.5, { align: 'right' })
+  if (doctor.qualification) pdf.text(String(doctor.qualification), drX, 27.5, { align: 'right' })
   const spec = String((doctor as any).specialization || doctor.departmentName || '')
-  if (spec) pdf.text(spec, drX, 27, { align: 'right' })
+  if (spec) pdf.text(spec, drX, 32, { align: 'right' })
 
-  // Thick + thin double rule
-  pdf.setDrawColor(ink.r, ink.g, ink.b)
-  pdf.setLineWidth(0.8)
-  pdf.line(mx, 31, W - mx, 31)
-  pdf.setLineWidth(0.2)
-  pdf.line(mx, 33, W - mx, 33)
+  // Clean bottom rule
+  pdf.setDrawColor(200, 200, 210)
+  pdf.setLineWidth(0.3)
+  pdf.line(mx, 36, W - mx, 36)
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2. PATIENT INFO — single ruled row
+  // 2. PATIENT INFO — modern card with rounded corners
   // ══════════════════════════════════════════════════════════════════════════
-  let y = 38
-  pdf.setFillColor(bg.r, bg.g, bg.b)
-  pdf.rect(mx, y - 3.5, cw, 8, 'F')
+  let y = 42
+  pdf.setFillColor(248, 250, 252)
+  pdf.setDrawColor(220, 225, 232)
+  pdf.setLineWidth(0.3)
+  roundedRect(pdf, mx, y - 4, cw, 18, 3)
+
+  // Left navy accent bar
+  pdf.setFillColor(30, 41, 59)
+  pdf.rect(mx, y - 2, 3, 14, 'F')
 
   const kv = (lbl: string, val: string, x: number, yy: number, lblW = 12) => {
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7); pdf.setTextColor(mid.r, mid.g, mid.b)
     pdf.text(lbl, x, yy)
     pdf.setFont('helvetica', 'normal'); pdf.setTextColor(ink.r, ink.g, ink.b)
+    pdf.setFontSize(8.5)
     pdf.text(String(val || '-'), x + lblW, yy)
   }
 
-  kv('Patient:', String(patient.name || '-'), mx + 1, y, 14)
-  kv('MR:', String(patient.mrn || '-'), mx + 70, y, 8)
-  kv('Age:', String(patient.age || '-'), mx + 106, y, 8)
-  kv('Gender:', String(patient.gender || '-'), mx + 132, y, 12)
-  kv('Date:', dt.toLocaleDateString('en-GB'), mx + 165, y, 9)
+  kv('Patient:', String(patient.name || '-'), mx + 8, y + 2, 14)
+  kv('MR:', String(patient.mrn || '-'), mx + 76, y + 2, 8)
+  kv('Age:', String(patient.age || '-'), mx + 114, y + 2, 8)
+  kv('Gender:', String(patient.gender || '-'), mx + 142, y + 2, 12)
+  kv('Date:', dt.toLocaleDateString('en-GB'), mx + 174, y + 2, 9)
+  kv('Phone:', String(patient.phone || '-'), mx + 8, y + 9, 14)
 
-  pdf.setDrawColor(rule.r, rule.g, rule.b)
-  pdf.setLineWidth(0.2)
-  pdf.line(mx, y + 3.5, W - mx, y + 3.5)
-  y += 10
+  y += 18
 
   // ══════════════════════════════════════════════════════════════════════════
   // 3. TWO-COLUMN BODY
@@ -211,14 +216,21 @@ export async function previewMinimalRxPdf(data: PrescriptionPdfData) {
     pdf.text('PRESCRIBED MEDICINES', mx + 14, y + 1)
     y += 6
 
-    // Column headers — light rule style
+    // Modern column layout
+    const cols = [6, 58, 22, 24, 26, 18, 22]
+    const cxPos = (idx: number) => {
+      let px = mx + 2
+      for (let k = 0; k < idx; k++) px += cols[k]
+      return px
+    }
+    const hdrs = isUrdu
+      ? ['#', 'دوا', 'خوراک', 'فریکوئنسی', 'مدت', 'طریقہ', 'ہدایت']
+      : ['#', 'Medicine', 'Dose', 'Frequency', 'Duration', 'Route', 'Instr']
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7); pdf.setTextColor(light.r, light.g, light.b)
-    pdf.text('#', mx, y)
-    pdf.text('Medicine / Drug', mx + 8, y)
-    pdf.text('Dose', mx + 78, y)
-    pdf.text('Frequency', mx + 100, y)
-    pdf.text('Duration', mx + 135, y)
-    pdf.text('Route', mx + 162, y)
+    hdrs.forEach((h, i) => {
+      const center = cxPos(i) + cols[i] / 2
+      pdf.text(h, center, y, { align: 'center' })
+    })
     pdf.setDrawColor(rule.r, rule.g, rule.b)
     pdf.setLineWidth(0.2); pdf.line(mx, y + 1.5, W - mx, y + 1.5)
     y += 5
@@ -233,36 +245,37 @@ export async function previewMinimalRxPdf(data: PrescriptionPdfData) {
       const route = String(t?.route || '').trim()
       const instr = String(t?.instruction || '').trim()
       const nameUrdu = hasUrdu(name)
-      const instrUrdu = hasUrdu(instr)
-      // splitTextToSize must use helvetica to avoid font-metrics crash
+
+      // Single detail line merging all columns
+      const detailParts = [dose, freq, dur, route, instr].filter(Boolean)
+      const detailLine = detailParts.join('   |   ')
+
       pdf.setFont('helvetica', 'normal')
-      const nL    = nameUrdu ? [name] : (pdf as any).splitTextToSize(name, 68) as string[]
-      const rowH  = nL.length * 4.2 + (instr ? 3.8 : 0) + 2
+      const nL    = nameUrdu ? [name] : (pdf as any).splitTextToSize(name, cols[1] - 4) as string[]
+      const dL    = detailLine ? (pdf as any).splitTextToSize(detailLine, cw - cols[0] - cols[1] - 8) as string[] : []
+      const rowH  = nL.length * 4.2 + (dL.length ? dL.length * 3.6 : 0) + 2
 
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5); pdf.setTextColor(mid.r, mid.g, mid.b)
-      pdf.text(String(i + 1), mx, y)
+      pdf.text(String(i + 1), cxPos(0) + cols[0] / 2, y, { align: 'center' })
+
       if (nameUrdu) {
         pdf.setFontSize(11); pdf.setTextColor(ink.r, ink.g, ink.b)
-        safeUrduText(name, W - mx - 8, y, { align: 'right' })
+        safeUrduText(name, cxPos(1) + cols[1] - 2, y, { align: 'right' })
       } else {
         pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5); pdf.setTextColor(ink.r, ink.g, ink.b)
-        pdf.text(nL, mx + 8, y)
+        pdf.text(nL, cxPos(1) + 2, y)
       }
-      if (instr) {
-        if (instrUrdu) {
-          pdf.setFontSize(9); pdf.setTextColor(light.r, light.g, light.b)
-          safeUrduText(instr, W - mx - 8, y + nL.length * 4.2, { align: 'right' })
+
+      if (dL.length) {
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(mid.r, mid.g, mid.b)
+        const dY = y + nL.length * 4.2
+        const isDrtl = hasUrdu(detailLine)
+        if (isDrtl) {
+          pdf.setFontSize(9); safeUrduText(dL.slice(0, 2).join(' '), W - mx - 4, dY, { align: 'right' })
         } else {
-          pdf.setFont('helvetica', 'italic'); pdf.setFontSize(7); pdf.setTextColor(light.r, light.g, light.b)
-          pdf.text(instr, mx + 10, y + nL.length * 4.2)
+          pdf.text(dL.slice(0, 2), cxPos(2), dY)
         }
-        pdf.setFontSize(8.5)
       }
-      pdf.setTextColor(ink.r, ink.g, ink.b)
-      if (hasUrdu(dose))  { pdf.setFontSize(9); safeUrduText(dose,  mx + 78 + 18, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5); pdf.text(dose,  mx + 78, y) }
-      if (hasUrdu(freq))  { pdf.setFontSize(9); safeUrduText(freq,  mx + 100 + 30, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5); pdf.text(freq,  mx + 100, y) }
-      if (hasUrdu(dur))   { pdf.setFontSize(9); safeUrduText(dur,   mx + 135 + 22, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5); pdf.text(dur,   mx + 135, y) }
-      if (hasUrdu(route)) { pdf.setFontSize(9); safeUrduText(route, mx + 162 + 20, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5); pdf.text(route, mx + 162, y) }
 
       pdf.setDrawColor(rule.r, rule.g, rule.b)
       pdf.setLineWidth(0.15); pdf.line(mx, y + rowH - 2.5, W - mx, y + rowH - 2.5)
@@ -279,7 +292,8 @@ export async function previewMinimalRxPdf(data: PrescriptionPdfData) {
   pdf.setLineWidth(0.2); pdf.line(mx, footY + 1.5, W - mx, footY + 1.5)
 
   pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7.5); pdf.setTextColor(ink.r, ink.g, ink.b)
-  pdf.text(`Dr. ${String(doctor.name || '')}`, mx, footY + 5)
+  const drFoot2 = String(doctor.name || '').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drFoot2}`, mx, footY + 5)
   pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(mid.r, mid.g, mid.b)
   pdf.text('Signature / Stamp', mx, footY + 9)
 

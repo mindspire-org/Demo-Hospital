@@ -90,6 +90,7 @@ const adminSection: Section = {
   label: 'ADMIN',
   items: [
     { to: '/finance/audit-logs', label: 'Audit Logs', icon: FileText },
+    { to: '/finance/activity-log', label: 'Activity Log', icon: Activity },
     { to: '/finance/sidebar-permissions', label: 'Sidebar Permissions', icon: Settings },
     { to: '/finance/user-management', label: 'User Management', icon: Users },
   ],

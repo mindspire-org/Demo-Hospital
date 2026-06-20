@@ -193,6 +193,11 @@ export const pharmacyApi = {
   updatePurchaseOrderStatus: (id: string, status: string) =>
     api(`/pharmacy/purchase-orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deletePurchaseOrder: (id: string) => api(`/pharmacy/purchase-orders/${id}`, { method: 'DELETE' }),
+  sendPurchaseOrder: (id: string) => api(`/pharmacy/purchase-orders/${id}/send`, { method: 'POST' }),
+  confirmPurchaseOrder: (id: string) => api(`/pharmacy/purchase-orders/${id}/confirm`, { method: 'POST' }),
+  receivePurchaseOrder: (id: string, partial: boolean) => api(`/pharmacy/purchase-orders/${id}/receive`, { method: 'POST', body: JSON.stringify({ partial }) }),
+  cancelPurchaseOrder: (id: string) => api(`/pharmacy/purchase-orders/${id}/cancel`, { method: 'POST' }),
+  getLastPurchases: (params?: { supplierName?: string; companyName?: string }) => api(withQuery('/pharmacy/purchases/last', params)),
 
   // -------------------------------------------------------------------------
   // Purchases
@@ -224,11 +229,13 @@ export const pharmacyApi = {
   updateInventoryItem: (key: string, data: any) => api(withQuery('/pharmacy/inventory/item', { key }), { method: 'PUT', body: JSON.stringify(data) }),
   manualReceipt: (data: any) => api('/pharmacy/inventory/manual-receipt', { method: 'POST', body: JSON.stringify(data) }),
   adjustInventory: (data: any) => api('/pharmacy/inventory/adjust', { method: 'POST', body: JSON.stringify(data) }),
+  getPurchaseOrderInventorySuggestions: (query: string, limit?: number, companyNames?: string[], status?: 'low' | 'out' | 'all') =>
+    api(withQuery('/pharmacy/inventory/po-suggestions', { q: query, limit, companyNames: companyNames?.join(','), status })),
 
   // Cached inventory methods
   listInventoryCached: (params?: { search?: string; page?: number; limit?: number }, opts?: CachedApiOptions) =>
     cachedApi(withQuery('/pharmacy/inventory', params), undefined, opts),
-  listInventoryFilteredCached: (params: { status: 'low' | 'out' | 'expiring' | 'dead'; search?: string; page?: number; limit?: number }, opts?: CachedApiOptions) =>
+  listInventoryFilteredCached: (params: { status: 'low' | 'out' | 'expiring' | 'dead'; search?: string; page?: number; limit?: number; companyNames?: string[] }, opts?: CachedApiOptions) =>
     cachedApi(withQuery('/pharmacy/inventory/filter', params), undefined, opts),
   inventorySummaryCached: (params?: { search?: string; limit?: number }, opts?: CachedApiOptions) =>
     cachedApi(withQuery('/pharmacy/inventory/summary', params), undefined, opts),

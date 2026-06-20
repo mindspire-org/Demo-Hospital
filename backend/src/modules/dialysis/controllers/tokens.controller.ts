@@ -3,6 +3,7 @@ import { DialysisToken } from '../models/Token'
 import { LabPatient } from '../../lab/models/Patient'
 import { ensureForLabPatient } from './dialysisPatients.controller'
 import { DialysisSession } from '../models/DialysisSession'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 async function genTokenNo(): Promise<string> {
   const date = new Date()
@@ -81,6 +82,22 @@ export async function create(req: Request, res: Response) {
     paidMethod: data.paidMethod || 'Cash',
     status: 'scheduled',
   })
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: String((req as any).user?.username || ''),
+      portal: 'dialysis',
+      action: data.receivedAmount > 0 ? 'Dialysis Payment Collected' : 'Token Generated',
+      module: 'Dialysis',
+      entityId: String(token._id),
+      entityLabel: `Token ${tokenNo} — ${patient?.fullName || ''}`,
+      amount: Number(data.receivedAmount || 0),
+      method: String(data.paidMethod || 'Cash'),
+      meta: { patientId: String(patient?._id || ''), mrn: patient?.mrn || '', fee: data.fee || 0, discount: data.discount || 0 }
+    })
+  } catch {}
 
   // Ensure Dialysis Patient exists and create a session stub for this token
   try {

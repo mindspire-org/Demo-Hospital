@@ -10,6 +10,7 @@ import { LabCounter } from '../models/Counter'
 import { LabAuditLog } from '../models/AuditLog'
 import { LabSettings } from '../models/Settings'
 import { postLabOrderJournal } from '../../finance/controllers/finance_ledger'
+import { logActivity } from '../../finance/services/activityLog.service'
 import { HospitalReferral } from '../../hospital/models/Referral'
 import { formatLabNumber } from '../../../common/utils/labNumberFormat'
 import { z } from 'zod'
@@ -138,6 +139,8 @@ const tokenCreateSchema = z.object({
     })
   ])).default([]),
   referringConsultant: z.string().optional(),
+  referringDoctorId: z.string().optional(),
+  referringDoctorName: z.string().optional(),
   referralId: z.string().optional(),
   corporateId: z.string().optional(),
   portal: z.enum(['lab', 'reception']).optional(),
@@ -202,6 +205,8 @@ const tokenUpdateSchema = z.object({
   }).optional(),
   tests: z.array(z.string()).optional(),
   referringConsultant: z.string().optional(),
+  referringDoctorId: z.string().optional(),
+  referringDoctorName: z.string().optional(),
   sampleType: z.enum(['normal', 'urgent', 'stat']).optional(),
   packageIds: z.array(z.string()).optional(),
 })
@@ -223,6 +228,8 @@ const convertToSampleSchema = z.object({
   paymentMethod: z.string().optional(),
   paymentNote: z.string().optional(),
   referringConsultant: z.string().optional(),
+  referringDoctorId: z.string().optional(),
+  referringDoctorName: z.string().optional(),
   corporateId: z.string().optional(),
   corporatePreAuthNo: z.string().optional(),
   corporateCoPayPercent: z.number().optional(),
@@ -293,6 +300,8 @@ export async function create(req: Request, res: Response) {
     generatedAt: now,
     generatedBy: actor,
     referringConsultant: data.referringConsultant,
+    referringDoctorId: data.referringDoctorId,
+    referringDoctorName: data.referringDoctorName,
     referralId: data.referralId,
     corporateId: data.corporateId,
     portal,
@@ -350,6 +359,22 @@ export async function create(req: Request, res: Response) {
       createdBy: actor
     })
   }
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || (req as any).user?.email || 'system'),
+      userName: actor,
+      portal: portal || 'lab',
+      action: data.receivedAmount > 0 ? 'Lab Payment Collected' : 'Token Generated',
+      module: 'Lab',
+      entityId: String(token._id),
+      entityLabel: `Token ${tokenNo} — ${data.patient?.fullName || ''}`,
+      amount: Number(data.receivedAmount || 0),
+      method: mapPaymentMethodEnum((data as any).paymentMethod),
+      meta: { patientId: data.patientId, labNumber, tests: tests.map((t: any) => t.testName) }
+    })
+  } catch {}
 
   const formattedLabNumber = await getFormattedLabNumber(token.labNumber)
   const tokenObj = token.toObject ? token.toObject() : token
@@ -733,6 +758,8 @@ export async function convertToSample(req: Request, res: Response) {
       status: 'pending'
     })),
     referringConsultant: data.referringConsultant || token.referringConsultant,
+    referringDoctorId: data.referringDoctorId || token.referringDoctorId,
+    referringDoctorName: data.referringDoctorName || token.referringDoctorName,
     corporateId: data.corporateId || token.corporateId,
     portal: token.portal,
     createdByUsername: actor,
@@ -944,7 +971,7 @@ export async function markReportPrinted(req: Request, res: Response) {
   res.json({ reportPrintedAt: now, reportPrintedBy: actor })
 }
 
-// Update token details (only while token_generated)
+// Update token details (allow test editing after conversion with order sync)
 export async function update(req: Request, res: Response) {
   const { id } = req.params
   const patch = tokenUpdateSchema.parse(req.body)
@@ -957,9 +984,7 @@ export async function update(req: Request, res: Response) {
   }
   if (!token) return res.status(404).json({ error: 'Token not found' })
 
-  if (token.status !== 'token_generated' && patch.tests) {
-    return res.status(400).json({ error: 'Tests can only be edited before conversion' })
-  }
+  const wasConverted = token.status !== 'token_generated'
 
   const set: any = {}
   if (patch.patient) set.patient = { ...(token.patient || {}), ...(patch.patient || {}) }
@@ -1017,10 +1042,62 @@ export async function update(req: Request, res: Response) {
   }
 
   if (patch.referringConsultant != null) set.referringConsultant = patch.referringConsultant
+  if (patch.referringDoctorId != null) set.referringDoctorId = patch.referringDoctorId
+  if (patch.referringDoctorName != null) set.referringDoctorName = patch.referringDoctorName
   if (patch.sampleType != null) set.sampleType = patch.sampleType
   if (patch.packageIds != null) set.packageIds = patch.packageIds
 
   const updated = await LabToken.findByIdAndUpdate(token._id, { $set: set }, { new: true })
+
+  // Sync with associated order if tests were modified after conversion
+  if (wasConverted && resolvedTests && token.orderId) {
+    try {
+      const order: any = await LabOrder.findById(token.orderId)
+      if (order) {
+        // Merge new tests into order tests array
+        const existingTests = Array.isArray(order.tests) ? order.tests : []
+        const existingIds = new Set(existingTests.map((t: any) => String(t.testId || t)))
+        const newTests = resolvedTests.filter((t: any) => !existingIds.has(String(t.testId || t)))
+        if (newTests.length > 0) {
+          const mergedTests = [...existingTests, ...newTests]
+          order.tests = mergedTests
+          // Recalculate financials
+          const subtotal = mergedTests.reduce((s: number, t: any) => s + Number(t.price || 0), 0)
+          const discount = Number(order.discount || 0)
+          const net = Math.max(0, subtotal - discount)
+          order.subtotal = subtotal
+          order.net = net
+          order.receivableAmount = net
+          // Add new LabOrderTest documents for newly added tests
+          for (const t of newTests) {
+            await LabOrderTest.create({
+              tokenId: token._id,
+              orderId: order._id,
+              tokenNo: token.tokenNo,
+              testId: String(t.testId),
+              testName: String(t.testName || ''),
+              price: Number(t.price || 0),
+              status: 'pending',
+              createdAt: now,
+            })
+          }
+          // Rebuild testStatuses
+          const allOrderTests = await LabOrderTest.find({ orderId: order._id }).lean()
+          order.testStatuses = allOrderTests.map((ot: any) => ({
+            testId: ot.testId,
+            testName: ot.testName,
+            status: ot.status,
+            resultId: ot.resultId,
+            orderTestId: ot._id,
+            isReturned: ot.isReturned,
+          }))
+          await order.save()
+        }
+      }
+    } catch (e) {
+      console.error('Failed to sync order after token update:', e)
+    }
+  }
 
   try {
     await LabAuditLog.create({

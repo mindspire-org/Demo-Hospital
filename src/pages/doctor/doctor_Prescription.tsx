@@ -117,6 +117,7 @@ export default function Doctor_Prescription() {
   const [activeTab, setActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'medication'|'anesthesia'>('details')
   const [showLoadPrevButton, setShowLoadPrevButton] = useState(false)
   const [prevPrescriptionsModalOpen, setPrevPrescriptionsModalOpen] = useState(false)
+  const [heldPrescriptionsModalOpen, setHeldPrescriptionsModalOpen] = useState(false)
   const [templates, setTemplates] = useState<any[]>([])
   const [customEntriesModalOpen, setCustomEntriesModalOpen] = useState(false)
   const [customEntriesCategory, setCustomEntriesCategory] = useState('primaryComplaint')
@@ -415,6 +416,23 @@ export default function Doctor_Prescription() {
     })()
   }, [form.patientKey, tokens])
 
+  // Auto-update token status to in-progress when a queued patient is selected for prescribing
+  useEffect(() => {
+    const sel = tokens.find(t => `${t.id}` === form.patientKey)
+    if (!sel?.id || sel.status !== 'queued') return
+    ;(async () => {
+      try {
+        await hospitalApi.updateTokenStatus(sel.id, 'in-progress')
+        invalidateCache('/hospital/tokens')
+        // Refresh token list so status is reflected locally
+        loadTokens()
+      } catch {
+        // Ignore token status update errors - don't block prescribing
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.patientKey])
+
   // Load vitals from token when patient is selected
   useEffect(() => {
     const sel = tokens.find(t => `${t.id}` === form.patientKey)
@@ -462,15 +480,38 @@ export default function Doctor_Prescription() {
       let route = ''
       try { const mi = notes.match(/Instruction:\s*([^;]+)/i); if (mi && mi[1]) instruction = mi[1].trim() } catch {}
       try { const mr = notes.match(/Route:\s*([^;]+)/i); if (mr && mr[1]) route = mr[1].trim() } catch {}
+
+      // Handle pipe-separated medicine strings (e.g. from IPD discharge summaries)
+      let name = String(it?.name || '').trim()
+      let qty = it?.dose != null ? String(it.dose) : (it?.dosage != null ? String(it.dosage) : '')
+      let freqText = String(it?.frequency || '').trim()
+      let durationText = String(it?.duration || '').trim()
+      let routeText = String(it?.route || route || '').trim()
+      let instructionText = String(it?.instruction || instruction || '').trim()
+
+      // If name is empty but medicine contains pipe-separated data, parse it
+      const rawMedicine = String(it?.medicine || '').trim()
+      if (!name && rawMedicine) {
+        const parts = rawMedicine.split('|').map((p: string) => p.trim()).filter(Boolean)
+        if (parts.length >= 2) {
+          name = parts[0]
+          qty = parts[1] || qty
+          routeText = parts[2] || routeText
+          freqText = parts[3] || freqText
+        } else {
+          name = rawMedicine
+        }
+      }
+
       return {
-        name: String(it?.name || '').trim(),
-        qty: it?.dose != null ? String(it.dose) : '',
-        freqText: String(it?.frequency || '').trim(),
-        durationText: String(it?.duration || '').trim(),
-        instruction: String(it?.instruction || instruction || '').trim(),
-        route: String(it?.route || route || '').trim(),
+        name,
+        qty,
+        freqText,
+        durationText,
+        instruction: instructionText,
+        route: routeText,
         notes: String(it?.notes || '').trim(),
-        durationUnit: 'day(s)',
+        durationUnit: prescriptionLanguage === 'urdu' ? 'دن' : 'day(s)',
       }
     }).filter((m: any) => m.name)
 
@@ -490,21 +531,21 @@ export default function Doctor_Prescription() {
     } catch {}
     // Fallback to prescription vitals if token doesn't have vitals
     if (!v || Object.keys(v).length === 0) {
-      v = pres.vitals || {}
+      v = pres.vitals && Object.keys(pres.vitals).length > 0 ? pres.vitals : undefined
     }
     const vitalsDisplay: any = {
-      pulse: v.pulse != null ? String(v.pulse) : '',
-      temperature: v.temperatureC != null ? String(v.temperatureC) : '',
-      bloodPressureSys: v.bloodPressureSys != null ? String(v.bloodPressureSys) : '',
-      bloodPressureDia: v.bloodPressureDia != null ? String(v.bloodPressureDia) : '',
-      respiratoryRate: v.respiratoryRate != null ? String(v.respiratoryRate) : '',
-      bloodSugar: v.bloodSugar != null ? String(v.bloodSugar) : '',
-      weightKg: v.weightKg != null ? String(v.weightKg) : '',
-      height: v.heightCm != null ? String(v.heightCm) : '',
-      spo2: v.spo2 != null ? String(v.spo2) : '',
-      ar: v.ar != null ? String(v.ar) : '',
-      va: v.va != null ? String(v.va) : '',
-      iop: v.iop != null ? String(v.iop) : '',
+      pulse: v?.pulse != null ? String(v.pulse) : '',
+      temperature: v?.temperatureC != null ? String(v.temperatureC) : '',
+      bloodPressureSys: v?.bloodPressureSys != null ? String(v.bloodPressureSys) : '',
+      bloodPressureDia: v?.bloodPressureDia != null ? String(v.bloodPressureDia) : '',
+      respiratoryRate: v?.respiratoryRate != null ? String(v.respiratoryRate) : '',
+      bloodSugar: v?.bloodSugar != null ? String(v.bloodSugar) : '',
+      weightKg: v?.weightKg != null ? String(v.weightKg) : '',
+      height: v?.heightCm != null ? String(v.heightCm) : '',
+      spo2: v?.spo2 != null ? String(v.spo2) : '',
+      ar: v?.ar != null ? String(v.ar) : '',
+      va: v?.va != null ? String(v.va) : '',
+      iop: v?.iop != null ? String(v.iop) : '',
     }
 
     setForm(f => ({
@@ -521,7 +562,7 @@ export default function Doctor_Prescription() {
       nextFollowUp: String(pres.nextFollowUp || ''),
       labTestsText,
       vitalsDisplay: vitalsDisplay,
-      vitalsNormalized: v || f.vitalsNormalized,
+      vitalsNormalized: (v && Object.keys(v).length > 0) ? v : f.vitalsNormalized,
       diagDisplay: { testsText: diagTestsText },
       meds: meds.length ? meds : f.meds,
       preAnesthesia: pres.preAnesthesia ? {
@@ -549,6 +590,9 @@ export default function Doctor_Prescription() {
 
     // Also update child widgets if they expose setters
     try {
+      medsRef.current?.setData?.(meds.length ? meds : [emptyMedRow()])
+    } catch {}
+    try {
       // Delay to ensure vitalsRef is mounted
       setTimeout(() => {
         try { vitalsRef.current?.setDisplay?.(vitalsDisplay) } catch {}
@@ -557,6 +601,57 @@ export default function Doctor_Prescription() {
     try { diagRef.current?.setDisplay?.({ testsText: diagTestsText }) } catch {}
 
     setToast({ type: 'success', message: 'Previous prescription loaded' })
+  }
+
+  function getHeldPrescriptions(): any[] {
+    try {
+      const raw = localStorage.getItem('doctor.held.prescriptions')
+      return raw ? JSON.parse(raw) : []
+    } catch { return [] }
+  }
+
+  function holdPrescription() {
+    const sel = tokens.find(t => `${t.id}` === form.patientKey)
+    if (!sel) { setToast({ type: 'error', message: 'Select a patient first' }); return }
+    try {
+      const held = getHeldPrescriptions()
+      const id = crypto.randomUUID()
+      const entry = {
+        id,
+        patientName: sel.patientName,
+        mrNo: sel.mrNo,
+        tokenId: sel.id,
+        encounterId: sel.encounterId,
+        heldAt: new Date().toISOString(),
+        data: { ...form },
+      }
+      localStorage.setItem('doctor.held.prescriptions', JSON.stringify([entry, ...held]))
+      setToast({ type: 'success', message: 'Prescription held (saved as draft)' })
+    } catch {
+      setToast({ type: 'error', message: 'Failed to hold prescription' })
+    }
+  }
+
+  function loadHeldPrescription(entry: any) {
+    if (!entry?.data) return
+    setForm(f => ({ ...f, ...entry.data, patientKey: entry.tokenId || f.patientKey }))
+    try { medsRef.current?.setData?.(entry.data.meds || [emptyMedRow()]) } catch {}
+    try {
+      setTimeout(() => {
+        try { vitalsRef.current?.setDisplay?.(entry.data.vitalsDisplay || {}) } catch {}
+      }, 50)
+    } catch {}
+    try { diagRef.current?.setDisplay?.(entry.data.diagDisplay || { testsText: '' }) } catch {}
+    setHeldPrescriptionsModalOpen(false)
+    setToast({ type: 'success', message: 'Held prescription loaded' })
+  }
+
+  function removeHeldPrescription(id: string) {
+    try {
+      const held = getHeldPrescriptions().filter((h: any) => h.id !== id)
+      localStorage.setItem('doctor.held.prescriptions', JSON.stringify(held))
+      setToast({ type: 'success', message: 'Held prescription removed' })
+    } catch {}
   }
 
   async function searchLabTests(q: string){
@@ -576,8 +671,8 @@ export default function Doctor_Prescription() {
   }
 
 
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const save = async (e?: React.FormEvent, andPrint: boolean = false) => {
+    if (e) e.preventDefault()
     const sel = myPatients.find(t => `${t.id}` === form.patientKey)
 
     if (!doc || !sel || !sel.encounterId) { setToast({ type: 'error', message: 'Select a patient first' }); return }
@@ -676,9 +771,23 @@ export default function Doctor_Prescription() {
         }
       }
 
+      // Mark token as completed after prescription save
+      if (sel.id) {
+        try {
+          await hospitalApi.updateTokenStatus(sel.id, 'completed')
+          invalidateCache('/hospital/tokens')
+        } catch {
+          // Ignore token status update errors
+        }
+      }
+
       try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
       setSaved(true)
       setToast({ type: 'success', message: 'Prescription saved successfully' })
+      // If save-and-print requested, print before clearing form (form state still holds current data)
+      if (andPrint) {
+        try { await openPrint() } catch { /* print error handled internally */ }
+      }
       setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia() })
       try { vitalsRef.current?.setDisplay?.({}) } catch {}
       try { diagRef.current?.setDisplay?.({ testsText: '' }) } catch {}
@@ -787,7 +896,18 @@ export default function Doctor_Prescription() {
       const tests = String(dd.testsText||'').split(/\n|,/).map((s:string)=>s.trim()).filter(Boolean)
       dPrint = { tests }
     }
-    const tpl: PrescriptionPdfTemplate = prescriptionTemplate
+    // Fetch template fresh from database (same as history page)
+    let tpl: PrescriptionPdfTemplate = prescriptionTemplate
+    try {
+      if (doc?.id) {
+        const doctorData: any = await hospitalApi.getDoctor(doc.id)
+        if (doctorData?.doctor?.prescriptionTemplate) {
+          tpl = doctorData.doctor.prescriptionTemplate
+        } else if (doctorData?.prescriptionTemplate) {
+          tpl = doctorData.prescriptionTemplate
+        }
+      }
+    } catch {}
     console.log('openPrint - sel:', sel)
     console.log('openPrint - tokenNo being passed:', (sel as any)?.tokenNo)
     await previewPrescriptionPdf({ doctor, settings: settingsNorm, patient, items, primaryComplaint: form.primaryComplaint, primaryComplaintHistory: form.primaryComplaintHistory, familyHistory: form.familyHistory, allergyHistory: form.allergyHistory, treatmentHistory: form.treatmentHistory, history: form.history, examFindings: form.examFindings, diagnosis: form.diagnosis, advice: form.advice, vitals, labTests: form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean), diagnosticTests: Array.isArray(dPrint.tests)?dPrint.tests:[], tokenNo: (sel as any)?.tokenNo, createdAt: new Date(), language: prescriptionLanguage }, tpl)
@@ -854,6 +974,97 @@ export default function Doctor_Prescription() {
       } catch {}
     }
     setActiveTab(tab)
+  }
+
+  async function printLabSlip() {
+    const sel = myPatients.find(t => `${t.id}` === form.patientKey)
+    if (!sel) { setToast({ type: 'error', message: 'Select a patient first' }); return }
+    const tests = form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean)
+    if (!tests.length) { setToast({ type: 'error', message: 'No lab tests to print' }); return }
+    let settingsData: any = {}
+    try { settingsData = await hospitalApi.getSettings() as any } catch {}
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lab Requisition Slip</title><style>
+body{font-family:system-ui,-apple-system,sans-serif;padding:32px;color:#0f172a;background:#fff}
+.header{text-align:center;border-bottom:2px solid #0ea5e9;padding-bottom:12px;margin-bottom:20px}
+.header h1{margin:0;font-size:22px;color:#0f172a}
+.header p{margin:4px 0;font-size:12px;color:#64748b}
+.badge{display:inline-block;background:#0ea5e9;color:#fff;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12px;margin-bottom:16px}
+.grid div{padding:8px;background:#f8fafc;border-radius:8px}
+.grid strong{color:#334155}
+.tests{display:grid;gap:8px}
+.test-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px}
+.test-number{width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:#0ea5e9;color:#fff;font-size:11px;font-weight:700;border-radius:50%}
+.test-name{font-size:13px;font-weight:500;color:#0f172a}
+.footer{margin-top:24px;text-align:right;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}
+@media print{body{padding:16px}}
+</style></head><body>
+<div class="header"><h1>${settingsData?.name || 'Hospital'}</h1><p>${[settingsData?.address, settingsData?.phone].filter(Boolean).join(' • ') || ''}</p></div>
+<div class="badge">Laboratory</div>
+<div class="grid">
+<div><strong>Patient:</strong> ${sel.patientName}</div>
+<div><strong>MR #:</strong> ${sel.mrNo || '-'}</div>
+<div><strong>Date:</strong> ${new Date().toLocaleDateString()}</div>
+</div>
+<div class="tests">
+${tests.map((t, i) => `<div class="test-item"><div class="test-number">${i + 1}</div><div class="test-name">${t}</div></div>`).join('')}
+</div>
+<div class="footer">
+<div><strong>Referred By:</strong> ${doc?.name || '-'}</div>
+<div style="margin-top:4px">Please present this slip at the Laboratory counter.</div>
+</div>
+</body></html>`
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close(); w.print() }
+  }
+
+  async function printDiagnosticSlip() {
+    const sel = myPatients.find(t => `${t.id}` === form.patientKey)
+    if (!sel) { setToast({ type: 'error', message: 'Select a patient first' }); return }
+    let dPrint: any = {}
+    try { dPrint = diagRef.current?.getData?.() || {} } catch {}
+    if ((!dPrint?.tests || !dPrint.tests.length)){
+      const dd = (form as any).diagDisplay || {}
+      const tests = String(dd.testsText||'').split(/\n|,/).map((s:string)=>s.trim()).filter(Boolean)
+      dPrint = { tests }
+    }
+    const tests = (dPrint.tests || []).filter(Boolean)
+    if (!tests.length) { setToast({ type: 'error', message: 'No diagnostic tests to print' }); return }
+    let settingsData: any = {}
+    try { settingsData = await hospitalApi.getSettings() as any } catch {}
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Diagnostic Requisition Slip</title><style>
+body{font-family:system-ui,-apple-system,sans-serif;padding:32px;color:#0f172a;background:#fff}
+.header{text-align:center;border-bottom:2px solid #8b5cf6;padding-bottom:12px;margin-bottom:20px}
+.header h1{margin:0;font-size:22px;color:#0f172a}
+.header p{margin:4px 0;font-size:12px;color:#64748b}
+.badge{display:inline-block;background:#8b5cf6;color:#fff;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12px;margin-bottom:16px}
+.grid div{padding:8px;background:#f8fafc;border-radius:8px}
+.grid strong{color:#334155}
+.tests{display:grid;gap:8px}
+.test-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px}
+.test-number{width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:#8b5cf6;color:#fff;font-size:11px;font-weight:700;border-radius:50%}
+.test-name{font-size:13px;font-weight:500;color:#0f172a}
+.footer{margin-top:24px;text-align:right;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}
+@media print{body{padding:16px}}
+</style></head><body>
+<div class="header"><h1>${settingsData?.name || 'Hospital'}</h1><p>${[settingsData?.address, settingsData?.phone].filter(Boolean).join(' • ') || ''}</p></div>
+<div class="badge">Diagnostic / Imaging</div>
+<div class="grid">
+<div><strong>Patient:</strong> ${sel.patientName}</div>
+<div><strong>MR #:</strong> ${sel.mrNo || '-'}</div>
+<div><strong>Date:</strong> ${new Date().toLocaleDateString()}</div>
+</div>
+<div class="tests">
+${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-number">${i + 1}</div><div class="test-name">${t}</div></div>`).join('')}
+</div>
+<div class="footer">
+<div><strong>Referred By:</strong> ${doc?.name || '-'}</div>
+<div style="margin-top:4px">Please present this slip at the Diagnostic counter.</div>
+</div>
+</body></html>`
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close(); w.print() }
   }
 
   function resetForms(){
@@ -940,7 +1151,7 @@ export default function Doctor_Prescription() {
       const settingsNorm = { name: s?.name || 'Hospital', address: s?.address || '', phone: s?.phone || '', logoDataUrl: s?.logoDataUrl || '' }
       const d = referralFormRef.current?.getPreviewData?.()
       if (!d) { setToast({ type: 'error', message: 'Referral form not ready' }); return }
-      await previewIpdReferralPdf({ settings: settingsNorm, patient: d.patient, referral: d.referral })
+      await previewIpdReferralPdf({ settings: settingsNorm, patient: d.patient, referral: d.referral, prescriptionSnapshot: d.prescriptionSnapshot })
     } catch (e: any) {
       setToast({ type: 'error', message: e?.message || 'Failed to open referral preview' })
     }
@@ -1259,9 +1470,9 @@ export default function Doctor_Prescription() {
         )}
         <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50/60">
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={openPrint} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-              Print
+            <button type="button" onClick={()=>save(undefined, true)} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-600 transition-all active:scale-[0.98] shadow-sm shadow-sky-200">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Save and Print Rx
             </button>
             <button
               type="button"
@@ -1273,23 +1484,48 @@ export default function Doctor_Prescription() {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
               Anesthesia Print
             </button>
+            <button type="button" onClick={printLabSlip} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-100 hover:border-sky-200 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+              Print Lab Slip
+            </button>
+            <button type="button" onClick={printDiagnosticSlip} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-100 bg-violet-50 px-4 py-2 text-xs font-semibold text-violet-600 hover:bg-violet-100 hover:border-violet-200 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              Print Diagnostic Slip
+            </button>
             <button type="button" onClick={resetForms} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.81"/></svg>
               Reset
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <button 
-              type="button" 
-              disabled={!sel} 
-              onClick={()=>setOpenReferral(true)} 
+            <button
+              type="button"
+              disabled={!sel}
+              onClick={()=>setOpenReferral(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-100 hover:border-sky-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.99 12 19.79 19.79 0 0 1 1.97 3.18 2 2 0 0 1 3.95 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
               Referral
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="button"
+              disabled={!sel}
+              onClick={holdPrescription}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 hover:border-amber-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+              Hold
+            </button>
+            <button
+              type="button"
+              onClick={() => setHeldPrescriptionsModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Held
+            </button>
+            <button
+              type="submit"
               className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-5 py-2 text-xs font-semibold text-white hover:bg-sky-600 transition-all active:scale-[0.98] shadow-sm shadow-sky-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -1317,7 +1553,38 @@ export default function Doctor_Prescription() {
               </div>
             </div>
             <div className="max-h-[85vh] overflow-y-auto p-3 sm:p-4">
-              <Doctor_IpdReferralForm ref={referralFormRef} mrn={sel?.mrNo} doctor={{ id: doc?.id, name: doc?.name }} onSaved={()=>setOpenReferral(false)} />
+              <Doctor_IpdReferralForm
+                ref={referralFormRef}
+                mrn={sel?.mrNo}
+                doctor={{ id: doc?.id, name: doc?.name }}
+                onSaved={()=>setOpenReferral(false)}
+                prescriptionSnapshot={{
+                  primaryComplaint: form.primaryComplaint,
+                  primaryComplaintHistory: form.primaryComplaintHistory,
+                  familyHistory: form.familyHistory,
+                  allergyHistory: form.allergyHistory,
+                  treatmentHistory: form.treatmentHistory,
+                  history: form.history,
+                  examFindings: form.examFindings,
+                  diagnosis: form.diagnosis,
+                  advice: form.advice,
+                  nextFollowUp: form.nextFollowUp,
+                  items: (medsRef.current?.getData?.() || form.meds)
+                    .filter((m: MedicineRow) => m.name?.trim())
+                    .map((m: MedicineRow) => ({
+                      name: m.name,
+                      dose: m.qty,
+                      frequency: m.freqText,
+                      duration: m.durationText,
+                      instruction: m.instruction,
+                      route: m.route,
+                      notes: m.notes,
+                    })),
+                  vitals: form.vitalsNormalized,
+                  labTests: form.labTestsText ? form.labTestsText.split(/\n|,/g).map((s: string) => s.trim()).filter(Boolean) : [],
+                  diagnosticTests: form.diagDisplay?.testsText ? form.diagDisplay.testsText.split(/\n|,/g).map((s: string) => s.trim()).filter(Boolean) : [],
+                }}
+              />
             </div>
           </div>
         </div>
@@ -1376,6 +1643,62 @@ export default function Doctor_Prescription() {
           settings={settings}
           patient={{ name: sel?.patientName || '-', mrn: sel?.mrNo || '-', gender: pat?.gender, fatherName: pat?.fatherName, age: pat?.age, phone: pat?.phone, address: pat?.address }}
         />
+      )}
+      {heldPrescriptionsModalOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-2 sm:px-4">
+          <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div className="text-base font-semibold text-slate-900">Held Prescriptions</div>
+              <button onClick={() => setHeldPrescriptionsModalOpen(false)} className="rounded-md border border-slate-300 px-3 py-1 text-sm hover:bg-slate-50">Close</button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-4">
+              {(() => {
+                const held = getHeldPrescriptions()
+                if (held.length === 0) {
+                  return <div className="text-center text-slate-500 py-6">No held prescriptions</div>
+                }
+                return (
+                  <div className="space-y-3">
+                    {held.map((entry: any) => (
+                      <div key={entry.id} className="rounded-lg border border-slate-200 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-800">{entry.patientName || 'Unknown'}</div>
+                            <div className="text-xs text-slate-500">MRN: {entry.mrNo || '-'} • Held: {new Date(entry.heldAt).toLocaleString()}</div>
+                            <div className="text-xs text-slate-500 mt-1">
+                              {entry.data?.primaryComplaint ? `Complaint: ${entry.data.primaryComplaint}` : ''}
+                              {entry.data?.diagnosis ? ` • Diagnosis: ${entry.data.diagnosis}` : ''}
+                            </div>
+                            {Array.isArray(entry.data?.meds) && entry.data.meds.filter((m: any) => m.name).length > 0 && (
+                              <div className="text-xs text-slate-600 mt-1">
+                                <span className="font-semibold">Medicines:</span>{' '}
+                                {entry.data.meds.filter((m: any) => m.name).map((m: any) => m.name).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <button
+                              onClick={() => loadHeldPrescription(entry)}
+                              className="rounded-md border border-green-600 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-100"
+                            >
+                              Load
+                            </button>
+                            <button
+                              onClick={() => removeHeldPrescription(entry.id)}
+                              className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-100"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

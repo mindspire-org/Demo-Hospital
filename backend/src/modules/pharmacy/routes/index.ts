@@ -21,14 +21,23 @@ import * as SidebarPerms from '../controllers/sidebarPermission.controller'
 import * as HoldSales from '../controllers/hold_sales.controller'
 import * as Companies from '../controllers/companies.controller'
 import * as HoldPurchaseInvoices from '../controllers/hold_purchase_invoices.controller'
+import { auth } from '../../../common/middleware/auth'
+import { requireAdmin } from '../../../common/middleware/hospital_guard'
 
 const r = Router()
 
+// Auth (public)
+r.post('/users/login', Users.login)
+r.post('/users/logout', Users.logout)
+
+// All routes below require authentication
+r.use(auth)
+
 // Suppliers
 r.get('/suppliers', Suppliers.list)
-r.post('/suppliers', Suppliers.create)
-r.put('/suppliers/:id', Suppliers.update)
-r.delete('/suppliers/:id', Suppliers.remove)
+r.post('/suppliers', requireAdmin, Suppliers.create)
+r.put('/suppliers/:id', requireAdmin, Suppliers.update)
+r.delete('/suppliers/:id', requireAdmin, Suppliers.remove)
 r.post('/suppliers/:id/payment', Suppliers.recordPayment)
 r.get('/suppliers/:id/purchases', Suppliers.purchases)
 
@@ -46,53 +55,53 @@ r.post('/suppliers/:id/companies', Companies.assignToSupplier)
 
 // Customers
 r.get('/customers', Customers.list)
-r.post('/customers', Customers.create)
-r.put('/customers/:id', Customers.update)
-r.delete('/customers/:id', Customers.remove)
+r.post('/customers', requireAdmin, Customers.create)
+r.put('/customers/:id', requireAdmin, Customers.update)
+r.delete('/customers/:id', requireAdmin, Customers.remove)
 
 // Expenses
 r.get('/expenses', Expenses.list)
-r.post('/expenses', Expenses.create)
-r.delete('/expenses/:id', Expenses.remove)
+r.post('/expenses', requireAdmin, Expenses.create)
+r.delete('/expenses/:id', requireAdmin, Expenses.remove)
 r.get('/expenses/summary', Expenses.summary)
 
 // Cash Movements (Pay In/Out)
 r.get('/cash-movements', CashMovements.list)
-r.post('/cash-movements', CashMovements.create)
-r.delete('/cash-movements/:id', CashMovements.remove)
+r.post('/cash-movements', requireAdmin, CashMovements.create)
+r.delete('/cash-movements/:id', requireAdmin, CashMovements.remove)
 r.get('/cash-movements/summary', CashMovements.summary)
 
 // Manager Cash Count
 r.get('/cash-counts', CashCounts.list)
-r.post('/cash-counts', CashCounts.create)
-r.delete('/cash-counts/:id', CashCounts.remove)
+r.post('/cash-counts', requireAdmin, CashCounts.create)
+r.delete('/cash-counts/:id', requireAdmin, CashCounts.remove)
 r.get('/cash-counts/summary', CashCounts.summary)
 
 // Settings
 r.get('/settings', Settings.get)
-r.put('/settings', Settings.update)
+r.put('/settings', requireAdmin, Settings.update)
 
 // Staff
 r.get('/staff', Staff.list)
-r.post('/staff', Staff.create)
-r.put('/staff/:id', Staff.update)
-r.delete('/staff/:id', Staff.remove)
+r.post('/staff', requireAdmin, Staff.create)
+r.put('/staff/:id', requireAdmin, Staff.update)
+r.delete('/staff/:id', requireAdmin, Staff.remove)
 
 // Shifts
 r.get('/shifts', Shifts.list)
-r.post('/shifts', Shifts.create)
-r.put('/shifts/:id', Shifts.update)
-r.delete('/shifts/:id', Shifts.remove)
+r.post('/shifts', requireAdmin, Shifts.create)
+r.put('/shifts/:id', requireAdmin, Shifts.update)
+r.delete('/shifts/:id', requireAdmin, Shifts.remove)
 
 // Staff Earnings
 r.get('/staff-earnings', StaffEarnings.list)
-r.post('/staff-earnings', StaffEarnings.create)
-r.put('/staff-earnings/:id', StaffEarnings.update)
-r.delete('/staff-earnings/:id', StaffEarnings.remove)
+r.post('/staff-earnings', requireAdmin, StaffEarnings.create)
+r.put('/staff-earnings/:id', requireAdmin, StaffEarnings.update)
+r.delete('/staff-earnings/:id', requireAdmin, StaffEarnings.remove)
 
 // Attendance
 r.get('/attendance', Attendance.list)
-r.post('/attendance', Attendance.upsert)
+r.post('/attendance', requireAdmin, Attendance.upsert)
 
 // Sales / Dispense (POS)
 r.get('/sales', Sales.list)
@@ -129,24 +138,22 @@ r.post('/returns', Returns.create)
 
 // Audit Logs
 r.get('/audit-logs', Audit.list)
-r.post('/audit-logs', Audit.create)
+r.post('/audit-logs', requireAdmin, Audit.create)
 
 // Users (Pharmacy)
 r.get('/users', Users.list)
-r.post('/users', Users.create)
-r.put('/users/:id', Users.update)
-r.delete('/users/:id', Users.remove)
-r.post('/users/login', Users.login)
-r.post('/users/logout', Users.logout)
+r.post('/users', requireAdmin, Users.create)
+r.put('/users/:id', requireAdmin, Users.update)
+r.delete('/users/:id', requireAdmin, Users.remove)
 
 // Sidebar Roles & Permissions
 r.get('/sidebar-roles', SidebarPerms.listRoles)
-r.post('/sidebar-roles', SidebarPerms.createRole)
-r.delete('/sidebar-roles/:role', SidebarPerms.deleteRole)
+r.post('/sidebar-roles', requireAdmin, SidebarPerms.createRole)
+r.delete('/sidebar-roles/:role', requireAdmin, SidebarPerms.deleteRole)
 
 r.get('/sidebar-permissions', SidebarPerms.getPermissions)
-r.put('/sidebar-permissions/:role', SidebarPerms.updatePermissions)
-r.post('/sidebar-permissions/:role/reset', SidebarPerms.resetToDefaults)
+r.put('/sidebar-permissions/:role', requireAdmin, SidebarPerms.updatePermissions)
+r.post('/sidebar-permissions/:role/reset', requireAdmin, SidebarPerms.resetToDefaults)
 
 // Purchase Drafts (Pending Review)
 r.get('/purchase-drafts', Drafts.list)

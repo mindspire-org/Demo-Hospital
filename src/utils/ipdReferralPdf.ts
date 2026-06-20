@@ -15,6 +15,7 @@ export type IpdReferralPdfData = {
     signStamp?: string
     referredBy?: string
   }
+  prescriptionSnapshot?: any
 }
 
 async function rasterizeLogo(logo?: string): Promise<string | undefined> {

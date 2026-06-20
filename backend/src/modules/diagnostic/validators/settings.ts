@@ -21,6 +21,14 @@ export const diagnosticSettingsUpdateSchema = z.object({
     testName: z.string().optional(),
     templateKey: z.string(),
   })).optional(),
+  reportSections: z.object({
+    clinicalInformation: z.boolean().optional(),
+    comparison: z.boolean().optional(),
+    technique: z.boolean().optional(),
+    findings: z.boolean().optional(),
+    impression: z.boolean().optional(),
+    images: z.boolean().optional(),
+  }).optional(),
 })
 
 export type DiagnosticSettingsUpdate = z.infer<typeof diagnosticSettingsUpdateSchema>

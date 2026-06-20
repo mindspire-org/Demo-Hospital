@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { Voucher } from '../models/Voucher'
 import { FinanceJournal, JournalLine } from '../models/FinanceJournal'
+import { logActivity } from '../services/activityLog.service'
 
 function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100
@@ -45,6 +46,22 @@ export async function createSettlement(req: Request, res: Response) {
     status: 'draft',
     createdBy,
   })
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: createdBy,
+      portal: 'finance',
+      action: 'Settlement Created',
+      module: module || 'general',
+      entityId: String(voucher._id),
+      entityLabel: `JV — ${voucherNo} (${fromCostCenter} → ${toCostCenter})`,
+      amount: Number(amt || 0),
+      method: '',
+      meta: { fromCostCenter, toCostCenter, description: description || '' }
+    })
+  } catch {}
 
   res.status(201).json(voucher)
 }

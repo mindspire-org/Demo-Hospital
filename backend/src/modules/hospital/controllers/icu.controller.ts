@@ -4,6 +4,7 @@ import { ICUAdmission } from '../models/ICUAdmission'
 import { ICUFlowsheet } from '../models/ICUFlowsheet'
 import { ICUScore } from '../models/ICUScore'
 import { HospitalEncounter } from '../models/Encounter'
+import { HospitalBed } from '../models/Bed'
 
 // ============================================================================
 // ICU Beds
@@ -70,7 +71,7 @@ export async function listAdmissions(req: Request, res: Response) {
   try {
     const {
       status, bedId, encounterId, patientId,
-      from, to, severity, q, page = 1, limit = 50
+      referredFrom, from, to, severity, q, page = 1, limit = 50
     } = req.query
 
     const filter: any = {}
@@ -78,6 +79,7 @@ export async function listAdmissions(req: Request, res: Response) {
     if (bedId) filter.bedId = bedId
     if (encounterId) filter.encounterId = encounterId
     if (patientId) filter.patientId = patientId
+    if (referredFrom) filter.referredFrom = referredFrom
     if (severity) filter.severity = severity
     if (q) filter.reason = { $regex: q, $options: 'i' }
 
@@ -129,7 +131,8 @@ export async function createAdmission(req: Request, res: Response) {
 
     // Get patient from encounter
     const encounter = await HospitalEncounter.findById(encounterId)
-    const patientId = encounter?.patientId
+    if (!encounter) return res.status(404).json({ error: 'Encounter not found' })
+    const patientId = encounter.patientId
 
     const admission = await ICUAdmission.create({
       ...req.body,
@@ -139,6 +142,23 @@ export async function createAdmission(req: Request, res: Response) {
     // Update bed status if assigned
     if (bedId) {
       await ICUBed.findByIdAndUpdate(bedId, { status: 'occupied' })
+    }
+
+    // Mark source encounter as transferred and free original bed
+    if (encounter.status === 'admitted' || encounter.status === 'in-progress') {
+      encounter.status = 'transferred'
+      encounter.endAt = new Date()
+      await encounter.save()
+
+      // Free original bed if assigned
+      if (encounter.bedId) {
+        const originalBed = await HospitalBed.findById(encounter.bedId)
+        if (originalBed) {
+          originalBed.status = 'available'
+          originalBed.occupiedByEncounterId = undefined as any
+          await originalBed.save()
+        }
+      }
     }
 
     res.status(201).json(admission)

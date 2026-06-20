@@ -3,6 +3,7 @@ import { connectDB } from './config/db'
 import { env } from './config/env'
 import { Dispense } from './modules/pharmacy/models/Dispense'
 import { startBiometricPoller } from './modules/biometric/jobs/poller'
+import { ensureDefaultPortalLogins } from './seeds/default_logins'
 
 process.on('uncaughtException', (err) => {
   console.error('[UNCAUGHT EXCEPTION] Backend process continuing. Error:', err)
@@ -26,6 +27,15 @@ async function main(){
       try {
         await Dispense.createCollection()
       } catch {}
+
+      // Seed default portal logins (admin / 123) for all modules
+      try {
+        await ensureDefaultPortalLogins()
+        console.log('[backend] Default portal logins ensured')
+      } catch (seedErr) {
+        console.warn('[backend] Default portal logins seed error:', seedErr)
+      }
+
       console.log('[backend] Initialization complete')
 
       // Auto-start biometric poller based on saved config

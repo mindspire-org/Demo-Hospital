@@ -74,7 +74,8 @@ export async function buildPrescriptionOne(data: PrescriptionPdfData) {
   const drX = W - mx - 8
   pdf.setTextColor(ink.r, ink.g, ink.b)
   POP('bold'); pdf.setFontSize(11)
-  pdf.text(safe(safeData.doctor?.name, 'Dr. —'), drX, hy + 4, { align: 'right' })
+  const drNameT1 = safe(safeData.doctor?.name, '—').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drNameT1}`, drX, hy + 4, { align: 'right' })
   POP('normal'); pdf.setFontSize(7.5); pdf.setTextColor(muted.r, muted.g, muted.b)
   pdf.text(safe(safeData.doctor?.qualification, ''), drX, hy + 9, { align: 'right' })
   const pmdc = safe((safeData.doctor as any)?.pmdc || (safeData.doctor as any)?.registrationNumber, '')
@@ -89,69 +90,67 @@ export async function buildPrescriptionOne(data: PrescriptionPdfData) {
   pdf.line(hx, hy, W - mx - 8, hy)
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2. PATIENT INFO — single tinted row
+  // 2. PATIENT INFO — modern card with 2-row layout
   // ══════════════════════════════════════════════════════════════════════════
   hy += 4
-  const piH = 18
-  pdf.setFillColor(tealBg.r, tealBg.g, tealBg.b)
-  pdf.roundedRect(hx, hy, sw - 16, piH, 2.5, 2.5, 'F')
+  const piH = 22
+  pdf.setFillColor(255, 255, 255)
+  pdf.setDrawColor(hair.r, hair.g, hair.b)
+  pdf.setLineWidth(0.3)
+  pdf.roundedRect(hx, hy, sw - 16, piH, 3, 3, 'FD')
+
+  // Left teal accent bar
+  pdf.setFillColor(teal.r, teal.g, teal.b)
+  pdf.rect(hx, hy + 3, 3, piH - 6, 'F')
 
   const dt = safeData.createdAt ? new Date(safeData.createdAt as any) : new Date()
   const dateStr = (() => { try { return dt.toLocaleDateString('en-GB') } catch { return '' } })()
 
-  const piCols = [
-    { label: 'PATIENT NAME', val: safe(safeData.patient?.name) },
-    { label: 'MR #',         val: safe(safeData.patient?.mrn) },
-    { label: 'AGE / GENDER', val: `${safe(safeData.patient?.age)} / ${safe(safeData.patient?.gender)}` },
-    { label: 'DATE',         val: dateStr },
-    { label: 'CONTACT',      val: safe(safeData.patient?.phone) },
-  ]
-  const piColW = (sw - 16) / piCols.length
-  piCols.forEach((col, i) => {
-    const cx = hx + i * piColW + 4
+  const piRow = (lbl: string, val: string, x: number, yy: number) => {
     pdf.setTextColor(teal.r, teal.g, teal.b)
-    POP('bold'); pdf.setFontSize(5.5)
-    pdf.text(col.label, cx, hy + 5.5)
+    POP('bold'); pdf.setFontSize(6.5)
+    pdf.text(lbl, x, yy)
     pdf.setTextColor(ink.r, ink.g, ink.b)
-    POP('bold'); pdf.setFontSize(8)
-    pdf.text(col.val, cx, hy + 12)
-  })
+    POP('normal'); pdf.setFontSize(8.5)
+    pdf.text(safe(val), x, yy + 5)
+  }
+
+  const p1 = hx + 8, p2 = hx + 62, p3 = hx + 110, p4 = hx + 152
+  piRow('PATIENT NAME', safe(safeData.patient?.name), p1, hy + 6)
+  piRow('MR #', safe(safeData.patient?.mrn), p2, hy + 6)
+  piRow('AGE / GENDER', `${safe(safeData.patient?.age)} / ${safe(safeData.patient?.gender)}`, p3, hy + 6)
+  piRow('DATE', dateStr, p4, hy + 6)
+  piRow('CONTACT', safe(safeData.patient?.phone), p1, hy + 14)
+  piRow('TOKEN', safe((data as any).tokenNo, '—'), p2, hy + 14)
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 3. VITALS PILLS
+  // 3. VITALS — clean row layout (no overlapping pills)
   // ══════════════════════════════════════════════════════════════════════════
-  hy += piH + 5
+  hy += piH + 6
   const vitals = [
-    { label: 'BP',    val: (safeData.vitals?.bloodPressureSys && safeData.vitals?.bloodPressureDia) ? `${safeData.vitals.bloodPressureSys}/${safeData.vitals.bloodPressureDia} mmHg` : '' },
-    { label: 'PULSE', val: safeData.vitals?.pulse ? `${safeData.vitals.pulse} bpm` : '' },
-    { label: 'TEMP',  val: safeData.vitals?.temperatureC ? `${safeData.vitals.temperatureC}°F` : '' },
-    { label: 'RR',    val: safeData.vitals?.respiratoryRate ? `${safeData.vitals.respiratoryRate}/min` : '' },
-    { label: 'WT',    val: safeData.vitals?.weightKg ? `${safeData.vitals.weightKg} kg` : '' },
-    { label: 'SPO₂',  val: (safeData.vitals as any)?.spo2 ? `${(safeData.vitals as any).spo2}%` : '' },
+    { label: 'BP',    val: (safeData.vitals?.bloodPressureSys && safeData.vitals?.bloodPressureDia) ? `${safeData.vitals.bloodPressureSys}/${safeData.vitals.bloodPressureDia}` : '' },
+    { label: 'Pulse', val: safeData.vitals?.pulse ? `${safeData.vitals.pulse}` : '' },
+    { label: 'Temp',  val: safeData.vitals?.temperatureC ? `${safeData.vitals.temperatureC}°C` : '' },
+    { label: 'RR',    val: safeData.vitals?.respiratoryRate ? `${safeData.vitals.respiratoryRate}` : '' },
+    { label: 'Wt',    val: safeData.vitals?.weightKg ? `${safeData.vitals.weightKg}kg` : '' },
+    { label: 'SpO₂',  val: (safeData.vitals as any)?.spo2 ? `${(safeData.vitals as any).spo2}%` : '' },
   ].filter(v => v.val)
 
   if (vitals.length) {
-    const pillH = 10
-    const pillGap = 3
-    let px = hx
-    vitals.forEach(v => {
-      pdf.setFont('helvetica', 'normal')
-      const labelW = pdf.getStringUnitWidth(v.label) * 6.5 / pdf.internal.scaleFactor
-      pdf.setFont('helvetica', 'bold')
-      const valW   = pdf.getStringUnitWidth(v.val)   * 8   / pdf.internal.scaleFactor
-      const pillW  = Math.max(labelW + valW + 8, 22)
-      pdf.setFillColor(hair.r, hair.g, hair.b)
-      pdf.roundedRect(px, hy, pillW, pillH, 2, 2, 'F')
-      pdf.setTextColor(muted.r, muted.g, muted.b)
+    const vCardH = 14
+    pdf.setFillColor(tealBg.r, tealBg.g, tealBg.b)
+    pdf.roundedRect(hx, hy, sw - 16, vCardH, 2.5, 2.5, 'F')
+    const vColW = (sw - 24) / vitals.length
+    vitals.forEach((v, i) => {
+      const cx = hx + 6 + i * vColW
+      pdf.setTextColor(teal.r, teal.g, teal.b)
       POP('bold'); pdf.setFontSize(6)
-      pdf.text(v.label, px + 3, hy + 4.5)
+      pdf.text(v.label, cx + vColW / 2, hy + 5, { align: 'center' })
       pdf.setTextColor(ink.r, ink.g, ink.b)
-      POP('bold'); pdf.setFontSize(8)
-      pdf.text(v.val, px + 3 + labelW + 2, hy + 7)
-      px += pillW + pillGap
-      if (px > W - mx - 20) { px = hx; hy += pillH + pillGap }
+      POP('bold'); pdf.setFontSize(8.5)
+      pdf.text(v.val, cx + vColW / 2, hy + 10, { align: 'center' })
     })
-    hy += pillH + 4
+    hy += vCardH + 4
   } else {
     hy += 2
   }
@@ -201,81 +200,84 @@ export async function buildPrescriptionOne(data: PrescriptionPdfData) {
   pdf.text(dateStr, W - mx - 8, hy + 5, { align: 'right' })
   hy += 11
 
-  // Table header tinted band
+  // Modern medicine table with balanced columns
   const tableX  = hx
   const tableW  = sw - 16
-  const colWs   = [tableW * 0.36, tableW * 0.14, tableW * 0.16, tableW * 0.16, tableW * 0.18]
-  const headers = ['MEDICINE', 'DOSE', 'FREQ', 'DURATION', 'INSTRUCTIONS']
-  const rowH    = 7.5
+  const cols    = [6, (tableW - 6) * 0.30, (tableW - 6) * 0.16, (tableW - 6) * 0.20, (tableW - 6) * 0.16, (tableW - 6) * 0.18]
+  const cxPos = (idx: number) => {
+    let px = tableX + 2
+    for (let k = 0; k < idx; k++) px += cols[k]
+    return px
+  }
+  const isU = (data as any).language === 'urdu'
+  const headers = isU
+    ? ['#', 'دوا', 'خوراک', 'فریکوئنسی', 'مدت', 'ہدایت']
+    : ['#', 'MEDICINE', 'DOSE', 'FREQ', 'DURATION', 'INSTR']
+  const rowH = 7.5
 
-  // Header band
-  pdf.setFillColor(tealBg.r, tealBg.g, tealBg.b)
+  // Header band — solid teal
+  pdf.setFillColor(teal.r, teal.g, teal.b)
   pdf.roundedRect(tableX, hy, tableW, rowH, 1.5, 1.5, 'F')
-  let hcx = tableX + 3
   headers.forEach((h, hi) => {
-    pdf.setTextColor(teal.r, teal.g, teal.b)
-    POP('bold'); pdf.setFontSize(6)
-    pdf.text(h, hcx, hy + 4.8)
-    hcx += colWs[hi]
+    const center = cxPos(hi) + cols[hi] / 2
+    pdf.setTextColor(255, 255, 255)
+    POP('bold'); pdf.setFontSize(6.5)
+    pdf.text(h, center, hy + 4.8, { align: 'center' })
   })
   hy += rowH
 
   // Medicine rows
   const meds = (safeData.items || []).filter(m => String(m?.name || '').trim())
   if (meds.length === 0) {
-    // Empty state row
     pdf.setDrawColor(hair.r, hair.g, hair.b)
     pdf.setLineWidth(0.2)
     pdf.line(tableX, hy + rowH, tableX + tableW, hy + rowH)
     hy += rowH + 4
   } else {
+    const { translateRxItem } = await import('../../prescriptionUrdu')
     meds.forEach((m, idx) => {
+      const t = translateRxItem(m as any, isU ? 'urdu' : 'english')
       const name  = String(m?.name || '').trim()
-      const dose  = String(m?.dose || '').trim()
-      const freq  = String(m?.frequency || '').trim()
-      const dur   = String(m?.duration || '').trim()
-      const instr = String(m?.instruction || '').trim()
+      const dose  = String(t?.dose || '').trim()
+      const freq  = String(t?.frequency || '').trim()
+      const dur   = String(t?.duration || '').trim()
+      const instr = String(t?.instruction || '').trim()
 
       if (idx % 2 === 1) {
         pdf.setFillColor(250, 252, 251)
-        pdf.rect(tableX, hy, tableW, rowH + (instr ? 4 : 0), 'F')
+        pdf.rect(tableX, hy, tableW, rowH, 'F')
       }
+
+      const colCenter = (cidx: number) => cxPos(cidx) + cols[cidx] / 2
 
       // Row number
       pdf.setTextColor(muted.r, muted.g, muted.b)
       POP('normal'); pdf.setFontSize(7)
-      pdf.text(String(idx + 1), tableX + 1, hy + 5)
+      pdf.text(String(idx + 1), colCenter(0), hy + 5, { align: 'center' })
 
-      let rcx = tableX + 3 + 4 // slight indent past number
+      // Medicine name
       const nameUrdu = hasUrdu(name)
       if (nameUrdu) {
         pdf.setFontSize(10)
-        safeUrduText(name, rcx + colWs[0] - 8, hy + 5.5, { align: 'right' })
+        safeUrduText(name, cxPos(1) + cols[1] - 4, hy + 5.5, { align: 'right', maxWidth: cols[1] - 6 })
       } else {
         pdf.setTextColor(ink.r, ink.g, ink.b)
         POP('bold'); pdf.setFontSize(8.5)
-        pdf.text(name, rcx, hy + 5.5)
+        pdf.text(name, cxPos(1) + 3, hy + 5.5)
       }
-      rcx += colWs[0]
 
-      // Dose
-      if (hasUrdu(dose)) { pdf.setFontSize(9); safeUrduText(dose, rcx + colWs[1] - 2, hy + 5.5, { align: 'right' }) }
-      else { pdf.setTextColor(ink.r, ink.g, ink.b); POP('normal'); pdf.setFontSize(7.5); pdf.text(dose, rcx, hy + 5.5) }
-      rcx += colWs[1]
+      // Detail columns — center aligned
+      if (hasUrdu(dose)) { pdf.setFontSize(9); safeUrduText(dose, colCenter(2), hy + 5.5, { align: 'center', maxWidth: cols[2] - 4 }) }
+      else { pdf.setTextColor(ink.r, ink.g, ink.b); POP('normal'); pdf.setFontSize(7.5); pdf.text(dose, colCenter(2), hy + 5.5, { align: 'center' }) }
 
-      // Freq
-      if (hasUrdu(freq)) { pdf.setFontSize(9); safeUrduText(freq, rcx + colWs[2] - 2, hy + 5.5, { align: 'right' }) }
-      else { pdf.setTextColor(ink.r, ink.g, ink.b); POP('normal'); pdf.setFontSize(7.5); pdf.text(freq, rcx, hy + 5.5) }
-      rcx += colWs[2]
+      if (hasUrdu(freq)) { pdf.setFontSize(9); safeUrduText(freq, colCenter(3), hy + 5.5, { align: 'center', maxWidth: cols[3] - 4 }) }
+      else { pdf.setTextColor(ink.r, ink.g, ink.b); POP('normal'); pdf.setFontSize(7.5); pdf.text(freq, colCenter(3), hy + 5.5, { align: 'center' }) }
 
-      // Duration
-      if (hasUrdu(dur)) { pdf.setFontSize(9); safeUrduText(dur, rcx + colWs[3] - 2, hy + 5.5, { align: 'right' }) }
-      else { pdf.setTextColor(ink.r, ink.g, ink.b); POP('normal'); pdf.setFontSize(7.5); pdf.text(dur, rcx, hy + 5.5) }
-      rcx += colWs[3]
+      if (hasUrdu(dur)) { pdf.setFontSize(9); safeUrduText(dur, colCenter(4), hy + 5.5, { align: 'center', maxWidth: cols[4] - 4 }) }
+      else { pdf.setTextColor(ink.r, ink.g, ink.b); POP('normal'); pdf.setFontSize(7.5); pdf.text(dur, colCenter(4), hy + 5.5, { align: 'center' }) }
 
-      // Instructions
-      if (hasUrdu(instr)) { pdf.setFontSize(9); safeUrduText(instr, rcx + colWs[4] - 2, hy + 5.5, { align: 'right' }) }
-      else { pdf.setTextColor(muted.r, muted.g, muted.b); POP('normal'); pdf.setFontSize(7); pdf.text(instr, rcx, hy + 5.5) }
+      if (hasUrdu(instr)) { pdf.setFontSize(9); safeUrduText(instr, colCenter(5), hy + 5.5, { align: 'center', maxWidth: cols[5] - 4 }) }
+      else { pdf.setTextColor(muted.r, muted.g, muted.b); POP('normal'); pdf.setFontSize(7); pdf.text(instr, colCenter(5), hy + 5.5, { align: 'center' }) }
 
       // Hairline row separator
       pdf.setDrawColor(hair.r, hair.g, hair.b)

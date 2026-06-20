@@ -21,24 +21,40 @@ function yesterdayBounds(){
   return { start, end }
 }
 
-export async function summary(_req: Request, res: Response){
+export async function summary(req: Request, res: Response){
   const { start, end } = todayBounds()
   const { start: yesterdayStart } = yesterdayBounds()
+  const { collectionCenterId, wardId, referringDoctorId } = req.query as any
+
+  const orderFilter: any = { createdAt: { $gte: start, $lte: end } }
+  const tokenFilter: any = { createdAt: { $gte: yesterdayStart } }
+  if (collectionCenterId) {
+    orderFilter.collectionCenterId = collectionCenterId
+    tokenFilter.collectionCenterId = collectionCenterId
+  }
+  if (wardId) {
+    orderFilter.wardId = wardId
+    tokenFilter.wardId = wardId
+  }
+  if (referringDoctorId) {
+    orderFilter.referringDoctorId = referringDoctorId
+    tokenFilter.referringDoctorId = referringDoctorId
+  }
 
   const [ordersToday, completedToday, pendingReports, pendingReceived, inventory, recentTokens, recentOrders, recentResults] = await Promise.all([
-    LabOrder.find({ createdAt: { $gte: start, $lte: end } }).select('tests status returnedTests').lean(),
-    LabOrder.countDocuments({ status: 'completed', updatedAt: { $gte: start, $lte: end } } as any),
-    LabOrder.countDocuments({ status: 'received' }),
-    LabOrder.countDocuments({ status: 'pending' }),
+    LabOrder.find(orderFilter).select('tests status returnedTests').lean(),
+    LabOrder.countDocuments({ ...orderFilter, status: 'completed', updatedAt: { $gte: start, $lte: end } } as any),
+    LabOrder.countDocuments({ status: 'received', ...(collectionCenterId ? { collectionCenterId } : {}), ...(wardId ? { wardId } : {}), ...(referringDoctorId ? { referringDoctorId } : {}) }),
+    LabOrder.countDocuments({ status: 'pending', ...(collectionCenterId ? { collectionCenterId } : {}), ...(wardId ? { wardId } : {}), ...(referringDoctorId ? { referringDoctorId } : {}) }),
     LabInventoryItem.find({}).select('onHand minStock').lean(),
     // Recent activity - last 10 tokens
-    LabToken.find({ createdAt: { $gte: yesterdayStart } })
+    LabToken.find(tokenFilter)
       .select('tokenNo patient createdAt status generatedBy')
       .sort({ createdAt: -1 })
       .limit(10)
       .lean(),
     // Recent activity - last 10 orders
-    LabOrder.find({ createdAt: { $gte: yesterdayStart } })
+    LabOrder.find(orderFilter)
       .select('tokenNo patient createdAt status barcode')
       .sort({ createdAt: -1 })
       .limit(10)

@@ -8,6 +8,7 @@ import { hospitalApi } from '../../utils/api'
 import { fmt12 } from '../../utils/timeFormat'
 import { getLocalDate } from '../../utils/date'
 import Store_ConfirmDialog from '../../components/hospital/Store_ConfirmDialog'
+import PatientTransferDialog from '../../components/hospital/PatientTransferDialog'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 
 type EmergencyStatus = 'active' | 'admitted' | 'discharged'
@@ -68,96 +69,97 @@ export default function Hospital_EmergencyQueue(){
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string>('—')
   const [rowBilling, setRowBilling] = useState<Map<string, { advance: number; pending: number }>>(new Map())
 
-  useEffect(() => {
-    let cancelled = false
-    async function load(){
-      setLoading(true)
-      setLoadingStats(true)
-      try{
-        const deps: any = await hospitalApi.listDepartments({ limit: 1000 }) as any
-        const list: any[] = deps?.departments || deps || []
-        const er = list.find((d: any) => String(d?.name || '').trim().toLowerCase() === 'emergency')
-        const departmentId = er?._id || er?.id
-        if (!departmentId){
-          if (!cancelled) setRows([])
-          return
-        }
-        // Use encounters as source of truth (like IPD)
-        const encRes: any = await hospitalApi.listEREncounters({ 
-          status: 'in-progress', 
-          departmentId: String(departmentId),
-          from, 
-          to, 
-          limit: 500 
-        })
-        const encounters: any[] = encRes?.encounters || []
-        const mapped: EmergencyRow[] = encounters.map((enc: any) => {
-          const p = enc.patientId || {}
-          const docName = enc.doctorId?.name || enc.doctorId?.fullName || ''
-          const when = enc.startAt ? new Date(enc.startAt) : (enc.createdAt ? new Date(enc.createdAt) : null)
-          const time = when ? fmt12(`${String(when.getHours()).padStart(2,'0')}:${String(when.getMinutes()).padStart(2,'0')}`) : ''
-          const st: EmergencyStatus = enc.status === 'discharged' ? 'discharged' : (enc.status === 'admitted' ? 'admitted' : 'active')
-          const token = enc.tokenId || {}
-          return {
-            id: String(enc._id),
-            tokenNo: String(token.tokenNo || enc.tokenNo || ''),
-            time,
-            mrn: String(p.mrn || enc.mrn || ''),
-            patientName: String(p.fullName || enc.patientName || ''),
-            age: String(p.age || ''),
-            gender: String(p.gender || ''),
-            phone: String(p.phoneNormalized || p.phone || ''),
-            doctor: docName ? String(docName) : undefined,
-            status: st,
-            triage: enc.triage || undefined,
-            arrivalMode: enc.arrivalMode || undefined,
-            encounterId: String(enc._id),
-            bedLabel: enc.bedLabel || enc.erBedNumber || '-',
-            bedLocation: enc.bedLocation || undefined,
-            createdAtMs: when ? when.getTime() : undefined,
-          }
-        })
-        if (!cancelled) {
-          setRows(mapped)
-          setLastUpdatedAt(new Date().toLocaleString())
-          // Load per-row billing summaries
-          const newBilling = new Map<string, { advance: number; pending: number }>()
-          await Promise.all(
-            mapped
-              .filter(r => r.encounterId)
-              .map(async r => {
-                try {
-                  const res: any = await hospitalApi.erBillingSummary(String(r.encounterId))
-                  const totals = res?.totals || {}
-                  newBilling.set(r.id, {
-                    advance: Number(totals?.unallocatedAdvance || 0),
-                    pending: Number(totals?.netOutstanding || totals?.pending || 0),
-                  })
-                } catch {}
-              })
-          )
-          if (!cancelled) {
-            setRowBilling(newBilling)
-            // Aggregate actual unallocated advance + net outstanding from per-row data
-            let totalUnallocated = 0
-            let totalPending = 0
-            for (const v of newBilling.values()) {
-              totalUnallocated += v.advance || 0
-              totalPending += v.pending || 0
-            }
-            setErAdvance(totalUnallocated)
-            setErPending(totalPending)
-          }
-        }
-      }catch{
-        if (!cancelled) setRows([])
-      }finally{
-        if (!cancelled) setLoading(false)
-        if (!cancelled) setLoadingStats(false)
+  // Transfer dialog state
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferEncounter, setTransferEncounter] = useState<any>(null)
+
+  async function load() {
+    setLoading(true)
+    setLoadingStats(true)
+    try {
+      const deps: any = await hospitalApi.listDepartments({ limit: 1000 }) as any
+      const list: any[] = deps?.departments || deps || []
+      const er = list.find((d: any) => String(d?.name || '').trim().toLowerCase() === 'emergency')
+      const departmentId = er?._id || er?.id
+      if (!departmentId) {
+        setRows([])
+        return
       }
+      // Use encounters as source of truth (like IPD)
+      const encRes: any = await hospitalApi.listEREncounters({
+        status: 'in-progress',
+        departmentId: String(departmentId),
+        from,
+        to,
+        limit: 500
+      })
+      const encounters: any[] = encRes?.encounters || []
+      const mapped: EmergencyRow[] = encounters.map((enc: any) => {
+        const p = enc.patientId || {}
+        const docName = enc.doctorId?.name || enc.doctorId?.fullName || ''
+        const when = enc.startAt ? new Date(enc.startAt) : (enc.createdAt ? new Date(enc.createdAt) : null)
+        const time = when ? fmt12(`${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`) : ''
+        const st: EmergencyStatus = enc.status === 'discharged' ? 'discharged' : (enc.status === 'admitted' ? 'admitted' : 'active')
+        const token = enc.tokenId || {}
+        return {
+          id: String(enc._id),
+          tokenNo: String(token.tokenNo || enc.tokenNo || ''),
+          time,
+          mrn: String(p.mrn || enc.mrn || ''),
+          patientName: String(p.fullName || enc.patientName || ''),
+          age: String(p.age || ''),
+          gender: String(p.gender || ''),
+          phone: String(p.phoneNormalized || p.phone || ''),
+          doctor: docName ? String(docName) : undefined,
+          status: st,
+          triage: enc.triage || undefined,
+          arrivalMode: enc.arrivalMode || undefined,
+          encounterId: String(enc._id),
+          bedLabel: enc.bedLabel || enc.erBedNumber || '-',
+          bedLocation: enc.bedLocation || undefined,
+          createdAtMs: when ? when.getTime() : undefined,
+        }
+      })
+      setRows(mapped)
+      setLastUpdatedAt(new Date().toLocaleString())
+      // Load per-row billing summaries
+      const newBilling = new Map<string, { advance: number; pending: number }>()
+      await Promise.all(
+        mapped
+          .filter(r => r.encounterId)
+          .map(async r => {
+            try {
+              const res: any = await hospitalApi.erBillingSummary(String(r.encounterId))
+              const totals = res?.totals || {}
+              newBilling.set(r.id, {
+                advance: Number(totals?.unallocatedAdvance || 0),
+                pending: Number(totals?.netOutstanding || totals?.pending || 0),
+              })
+            } catch { }
+          })
+      )
+      setRowBilling(newBilling)
+      // Aggregate actual unallocated advance + net outstanding from per-row data
+      let totalUnallocated = 0
+      let totalPending = 0
+      for (const v of newBilling.values()) {
+        totalUnallocated += v.advance || 0
+        totalPending += v.pending || 0
+      }
+      setErAdvance(totalUnallocated)
+      setErPending(totalPending)
+    } catch {
+      setRows([])
+    } finally {
+      setLoading(false)
+      setLoadingStats(false)
     }
-    load()
-    return () => { cancelled = true }
+  }
+
+  useEffect(() => {
+    if (from !== undefined && to !== undefined) {
+      load()
+    }
   }, [from, to])
 
   function formatBedLocation(bedLoc?: BedLocation) {
@@ -379,7 +381,7 @@ export default function Hospital_EmergencyQueue(){
 
   return (
     <div className="p-4 md:p-6 space-y-4 bg-slate-50/50 min-h-screen">
-      <div className="rounded-2xl bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 p-5 text-white shadow-sm">
+      <div className="rounded-2xl bg-linear-to-r from-rose-600 via-orange-500 to-amber-500 p-5 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-lg font-extrabold">Emergency Department</div>
@@ -581,7 +583,37 @@ export default function Hospital_EmergencyQueue(){
                     <div className="flex gap-2">
                       <button onClick={()=>openChart(r)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Open</button>
                       {(r.status === 'active' || r.status === 'admitted') && (
-                        <button onClick={()=>handleDischarge(r)} className="rounded-md bg-emerald-600 text-white px-3 py-1.5 text-sm hover:bg-emerald-700">Discharge</button>
+                        <>
+                          <button onClick={()=>handleDischarge(r)} className="rounded-md bg-emerald-600 text-white px-3 py-1.5 text-sm hover:bg-emerald-700">Discharge</button>
+                          <button
+                            onClick={() => {
+                              // Find the full encounter object for transfer
+                              const full = rows.find(row => row.id === r.id)
+                              if (full?.encounterId) {
+                                // Load full encounter details
+                                hospitalApi.getEREncounterById(full.encounterId).then((res: any) => {
+                                  const enc = res?.encounter
+                                  if (enc) {
+                                    setTransferEncounter(enc)
+                                    setTransferOpen(true)
+                                  }
+                                }).catch(() => {
+                                  // Fallback: create minimal encounter from row data
+                                  setTransferEncounter({
+                                    _id: full.encounterId,
+                                    type: 'ER',
+                                    patientId: { fullName: full.patientName, mrn: full.mrn },
+                                    bedId: full.bedLabel,
+                                  })
+                                  setTransferOpen(true)
+                                })
+                              }
+                            }}
+                            className="rounded-md bg-sky-600 text-white px-3 py-1.5 text-sm hover:bg-sky-700"
+                          >
+                            Transfer
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -591,6 +623,16 @@ export default function Hospital_EmergencyQueue(){
           </table>
         </div>
       </div>
+
+      <PatientTransferDialog
+        open={transferOpen}
+        onClose={() => { setTransferOpen(false); setTransferEncounter(null) }}
+        sourceEncounter={transferEncounter}
+        onTransferred={() => {
+          setToast({ type: 'success', message: 'Patient transferred successfully' })
+          load() // refresh list
+        }}
+      />
 
       <Store_ConfirmDialog
         open={confirmOpen}

@@ -77,6 +77,8 @@ const TokenSchema = new Schema({
   
   // Additional info
   referringConsultant: { type: String },
+  referringDoctorId: { type: String },
+  referringDoctorName: { type: String },
   referralId: { type: String, index: true }, // Link to Hospital_Referral when created from referral
   corporateId: { type: Schema.Types.ObjectId, ref: 'Corporate_Company' },
   portal: { type: String, enum: ['lab', 'reception'], index: true },

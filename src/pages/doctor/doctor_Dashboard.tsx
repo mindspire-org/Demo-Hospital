@@ -78,30 +78,56 @@ export default function Doctor_Dashboard() {
   const navigate = useNavigate()
   const [doc, setDoc] = useState<DoctorSession | null>(null)
 
-  useEffect(() => {
-    try { const raw = localStorage.getItem('doctor.session'); setDoc(raw ? JSON.parse(raw) : null) } catch { setDoc(null) }
-  }, [])
+  const isBadName = (n?: string) => !n || n === 'Clinician' || n.toLowerCase() === 'clinician'
 
   useEffect(() => {
     try {
-      const sess = doc
-      if (!sess) return
-      const hex24 = /^[a-f\d]{24}$/i
-      if (hex24.test(String(sess.id || ''))) return
-      ;(async () => {
-        try {
-          const res = await hospitalApi.listDoctors() as any
-          const docs: any[] = res?.doctors || []
-          const match = docs.find(d => String(d.username || '').toLowerCase() === String(sess.username || '').toLowerCase()) ||
-                        docs.find(d => String(d.name || '').toLowerCase() === String(sess.name || '').toLowerCase())
-          if (match) {
-            const fixed = { ...sess, id: String(match._id || match.id) }
+      const raw = localStorage.getItem('doctor.session')
+      let parsed: DoctorSession | null = raw ? JSON.parse(raw) : null
+      // Treat 'Clinician' as missing — force fallback
+      if (!parsed?.name || isBadName(parsed.name)) {
+        const h = localStorage.getItem('hospital.session')
+        if (h) {
+          const u = JSON.parse(h)
+          const name = u?.name || u?.user?.name || u?.username || u?.user?.username || ''
+          const username = u?.username || u?.user?.username || ''
+          if (name || username) parsed = { ...(parsed || {}), id: parsed?.id || u?.id || u?.user?.id || '', name: name || parsed?.name || '', username: username || parsed?.username || '' } as DoctorSession
+        }
+      }
+      if (!parsed?.name || isBadName(parsed.name)) {
+        const d = localStorage.getItem('diagnostic.user')
+        if (d) {
+          const u = JSON.parse(d)
+          const name = u?.name || u?.username || ''
+          const username = u?.username || ''
+          if (name || username) parsed = { ...(parsed || {}), id: parsed?.id || u?.id || '', name: name || parsed?.name || '', username: username || parsed?.username || '' } as DoctorSession
+        }
+      }
+      setDoc(parsed)
+    } catch { setDoc(null) }
+  }, [])
+
+  useEffect(() => {
+    const sess = doc
+    if (!sess) return
+    const canLookup = sess.username || sess.name
+    if (!canLookup) return
+    ;(async () => {
+      try {
+        const res = await hospitalApi.listDoctors() as any
+        const docs: any[] = res?.doctors || []
+        const match = docs.find(d => String(d.username || '').toLowerCase() === String(sess.username || '').toLowerCase()) ||
+                      docs.find(d => String(d.name || '').toLowerCase() === String(sess.name || '').toLowerCase())
+        if (match) {
+          const realName = String(match.name || match.username || '').trim()
+          if (realName && !isBadName(realName)) {
+            const fixed = { ...sess, id: String(match._id || match.id || sess.id), name: realName }
             try { localStorage.setItem('doctor.session', JSON.stringify(fixed)) } catch {}
             setDoc(fixed)
           }
-        } catch {}
-      })()
-    } catch {}
+        }
+      } catch {}
+    })()
   }, [doc])
 
   const [queuedCount, setQueuedCount]   = useState(0)
@@ -238,7 +264,7 @@ export default function Doctor_Dashboard() {
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">System Live</span>
             </div>
             <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-              Hello, <span className="bg-linear-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">Dr. {doc?.name || 'Clinician'}</span>
+              Hello, <span className="bg-linear-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">Dr. {String(doc?.name || '').replace(/^\s*Dr\.?\s*/i, '')}</span>
             </h1>
             <p className="max-w-md text-lg font-medium text-slate-400">
               You have <span className="text-white">{queuedCount} patients</span> waiting in your queue today.

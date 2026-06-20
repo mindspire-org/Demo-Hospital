@@ -58,7 +58,7 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   const tealLt  = { r: 235, g: 248, b: 246 }   // very light teal tint
   const navy    = { r: 45,  g: 55,  b: 72  }   // soft slate
   const gray    = { r: 130, g: 145, b: 165 }   // medium gray
-  const faint   = { r: 250, g: 251, b: 252 }   // almost white
+  const white   = { r: 255, g: 255, b: 255 }   // pure white
   const border  = { r: 230, g: 235, b: 242 }   // very light border
   const rowAlt  = { r: 248, g: 250, b: 252 }   // alternate row
 
@@ -70,18 +70,13 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   const cw = W - 2 * mx
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 1. HEADER — premium light modern header
+  // 1. HEADER — bold modern teal band
   // ══════════════════════════════════════════════════════════════════════════
-  const hdrH = 18
+  const hdrH = 22
 
-  // Very light background fill
-  pdf.setFillColor(faint.r, faint.g, faint.b)
+  // Solid teal header background
+  pdf.setFillColor(teal.r, teal.g, teal.b)
   pdf.rect(mx, 2, cw, hdrH, 'F')
-
-  // Subtle top border
-  pdf.setDrawColor(teal.r, teal.g, teal.b)
-  pdf.setLineWidth(0.4)
-  pdf.line(mx, 2, W - mx, 2)
 
   // Logo
   let logoEndX = mx + 4
@@ -89,71 +84,73 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   if (logoSrc) {
     try {
       const norm = await ensurePngDataUrl(logoSrc)
-      pdf.addImage(norm, 'PNG' as any, mx + 3, 5, 10, 10, undefined, 'FAST')
-      logoEndX = mx + 16
+      pdf.addImage(norm, 'PNG' as any, mx + 4, 5, 12, 12, undefined, 'FAST')
+      logoEndX = mx + 18
     } catch {}
   }
 
-  // Hospital name
+  // Hospital name — white on teal
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(12)
-  pdf.setTextColor(navy.r, navy.g, navy.b)
-  pdf.text(String(settings.name || 'Hospital'), logoEndX + 2, 10)
+  pdf.setFontSize(14)
+  pdf.setTextColor(255, 255, 255)
+  pdf.text(String(settings.name || 'Hospital'), logoEndX + 2, 12)
 
-  // Hospital sub-info — single line compact
+  // Hospital sub-info — white
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(6.5)
-  pdf.setTextColor(gray.r, gray.g, gray.b)
+  pdf.setFontSize(7)
+  pdf.setTextColor(230, 245, 243)
   const addrPhone = [settings.address, settings.phone].filter(Boolean).join('   ·   ')
-  if (addrPhone) pdf.text(addrPhone, logoEndX + 2, 14.5)
+  if (addrPhone) pdf.text(addrPhone, logoEndX + 2, 17)
 
-  // Doctor name (right side)
-  const drX = W - mx - 2
+  // Doctor name (right side) — white
+  const drX = W - mx - 4
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(9)
-  pdf.setTextColor(navy.r, navy.g, navy.b)
-  pdf.text(`Dr. ${String(doctor.name || '-')}`, drX, 10, { align: 'right' })
+  pdf.setFontSize(11)
+  pdf.setTextColor(255, 255, 255)
+  const drName = String(doctor.name || '-').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drName}`, drX, 11, { align: 'right' })
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(6.5)
-  pdf.setTextColor(gray.r, gray.g, gray.b)
-  if (doctor.qualification) pdf.text(String(doctor.qualification), drX, 14.5, { align: 'right' })
+  pdf.setFontSize(7)
+  pdf.setTextColor(220, 235, 233)
+  if (doctor.qualification) pdf.text(String(doctor.qualification), drX, 16, { align: 'right' })
   const spec = String((doctor as any).specialization || doctor.departmentName || '')
-  if (spec) pdf.text(spec, drX, 18, { align: 'right' })
-
-  // Bottom subtle line
-  pdf.setDrawColor(border.r, border.g, border.b)
-  pdf.setLineWidth(0.25)
-  pdf.line(mx, hdrH + 1, W - mx, hdrH + 1)
+  if (spec) pdf.text(spec, drX, 20, { align: 'right' })
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2. PATIENT INFO BAND — ultra compact, minimal gap
+  // 2. PATIENT INFO CARD — modern rounded card with teal accent
   // ══════════════════════════════════════════════════════════════════════════
-  const patY = hdrH + 2
-  const patH = 8
+  const patY = hdrH + 4
+  const patH = 18
 
+  pdf.setFillColor(white.r, white.g, white.b)
   pdf.setDrawColor(border.r, border.g, border.b)
-  pdf.setLineWidth(0.2)
-  pdf.rect(mx, patY, cw, patH)
+  pdf.setLineWidth(0.3)
+  roundedRect(pdf, mx, patY, cw, patH, 3)
+
+  // Left teal accent bar
+  pdf.setFillColor(teal.r, teal.g, teal.b)
+  pdf.rect(mx, patY + 2, 3, patH - 4, 'F')
 
   const pf = (lbl: string, val: string, x: number, yy: number) => {
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6); pdf.setTextColor(tealDk.r, tealDk.g, tealDk.b)
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7); pdf.setTextColor(tealDk.r, tealDk.g, tealDk.b)
     pdf.text(lbl, x, yy)
     pdf.setFont('helvetica', 'normal'); pdf.setTextColor(navy.r, navy.g, navy.b)
-    pdf.text(String(val || '-'), x + 11, yy)
+    pdf.setFontSize(8.5)
+    pdf.text(String(val || '-'), x + 13, yy)
   }
 
-  const py1 = patY + 3.5
-  const py2 = patY + 6.5
-  const c1 = mx + 4, c2 = mx + 55, c3 = mx + 100, c4 = mx + 148
+  const py1 = patY + 5.5
+  const py2 = patY + 12
+  const c1 = mx + 8, c2 = mx + 62, c3 = mx + 108, c4 = mx + 152
   pf('Patient:', String(patient.name || '-'), c1, py1)
   pf('MR #:', String(patient.mrn || '-'), c2, py1)
   pf('Age:', String(patient.age || '-'), c3, py1)
   pf('Gender:', String(patient.gender || '-'), c4, py1)
-  pf('Token:', String(data.tokenNo || (data as any).tokenNo || '-'), c1, py2)
-  pf('Phone:', String(patient.phone || '-'), c2, py2)
+  pf('Phone:', String(patient.phone || '-'), c1, py2)
+  pf('Token:', String(data.tokenNo || (data as any).tokenNo || '-'), c2, py2)
   pf('Date:', dt.toLocaleDateString('en-GB'), c3, py2)
 
-  let y = patY + patH + 1.5
+  let y = patY + patH + 2
 
   // ══════════════════════════════════════════════════════════════════════════
   // 3. TWO-COLUMN BODY: Compact Vitals+Tests LEFT | Clinical Notes + Rx RIGHT
@@ -310,28 +307,29 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
     pdf.line(mx, y + 7, mx + cw, y + 7)
     y += 9
 
-    // Wider columns for medicine table
-    const cols = [5, 55, 18, 18, 20, 12, 20]
+    // Modern balanced columns for English + Urdu
+    const cols = [5, 52, 22, 22, 26, 16, 20]
     const hdrs = isUrdu
-      ? ['#', 'Medicine', 'خوراک', 'مدت', 'فریکوئنسی', 'طریقہ', 'ہدایت']
+      ? ['#', 'دوا', 'خوراک', 'مدت', 'فریکوئنسی', 'طریقہ', 'ہدایت']
       : ['#', 'Medicine', 'Dose', 'Duration', 'Frequency', 'Route', 'Instr']
 
-    // Header row with very light background
-    pdf.setFillColor(tealLt.r, tealLt.g, tealLt.b)
-    pdf.rect(mx, y - 3, cw, 5, 'F')
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6.5)
-    pdf.setTextColor(tealDk.r, tealDk.g, tealDk.b)
+    // Bold modern header band
+    pdf.setFillColor(teal.r, teal.g, teal.b)
+    pdf.rect(mx, y - 3, cw, 6, 'F')
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7)
+    pdf.setTextColor(255, 255, 255)
     let cx = mx + 2
     hdrs.forEach((h, i) => {
+      const colCenter = cx + cols[i] / 2
       if (hasUrduChars(h)) {
-        safeUrduText(h, cx, y + 1)
+        safeUrduText(h, colCenter, y + 1.5, { align: 'center' })
       } else {
         pdf.setFont('helvetica', 'bold')
-        pdf.text(h, cx, y + 1)
+        pdf.text(h, colCenter, y + 1.5, { align: 'center' })
       }
       cx += cols[i]
     })
-    y += 4.5
+    y += 5.5
 
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(navy.r, navy.g, navy.b)
     meds.forEach((m, i) => {
@@ -374,25 +372,26 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
 
       pdf.setFont('helvetica', 'normal'); pdf.setTextColor(navy.r, navy.g, navy.b)
       pdf.setFontSize(7)
-      if (hasUrduChars(dose)) safeUrduText(dose, cx + cols[2] - 1, y, { align: 'right', maxWidth: cols[2] - 2 })
-      else { pdf.text(dose, cx, y) }
+      const colCenter = (cidx: number) => cx + cols[cidx] / 2
+      if (hasUrduChars(dose)) safeUrduText(dose, colCenter(2), y, { align: 'center', maxWidth: cols[2] - 2 })
+      else { pdf.text(dose, colCenter(2), y, { align: 'center' }) }
       cx += cols[2]
 
-      if (hasUrduChars(dur)) safeUrduText(dur, cx + cols[3] - 1, y, { align: 'right', maxWidth: cols[3] - 2 })
-      else { pdf.text(dur, cx, y) }
+      if (hasUrduChars(dur)) safeUrduText(dur, colCenter(3), y, { align: 'center', maxWidth: cols[3] - 2 })
+      else { pdf.text(dur, colCenter(3), y, { align: 'center' }) }
       cx += cols[3]
 
-      if (hasUrduChars(freq)) safeUrduText(freq, cx + cols[4] - 1, y, { align: 'right', maxWidth: cols[4] - 2 })
-      else { pdf.text(freq, cx, y) }
+      if (hasUrduChars(freq)) safeUrduText(freq, colCenter(4), y, { align: 'center', maxWidth: cols[4] - 2 })
+      else { pdf.text(freq, colCenter(4), y, { align: 'center' }) }
       cx += cols[4]
 
-      if (hasUrduChars(route)) safeUrduText(route, cx + cols[5] - 1, y, { align: 'right', maxWidth: cols[5] - 2 })
-      else { pdf.text(route, cx, y) }
+      if (hasUrduChars(route)) safeUrduText(route, colCenter(5), y, { align: 'center', maxWidth: cols[5] - 2 })
+      else { pdf.text(route, colCenter(5), y, { align: 'center' }) }
       cx += cols[5]
 
       pdf.setFontSize(6.5); pdf.setTextColor(gray.r, gray.g, gray.b)
-      if (hasUrduChars(instr)) safeUrduText(instr, cx + cols[6] - 1, y, { align: 'right', maxWidth: cols[6] - 2 })
-      else if (instr) { pdf.setFont('helvetica', 'normal'); pdf.text(instr, cx, y) }
+      if (hasUrduChars(instr)) safeUrduText(instr, colCenter(6), y, { align: 'center', maxWidth: cols[6] - 2 })
+      else if (instr) { pdf.setFont('helvetica', 'normal'); pdf.text(instr, colCenter(6), y, { align: 'center' }) }
       pdf.setFontSize(7.5)
 
       // Very light bottom rule per row
@@ -416,7 +415,8 @@ export async function previewHospitalRxPdf(data: PrescriptionPdfData & RxPdfExtr
   pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6); pdf.setTextColor(gray.r, gray.g, gray.b)
   pdf.text('Signature', mx, footY + 3)
   pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7); pdf.setTextColor(navy.r, navy.g, navy.b)
-  pdf.text(`Dr. ${String(doctor.name || '')}`, mx, footY + 6.5)
+  const drFooterName = String(doctor.name || '').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drFooterName}`, mx, footY + 6.5)
 
   // Footer info line
   pdf.setDrawColor(border.r, border.g, border.b)

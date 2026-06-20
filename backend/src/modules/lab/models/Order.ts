@@ -41,6 +41,8 @@ const OrderSchema = new Schema({
   sampleCollectedAt: { type: Date }, // Optional global timestamp
   
   referringConsultant: { type: String },
+  referringDoctorId: { type: String },
+  referringDoctorName: { type: String },
   corporateId: { type: Schema.Types.ObjectId, ref: 'Corporate_Company' },
   
   // FBR fields

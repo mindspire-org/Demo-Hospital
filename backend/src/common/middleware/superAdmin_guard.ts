@@ -3,13 +3,22 @@ import jwt from 'jsonwebtoken'
 import { env } from '../../config/env'
 
 export function superAdminGuard(req: Request, res: Response, next: NextFunction) {
+  // Check server-side session first (MongoDB-backed, no localStorage)
+  const sessionUser = (req as any).session?.adminUser
+  if (sessionUser) {
+    ;(req as any).superAdmin = sessionUser
+    return next()
+  }
+
+  // Fallback: JWT Bearer token
   const auth = String(req.headers['authorization'] || '')
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : ''
 
   if (bearer) {
     try {
       const payload: any = jwt.verify(bearer, env.JWT_SECRET)
-      if (payload?.scope === 'super_admin') {
+      const scope = String(payload?.scope || '')
+      if (scope === 'super_admin' || scope === 'admin') {
         ;(req as any).superAdmin = payload
         return next()
       }

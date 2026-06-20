@@ -45,6 +45,9 @@ export default function Dialysis_Sessions() {
    const [center, setCenter] = useState<any>(null)
 
   const [editing, setEditing] = useState<SessionRow | null>(null)
+  const [dischargeOpen, setDischargeOpen] = useState(false)
+  const [dischargeNote, setDischargeNote] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
 
   async function load() {
     if (!dialysisPatientId) return
@@ -97,9 +100,48 @@ export default function Dialysis_Sessions() {
     }
   }
 
+  async function completeSession(s: SessionRow) {
+    if (!s?._id) return
+    if (!confirm('Complete this session? This will set the end time to now.')) return
+    setActionLoading(true)
+    try {
+      const now = new Date()
+      const timeCompleted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      await dialysisApi.updateSession(String(s._id), { timeCompleted })
+      await load()
+    } catch {
+      // ignore
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function dischargePatient() {
+    if (!patient?._id) return
+    if (!dischargeNote.trim()) {
+      alert('Please enter a discharge note')
+      return
+    }
+    setActionLoading(true)
+    try {
+      await dialysisApi.updateDialysisPatient(patient._id, {
+        status: 'discharged',
+        dischargeDate: new Date().toISOString(),
+        dischargeNote: dischargeNote.trim(),
+      })
+      setDischargeOpen(false)
+      setDischargeNote('')
+      await load()
+    } catch {
+      // ignore
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   if (!dialysisPatientId) {
     return (
-      <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
+      <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
         <div className="w-full rounded-xl bg-white p-6 shadow-lg">
           <h2 className="text-xl font-bold text-slate-800">Dialysis Sessions</h2>
           <div className="mt-2 text-sm text-slate-600">Open a patient from the Dialysis Patients page.</div>
@@ -111,21 +153,31 @@ export default function Dialysis_Sessions() {
   const lp: any = patient?.labPatient || {}
 
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
+    <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
       <div className="w-full rounded-xl bg-white p-6 shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-800">{title}</h2>
             <div className="text-sm text-slate-500">Patient summary + session technical data</div>
           </div>
-          <button
-            onClick={load}
-            disabled={loading}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            type="button"
-          >
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDischargeOpen(true)}
+              disabled={actionLoading || !patient}
+              className="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+              type="button"
+            >
+              Discharge Patient
+            </button>
+            <button
+              onClick={load}
+              disabled={loading}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              type="button"
+            >
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 rounded-xl border border-slate-200 p-5">
@@ -236,7 +288,7 @@ export default function Dialysis_Sessions() {
 
         <div className="mt-6 overflow-hidden rounded-xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white">
+            <thead className="bg-linear-to-r from-teal-500 to-cyan-500 text-white">
               <tr className="text-left">
                 <th className="px-3 py-3 font-semibold">Date</th>
                 <th className="px-3 py-3 font-semibold">Token #</th>
@@ -268,6 +320,16 @@ export default function Dialysis_Sessions() {
                         >
                           Edit
                         </button>
+                        {s.timeStarted && !s.timeCompleted && (
+                          <button
+                            onClick={() => completeSession(s)}
+                            disabled={actionLoading}
+                            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                            type="button"
+                          >
+                            Complete
+                          </button>
+                        )}
                         <button
                           onClick={() => printDialysisSessionReport({
                             center: center || undefined,
@@ -297,6 +359,45 @@ export default function Dialysis_Sessions() {
             </tbody>
           </table>
         </div>
+
+        {/* Discharge Patient Modal */}
+        {dischargeOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+              <h3 className="mb-2 text-lg font-bold text-slate-800">Discharge Patient</h3>
+              <p className="mb-4 text-sm text-slate-500">
+                This will mark <b>{lp.fullName || 'this patient'}</b> as discharged from dialysis.
+              </p>
+              <div className="mb-4">
+                <label className="mb-1 block text-sm font-medium text-slate-700">Discharge Note</label>
+                <textarea
+                  value={dischargeNote}
+                  onChange={e => setDischargeNote(e.target.value)}
+                  placeholder="Reason for discharge..."
+                  rows={3}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={() => { setDischargeOpen(false); setDischargeNote('') }}
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={dischargePatient}
+                  disabled={actionLoading}
+                  className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                  type="button"
+                >
+                  {actionLoading ? 'Discharging…' : 'Discharge'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

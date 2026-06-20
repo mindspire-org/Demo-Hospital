@@ -3,6 +3,12 @@ import bcrypt from 'bcryptjs'
 import { ReceptionUser } from '../models/User'
 import { userCreateSchema, userUpdateSchema } from '../validators/user'
 
+const VALID_RECEPTION_ROLES = ['admin', 'receptionist']
+
+function validateRole(role: string): boolean {
+  return VALID_RECEPTION_ROLES.includes(String(role || '').toLowerCase().trim())
+}
+
 export async function list(_req: Request, res: Response){
   const items = await ReceptionUser.find().sort({ username: 1 }).lean()
   res.json({ items })
@@ -14,6 +20,7 @@ export async function create(req: Request, res: Response){
   const data = parsed.data
   const exists = await ReceptionUser.findOne({ username: data.username }).lean()
   if (exists) return res.status(400).json({ error: 'Username already exists' })
+  if (!validateRole(data.role)) return res.status(400).json({ error: `Invalid role: ${data.role}` })
   const passwordHash = await bcrypt.hash(data.password, 10)
   const u = await ReceptionUser.create({ 
     username: data.username, 
@@ -32,7 +39,10 @@ export async function update(req: Request, res: Response){
   const data = parsed.data
   const patch: any = {}
   if (data.username) patch.username = data.username
-  if (data.role) patch.role = data.role
+  if (data.role) {
+    if (!validateRole(data.role)) return res.status(400).json({ error: `Invalid role: ${data.role}` })
+    patch.role = data.role
+  }
   if (data.password) patch.passwordHash = await bcrypt.hash(data.password, 10)
   if (data.shiftId !== undefined) patch.shiftId = data.shiftId || null
   if (data.shiftRestricted !== undefined) patch.shiftRestricted = data.shiftRestricted

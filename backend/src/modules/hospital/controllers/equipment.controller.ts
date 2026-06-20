@@ -4,6 +4,7 @@ import { EquipmentMaintenance } from '../models/EquipmentMaintenance'
 import { EquipmentExpense } from '../models/EquipmentExpense'
 import { EquipmentPurchase } from '../models/EquipmentPurchase'
 import { createCalibrationSchema, createCondemnationSchema, createEquipmentSchema, createMaintenanceSchema, createPPMSchema, createBreakdownSchema, equipmentDueSchema, kpiQuerySchema, listCalibrationSchema, listCondemnationsSchema, listEquipmentSchema, listMaintenanceSchema, listPPMSchema, listBreakdownsSchema, updateCalibrationSchema, updateCondemnationSchema, updateEquipmentSchema, updatePPMSchema, updateBreakdownSchema } from '../validators/equipment'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 function addMonths(iso: string, months: number){
   try {
@@ -44,7 +45,7 @@ export async function createMaintenance(req: Request, res: Response) {
 
     // Create automated expense entry if cost is provided
     if ((data.totalCost || 0) > 0) {
-      await EquipmentExpense.create({
+      const exp = await EquipmentExpense.create({
         equipmentId: data.equipmentId,
         supplierId: data.vendorId || equipment.supplierId,
         category: data.type === 'Repair' ? 'Repair' : (data.type === 'PPM' ? 'PPM' : 'Calibration'),
@@ -55,6 +56,22 @@ export async function createMaintenance(req: Request, res: Response) {
         paidAmount: data.totalCost,
         referenceNo: data.certificateNo
       });
+
+      // Activity log
+      try {
+        logActivity({
+          userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+          userName: String((req as any).user?.username || ''),
+          portal: 'hospital',
+          action: 'Expense Created',
+          module: 'Equipment',
+          entityId: String(exp._id),
+          entityLabel: `${data.type} — ${equipment.name || ''}`,
+          amount: Number(data.totalCost || 0),
+          method: '',
+          meta: { equipmentId: data.equipmentId, maintenanceId: String(row._id), category: data.type, referenceNo: data.certificateNo || '' }
+        })
+      } catch {}
     }
 
     // Update Equipment status and due dates
@@ -208,7 +225,7 @@ export async function create(req: Request, res: Response){
           notes: 'Initial purchase record from asset creation'
         });
 
-        await EquipmentExpense.create({
+        const exp = await EquipmentExpense.create({
           equipmentId: row._id,
           supplierId: row.supplierId,
           category: 'Purchase',
@@ -219,6 +236,22 @@ export async function create(req: Request, res: Response){
           referenceNo: purchase.invoiceNo,
           notes: 'Initial purchase expense'
         });
+
+        // Activity log
+        try {
+          logActivity({
+            userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+            userName: String((req as any).user?.username || ''),
+            portal: 'hospital',
+            action: 'Expense Created',
+            module: 'Equipment',
+            entityId: String(exp._id),
+            entityLabel: `Purchase — ${row.name || ''}`,
+            amount: Number(costValue || 0),
+            method: '',
+            meta: { equipmentId: String(row._id), supplierId: String(row.supplierId), invoiceNo: purchase.invoiceNo }
+          })
+        } catch {}
       } catch (purchaseError) {
         console.error('Failed to create purchase/expense records:', purchaseError);
         // Don't fail the whole request if purchase creation fails

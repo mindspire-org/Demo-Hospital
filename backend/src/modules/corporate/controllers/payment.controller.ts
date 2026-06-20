@@ -3,6 +3,7 @@ import { CorporatePayment } from '../models/Payment'
 import { CorporateTransaction } from '../models/Transaction'
 import { CorporateCompany } from '../models/Company'
 import { CorporateClaim } from '../models/Claim'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 export async function list(req: Request, res: Response){
   const { companyId, from, to, page, limit } = req.query as any
@@ -80,6 +81,22 @@ export async function create(req: Request, res: Response){
     }
     await payment.save()
   } catch (e) { console.warn('Payment allocation warnings:', e) }
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: String((req as any).user?.username || (req as any).user?.name || ''),
+      portal: 'finance',
+      action: 'Corporate Payment Received',
+      module: 'Corporate',
+      entityId: String(payment._id),
+      entityLabel: `Payment — ${companyId}`,
+      amount: Number(amount || 0),
+      method: 'Bank',
+      meta: { companyId, dateIso, refNo: body.refNo || '', allocations: (payment.allocations || []).length }
+    })
+  } catch {}
 
   res.status(201).json({ payment })
 }
@@ -191,6 +208,22 @@ export async function createForClaim(req: Request, res: Response){
     claim.status = 'partially-paid'
   }
   await claim.save()
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: String((req as any).user?.username || (req as any).user?.name || ''),
+      portal: 'finance',
+      action: 'Corporate Claim Payment',
+      module: 'Corporate',
+      entityId: String(payment._id),
+      entityLabel: `Claim Payment — ${claimId}`,
+      amount: Number(amount || 0),
+      method: 'Bank',
+      meta: { companyId, claimId, discount, transactionsUpdated: updatedTransactions.length }
+    })
+  } catch {}
 
   res.status(201).json({ payment, claim, transactionsUpdated: updatedTransactions.length })
 }

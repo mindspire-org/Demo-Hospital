@@ -47,12 +47,14 @@ const TOKEN_KEYS: Record<string, string[]> = {
   '/reception': ['reception.token', 'hospital.token'],
   '/hospital': ['hospital.token', 'reception.token'],
   '/admin': ['hospital.token', 'reception.token'],
+  '/finance': ['hospital.token', 'reception.token', 'lab.token', 'aesthetic.token', 'pharmacy.token', 'indoorpharmacy.token', 'dialysis.token', 'diagnostic.token'],
   '/diagnostic': ['diagnostic.token', 'hospital.token', 'reception.token'],
   '/lab': ['lab.token', 'hospital.token', 'reception.token', 'aesthetic.token'],
   '/aesthetic': ['aesthetic.token', 'hospital.token', 'reception.token'],
   '/pharmacy': ['pharmacy.token', 'hospital.token', 'reception.token'],
   '/indoor-pharmacy': ['indoorpharmacy.token', 'hospital.token', 'reception.token'],
   '/dialysis': ['dialysis.token', 'hospital.token', 'reception.token'],
+  '/camp': ['camp.token', 'hospital.token', 'reception.token'],
   '/biometric': ['hospital.token', 'reception.token'],
   '/super-admin': ['super_admin.token'],
   '/admin/super': ['super_admin.token'],
@@ -133,7 +135,7 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
   }
   if (token && !headers['Authorization']) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${baseURL}${path}`, { ...init, headers })
+  const res = await fetch(`${baseURL}${path}`, { ...init, headers, credentials: 'include' })
 
   if (!res.ok) {
     const text = await res.text()

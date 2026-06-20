@@ -12,49 +12,56 @@ import * as tokensCtrl from '../controllers/tokens.controller'
 import * as sessionsCtrl from '../controllers/sessions.controller'
 import * as appointmentsCtrl from '../controllers/appointments.controller'
 import * as dashboardCtrl from '../controllers/dashboard.controller'
+import { auth } from '../../../common/middleware/auth'
+import { requireAdmin } from '../../../common/middleware/hospital_guard'
 
 const r = Router()
 
-// User routes
+// Auth (public)
 r.post('/users/login', usersCtrl.login)
 r.post('/users/logout', usersCtrl.logout)
+
+// All routes below require authentication
+r.use(auth)
+
+// User routes
 r.get('/users', usersCtrl.list)
-r.post('/users', usersCtrl.create)
-r.put('/users/:id', usersCtrl.update)
-r.delete('/users/:id', usersCtrl.remove)
+r.post('/users', requireAdmin, usersCtrl.create)
+r.put('/users/:id', requireAdmin, usersCtrl.update)
+r.delete('/users/:id', requireAdmin, usersCtrl.remove)
 r.get('/users/roles', usersCtrl.listRoles)
 
 // Sidebar permission routes
 r.get('/sidebar-permissions', sidebarCtrl.getPermissions)
-r.post('/sidebar-permissions', sidebarCtrl.createRole)
+r.post('/sidebar-permissions', requireAdmin, sidebarCtrl.createRole)
 r.get('/sidebar-permissions/roles', sidebarCtrl.listRoles)
-r.delete('/sidebar-permissions/:role', sidebarCtrl.deleteRole)
-r.put('/sidebar-permissions/:role', sidebarCtrl.updatePermissions)
-r.post('/sidebar-permissions/:role/reset', sidebarCtrl.resetToDefaults)
+r.delete('/sidebar-permissions/:role', requireAdmin, sidebarCtrl.deleteRole)
+r.put('/sidebar-permissions/:role', requireAdmin, sidebarCtrl.updatePermissions)
+r.post('/sidebar-permissions/:role/reset', requireAdmin, sidebarCtrl.resetToDefaults)
 
 // Machines
 r.get('/machines', machinesCtrl.list)
-r.post('/machines', machinesCtrl.create)
-r.put('/machines/:id', machinesCtrl.update)
-r.delete('/machines/:id', machinesCtrl.remove)
+r.post('/machines', requireAdmin, machinesCtrl.create)
+r.put('/machines/:id', requireAdmin, machinesCtrl.update)
+r.delete('/machines/:id', requireAdmin, machinesCtrl.remove)
 
 // Shifts
 r.get('/shifts', shiftsCtrl.list)
-r.post('/shifts', shiftsCtrl.create)
-r.put('/shifts/:id', shiftsCtrl.update)
-r.delete('/shifts/:id', shiftsCtrl.remove)
+r.post('/shifts', requireAdmin, shiftsCtrl.create)
+r.put('/shifts/:id', requireAdmin, shiftsCtrl.update)
+r.delete('/shifts/:id', requireAdmin, shiftsCtrl.remove)
 
 // Session Types
 r.get('/session-types', sessionTypesCtrl.list)
-r.post('/session-types', sessionTypesCtrl.create)
-r.put('/session-types/:id', sessionTypesCtrl.update)
-r.delete('/session-types/:id', sessionTypesCtrl.remove)
+r.post('/session-types', requireAdmin, sessionTypesCtrl.create)
+r.put('/session-types/:id', requireAdmin, sessionTypesCtrl.update)
+r.delete('/session-types/:id', requireAdmin, sessionTypesCtrl.remove)
 
 // Dialyzer Types
 r.get('/dialyzer-types', dialyzerTypesCtrl.list)
-r.post('/dialyzer-types', dialyzerTypesCtrl.create)
-r.put('/dialyzer-types/:id', dialyzerTypesCtrl.update)
-r.delete('/dialyzer-types/:id', dialyzerTypesCtrl.remove)
+r.post('/dialyzer-types', requireAdmin, dialyzerTypesCtrl.create)
+r.put('/dialyzer-types/:id', requireAdmin, dialyzerTypesCtrl.update)
+r.delete('/dialyzer-types/:id', requireAdmin, dialyzerTypesCtrl.remove)
 
 // Patients (from global Lab_Patient collection)
 r.get('/patients/search', patientsCtrl.search)
@@ -92,7 +99,7 @@ r.post('/appointments/:id/convert-to-token', appointmentsCtrl.convertToToken)
 
 // Settings
 r.get('/settings', settingsCtrl.get)
-r.put('/settings', settingsCtrl.update)
+r.put('/settings', requireAdmin, settingsCtrl.update)
 
 // Dashboard
 r.get('/dashboard/stats', dashboardCtrl.getStats)

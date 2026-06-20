@@ -519,6 +519,13 @@ app.whenReady().then(async () => {
       } catch {}
     }
   } catch {}
+  // Clear cache in dev mode to prevent stale index.html from previous builds
+  if (isDev) {
+    try {
+      await session.defaultSession.clearCache();
+    } catch {}
+  }
+
   // Redirect accidental file:///api/* requests to the local backend in Electron prod
   try {
     session.defaultSession.webRequest.onBeforeRequest((details, callback) => {

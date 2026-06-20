@@ -93,6 +93,7 @@ export async function create(req: Request, res: Response){
     condition: data.condition,
     remarks: data.remarks,
     signStamp: data.signStamp,
+    prescriptionSnapshot: data.prescriptionSnapshot,
     statusHistory: [{ action: 'create', note: '', at: new Date() }],
   })
   res.status(201).json({ referral: row })
@@ -166,6 +167,9 @@ export async function admit(req: Request, res: Response){
   if ((ref as any).status === 'Admitted') return res.status(400).json({ error: 'Already admitted' })
   const patientId = String((ref as any).patientId)
   if (!patientId) return res.status(400).json({ error: 'Referral missing patientId' })
+
+  const alreadyAdmitted = await HospitalEncounter.findOne({ patientId, type: 'IPD', status: 'admitted' }).lean()
+  if (alreadyAdmitted) return res.status(400).json({ error: 'Patient is already admitted. Discharge the current admission before creating a new one.' })
 
   // Validate department and doctor
   if (!isValidObjectId(data.departmentId)) return res.status(400).json({ error: 'Invalid departmentId' })

@@ -45,40 +45,54 @@ function jsonError(res: Response, status: number, message: string){
 }
 
 export async function myActivity(req: Request, res: Response){
-  const mode = String((req.query as any)?.mode || 'today') as 'today'|'shift'
+  const mode = String((req.query as any)?.mode || 'today') as 'today'|'shift'|'custom'
+  const fromParam = String((req.query as any)?.from || '').trim()
+  const toParam = String((req.query as any)?.to || '').trim()
 
   const username = String((req as any).user?.username || '').trim().toLowerCase()
   const userId = String((req as any).user?._id || (req as any).user?.id || '').trim()
   if (!username && !userId) return jsonError(res, 401, 'Unauthorized')
 
-    // Get Pakistan local date (UTC+5)
+  // Get Pakistan local date (UTC+5)
   const now = new Date()
   const pakDate = new Date(now.getTime() + (5 * 60 * 60 * 1000))
   const todayIso = pakDate.toISOString().slice(0,10)
 
-  // Convert Pakistan local day to UTC for MongoDB query
-  // Pakistan midnight (00:00) = UTC 19:00 (previous day)
-  const pakStart = new Date(todayIso + 'T00:00:00')
-  const pakEnd = new Date(todayIso + 'T23:59:59.999')
-  let rangeStart = new Date(pakStart.getTime() - (5 * 60 * 60 * 1000))
-  let rangeEnd = new Date(pakEnd.getTime() - (5 * 60 * 60 * 1000))
+  let rangeStart: Date
+  let rangeEnd: Date
   let shiftMeta: any = undefined
 
-  if (mode === 'shift'){
-    const u: any = userId
-      ? await HospitalUser.findById(userId).select('shiftId username').lean()
-      : await HospitalUser.findOne({ username }).select('shiftId username').lean()
+  // If custom date range is provided, use it directly
+  if (fromParam && toParam) {
+    const fromDate = new Date(fromParam + 'T00:00:00')
+    const toDate = new Date(toParam + 'T23:59:59.999')
+    // Convert from Pakistan local to UTC for MongoDB query
+    rangeStart = new Date(fromDate.getTime() - (5 * 60 * 60 * 1000))
+    rangeEnd = new Date(toDate.getTime() - (5 * 60 * 60 * 1000))
+  } else {
+    // Convert Pakistan local day to UTC for MongoDB query
+    // Pakistan midnight (00:00) = UTC 19:00 (previous day)
+    const pakStart = new Date(todayIso + 'T00:00:00')
+    const pakEnd = new Date(todayIso + 'T23:59:59.999')
+    rangeStart = new Date(pakStart.getTime() - (5 * 60 * 60 * 1000))
+    rangeEnd = new Date(pakEnd.getTime() - (5 * 60 * 60 * 1000))
 
-    if (!u) return jsonError(res, 404, 'User not found')
-    if (!u.shiftId) return jsonError(res, 400, 'Shift not assigned')
+    if (mode === 'shift'){
+      const u: any = userId
+        ? await HospitalUser.findById(userId).select('shiftId username').lean()
+        : await HospitalUser.findOne({ username }).select('shiftId username').lean()
 
-    const shift: any = await HospitalShift.findById(String(u.shiftId)).lean()
-    if (!shift) return jsonError(res, 404, 'Shift not found')
+      if (!u) return jsonError(res, 404, 'User not found')
+      if (!u.shiftId) return jsonError(res, 400, 'Shift not assigned')
 
-    const w = shiftWindowForDate(shift, todayIso)
-    rangeStart = w.start
-    rangeEnd = w.end
-    shiftMeta = { id: String(shift._id), name: shift.name, start: shift.start, end: shift.end }
+      const shift: any = await HospitalShift.findById(String(u.shiftId)).lean()
+      if (!shift) return jsonError(res, 404, 'Shift not found')
+
+      const w = shiftWindowForDate(shift, todayIso)
+      rangeStart = w.start
+      rangeEnd = w.end
+      shiftMeta = { id: String(shift._id), name: shift.name, start: shift.start, end: shift.end }
+    }
   }
 
   const rangeStartIso = rangeStart.toISOString()

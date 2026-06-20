@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { LayoutDashboard, LogOut, Ticket, ListChecks, Settings as Cog, UserCog, FileText, Clock, ArrowLeftRight } from 'lucide-react'
+import { LayoutDashboard, LogOut, Ticket, ListChecks, FileText, ArrowLeftRight } from 'lucide-react'
 import { receptionApi } from '../../utils/api'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: LucideIcon }
@@ -74,15 +74,6 @@ const reportsSection: Section = {
   label: 'REPORTS',
   items: [
     { to: '/reception/my-activity-report', label: 'My Activity Report', icon: FileText },
-    { to: '/reception/staff-settings', label: 'Staff Settings', icon: Clock },
-  ],
-}
-
-const adminSection: Section = {
-  label: 'ADMIN',
-  items: [
-    { to: '/reception/user-management', label: 'User Management', icon: UserCog },
-    { to: '/reception/sidebar-permissions', label: 'Sidebar Permissions', icon: Cog },
   ],
 }
 
@@ -95,7 +86,6 @@ const allSections: Section[] = [
   labSection,
   cashSection,
   reportsSection,
-  adminSection,
 ]
 
 // Flat array of all nav items for permissions management
@@ -157,21 +147,24 @@ export default function Reception_Sidebar({ collapsed = false }: { collapsed?: b
         key={item.to}
         to={item.to}
         title={collapsed ? item.label : undefined}
-        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)' } as any) : undefined)}
+        style={({ isActive }) => (isActive ? ({ background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' } as any) : undefined)}
         className={({ isActive }) => {
           const base = collapsed
-            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center'
-            : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2'
+            ? 'rounded-md p-2 text-sm font-medium flex items-center justify-center transition-all'
+            : 'rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2 transition-all'
           const active = isActive
-            ? 'text-white'
-            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+            ? 'text-sky-800'
+            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
           return `${base} ${active}`
         }}
         end={item.end}
       >
         {({ isActive }) => (
           <>
-            <Icon className={collapsed ? (isActive ? 'h-5 w-5 text-white' : 'h-5 w-5 text-slate-700') : (isActive ? 'h-4 w-4 text-white' : 'h-4 w-4 text-slate-700')} />
+            <Icon className={collapsed
+              ? (isActive ? 'h-5 w-5 text-sky-700' : 'h-5 w-5 text-slate-700 dark:text-slate-400')
+              : (isActive ? 'h-4 w-4 text-sky-700' : 'h-4 w-4 text-slate-700 dark:text-slate-400')}
+            />
             {!collapsed && <span className="truncate">{item.label}</span>}
           </>
         )}
@@ -186,7 +179,7 @@ export default function Reception_Sidebar({ collapsed = false }: { collapsed?: b
     return (
       <div key={section.label} className="space-y-1">
         {!collapsed && (
-          <div className="px-3 py-2 text-base font-bold uppercase tracking-wider" style={{ color: 'var(--navy)' }}>
+          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600 mt-4 first:mt-0">
             {section.label}
           </div>
         )}
@@ -207,10 +200,9 @@ export default function Reception_Sidebar({ collapsed = false }: { collapsed?: b
         <button
           onClick={logout}
           title={collapsed ? 'Logout' : undefined}
-          className={collapsed ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium' : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium'}
-          style={{ backgroundColor: '#ffffff', color: 'var(--navy)', border: '1px solid var(--navy)' }}
-          onMouseEnter={e => { try { ;(e.currentTarget as any).style.backgroundColor = 'rgba(15,45,92,0.06)' } catch {} }}
-          onMouseLeave={e => { try { ;(e.currentTarget as any).style.backgroundColor = '#ffffff' } catch {} }}
+          className={collapsed
+            ? 'w-full inline-flex items-center justify-center rounded-md p-2 text-sm font-medium transition-all bg-white dark:bg-slate-800 text-[#0f2d5c] dark:text-slate-300 border border-[#0f2d5c] dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+            : 'w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all bg-white dark:bg-slate-800 text-[#0f2d5c] dark:text-slate-300 border border-[#0f2d5c] dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}
           aria-label="Logout"
         >
           <LogOut className="h-4 w-4" />

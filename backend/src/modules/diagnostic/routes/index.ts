@@ -9,22 +9,27 @@ import * as Auth from '../controllers/auth.controller'
 import * as Sidebar from '../controllers/sidebarPermission.controller'
 import * as IncomeLedger from '../controllers/income_ledger.controller'
 import * as Tokens from '../controllers/tokens.controller'
+import { auth } from '../../../common/middleware/auth'
+import { requireAdmin } from '../../../common/middleware/hospital_guard'
 
 const r = Router()
 
-// Auth
+// Auth (public)
 r.post('/login', Auth.login)
 r.post('/logout', Auth.logout)
 
+// All routes below require authentication
+r.use(auth)
+
 // Tests (Catalog for Diagnostics)
 r.get('/tests', Tests.list)
-r.post('/tests', Tests.create)
-r.put('/tests/:id', Tests.update)
-r.delete('/tests/:id', Tests.remove)
+r.post('/tests', requireAdmin, Tests.create)
+r.put('/tests/:id', requireAdmin, Tests.update)
+r.delete('/tests/:id', requireAdmin, Tests.remove)
 
 // Settings
 r.get('/settings', Settings.get)
-r.put('/settings', Settings.update)
+r.put('/settings', requireAdmin, Settings.update)
 
 // Orders (Sample Intake for Diagnostics)
 r.get('/orders', Orders.list)
@@ -60,20 +65,20 @@ r.delete('/results/:id', Results.remove)
 
 // Audit Logs
 r.get('/audit-logs', Audit.list)
-r.post('/audit-logs', Audit.create)
+r.post('/audit-logs', requireAdmin, Audit.create)
 
 // Users
 r.get('/users', Users.list)
-r.post('/users', Users.create)
-r.put('/users/:id', Users.update)
-r.delete('/users/:id', Users.remove)
+r.post('/users', requireAdmin, Users.create)
+r.put('/users/:id', requireAdmin, Users.update)
+r.delete('/users/:id', requireAdmin, Users.remove)
 
 // Sidebar Roles & Permissions
 r.get('/sidebar-roles', Sidebar.listRoles)
-r.post('/sidebar-roles', Sidebar.createRole)
-r.delete('/sidebar-roles/:role', Sidebar.deleteRole)
+r.post('/sidebar-roles', requireAdmin, Sidebar.createRole)
+r.delete('/sidebar-roles/:role', requireAdmin, Sidebar.deleteRole)
 r.get('/sidebar-permissions', Sidebar.getPermissions)
-r.put('/sidebar-permissions/:role', Sidebar.updatePermissions)
-r.post('/sidebar-permissions/:role/reset', Sidebar.resetToDefaults)
+r.put('/sidebar-permissions/:role', requireAdmin, Sidebar.updatePermissions)
+r.post('/sidebar-permissions/:role/reset', requireAdmin, Sidebar.resetToDefaults)
 
 export default r

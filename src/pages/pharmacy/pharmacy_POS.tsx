@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { Plus, Grid, List, Trash2 } from 'lucide-react'
+import { Plus, Grid, List, Trash2, Search } from 'lucide-react'
 import Pharmacy_POSCart from '../../components/pharmacy/pharmacy_POSCart'
 import Pharmacy_ProcessPaymentDialog from '../../components/pharmacy/pharmacy_ProcessPaymentDialog'
 import Pharmacy_POSReceiptDialog from '../../components/pharmacy/pharmacy_POSReceiptDialog'
@@ -55,7 +55,8 @@ export default function Pharmacy_POS() {
   const [receiptFbr, setReceiptFbr] = useState<any>(null)
   const [view, setView] = useState<'grid'|'list'>('list')
   const [sel, setSel] = useState(0)
-  
+  const [hideMedicines] = useState(false)
+
   const [receiptItems, setReceiptItems] = useState<Array<{ name: string; qty: number; price: number }>>([])
   const [billDiscountPct, setBillDiscountPct] = useState<number>(0)
   // Current pharmacy username to stamp sales
@@ -650,7 +651,7 @@ export default function Pharmacy_POS() {
   const computedReceiptNo = useMemo(() => receiptNo || `B-${new Date().toISOString().slice(2,10).replace(/-/g,'')}-${String(receiptItems.length).padStart(3,'0')}`,[receiptNo, receiptItems])
 
   return (
-    <div className={"grid gap-4 lg:grid-cols-3"}>
+    <div className={`grid gap-4 ${hideMedicines ? 'grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_560px]'}`}>
       {toast && (
         <div className="fixed right-4 top-4 z-70 w-[min(92vw,420px)]">
           <div className={`flex items-start gap-3 rounded-xl border p-4 shadow-lg ring-1 ring-black/5 ${toast.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rose-200 bg-rose-50 text-rose-900'}`} role="status" aria-live="polite">
@@ -669,15 +670,16 @@ export default function Pharmacy_POS() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Out of stock" onClick={() => setOutOfStockItem(null)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="text-lg font-semibold text-slate-900">Out of stock</div>
-            <div className="mt-2 text-sm text-slate-600"><span className="font-medium text-slate-800 capitalize">{outOfStockItem.name}</span> is currently out of stock and can’t be added to the cart.</div>
+            <div className="mt-2 text-sm text-slate-600"><span className="font-medium text-slate-800 capitalize">{outOfStockItem.name}</span> is currently out of stock and can't be added to the cart.</div>
             <div className="mt-5 flex justify-end"><button type="button" ref={outOfStockOkRef} className="btn" onClick={() => setOutOfStockItem(null)}>OK</button></div>
           </div>
         </div>
       ) : null}
 
-      <div className="lg:col-span-2 space-y-3">
+      <div className={hideMedicines ? '' : 'space-y-3'}>
           <div className="flex flex-col gap-3">
             <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 ref={searchInputRef}
                 id="pharmacy-pos-search"
@@ -686,7 +688,7 @@ export default function Pharmacy_POS() {
                 onFocus={() => setSearchOpen(true)}
                 onBlur={() => { setTimeout(() => setSearchOpen(false), 150) }}
                 onKeyDownCapture={onSearchKeyDown}
-                className="w-full rounded-2xl border border-slate-300 px-5 py-4 pr-14 text-lg shadow-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-200/60"
+                className="w-full rounded-2xl border border-slate-300 py-4 pl-12 pr-14 text-lg shadow-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-200/60"
                 placeholder="Search / scan barcode…"
               />
 

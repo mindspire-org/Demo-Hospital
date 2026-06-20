@@ -33,6 +33,7 @@ export const icuApi = {
     bedId?: string;
     encounterId?: string;
     patientId?: string;
+    referredFrom?: 'ipd' | 'er' | 'ot';
     from?: string;
     to?: string;
     severity?: 'mild' | 'moderate' | 'severe' | 'critical';

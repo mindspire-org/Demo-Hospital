@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Users,
   UserCog,
+  UserMinus,
   Settings,
   LogOut,
   Calendar,
@@ -37,6 +38,7 @@ const patientSection: Section = {
   label: 'PATIENT MANAGEMENT',
   items: [
     { to: '/dialysis/patients', label: 'Patients', icon: Users },
+    { to: '/dialysis/discharged', label: 'Discharged Patients', icon: UserMinus },
     { to: '/dialysis/sessions', label: 'Dialysis Sessions', icon: Activity },
   ],
 }

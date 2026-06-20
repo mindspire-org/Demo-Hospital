@@ -85,21 +85,29 @@ export function ShiftDashboard({ counterId, counterName }: ShiftDashboardProps) 
                 </p>
               </div>
               <div className="flex gap-2">
-                {!currentShift ? (
+                {!currentShift || currentShift.status === 'closed' || currentShift.status === 'reconciled' ? (
                   <button
                     onClick={() => setOpenDialog(true)}
                     className="flex items-center gap-2 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 px-4 py-2 font-medium text-white shadow-lg transition hover:from-emerald-600 hover:to-teal-700"
                   >
                     <DoorOpen className="w-4 h-4" />
-                    Open Shift
+                    Open New Shift
                   </button>
-                ) : (
+                ) : currentShift.status === 'open' ? (
                   <button
                     onClick={() => setCloseDialog(true)}
                     className="flex items-center gap-2 rounded-lg bg-linear-to-r from-rose-500 to-pink-600 px-4 py-2 font-medium text-white shadow-lg transition hover:from-rose-600 hover:to-pink-700"
                   >
                     <DoorClosed className="w-4 h-4" />
                     Close Shift
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setOpenDialog(true)}
+                    className="flex items-center gap-2 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 px-4 py-2 font-medium text-white shadow-lg transition hover:from-emerald-600 hover:to-teal-700"
+                  >
+                    <DoorOpen className="w-4 h-4" />
+                    Open New Shift
                   </button>
                 )}
               </div>

@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { otApi } from '../../../features/hospital/ot'
-import { ArrowLeft, BarChart3, FileText, Calendar, Users, Clock } from 'lucide-react'
+import { hospitalApi } from '../../../utils/api'
+import { ArrowLeft, BarChart3, FileText, Calendar, Users, Clock, Printer } from 'lucide-react'
+import { fmtDateTime12 } from '../../../utils/timeFormat'
+
+function escHtml(v: any){ return String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'} as any)[c]||c) }
 
 type Statistics = {
   total: number
@@ -57,6 +61,108 @@ export default function OT_Reports() {
     load()
   }
 
+  async function exportPdf() {
+    if (!stats) return
+    const s: any = await hospitalApi.getSettings().catch(()=>({}))
+    const hospital = {
+      name: s?.settings?.name || s?.name || 'Hospital',
+      address: s?.settings?.address || s?.address || '',
+      phone: s?.settings?.phone || s?.phone || '',
+      logoDataUrl: s?.settings?.logoDataUrl || s?.logoDataUrl || '',
+    }
+    const printedAt = fmtDateTime12(new Date().toISOString())
+    const filterText = `Date Range: ${dateRange.from || 'All'} to ${dateRange.to || 'All'}`
+
+    const statsRows = [
+      ['Total Surgeries', String(stats.total)],
+      ['Scheduled', String(stats.scheduled)],
+      ['In Progress', String(stats.inProgress)],
+      ['Completed', String(stats.completed)],
+      ['Cancelled', String(stats.cancelled)],
+      ['Emergency', String(stats.emergency)],
+      ['Available Rooms', String(stats.availableRooms)],
+      ['Occupied Rooms', String(stats.occupiedRooms)],
+      ['Total Rooms', String(stats.totalRooms)],
+    ]
+
+    const surgeryRows = surgeries.map((surg, idx) => `<tr>
+      <td>${idx+1}</td>
+      <td>${escHtml(surg.procedure)}</td>
+      <td>${escHtml(surg.patientId?.name || '-')}</td>
+      <td>${escHtml(surg.surgeonId?.name || '-')}</td>
+      <td>${escHtml(surg.roomId?.name || '-')}</td>
+      <td><span style="text-transform:capitalize">${escHtml(surg.status)}</span></td>
+      <td><span style="text-transform:capitalize">${escHtml(surg.priority)}</span></td>
+      <td>${escHtml(surg.scheduledAt ? new Date(surg.scheduledAt).toLocaleString() : '-')}</td>
+    </tr>`).join('')
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>OT Report</title>
+      <style>
+        @page { size: A4 landscape; margin: 10mm }
+        body{ font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; color:#0f172a; font-size:11px; line-height:1.4 }
+        .wrap{ max-width:280mm; margin:0 auto }
+        .header{ border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:10px }
+        .hdr{ display:grid; grid-template-columns: 70px 1fr 70px; align-items:center; gap:10px }
+        .logo{ width:60px; height:60px; object-fit:contain }
+        .hname{ font-size:16px; font-weight:800; text-align:center }
+        .hmeta{ font-size:11px; text-align:center; color:#475569 }
+        .title{ margin-top:8px; font-size:14px; font-weight:800 }
+        .meta{ margin-top:4px; display:flex; justify-content:space-between; gap:12px; color:#334155 }
+        .stats{ display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; margin:10px 0 }
+        .stat-box{ border:1px solid #e2e8f0; border-radius:8px; padding:10px; text-align:center }
+        .stat-label{ font-size:10px; color:#64748b; text-transform:uppercase; font-weight:700 }
+        .stat-value{ font-size:18px; font-weight:800; margin-top:4px }
+        table{ width:100%; border-collapse:collapse; table-layout:fixed }
+        th,td{ border:1px solid #e2e8f0; padding:6px 6px; vertical-align:top; word-wrap:break-word }
+        th{ background:#f8fafc; font-weight:800; color:#334155 }
+        .footer{ margin-top:10px; color:#94a3b8; font-size:10px; text-align:center }
+      </style></head><body>
+      <div class="wrap">
+        <div class="header">
+          <div class="hdr">
+            ${hospital.logoDataUrl ? `<img src="${escHtml(hospital.logoDataUrl)}" class="logo" alt="logo"/>` : '<div></div>'}
+            <div>
+              <div class="hname">${escHtml(hospital.name)}</div>
+              <div class="hmeta">${escHtml(hospital.address)} ${hospital.phone ? `| Tel: ${escHtml(hospital.phone)}` : ''}</div>
+            </div>
+            <div></div>
+          </div>
+          <div class="title">OT Report</div>
+          <div class="meta"><div><b>Filters:</b> ${escHtml(filterText)}</div><div><b>Printed:</b> ${escHtml(printedAt)}</div></div>
+        </div>
+        <div class="stats">
+          ${statsRows.map(([label, val]) => `<div class="stat-box"><div class="stat-label">${escHtml(label)}</div><div class="stat-value">${escHtml(val)}</div></div>`).join('')}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30px">#</th>
+              <th>Procedure</th>
+              <th>Patient</th>
+              <th>Surgeon</th>
+              <th>Room</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th>Scheduled</th>
+            </tr>
+          </thead>
+          <tbody>${surgeryRows || '<tr><td colspan="8" style="text-align:center;color:#64748b">No surgery records</td></tr>'}</tbody>
+        </table>
+        <div class="footer">System Generated Report &bull; ${escHtml(hospital.name)}</div>
+      </div>
+    </body></html>`
+
+    const api = (window as any).electronAPI
+    if (api && typeof api.printPreviewHtml === 'function') {
+      await api.printPreviewHtml(html, { printBackground: true, marginsType: 0 })
+    } else {
+      const w = window.open('', 'print', 'width=1100,height=750')
+      if (!w) return
+      w.document.write(html + '<script>window.onload=()=>{window.print();}</script>')
+      w.document.close()
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -64,6 +170,14 @@ export default function OT_Reports() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <h1 className="text-xl font-semibold text-slate-800">OT Reports</h1>
+        <button
+          onClick={exportPdf}
+          disabled={!stats || loading}
+          className="ml-auto inline-flex items-center gap-2 rounded-md bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50"
+        >
+          <Printer className="h-4 w-4" />
+          Export PDF
+        </button>
       </div>
 
       {/* Date Filter */}

@@ -58,13 +58,13 @@ export default function Reception_Layout(){
 
       <div className={shell}>
 
-        <div className="sticky top-0 z-20 w-full md:border-b" style={{ background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy-700) 100%)', borderColor: 'rgba(255,255,255,0.12)' }}>
+        <div className="sticky top-0 z-20 w-full border-b border-slate-200/80" style={{ background: 'linear-gradient(135deg, #f1f5f9 0%, #e8edf4 50%, #dde4ef 100%)' }}>
 
           <div className="flex h-14">
 
             <Reception_Header
 
-              variant="navy"
+              variant="default"
 
               onToggleSidebar={()=> setCollapsed(c=>!c)}
 

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { FinanceJournal } from '../models/FinanceJournal'
 import { createDoctorPayout, manualDoctorEarning, computeDoctorBalance, reverseJournalById, round2 } from './finance_ledger'
 import { HospitalCashSession } from '../models/CashSession'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 const manualDoctorEarningSchema = z.object({
   doctorId: z.string().min(1),
@@ -33,6 +34,23 @@ export async function postManualDoctorEarning(req: Request, res: Response){
   const createdByUsername = String((req as any).user?.username || (req as any).user?.name || '')
   const finalCreatedBy = createdByUsername || String((data as any)?.createdByUsername || '')
   const j = await manualDoctorEarning({ ...(data as any), createdByUsername: finalCreatedBy || undefined } as any)
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: finalCreatedBy,
+      portal: 'hospital',
+      action: 'Manual Earning Recorded',
+      module: 'Doctor',
+      entityId: String((j as any)._id),
+      entityLabel: `Earning — ${data.patientName || data.doctorId}`,
+      amount: Number(data.amount || 0),
+      method: String(data.paidMethod || 'Cash'),
+      meta: { doctorId: data.doctorId, departmentId: data.departmentId, patientName: data.patientName, mrn: data.mrn }
+    })
+  } catch {}
+
   res.status(201).json({ journal: j })
 }
 
@@ -181,6 +199,23 @@ export async function postDoctorPayout(req: Request, res: Response){
     }
   } catch {}
   const j: any = await createDoctorPayout(data.doctorId, data.amount, data.method, data.memo, sessionId, data.sourceAccount, data.destinationAccount)
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+      userName: String((req as any).user?.username || ''),
+      portal: 'hospital',
+      action: 'Doctor Payout',
+      module: 'Doctor',
+      entityId: String((j as any)._id),
+      entityLabel: `Payout — Dr. ${data.doctorId}`,
+      amount: Number(data.amount || 0),
+      method: String(data.method || 'Cash'),
+      meta: { doctorId: data.doctorId, memo: data.memo || '', sessionId: sessionId || '' }
+    })
+  } catch {}
+
   // Best-effort tagging of createdBy for reporting
   try {
     const createdByUserId = String((req as any).user?._id || (req as any).user?.id || '')

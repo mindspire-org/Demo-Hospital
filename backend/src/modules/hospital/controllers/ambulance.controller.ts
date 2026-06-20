@@ -3,6 +3,7 @@ import { AmbulanceModel } from '../models/Ambulance'
 import { AmbulanceTripModel } from '../models/AmbulanceTrip'
 import { AmbulanceFuelModel } from '../models/AmbulanceFuel'
 import { AmbulanceExpenseModel } from '../models/AmbulanceExpense'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 // Pagination helper
 const getPagination = (query: any) => {
@@ -355,6 +356,22 @@ export const createFuel = async (req: Request, res: Response) => {
       createdBy: (req as any).user?.id,
     })
 
+    // Activity log
+    try {
+      logActivity({
+        userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+        userName: String((req as any).user?.username || ''),
+        portal: 'hospital',
+        action: 'Fuel Purchase',
+        module: 'Ambulance',
+        entityId: String(fuel._id),
+        entityLabel: `Fuel — ${amb.vehicleNumber} — ${station || ''}`,
+        amount: Number(cost || 0),
+        method: 'Cash',
+        meta: { ambulanceId, vehicleNumber: amb.vehicleNumber, quantity, receiptNo: receiptNo || '' }
+      })
+    } catch {}
+
     res.status(201).json({ fuel })
   } catch (err: any) {
     res.status(400).json({ error: err.message })
@@ -445,6 +462,22 @@ export const createExpense = async (req: Request, res: Response) => {
       receiptNo,
       createdBy: (req as any).user?.id,
     })
+
+    // Activity log
+    try {
+      logActivity({
+        userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+        userName: String((req as any).user?.username || ''),
+        portal: 'hospital',
+        action: 'Expense Created',
+        module: 'Ambulance',
+        entityId: String(expense._id),
+        entityLabel: `${category} — ${description || ''}`,
+        amount: Number(amount || 0),
+        method: '',
+        meta: { ambulanceId, vehicleNumber: amb.vehicleNumber, category, receiptNo: receiptNo || '' }
+      })
+    } catch {}
 
     res.status(201).json({ expense })
   } catch (err: any) {

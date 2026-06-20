@@ -61,6 +61,10 @@ const SettingsSchema = new Schema({
   reportFont: { type: String, default: 'poppins' },   // 'poppins'|'helvetica'|'times'|'courier'
   useCustomHeaderFooter: { type: Boolean, default: false }, // if true, use uploaded header/footer images instead of generated
 
+  // Doctor referral settings
+  doctorReferralEnabled: { type: Boolean, default: false },
+  doctorReferralPercentage: { type: Number, default: 0, min: 0, max: 100 },
+
   // ChatGPT prompt template per test template type
   chatgptPrompts: {
     type: Schema.Types.Mixed,

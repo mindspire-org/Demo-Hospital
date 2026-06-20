@@ -841,11 +841,11 @@ export default function Lab_Results() {
   async function loadPreviousResults(o: Order, testId: string) {
     try {
       setPrior([]);
-      // Find prior completed orders for this patient (by MRN/phone/name) that include the same test
+      // Find prior orders for this patient (by MRN/phone/name) that include the same test
+      // Search without status filter to catch result_entered and completed orders
       const key = o.patient.mrn || o.patient.phone || o.patient.fullName || "";
       const ordRes: any = await labApi.listOrders({
         q: key,
-        status: "completed",
         limit: 500,
       });
       const all: Order[] = (ordRes.items || []).map((x: any) => ({
@@ -885,7 +885,7 @@ export default function Lab_Results() {
           or.tests.some((t: any) => {
             const tid =
               typeof t === "object" && t?.testId ? t.testId : String(t);
-            return tid === testId;
+            return String(tid) === String(testId);
           }),
       );
       sameTest.sort(
@@ -1616,6 +1616,24 @@ export default function Lab_Results() {
           <h2 className="text-xl font-bold text-slate-900">Result Entry</h2>
         </div>
         <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ring-1 ${
+              selected.sampleType === "urgent"
+                ? "bg-rose-100 text-rose-700 ring-rose-200"
+                : selected.sampleType === "stat"
+                  ? "bg-orange-100 text-orange-700 ring-orange-200"
+                  : "bg-blue-100 text-blue-700 ring-blue-200"
+            }`}
+          >
+            {selected.sampleType === "urgent" ? (
+              <AlertTriangle className="h-3 w-3" />
+            ) : selected.sampleType === "stat" ? (
+              <Activity className="h-3 w-3" />
+            ) : (
+              <Clock className="h-3 w-3" />
+            )}
+            {selected.sampleType || "normal"}
+          </span>
           <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700 ring-1 ring-violet-200">
             <FlaskConical className="h-3 w-3" />{" "}
             {selectedTestId ? testsMap[selectedTestId]?.name || "-" : "-"}

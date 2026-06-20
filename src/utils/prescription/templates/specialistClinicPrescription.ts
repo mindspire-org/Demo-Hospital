@@ -153,7 +153,8 @@ export async function previewSpecialistClinicPdf(data: SpecialistClinicPdfData) 
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(12.5)
   pdf.setTextColor(white.r, white.g, white.b)
-  pdf.text(`Dr. ${String(doctor.name || '-')}`, sX, sY, { align: 'center' })
+  const drNameSC = String(doctor.name || '-').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drNameSC}`, sX, sY, { align: 'center' })
   sY += 5.5
 
   if (doctor.qualification) {
@@ -329,21 +330,26 @@ export async function previewSpecialistClinicPdf(data: SpecialistClinicPdfData) 
     pdf.text('SPECIALIST PRESCRIPTION', mx + 17, y + 5.5)
     y += 10
 
-    // Col widths
-    const cols = { num: 6, name: 48, dose: 20, freq: 28, dur: 20, route: mw - 6 - 48 - 20 - 28 - 20 }
+    // Column widths — must sum to mw (available main width)
+    const colsArr = [5, 38, 17, 32, 15, 31]
+    const cxPos = (idx: number) => {
+      let px = mx + 2
+      for (let k = 0; k < idx; k++) px += colsArr[k]
+      return px
+    }
     const { translateRxItem } = await import('../../prescriptionUrdu')
-    const hdrs: [string, number][] = isUrdu
-      ? [['#', cols.num], ['Medicine', cols.name], ['خوراک', cols.dose], ['فریکوئنسی', cols.freq], ['مدت', cols.dur], ['طریقہ / ہدایت', cols.route]]
-      : [['#', cols.num], ['Medicine', cols.name], ['Dose', cols.dose], ['Frequency', cols.freq], ['Duration', cols.dur], ['Route / Instr.', cols.route]]
+    const hdrs = isUrdu
+      ? ['#', 'دوا', 'خوراک', 'فریکوئنسی', 'مدت', 'طریقہ / ہدایت']
+      : ['#', 'Medicine', 'Dose', 'Frequency', 'Duration', 'Route / Instr.']
 
     // Header row
     pdf.setFillColor(amberLt.r, amberLt.g, amberLt.b)
     pdf.rect(mx, y - 3, mw, 5.5, 'F')
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7); pdf.setTextColor(ink.r, ink.g, ink.b)
-    let cx = mx + 1
-    hdrs.forEach(([h, w]) => {
-      if (hasUrdu(h)) { safeUrduText(h, cx, y + 1) } else { pdf.text(h, cx, y + 1) }
-      cx += w
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6.5); pdf.setTextColor(ink.r, ink.g, ink.b)
+    hdrs.forEach((h, i) => {
+      const cx = cxPos(i) + colsArr[i] / 2
+      if (hasUrdu(h)) { safeUrduText(h, cx, y + 1, { align: 'center', maxWidth: colsArr[i] - 2 }) }
+      else { pdf.text(h, cx, y + 1, { align: 'center' }) }
     })
     y += 5
 
@@ -355,40 +361,42 @@ export async function previewSpecialistClinicPdf(data: SpecialistClinicPdfData) 
       const dur   = String(t?.duration || '').trim()
       const route = String(t?.route || '').trim()
       const instr = String(t?.instruction || '').trim()
-      const nL    = (pdf as any).splitTextToSize(name, cols.name - 3)
+      const nL    = (pdf as any).splitTextToSize(name, colsArr[1] - 4)
       const routeInstr = [route, instr].filter(Boolean).join(' · ')
-      const rL    = (pdf as any).splitTextToSize(routeInstr, cols.route - 3)
-      const rowH  = Math.max(nL.length, rL.length) * 4.2 + 3
+      const rL    = routeInstr ? (pdf as any).splitTextToSize(routeInstr, colsArr[5] - 4) : []
+      const rowH  = Math.max(nL.length, rL.length || 1) * 4.2 + 3
 
       if (i % 2 === 0) {
         pdf.setFillColor(249, 250, 251)
         pdf.rect(mx, y - 3, mw, rowH + 1, 'F')
       }
 
-      cx = mx + 1
       // Number with amber circle
       pdf.setFillColor(amber.r, amber.g, amber.b)
-      pdf.circle(cx + 2, y - 0.5, 2.2, 'F')
+      pdf.circle(cxPos(0) + 2, y - 0.5, 2.2, 'F')
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6.5); pdf.setTextColor(white.r, white.g, white.b)
-      pdf.text(String(i + 1), cx + 2, y + 0.8, { align: 'center' })
-      cx += cols.num
+      pdf.text(String(i + 1), cxPos(0) + 2, y + 0.8, { align: 'center' })
 
+      // Medicine name — left aligned with padding
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5); pdf.setTextColor(ink.r, ink.g, ink.b)
-      if (hasUrdu(name)) { safeUrduText(name, cx + cols.name - 1, y, { align: 'right', maxWidth: cols.name - 2 }) }
-      else { pdf.text(nL, cx, y) }
-      cx += cols.name
+      if (hasUrdu(name)) { safeUrduText(name, cxPos(1) + colsArr[1] - 2, y, { align: 'right', maxWidth: colsArr[1] - 4 }) }
+      else { pdf.text(nL, cxPos(1) + 2, y) }
+
+      // Detail columns — left aligned so overflow stays inside own cell
       pdf.setFont('helvetica', 'normal'); pdf.setTextColor(mid.r, mid.g, mid.b)
-      if (hasUrdu(dose)) { safeUrduText(dose, cx + cols.dose - 1, y, { align: 'right', maxWidth: cols.dose - 2 }) }
-      else { pdf.text(dose, cx, y) }
-      cx += cols.dose
-      if (hasUrdu(freq)) { safeUrduText(freq, cx + cols.freq - 1, y, { align: 'right', maxWidth: cols.freq - 2 }) }
-      else { pdf.text(freq, cx, y) }
-      cx += cols.freq
-      if (hasUrdu(dur)) { safeUrduText(dur, cx + cols.dur - 1, y, { align: 'right', maxWidth: cols.dur - 2 }) }
-      else { pdf.text(dur, cx, y) }
-      cx += cols.dur
-      if (hasUrdu(routeInstr)) { safeUrduText(routeInstr, cx + cols.route - 1, y, { align: 'right', maxWidth: cols.route - 2 }) }
-      else { pdf.text(rL, cx, y) }
+      const colLeft = (cidx: number) => cxPos(cidx) + 2
+
+      if (hasUrdu(dose)) { safeUrduText(dose, colLeft(2), y, { align: 'left', maxWidth: colsArr[2] - 4 }) }
+      else { pdf.text(dose, colLeft(2), y, { align: 'left' }) }
+
+      if (hasUrdu(freq)) { safeUrduText(freq, colLeft(3), y, { align: 'left', maxWidth: colsArr[3] - 4 }) }
+      else { pdf.text(freq, colLeft(3), y, { align: 'left' }) }
+
+      if (hasUrdu(dur)) { safeUrduText(dur, colLeft(4), y, { align: 'left', maxWidth: colsArr[4] - 4 }) }
+      else { pdf.text(dur, colLeft(4), y, { align: 'left' }) }
+
+      if (hasUrdu(routeInstr)) { safeUrduText(routeInstr, colLeft(5), y, { align: 'left', maxWidth: colsArr[5] - 4 }) }
+      else if (rL.length) { pdf.text(rL.slice(0, 2), colLeft(5), y) }
 
       pdf.setDrawColor(border.r, border.g, border.b)
       pdf.setLineWidth(0.15)
@@ -403,7 +411,8 @@ export async function previewSpecialistClinicPdf(data: SpecialistClinicPdfData) 
   pdf.setLineWidth(0.3)
   pdf.line(W - 70, sigY, W - 8, sigY)
   pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(ink.r, ink.g, ink.b)
-  pdf.text(`Dr. ${String(doctor.name || '')}`, W - 39, sigY + 5, { align: 'center' })
+  const drSignSC = String(doctor.name || '').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drSignSC}`, W - 39, sigY + 5, { align: 'center' })
   pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(mid.r, mid.g, mid.b)
   pdf.text('Signature / Stamp', W - 39, sigY + 9.5, { align: 'center' })
 

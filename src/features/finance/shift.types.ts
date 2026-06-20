@@ -145,3 +145,52 @@ export const STATUS_LABELS: Record<string, string> = {
   closed: 'Closed',
   reconciled: 'Reconciled'
 }
+
+// -------------------------------------------------------------------------
+// Activity Log
+// -------------------------------------------------------------------------
+export interface ActivityLogItem {
+  _id: string
+  userId: string
+  userName?: string
+  portal: string
+  action: string
+  module?: string
+  entityId?: string
+  entityLabel?: string
+  amount?: number
+  method?: string
+  meta?: any
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ActivityLogSummary {
+  byActionPortal: Array<{
+    _id: { action: string; portal: string }
+    count: number
+    totalAmount: number
+  }>
+  totalIn: number
+  totalOut: number
+  netBalance: number
+  totalActivities: number
+}
+
+export interface ActivityLogUser {
+  userId: string
+  userName?: string
+}
+
+export interface ActivityLogFilters {
+  userId?: string
+  userName?: string
+  portal?: string
+  action?: string
+  module?: string
+  from?: string
+  to?: string
+  search?: string
+  page?: number
+  limit?: number
+}

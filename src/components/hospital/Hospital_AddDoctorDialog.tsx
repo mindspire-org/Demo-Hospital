@@ -35,9 +35,10 @@ export default function Hospital_AddDoctorDialog({
 
   useEffect(() => {
     if (open) {
-      setForm({ name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', doctorShare: '100', opdShare: '', ipdShare: '', username: '', password: '', primaryDepartmentId: '' })
+      const firstDeptId = departments.length > 0 ? departments[0].id : ''
+      setForm({ name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', doctorShare: '100', opdShare: '', ipdShare: '', username: '', password: '', primaryDepartmentId: firstDeptId })
     }
-  }, [open])
+  }, [open, departments])
 
   const update = (k: keyof HospitalDoctorInput, v: string) => setForm(prev => ({ ...prev, [k]: v }))
 

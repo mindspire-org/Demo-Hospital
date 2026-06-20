@@ -9,6 +9,7 @@ import { previewClinicalProfessionalPdf } from './prescription/templates/clinica
 import { previewPremiumDarkHeaderPdf } from './prescription/templates/premiumDarkHeader'
 import { previewCompactPharmacyPdf } from './prescription/templates/compactPharmacy'
 import { previewPediatricFriendlyPdf } from './prescription/templates/pediatricFriendly'
+import { previewBilingualRxPdf } from './prescription/templates/bilingualRx'
 import { buildPrescriptionOne } from './prescription/templates/templateOne'
 import { buildPrescriptionTwo } from './prescription/templates/templateTwo'
 
@@ -67,6 +68,7 @@ export type PrescriptionPdfTemplate =
   | 'pediatric-friendly'
   | 'template-one'
   | 'template-two'
+  | 'bilingual-rx'
 
 export const PRESCRIPTION_PDF_TEMPLATES: PrescriptionPdfTemplate[] = [
   'hospital-rx',
@@ -82,6 +84,7 @@ export const PRESCRIPTION_PDF_TEMPLATES: PrescriptionPdfTemplate[] = [
   'pediatric-friendly',
   'template-one',
   'template-two',
+  'bilingual-rx',
 ]
 
 export const TEMPLATE_LABELS: Record<PrescriptionPdfTemplate, string> = {
@@ -98,6 +101,7 @@ export const TEMPLATE_LABELS: Record<PrescriptionPdfTemplate, string> = {
   'pediatric-friendly':   'Template 10',
   'template-one':         'Template 11',
   'template-two':         'Template 12',
+  'bilingual-rx':         'Bilingual Rx',
 }
 
 export const TEMPLATE_DESCRIPTIONS: Record<PrescriptionPdfTemplate, string> = {
@@ -114,6 +118,7 @@ export const TEMPLATE_DESCRIPTIONS: Record<PrescriptionPdfTemplate, string> = {
   'pediatric-friendly':   'Colourful · child-friendly · large readable type',
   'template-one':         'Custom clinic layout — style A',
   'template-two':         'Custom clinic layout — style B',
+  'bilingual-rx':         'English + Urdu side-by-side with auto date ranges',
 }
 
 export function isPrescriptionPdfTemplate(v: any): v is PrescriptionPdfTemplate {
@@ -177,6 +182,9 @@ async function renderTemplate(data: PrescriptionPdfData, template: PrescriptionP
       window.open(pdf2.output('bloburl'), '_blank')
       return
     }
+    case 'bilingual-rx':
+      await previewBilingualRxPdf(data)
+      return
     default:
       await previewHospitalRxPdf(data)
   }

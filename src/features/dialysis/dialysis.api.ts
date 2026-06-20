@@ -103,6 +103,7 @@ export const dialysisApi = {
   listDialysisPatients: (params?: { q?: string; mrn?: string; page?: number; limit?: number }) =>
     api(withQuery('/dialysis/dialysis-patients', params)),
   getDialysisPatient: (id: string) => api(`/dialysis/dialysis-patients/${encodeURIComponent(id)}`),
+  updateDialysisPatient: (id: string, data: any) => api(`/dialysis/dialysis-patients/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
   getDialysisPatientByLabPatient: (labPatientId: string) =>
     api(`/dialysis/dialysis-patients/by-lab-patient?labPatientId=${encodeURIComponent(labPatientId)}`),
 

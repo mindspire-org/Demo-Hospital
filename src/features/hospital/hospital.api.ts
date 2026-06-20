@@ -21,6 +21,7 @@ import { sharedApi } from './shared'
 import { otApi } from './ot'
 import { icuApi } from './icu'
 import { indoorPharmacyIntegrationApi } from './indoorpharmacy'
+import { api } from '../../api'
 
 export const hospitalApi = {
   // OPD Module
@@ -52,6 +53,20 @@ export const hospitalApi = {
 
   // Indoor Pharmacy Integration Module
   ...indoorPharmacyIntegrationApi,
+
+  // Patient Transfer (ER <-> IPD)
+  transferPatient: (data: {
+    sourceEncounterId: string
+    targetType: 'IPD' | 'ER'
+    departmentId: string
+    doctorId?: string
+    bedId?: string
+    deposit?: number
+    corporateId?: string
+    corporatePreAuthNo?: string
+    corporateCoPayPercent?: number
+    corporateCoverageCap?: number
+  }) => api('/hospital/patients/transfer', { method: 'POST', body: JSON.stringify(data) }),
 }
 
 export default hospitalApi

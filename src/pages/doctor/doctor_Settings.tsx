@@ -130,14 +130,15 @@ export default function Doctor_Settings() {
   const save = async () => {
     try {
       if (doc?.id) {
-        await hospitalApi.updateDoctor(doc.id, {
+        await hospitalApi.updateDoctorProfile(doc.id, {
           prescriptionTemplate: tpl,
           prescriptionLanguage: language,
+          prescriptionDesign: design,
           name: doctorProfile.name || undefined,
           qualification: doctorProfile.qualification || undefined,
           specialization: doctorProfile.specialization || undefined,
           phone: doctorProfile.phone || undefined,
-        } as any)
+        })
         // Persist profile locally so prescription page picks it up immediately
         localStorage.setItem(`doctor.details.${doc.id}`, JSON.stringify({
           name: doctorProfile.name,
@@ -152,7 +153,9 @@ export default function Doctor_Settings() {
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-    } catch {}
+    } catch (err: any) {
+      alert(err?.message || 'Failed to save settings')
+    }
   }
 
   const previewSample = async () => {

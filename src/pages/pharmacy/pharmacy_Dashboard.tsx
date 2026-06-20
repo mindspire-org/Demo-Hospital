@@ -5,8 +5,9 @@ import {
 } from 'recharts'
 import {
   TrendingUp, DollarSign, ShoppingCart, Package, AlertTriangle, Ban, RefreshCw, Clock, Bell, CreditCard,
-  Calendar, Printer, LayoutDashboard, Filter, RotateCcw, Wallet, Receipt, ArrowUpRight, ArrowDownRight
+  Printer, LayoutDashboard, Filter, RotateCcw, Wallet, Receipt, ArrowUpRight, ArrowDownRight
 } from 'lucide-react'
+import { DateRangePicker } from '../../components/common/DatePicker'
 
 export default function Pharmacy_Dashboard() {
   const [stats, setStats] = useState<{ stockSaleValue: number; lowStockCount: number; outOfStockCount: number; expiringSoonCount: number; totalInventoryOnHand: number } | null>(null)
@@ -170,12 +171,11 @@ export default function Pharmacy_Dashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 backdrop-blur-sm">
-              <Calendar className="h-4 w-4 text-white/80" />
-              <input type="date" value={from} onChange={e=> setFrom(e.target.value)} className="bg-transparent text-sm text-white outline-none scheme-dark" />
-              <span className="text-white/60">→</span>
-              <input type="date" value={to} onChange={e=> setTo(e.target.value)} className="bg-transparent text-sm text-white outline-none scheme-dark" />
-            </div>
+            <DateRangePicker
+              value={{ from, to }}
+              onChange={({ from: f, to: t }) => { setFrom(f); setTo(t) }}
+              dark
+            />
             <button onClick={()=> setTick(t=>t+1)} className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-sm font-medium backdrop-blur-sm hover:bg-white/25 transition-colors">
               <Filter className="h-4 w-4" /> Apply
             </button>

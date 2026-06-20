@@ -51,6 +51,7 @@ import {
   Scale,
   Shield,
   Eye,
+  Stethoscope,
 } from 'lucide-react'
 
 type NavItem = { to: string; label: string; end?: boolean; icon: LucideIcon }
@@ -104,6 +105,7 @@ const financeSection: Section = {
     { to: '/lab/collection-centers', label: 'Collection Centers', icon: Building },
     { to: '/lab/center-revenue', label: 'Center Revenue', icon: TrendingUp },
     { to: '/lab/center-payments', label: 'Center Payments', icon: CreditCard },
+    { to: '/lab/doctor-revenue', label: 'Doctor Revenue', icon: Stethoscope },
     { to: '/lab/center-rate-list', label: 'Center Rate List', icon: Receipt },
     { to: '/lab/expenses', label: 'Expenses', icon: Banknote },
     { to: '/lab/reports-summary', label: 'Reports', icon: PieChart },

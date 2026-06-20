@@ -7,6 +7,7 @@ import { InventoryItem } from '../models/InventoryItem'
 import { ApiError } from '../../../common/errors/ApiError'
 import mongoose from 'mongoose'
 import { AuditLog } from '../models/AuditLog'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 export async function list(req: Request, res: Response){
   const parsed = returnQuerySchema.safeParse(req.query)
@@ -138,6 +139,23 @@ export async function create(req: Request, res: Response){
         detail: `Bill ${sale.billNo} — ${doc.party} — Rs ${Number(doc.total||0).toFixed(2)}`,
       })
     } catch {}
+
+    // Activity log
+    try {
+      logActivity({
+        userId: String((req as any).user?._id || (req as any).user?.id || (req as any).user?.email || 'system'),
+        userName: String((req as any).user?.name || (req as any).user?.email || 'system'),
+        portal: 'pharmacy',
+        action: 'Pharmacy Refund',
+        module: 'Pharmacy',
+        entityId: String(doc._id),
+        entityLabel: `Return ${sale.billNo} — ${doc.party}`,
+        amount: Number(doc.total || 0),
+        method: String(sale.payment || 'Cash'),
+        meta: { billNo: sale.billNo, saleTotal: sale.total, returnTotal: doc.total }
+      })
+    } catch {}
+
     return res.status(201).json({ ok: true, sale: { billNo: sale.billNo, total: sale.total, subtotal: sale.subtotal }, return: doc })
   }
 

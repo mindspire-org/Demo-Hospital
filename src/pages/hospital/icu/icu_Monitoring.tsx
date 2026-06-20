@@ -22,8 +22,11 @@ export default function ICU_Monitoring() {
   useEffect(() => {
     if (admissionId) {
       const adm = admissions.find(a => a._id === admissionId)
-      if (adm) setSelectedAdmission(adm)
-      loadFlowsheet(admissionId)
+      if (adm) {
+        setSelectedAdmission(adm)
+        const encId = adm.encounterId?._id || adm.encounterId
+        if (encId) loadFlowsheet(String(encId))
+      }
     }
   }, [admissionId, admissions])
 
@@ -57,14 +60,15 @@ export default function ICU_Monitoring() {
     if (!confirm('Delete this flowsheet entry?')) return
     try {
       await hospitalApi.deleteICUFlowsheetEntry(id)
-      if (selectedAdmission?.encounterId?._id) {
-        loadFlowsheet(selectedAdmission.encounterId._id)
+      const encId = selectedAdmission?.encounterId?._id || selectedAdmission?.encounterId
+      if (encId) {
+        loadFlowsheet(String(encId))
       }
     } catch {}
   }
 
   const patientName = selectedAdmission?.patientId
-    ? `${selectedAdmission.patientId.firstName || ''} ${selectedAdmission.patientId.lastName || ''}`.trim() || 'Unknown'
+    ? String(selectedAdmission.patientId.fullName || selectedAdmission.patientId.name || 'Unknown')
     : 'Select Patient'
 
   return (
@@ -91,7 +95,7 @@ export default function ICU_Monitoring() {
             <div className="space-y-2 max-h-96 overflow-auto">
               {admissions.map((adm) => {
                 const name = adm.patientId
-                  ? `${adm.patientId.firstName || ''} ${adm.patientId.lastName || ''}`.trim() || 'Unknown'
+                  ? String(adm.patientId.fullName || adm.patientId.name || 'Unknown')
                   : 'Unknown'
                 const isSelected = selectedAdmission?._id === adm._id
                 return (
@@ -252,7 +256,8 @@ export default function ICU_Monitoring() {
           onClose={() => setShowModal(false)}
           onSaved={() => {
             setShowModal(false)
-            loadFlowsheet(selectedAdmission.encounterId?._id || selectedAdmission.encounterId)
+            const encId = selectedAdmission.encounterId?._id || selectedAdmission.encounterId
+            if (encId) loadFlowsheet(String(encId))
           }}
         />
       )}

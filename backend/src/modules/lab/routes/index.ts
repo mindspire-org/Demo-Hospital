@@ -67,8 +67,10 @@ import * as Outsource from '../controllers/outsource_labs.controller'
 import * as CenterRates from '../controllers/center_rate_list.controller'
 import * as Notifications from '../controllers/notifications.controller'
 import * as WardImports from '../controllers/ward_imports.controller'
+import * as Doctors from '../controllers/doctors.controller'
 
 import { auth } from '../../../common/middleware/auth'
+import { requireAdmin } from '../../../common/middleware/hospital_guard'
 import { attachScope } from '../middleware/scope'
 
 
@@ -88,6 +90,9 @@ r.post('/users/logout', Users.logout)
 r.post('/login', Users.login)
 
 r.post('/logout', Users.logout)
+
+// Authenticate all routes below (login/logout remain public)
+r.use(auth)
 
 // Admin: idempotent seeders (no auth required — internal ops)
 r.post('/seed/test-templates', async (req, res) => {
@@ -259,55 +264,42 @@ r.post('/returns/undo', Returns.undo)
 // Staff
 
 r.get('/staff', Staff.list)
-
-r.post('/staff', Staff.create)
-
-r.put('/staff/:id', Staff.update)
-
-r.delete('/staff/:id', Staff.remove)
+r.post('/staff', requireAdmin, Staff.create)
+r.put('/staff/:id', requireAdmin, Staff.update)
+r.delete('/staff/:id', requireAdmin, Staff.remove)
 
 
 
 // Shifts
 
 r.get('/shifts', Shifts.list)
-
-r.post('/shifts', Shifts.create)
-
-r.put('/shifts/:id', Shifts.update)
-
-r.delete('/shifts/:id', Shifts.remove)
+r.post('/shifts', requireAdmin, Shifts.create)
+r.put('/shifts/:id', requireAdmin, Shifts.update)
+r.delete('/shifts/:id', requireAdmin, Shifts.remove)
 
 
 
 // Attendance
 
 r.get('/attendance', Attendance.list)
-
-r.post('/attendance', Attendance.upsert)
+r.post('/attendance', requireAdmin, Attendance.upsert)
 
 
 
 // Staff Earnings
 
 r.get('/staff-earnings', StaffEarnings.list)
-
-r.post('/staff-earnings', StaffEarnings.create)
-
-r.put('/staff-earnings/:id', StaffEarnings.update)
-
-r.delete('/staff-earnings/:id', StaffEarnings.remove)
+r.post('/staff-earnings', requireAdmin, StaffEarnings.create)
+r.put('/staff-earnings/:id', requireAdmin, StaffEarnings.update)
+r.delete('/staff-earnings/:id', requireAdmin, StaffEarnings.remove)
 
 
 
 // Expenses
 
 r.get('/expenses', Expenses.list)
-
-r.post('/expenses', Expenses.create)
-
-r.delete('/expenses/:id', Expenses.remove)
-
+r.post('/expenses', requireAdmin, Expenses.create)
+r.delete('/expenses/:id', requireAdmin, Expenses.remove)
 r.get('/expenses/summary', Expenses.summary)
 
 
@@ -315,11 +307,8 @@ r.get('/expenses/summary', Expenses.summary)
 // Cash Movements (Pay In/Out)
 
 r.get('/cash-movements', CashMovements.list)
-
-r.post('/cash-movements', CashMovements.create)
-
-r.delete('/cash-movements/:id', CashMovements.remove)
-
+r.post('/cash-movements', requireAdmin, CashMovements.create)
+r.delete('/cash-movements/:id', requireAdmin, CashMovements.remove)
 r.get('/cash-movements/summary', CashMovements.summary)
 
 
@@ -327,11 +316,8 @@ r.get('/cash-movements/summary', CashMovements.summary)
 // Manager Cash Count
 
 r.get('/cash-counts', CashCounts.list)
-
-r.post('/cash-counts', CashCounts.create)
-
-r.delete('/cash-counts/:id', CashCounts.remove)
-
+r.post('/cash-counts', requireAdmin, CashCounts.create)
+r.delete('/cash-counts/:id', requireAdmin, CashCounts.remove)
 r.get('/cash-counts/summary', CashCounts.summary)
 
 
@@ -339,50 +325,38 @@ r.get('/cash-counts/summary', CashCounts.summary)
 // Users
 
 r.get('/users', Users.list)
-
-r.post('/users', Users.create)
-
-r.put('/users/:id', Users.update)
-
-r.delete('/users/:id', Users.remove)
+r.post('/users', requireAdmin, Users.create)
+r.put('/users/:id', requireAdmin, Users.update)
+r.delete('/users/:id', requireAdmin, Users.remove)
 
 
 
 // Sidebar Roles & Permissions
 
 r.get('/sidebar-roles', SidebarPerms.listRoles)
-
-r.post('/sidebar-roles', SidebarPerms.createRole)
-
-r.delete('/sidebar-roles/:role', SidebarPerms.deleteRole)
-
-
+r.post('/sidebar-roles', requireAdmin, SidebarPerms.createRole)
+r.delete('/sidebar-roles/:role', requireAdmin, SidebarPerms.deleteRole)
 
 r.get('/sidebar-permissions', SidebarPerms.getPermissions)
-
-r.put('/sidebar-permissions/:role', SidebarPerms.updatePermissions)
-
-r.post('/sidebar-permissions/:role/reset', SidebarPerms.resetToDefaults)
+r.put('/sidebar-permissions/:role', requireAdmin, SidebarPerms.updatePermissions)
+r.post('/sidebar-permissions/:role/reset', requireAdmin, SidebarPerms.resetToDefaults)
 
 
 
 // Audit Logs
 
 r.get('/audit-logs', Audit.list)
-
-r.post('/audit-logs', Audit.create)
+r.post('/audit-logs', requireAdmin, Audit.create)
 
 
 
 // Settings
 
 r.get('/settings', Settings.get)
-
-r.put('/settings', Settings.update)
-
-r.post('/settings/header', Settings.uploadHeaderFooter)
-r.post('/settings/footer', Settings.uploadHeaderFooter)
-r.post('/settings/header/revert', Settings.revertHeaderFooter)
+r.put('/settings', requireAdmin, Settings.update)
+r.post('/settings/header', requireAdmin, Settings.uploadHeaderFooter)
+r.post('/settings/footer', requireAdmin, Settings.uploadHeaderFooter)
+r.post('/settings/header/revert', requireAdmin, Settings.revertHeaderFooter)
 r.get('/settings/header-history', Settings.listHeaderHistory)
 
 
@@ -635,6 +609,15 @@ r.get('/ward-imports/:id', WardImports.get)
 r.post('/ward-imports/upload', WardImports.upload)
 r.post('/ward-imports/:id/commit', WardImports.commit)
 r.post('/ward-imports/:id/cancel', WardImports.cancel)
+
+// Doctors (Referral)
+r.get('/doctors', Doctors.list)
+r.get('/doctors/:id', Doctors.get)
+r.post('/doctors', Doctors.create)
+r.put('/doctors/:id', Doctors.update)
+r.delete('/doctors/:id', Doctors.remove)
+r.get('/doctors/stats/summary', Doctors.stats)
+r.get('/doctors/:id/detail-stats', Doctors.detailStats)
 
 
 

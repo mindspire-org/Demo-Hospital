@@ -34,6 +34,19 @@ export default function Hospital_UserManagement() {
   const [addUserError, setAddUserError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Current logged-in user role
+  const [currentRole, setCurrentRole] = useState<string>('')
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem('hospital.session')
+      if (s) {
+        const parsed = JSON.parse(s)
+        setCurrentRole(String(parsed?.role || '').toLowerCase())
+      }
+    } catch {}
+  }, [])
+  const isAdmin = currentRole === 'admin'
+
   useEffect(() => {
     let mounted = true
     ;(async () => {
@@ -209,7 +222,7 @@ export default function Hospital_UserManagement() {
                       <tr key={u._id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-4">
-                            <div className="h-11 w-11 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-inner bg-gradient-to-br from-blue-500 to-indigo-600">
+                            <div className="h-11 w-11 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-inner bg-linear-to-br from-blue-500 to-indigo-600">
                               {(u.username||'U').slice(0,1).toUpperCase()}
                             </div>
                             <div>
@@ -246,20 +259,24 @@ export default function Hospital_UserManagement() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2 transition-opacity">
-                            <button 
-                              onClick={()=>setEditing({ _id: u._id, username: u.username, role: u.role, shiftId: u.shiftId, shiftRestricted: u.shiftRestricted })}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Edit User"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button 
-                              onClick={()=>{ setDeleteId(u._id); setDeleteOpen(true) }}
-                              className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="Delete User"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            {isAdmin && (
+                              <>
+                                <button
+                                  onClick={()=>setEditing({ _id: u._id, username: u.username, role: u.role, shiftId: u.shiftId, shiftRestricted: u.shiftRestricted })}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Edit User"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={()=>{ setDeleteId(u._id); setDeleteOpen(true) }}
+                                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  title="Delete User"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -364,7 +381,7 @@ export default function Hospital_UserManagement() {
 
               <button 
                 onClick={addUser} 
-                className="w-full mt-2 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2"
+                className="w-full mt-2 py-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2"
               >
                 <UserPlus className="h-4 w-4" />
                 Create Account
@@ -383,7 +400,7 @@ export default function Hospital_UserManagement() {
 
       {/* Edit Modal */}
       {editing && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
               <h3 className="font-bold text-slate-800">Edit User Profile</h3>
@@ -465,7 +482,7 @@ export default function Hospital_UserManagement() {
 
       {/* Delete Confirmation */}
       {deleteOpen && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-130 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
           <div className="w-full max-w-sm rounded-[32px] bg-white shadow-2xl p-8 text-center animate-in zoom-in-95 duration-200">
             <div className="mx-auto w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-5">
               <Trash2 className="h-8 w-8 text-rose-500" />

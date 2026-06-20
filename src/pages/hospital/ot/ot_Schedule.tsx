@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../../utils/api'
-import { Calendar, Clock, Plus, ArrowLeft, AlertTriangle, CheckCircle, Shield, Siren } from 'lucide-react'
+import { Calendar, Clock, Plus, ArrowLeft, AlertTriangle, CheckCircle, Shield, Siren, Edit, X } from 'lucide-react'
 import { OTBookingModal } from '../../../components/hospital/OT_BookingModal'
+import { otApi } from '../../../features/hospital/ot'
 
 export default function OT_Schedule() {
   const navigate = useNavigate()
@@ -12,6 +13,9 @@ export default function OT_Schedule() {
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [showTimeoutModal, setShowTimeoutModal] = useState(false)
+  const [editingBooking, setEditingBooking] = useState<any>(null)
+  const [editForm, setEditForm] = useState<any>({})
+  const [statusLoading, setStatusLoading] = useState<string>('')
 
   useEffect(() => {
     load()
@@ -54,6 +58,48 @@ export default function OT_Schedule() {
     setShowTimeoutModal(true)
   }
 
+  async function changeStatus(id: string, newStatus: string) {
+    setStatusLoading(id)
+    try {
+      const payload: any = { status: newStatus }
+      if (newStatus === 'in-progress') payload.actualStart = new Date().toISOString()
+      if (newStatus === 'completed') payload.actualEnd = new Date().toISOString()
+      await otApi.updateOTBooking(id, payload)
+      load()
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update status')
+    }
+    setStatusLoading('')
+  }
+
+  function openEdit(booking: any) {
+    setEditingBooking(booking)
+    setEditForm({
+      procedure: booking.procedure || '',
+      procedureCode: booking.procedureCode || '',
+      scheduledAt: booking.scheduledAt ? new Date(booking.scheduledAt).toISOString().slice(0, 16) : '',
+      estimatedDuration: booking.estimatedDuration || 60,
+      priority: booking.priority || 'routine',
+      notes: booking.notes || '',
+      roomId: booking.roomId?._id || '',
+      surgeonId: booking.surgeonId?._id || '',
+    })
+  }
+
+  async function saveEdit() {
+    if (!editingBooking) return
+    try {
+      const payload: any = { ...editForm }
+      if (!payload.roomId) delete payload.roomId
+      if (!payload.surgeonId) delete payload.surgeonId
+      await otApi.updateOTBooking(editingBooking._id, payload)
+      setEditingBooking(null)
+      load()
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update booking')
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -69,13 +115,22 @@ export default function OT_Schedule() {
             <Calendar className="h-5 w-5 text-purple-500" />
             <span className="font-medium">All Scheduled Surgeries</span>
           </div>
-          <button
-            onClick={() => setShowBookingModal(true)}
-            className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700"
-          >
-            <Plus className="h-4 w-4" />
-            New Booking
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/hospital/ot/completed')}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <CheckCircle className="h-4 w-4" />
+              Completed Surgeries
+            </button>
+            <button
+              onClick={() => setShowBookingModal(true)}
+              className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700"
+            >
+              <Plus className="h-4 w-4" />
+              New Booking
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -91,6 +146,9 @@ export default function OT_Schedule() {
                   <th className="px-3 py-2 text-left">Room</th>
                   <th className="px-3 py-2 text-left">Surgeon</th>
                   <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Started</th>
+                  <th className="px-3 py-2 text-left">Ended</th>
+                  <th className="px-3 py-2 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -98,7 +156,8 @@ export default function OT_Schedule() {
                   const timeoutStatus = getTimeoutStatus(b)
                   const showTimeoutAlert = b.status === 'in-progress' && timeoutStatus !== 'completed'
                   const isEmergency = b.priority === 'emergency'
-                  
+                  const isLoading = statusLoading === b._id
+
                   return (
                   <tr key={b._id} className={`border-b border-slate-100 hover:bg-slate-50 ${showTimeoutAlert ? 'bg-red-50' : ''}`}>
                     <td className="px-3 py-2">
@@ -149,12 +208,56 @@ export default function OT_Schedule() {
                         )}
                       </div>
                     </td>
+                    <td className="px-3 py-2">
+                      {b.actualStart ? new Date(b.actualStart).toLocaleTimeString() : '-'}
+                    </td>
+                    <td className="px-3 py-2">
+                      {b.actualEnd ? new Date(b.actualEnd).toLocaleTimeString() : '-'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => openEdit(b)}
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+                          title="Edit"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
+                        {b.status === 'scheduled' && (
+                          <button
+                            onClick={() => changeStatus(b._id, 'in-progress')}
+                            disabled={isLoading}
+                            className="rounded-md bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                          >
+                            {isLoading ? '...' : 'Start'}
+                          </button>
+                        )}
+                        {b.status === 'in-progress' && (
+                          <button
+                            onClick={() => changeStatus(b._id, 'completed')}
+                            disabled={isLoading}
+                            className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {isLoading ? '...' : 'Complete'}
+                          </button>
+                        )}
+                        {(b.status === 'scheduled' || b.status === 'in-progress') && (
+                          <button
+                            onClick={() => { if (confirm('Cancel this surgery?')) changeStatus(b._id, 'cancelled') }}
+                            disabled={isLoading}
+                            className="rounded-md border border-rose-200 px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                   )
                 })}
                 {bookings.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={9} className="px-3 py-6 text-center text-slate-500">
                       No bookings found
                     </td>
                   </tr>
@@ -180,6 +283,109 @@ export default function OT_Schedule() {
           onClose={() => setShowTimeoutModal(false)}
           onCompleted={() => { setShowTimeoutModal(false); load() }}
         />
+      )}
+
+      {/* Edit Booking Modal */}
+      {editingBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-800">Edit Surgery Booking</h2>
+              <button onClick={() => setEditingBooking(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Procedure Name</label>
+                <input
+                  value={editForm.procedure}
+                  onChange={e => setEditForm({ ...editForm, procedure: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Procedure Code</label>
+                <input
+                  value={editForm.procedureCode}
+                  onChange={e => setEditForm({ ...editForm, procedureCode: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">Scheduled Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={editForm.scheduledAt}
+                    onChange={e => setEditForm({ ...editForm, scheduledAt: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">Estimated Duration (min)</label>
+                  <input
+                    type="number"
+                    value={editForm.estimatedDuration}
+                    onChange={e => setEditForm({ ...editForm, estimatedDuration: parseInt(e.target.value) || 60 })}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">Priority</label>
+                  <select
+                    value={editForm.priority}
+                    onChange={e => setEditForm({ ...editForm, priority: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="routine">Routine</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="emergency">Emergency</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">Status</label>
+                  <select
+                    value={editingBooking.status}
+                    onChange={e => { const s = e.target.value; setEditingBooking({ ...editingBooking, status: s }); changeStatus(editingBooking._id, s) }}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="scheduled">Scheduled</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                    <option value="postponed">Postponed</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Notes</label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  rows={2}
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => setEditingBooking(null)}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -102,7 +102,20 @@ export default function Billing({ encounterId }: { encounterId: string }){
   const outstandingBeforeAdvance = Math.max(0, total - paid)
   const advanceUsed = Math.min(advanceTotal, outstandingBeforeAdvance)
   const advanceRemaining = Math.max(0, advanceTotal - advanceUsed)
-  const netDue = Math.max(0, outstandingBeforeAdvance - advanceUsed)
+
+  // Encounter-level financial data (package, advance, pending)
+  const packageAmount = Number(enc?.packageAmount || 0)
+  const encounterAdvance = Number(enc?.advancedAmount || 0)
+  const encounterPending = Number(enc?.pendingAmount || 0)
+
+  // Billing totals from services + package
+  const displayTotal = total + packageAmount
+  // All payments made (service payments + encounter advance)
+  const displayPaid = paid + encounterAdvance
+  // Net amount still due
+  const displayNetDue = Math.max(0, displayTotal - displayPaid)
+  // Advance still available for future use
+  const displayAdvance = Math.max(0, encounterAdvance - paid)
 
   async function save(d: { label: string; amount: number }){
     try{
@@ -163,29 +176,37 @@ export default function Billing({ encounterId }: { encounterId: string }){
           </div>
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <div className="text-xs font-medium text-slate-700">Total</div>
+          <div className="text-xs font-medium text-slate-700">Total Bill</div>
           <div className="text-2xl font-bold text-slate-900">Rs{total.toFixed(0)}</div>
+          <div className="mt-1 text-xs text-slate-500">Sum of services</div>
+        </div>
+        <div className="rounded-lg border border-violet-200 bg-violet-50 p-4">
+          <div className="text-xs font-medium text-violet-700">Package Amount</div>
+          <div className="text-2xl font-bold text-violet-700">Rs{Number(enc?.packageAmount || 0).toFixed(0)}</div>
+        </div>
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+          <div className="text-xs font-medium text-emerald-700">Total Paid</div>
+          <div className="text-2xl font-bold text-emerald-700">Rs{((enc?.advancedAmount || 0) + paid).toFixed(0)}</div>
+          {(enc?.advancedAmount || 0) > 0 && (
+            <div className="mt-1 text-xs text-emerald-600">Incl. advance: Rs{Number(enc?.advancedAmount || 0).toFixed(0)}</div>
+          )}
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="text-xs font-medium text-slate-700">Advance Available</div>
+          <div className="text-2xl font-bold text-slate-900">Rs{Math.max(0, (enc?.advancedAmount || 0) - paid).toFixed(0)}</div>
+        </div>
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+          <div className="text-xs font-medium text-indigo-700">Remaining/Net Due</div>
+          <div className="text-2xl font-bold text-indigo-700">Rs{Math.max(0, (enc?.packageAmount || 0) + total - (enc?.advancedAmount || 0) - paid).toFixed(0)}</div>
+          {(enc?.pendingAmount || 0) > 0 && (
+            <div className="mt-1 text-xs text-indigo-600">Pending: Rs{Number(enc?.pendingAmount || 0).toFixed(0)}</div>
+          )}
         </div>
         <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
           <div className="text-xs font-medium text-rose-700">Outstanding</div>
           <div className="text-2xl font-bold text-rose-700">Rs{outstandingBeforeAdvance.toFixed(0)}</div>
-        </div>
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-xs font-medium text-emerald-700">Paid</div>
-          <div className="text-2xl font-bold text-emerald-700">Rs{paid.toFixed(0)}</div>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <div className="text-xs font-medium text-slate-700">Advance</div>
-          <div className="text-2xl font-bold text-slate-900">Rs{advanceTotal.toFixed(0)}</div>
-          {advanceRemaining > 0 && (
-            <div className="mt-1 text-xs text-slate-600">Remaining credit: Rs{advanceRemaining.toFixed(0)}</div>
-          )}
-        </div>
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-          <div className="text-xs font-medium text-indigo-700">Net Due</div>
-          <div className="text-2xl font-bold text-indigo-700">Rs{netDue.toFixed(0)}</div>
         </div>
       </div>
 

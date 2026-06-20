@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { LabExpense } from '../models/Expense'
 import { expenseCreateSchema, expenseQuerySchema } from '../validators/expense'
 import { LabAuditLog } from '../models/AuditLog'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 export async function list(req: Request, res: Response) {
   const q = expenseQuerySchema.safeParse(req.query)
@@ -68,6 +69,23 @@ export async function create(req: Request, res: Response) {
       detail: `${e.type || ''} — Rs ${Number(e.amount||0).toFixed(2)}${e.note? ' — '+e.note : ''}`,
     })
   } catch {}
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || (req as any).user?.email || 'system'),
+      userName: String(createdBy || ''),
+      portal: 'lab',
+      action: 'Expense Created',
+      module: 'Expense',
+      entityId: String(e._id),
+      entityLabel: `${e.type || ''} — ${e.note || ''}`,
+      amount: Number(e.amount || 0),
+      method: '',
+      meta: { type: e.type, date, datetime }
+    })
+  } catch {}
+
   res.status(201).json(e)
 }
 

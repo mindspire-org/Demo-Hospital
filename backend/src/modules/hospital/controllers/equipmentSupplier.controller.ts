@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { EquipmentSupplier } from '../models/EquipmentSupplier'
 import { EquipmentExpense } from '../models/EquipmentExpense'
 import { createSupplierSchema, updateSupplierSchema, listSupplierSchema } from '../validators/equipmentSupplier'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 export async function list(req: Request, res: Response) {
   const q = listSupplierSchema.safeParse(req.query)
@@ -120,6 +121,22 @@ export async function addPayment(req: Request, res: Response) {
         referenceDate: date || new Date()
       })
     }
+
+    // Activity log
+    try {
+      logActivity({
+        userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+        userName: String((req as any).user?.username || ''),
+        portal: 'hospital',
+        action: 'Supplier Payment',
+        module: 'Equipment',
+        entityId: String(id),
+        entityLabel: `Payment — ${supplier.name || ''}`,
+        amount: Number(amount || 0),
+        method: String(paymentMethod || ''),
+        meta: { supplierId: id, referenceNo: referenceNo || '', notes: notes || '' }
+      })
+    } catch {}
 
     res.json({ message: 'Payment recorded successfully' })
   } catch (error) {

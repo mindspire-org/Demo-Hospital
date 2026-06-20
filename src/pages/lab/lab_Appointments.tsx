@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, CheckCircle2, XCircle, ListChecks, RefreshCw, Plus, User, Clock, Phone, FlaskConical, Pencil, FileText, Search } from 'lucide-react'
+import { CalendarDays, CheckCircle2, XCircle, ListChecks, RefreshCw, Plus, User, Clock, Phone, FlaskConical, Pencil, FileText, Search, Printer } from 'lucide-react'
 import { labApi } from '../../utils/api'
 import PatientImageCapture from '../../components/lab/PatientImageCapture'
 import { getLocalDate } from '../../utils/date'
@@ -28,6 +28,88 @@ type AppointmentRow = {
 }
 
 function normDigits(s?: string) { return String(s || '').replace(/\D+/g, '').slice(0, 11) }
+
+function printAppointmentCard(row: AppointmentRow, testsMap: Record<string, string>, labSettings?: any) {
+  const settings = labSettings || {}
+  const labName = settings.labName || 'Laboratory'
+  const labPhone = settings.phone || ''
+  const labAddress = settings.address || ''
+  const testNames = (row.tests || []).map(tid => testsMap[tid] || tid).join(', ')
+  const dateStr = row.dateIso ? new Date(row.dateIso).toLocaleDateString() : ''
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Appointment Card</title>
+  <style>
+    @media print { body { margin: 0; } .no-print { display: none; } }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+    .card { width: 340px; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.12); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 24px 20px; text-align: center; }
+    .header h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 0.05em; }
+    .header p { margin: 6px 0 0; font-size: 11px; opacity: 0.9; }
+    .body { padding: 20px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; margin-bottom: 4px; }
+    .field .value { font-size: 14px; font-weight: 700; color: #1e293b; }
+    .field .value-small { font-size: 12px; font-weight: 600; color: #475569; }
+    .barcode-area { text-align: center; padding: 12px; border-top: 1px dashed #e2e8f0; margin-top: 4px; }
+    .barcode-area .barcode { font-family: monospace; font-size: 20px; font-weight: 800; letter-spacing: 2px; color: #0f172a; }
+    .barcode-area .label { font-size: 10px; color: #94a3b8; margin-top: 4px; }
+    .footer { background: #f8fafc; padding: 12px 20px; text-align: center; font-size: 10px; color: #94a3b8; }
+    .no-print { margin-top: 20px; text-align: center; }
+    .no-print button { background: #4f46e5; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h2>${labName}</h2>
+      <p>Appointment Card</p>
+    </div>
+    <div class="body">
+      <div class="field">
+        <label>Patient Name</label>
+        <div class="value">${row.patientName || 'N/A'}</div>
+      </div>
+      <div class="field">
+        <label>MR No / ID</label>
+        <div class="value-small">${row.mrn || 'WALK-IN'}</div>
+      </div>
+      <div class="field">
+        <label>Phone</label>
+        <div class="value-small">${row.phoneNormalized || 'N/A'}</div>
+      </div>
+      <div class="field">
+        <label>Date & Time</label>
+        <div class="value">${dateStr} ${row.time || ''}</div>
+      </div>
+      <div class="field">
+        <label>Tests</label>
+        <div class="value-small">${testNames || 'N/A'}</div>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <div class="value-small" style="text-transform:uppercase">${row.status}</div>
+      </div>
+    </div>
+    <div class="barcode-area">
+      <div class="barcode">${row.mrn || row.id.slice(-8).toUpperCase()}</div>
+      <div class="label">Token Reference</div>
+    </div>
+    <div class="footer">
+      ${labAddress ? labAddress + '<br>' : ''}
+      ${labPhone ? 'Phone: ' + labPhone : ''}
+    </div>
+  </div>
+  <div class="no-print">
+    <button onclick="window.print()">Print Card</button>
+  </div>
+</body>
+</html>`
+  const w = window.open('', '_blank', 'width=420,height=600')
+  if (w) { w.document.write(html); w.document.close() }
+}
 
 export default function Lab_Appointments() {
   const session = useLabSession()
@@ -531,6 +613,7 @@ export default function Lab_Appointments() {
                             {r.status === 'booked' && <button title="Confirm Appointment" onClick={() => setRowStatus(r.id, 'confirmed')} className="p-2 text-emerald-400 hover:text-emerald-700"><CheckCircle2 className="h-4 w-4" /></button>}
                             {r.status !== 'cancelled' && r.status !== 'converted' && <button title="Cancel Appointment" onClick={() => setRowStatus(r.id, 'cancelled')} className="p-2 text-rose-400 hover:text-rose-700"><XCircle className="h-4 w-4" /></button>}
                             {!r.orderId && r.status !== 'cancelled' && session.isMainLab && <button title="Convert to Token" onClick={() => convertToToken(r.id)} className="p-2 text-indigo-500 hover:text-indigo-700"><FlaskConical className="h-4 w-4" /></button>}
+                            <button title="Print Appointment Card" onClick={() => printAppointmentCard(r, testsMap)} className="p-2 text-slate-400 hover:text-slate-900"><Printer className="h-4 w-4" /></button>
                           </div>
                         </td>
                       </tr>

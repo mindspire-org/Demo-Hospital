@@ -112,7 +112,8 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
   const drX = W - mx - 8
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(14)
-  pdf.text(`Dr. ${doctor.name || '-'}`, drX, headerY + 13, { align: 'right' })
+  const drNameMG = String(doctor.name || '-').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drNameMG}`, drX, headerY + 13, { align: 'right' })
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(9)
   const drSub = [doctor.qualification, (doctor as any).specialization].filter(Boolean).join(' • ')
@@ -233,17 +234,26 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     pdf.text('Rx  PRESCRIPTION', mx + 6, y + 6)
     y += 10
 
-    const cols = [6, 40, 20, 20, 24, 16, 20]
-    const headers = ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instruction']
-    const colX = mx + 2
+    // Modern clean medicine table
+    const cols = [6, 52, 24, 24, 28, 18, 22]
+    const cxPos = (idx: number) => {
+      let px = mx + 2
+      for (let k = 0; k < idx; k++) px += cols[k]
+      return px
+    }
+    const headers = isUrdu
+      ? ['#', 'دوا', 'خوراک', 'مدت', 'فریکوئنسی', 'طریقہ', 'ہدایت']
+      : ['#', 'Medicine', 'Dosage', 'Duration', 'Frequency', 'Route', 'Instr']
 
-    pdf.setFillColor(softViolet.r, softViolet.g, softViolet.b)
-    pdf.rect(colX, y - 4, headerW - 4, 6, 'F')
+    pdf.setFillColor(violet.r, violet.g, violet.b)
+    pdf.rect(mx, y - 4, headerW, 6, 'F')
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(7)
-    pdf.setTextColor(violet.r, violet.g, violet.b)
-    let cx = colX
-    headers.forEach((h, i) => { pdf.text(h, cx + 1, y); cx += cols[i] })
+    pdf.setTextColor(255, 255, 255)
+    headers.forEach((h, i) => {
+      const center = cxPos(i) + cols[i] / 2
+      pdf.text(h, center, y, { align: 'center' })
+    })
     y += 5
 
     pdf.setFont('helvetica', 'normal')
@@ -252,30 +262,34 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
     const { translateRxItem } = await import('../../prescriptionUrdu')
     meds.forEach((m, i) => {
       const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
-      if (i % 2 === 0) {
-        pdf.setFillColor(248, 246, 255)
-        pdf.rect(colX, y - 3.5, headerW - 4, 5, 'F')
-      }
-      cx = colX
-      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5)
-      pdf.text(String(i + 1), cx + 1, y); cx += cols[0]
       const mName = String(m?.name || '').trim()
       const mInstr = String(t?.instruction || '').trim()
-      if (hasUrdu(mName)) { pdf.setFontSize(9); safeUrduText(mName, cx + cols[1] - 1, y, { align: 'right' }) }
-      else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mName, cx + 1, y) }
-      cx += cols[1]
-      pdf.setTextColor(dark.r, dark.g, dark.b)
       const mDose = String(t?.dose || '').trim()
       const mDur  = String(t?.duration || '').trim()
       const mFreq = String(t?.frequency || '').trim()
       const mRoute = String(t?.route || '').trim()
-      if (hasUrdu(mDose))  { pdf.setFontSize(9); safeUrduText(mDose,  cx + cols[2] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mDose,  cx + 1, y) }; cx += cols[2]
-      if (hasUrdu(mDur))   { pdf.setFontSize(9); safeUrduText(mDur,   cx + cols[3] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mDur,   cx + 1, y) }; cx += cols[3]
-      if (hasUrdu(mFreq))  { pdf.setFontSize(9); safeUrduText(mFreq,  cx + cols[4] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mFreq,  cx + 1, y) }; cx += cols[4]
-      if (hasUrdu(mRoute)) { pdf.setFontSize(9); safeUrduText(mRoute, cx + cols[5] - 1, y, { align: 'right' }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mRoute, cx + 1, y) }; cx += cols[5]
-      if (hasUrdu(mInstr)) { pdf.setFontSize(9); safeUrduText(mInstr, cx + cols[6] - 1, y, { align: 'right' }) }
-      else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mInstr, cx + 1, y) }
-      y += 5
+
+      if (i % 2 === 0) {
+        pdf.setFillColor(248, 246, 255)
+        pdf.rect(mx, y - 3.5, headerW, 5.5, 'F')
+      }
+
+      const colCenter = (cidx: number) => cxPos(cidx) + cols[cidx] / 2
+
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5)
+      pdf.text(String(i + 1), colCenter(0), y, { align: 'center' })
+
+      if (hasUrdu(mName)) { pdf.setFontSize(9); safeUrduText(mName, cxPos(1) + cols[1] - 2, y, { align: 'right', maxWidth: cols[1] - 4 }) }
+      else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mName, cxPos(1) + 2, y) }
+
+      pdf.setTextColor(dark.r, dark.g, dark.b)
+      if (hasUrdu(mDose))  { pdf.setFontSize(9); safeUrduText(mDose,  colCenter(2), y, { align: 'center', maxWidth: cols[2] - 4 }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mDose,  colCenter(2), y, { align: 'center' }) }
+      if (hasUrdu(mDur))   { pdf.setFontSize(9); safeUrduText(mDur,   colCenter(3), y, { align: 'center', maxWidth: cols[3] - 4 }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mDur,   colCenter(3), y, { align: 'center' }) }
+      if (hasUrdu(mFreq))  { pdf.setFontSize(9); safeUrduText(mFreq,  colCenter(4), y, { align: 'center', maxWidth: cols[4] - 4 }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mFreq,  colCenter(4), y, { align: 'center' }) }
+      if (hasUrdu(mRoute)) { pdf.setFontSize(9); safeUrduText(mRoute, colCenter(5), y, { align: 'center', maxWidth: cols[5] - 4 }) } else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mRoute, colCenter(5), y, { align: 'center' }) }
+      if (hasUrdu(mInstr)) { pdf.setFontSize(9); safeUrduText(mInstr, colCenter(6), y, { align: 'center', maxWidth: cols[6] - 4 }) }
+      else { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(mInstr, colCenter(6), y, { align: 'center' }) }
+      y += 5.5
     })
   }
 
@@ -305,9 +319,10 @@ export async function previewModernGradientPdf(data: ModernGradientPdfData & Ext
   pdf.setFontSize(7)
   pdf.setTextColor(gray.r, gray.g, gray.b)
   pdf.text("Doctor's Signature", mx + 4, signY + 4)
+  const drFootMG = String(doctor.name || '').replace(/^\s*Dr\.?\s*/i, '')
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(dark.r, dark.g, dark.b)
-  pdf.text(`Dr. ${doctor.name || ''}`, mx + 4, signY + 8)
+  pdf.text(`Dr. ${drFootMG}`, mx + 4, signY + 8)
 
   for (let i = 0; i < strips; i++) {
     const t = i / (strips - 1)

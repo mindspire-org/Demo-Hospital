@@ -4,11 +4,8 @@ import { ipdApi } from '../../../../features/hospital/ipd'
 import ConfirmDialog from '../../../common/ConfirmDialog'
 
 const COLUMNS = [
-  { key: 'gloves', label: 'گلووز' },
-  { key: 'mask', label: 'ماسک' },
-  { key: 'gown', label: 'گاؤن' },
-  { key: 'cap', label: 'کپ' },
-  { key: 'isolation', label: 'آئسولیشن' },
+  { key: 'yes', label: 'ھاں' },
+  { key: 'no', label: 'ناں' },
 ] as const
 
 type ColumnKey = (typeof COLUMNS)[number]['key']
@@ -41,11 +38,8 @@ type InfectionControlRecord = {
   rows?: Array<{
     id: number
     text: string
-    gloves?: boolean
-    mask?: boolean
-    gown?: boolean
-    cap?: boolean
-    isolation?: boolean
+    yes?: boolean
+    no?: boolean
   }>
   date?: string
   patientName?: string

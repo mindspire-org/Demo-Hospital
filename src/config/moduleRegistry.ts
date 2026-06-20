@@ -96,6 +96,23 @@ export const MODULE_REGISTRY = {
       nurseAdmin:  { label: 'Nurse Admin',  pathPrefixes: ['/hospital/nurse-admin/'] },
     },
   },
+  camp: {
+    label: 'Medical Camp',
+    subModules: {
+      schedule:      { label: 'Schedule',      pathPrefixes: ['/camp/schedule'] },
+      patients:      { label: 'Patients',      pathPrefixes: ['/camp/patients'] },
+      consultations: { label: 'Consultations', pathPrefixes: ['/camp/consultations'] },
+      prescriptions: { label: 'Prescriptions', pathPrefixes: ['/camp/prescriptions'] },
+      labOrders:     { label: 'Lab Orders',    pathPrefixes: ['/camp/lab-orders'] },
+      diagnostics:   { label: 'Diagnostics',   pathPrefixes: ['/camp/diagnostics'] },
+      dispensing:    { label: 'Dispensing',    pathPrefixes: ['/camp/dispensing'] },
+      staff:         { label: 'Staff',         pathPrefixes: ['/camp/staff'] },
+      reports:       { label: 'Reports',       pathPrefixes: ['/camp/reports'] },
+      settings:      { label: 'Settings',      pathPrefixes: ['/camp/settings'] },
+      users:         { label: 'User Mgmt',     pathPrefixes: ['/camp/users'] },
+      permissions:   { label: 'Permissions',   pathPrefixes: ['/camp/sidebar-permissions'] },
+    },
+  },
 } as const
 
 export type ModuleId = keyof typeof MODULE_REGISTRY

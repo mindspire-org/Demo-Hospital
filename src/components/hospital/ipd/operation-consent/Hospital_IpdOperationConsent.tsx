@@ -19,18 +19,24 @@ type OperationConsentRecord = {
     guardianSign?: string
     date?: string
     time?: string
+    doctorName?: string
+    doctorSign?: string
   }
   operation?: {
     guardianName?: string
     guardianSign?: string
     date?: string
     time?: string
+    doctorName?: string
+    doctorSign?: string
   }
   bloodTransfusion?: {
     guardianName?: string
     guardianSign?: string
     date?: string
     time?: string
+    doctorName?: string
+    doctorSign?: string
   }
   status?: 'draft' | 'partial' | 'completed' | 'cancelled'
   recordedBy?: string
@@ -94,19 +100,25 @@ export default function Hospital_IpdOperationConsent({ encounterId }: { encounte
           guardianSign: d.anesthesiaSign,
           date: d.anesthesiaDate,
           time: d.anesthesiaTime,
-        },
+          doctorName: d.anesthesiaDoctorName,
+          doctorSign: d.anesthesiaDoctorSign,
+        } as any,
         operation: {
           guardianName: d.operationGuardian,
           guardianSign: d.operationSign,
           date: d.operationDate,
           time: d.operationTime,
-        },
+          doctorName: d.operationDoctorName,
+          doctorSign: d.operationDoctorSign,
+        } as any,
         bloodTransfusion: {
           guardianName: d.bloodGuardian,
           guardianSign: d.bloodSign,
           date: d.bloodDate,
           time: d.bloodTime,
-        },
+          doctorName: d.bloodDoctorName,
+          doctorSign: d.bloodDoctorSign,
+        } as any,
         status: 'completed',
         recordedBy: d.doctorName,
       })
@@ -129,19 +141,25 @@ export default function Hospital_IpdOperationConsent({ encounterId }: { encounte
           guardianSign: d.anesthesiaSign,
           date: d.anesthesiaDate,
           time: d.anesthesiaTime,
-        },
+          doctorName: d.anesthesiaDoctorName,
+          doctorSign: d.anesthesiaDoctorSign,
+        } as any,
         operation: {
           guardianName: d.operationGuardian,
           guardianSign: d.operationSign,
           date: d.operationDate,
           time: d.operationTime,
-        },
+          doctorName: d.operationDoctorName,
+          doctorSign: d.operationDoctorSign,
+        } as any,
         bloodTransfusion: {
           guardianName: d.bloodGuardian,
           guardianSign: d.bloodSign,
           date: d.bloodDate,
           time: d.bloodTime,
-        },
+          doctorName: d.bloodDoctorName,
+          doctorSign: d.bloodDoctorSign,
+        } as any,
       })
       setEditingId(null); setEditingData(null); await reload()
     }catch(e: any){ alert(e?.message || 'Failed to update consent form') }
@@ -303,15 +321,15 @@ function OperationConsentDisplay({ data, settings, defaults, printMode }: { data
       <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
         <div className="flex gap-2">
           <span className="font-semibold whitespace-nowrap">Doctor Name:</span>
-          <span className="border-b border-slate-400 flex-1">{data.doctorName || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{data.anesthesia?.doctorName || data.doctorName || ''}</span>
         </div>
         <div className="flex gap-2">
           <span className="font-semibold">Sign:</span>
-          <span className="border-b border-slate-400 flex-1">{data.doctorSign || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{data.anesthesia?.doctorSign || data.doctorSign || ''}</span>
         </div>
         <div className="flex gap-2">
           <span className="font-semibold">Date:</span>
-          <span className="border-b border-slate-400 flex-1">{fmtDate(data.date) || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{fmtDate(data.anesthesia?.date || data.date) || ''}</span>
         </div>
       </div>
     </div>
@@ -346,15 +364,15 @@ function OperationConsentDisplay({ data, settings, defaults, printMode }: { data
       <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
         <div className="flex gap-2">
           <span className="font-semibold whitespace-nowrap">Doctor Name:</span>
-          <span className="border-b border-slate-400 flex-1">{data.doctorName || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{data.operation?.doctorName || data.doctorName || ''}</span>
         </div>
         <div className="flex gap-2">
           <span className="font-semibold">Sign:</span>
-          <span className="border-b border-slate-400 flex-1">{data.doctorSign || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{data.operation?.doctorSign || data.doctorSign || ''}</span>
         </div>
         <div className="flex gap-2">
           <span className="font-semibold">Date:</span>
-          <span className="border-b border-slate-400 flex-1">{fmtDate(data.date) || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{fmtDate(data.operation?.date || data.date) || ''}</span>
         </div>
       </div>
     </div>
@@ -390,15 +408,15 @@ function OperationConsentDisplay({ data, settings, defaults, printMode }: { data
       <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
         <div className="flex gap-2">
           <span className="font-semibold whitespace-nowrap">Doctor Name:</span>
-          <span className="border-b border-slate-400 flex-1">{data.doctorName || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{data.bloodTransfusion?.doctorName || data.doctorName || ''}</span>
         </div>
         <div className="flex gap-2">
           <span className="font-semibold">Sign:</span>
-          <span className="border-b border-slate-400 flex-1">{data.doctorSign || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{data.bloodTransfusion?.doctorSign || data.doctorSign || ''}</span>
         </div>
         <div className="flex gap-2">
           <span className="font-semibold">Date:</span>
-          <span className="border-b border-slate-400 flex-1">{fmtDate(data.date) || ''}</span>
+          <span className="border-b border-slate-400 flex-1">{fmtDate(data.bloodTransfusion?.date || data.date) || ''}</span>
         </div>
       </div>
     </div>
@@ -487,14 +505,20 @@ function OperationConsentDialog({
     anesthesiaSign: initial?.anesthesia?.guardianSign || '',
     anesthesiaDate: initial?.anesthesia?.date || new Date().toISOString().slice(0, 10),
     anesthesiaTime: initial?.anesthesia?.time || new Date().toTimeString().slice(0, 5),
+    anesthesiaDoctorName: initial?.anesthesia?.doctorName || defaults?.doctorName || '',
+    anesthesiaDoctorSign: initial?.anesthesia?.doctorSign || '',
     operationGuardian: initial?.operation?.guardianName || defaults?.fatherName || '',
     operationSign: initial?.operation?.guardianSign || '',
     operationDate: initial?.operation?.date || new Date().toISOString().slice(0, 10),
     operationTime: initial?.operation?.time || new Date().toTimeString().slice(0, 5),
+    operationDoctorName: initial?.operation?.doctorName || defaults?.doctorName || '',
+    operationDoctorSign: initial?.operation?.doctorSign || '',
     bloodGuardian: initial?.bloodTransfusion?.guardianName || defaults?.fatherName || '',
     bloodSign: initial?.bloodTransfusion?.guardianSign || '',
     bloodDate: initial?.bloodTransfusion?.date || new Date().toISOString().slice(0, 10),
     bloodTime: initial?.bloodTransfusion?.time || new Date().toTimeString().slice(0, 5),
+    bloodDoctorName: initial?.bloodTransfusion?.doctorName || defaults?.doctorName || '',
+    bloodDoctorSign: initial?.bloodTransfusion?.doctorSign || '',
   })
 
   useEffect(() => {
@@ -657,6 +681,29 @@ function OperationConsentDialog({
                 />
               </div>
             </div>
+            {/* Doctor Row */}
+            <div className="grid grid-cols-3 gap-3 border-t border-slate-200 pt-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Doctor Name</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.anesthesiaDoctorName}
+                  onChange={(e) => setForm({ ...form, anesthesiaDoctorName: e.target.value })}
+                  placeholder="Anesthesiologist / Doctor"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Doctor Sign</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.anesthesiaDoctorSign}
+                  onChange={(e) => setForm({ ...form, anesthesiaDoctorSign: e.target.value })}
+                  placeholder="Sign"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Operation Consent Section */}
@@ -706,6 +753,29 @@ function OperationConsentDialog({
                   className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
                   value={form.operationTime}
                   onChange={(e) => setForm({ ...form, operationTime: e.target.value })}
+                />
+              </div>
+            </div>
+            {/* Doctor Row */}
+            <div className="grid grid-cols-3 gap-3 border-t border-slate-200 pt-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Doctor Name</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.operationDoctorName}
+                  onChange={(e) => setForm({ ...form, operationDoctorName: e.target.value })}
+                  placeholder="Surgeon / Doctor"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Doctor Sign</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.operationDoctorSign}
+                  onChange={(e) => setForm({ ...form, operationDoctorSign: e.target.value })}
+                  placeholder="Sign"
                 />
               </div>
             </div>
@@ -759,6 +829,29 @@ function OperationConsentDialog({
                   className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
                   value={form.bloodTime}
                   onChange={(e) => setForm({ ...form, bloodTime: e.target.value })}
+                />
+              </div>
+            </div>
+            {/* Doctor Row */}
+            <div className="grid grid-cols-3 gap-3 border-t border-slate-200 pt-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Doctor Name</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.bloodDoctorName}
+                  onChange={(e) => setForm({ ...form, bloodDoctorName: e.target.value })}
+                  placeholder="Doctor"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Doctor Sign</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  value={form.bloodDoctorSign}
+                  onChange={(e) => setForm({ ...form, bloodDoctorSign: e.target.value })}
+                  placeholder="Sign"
                 />
               </div>
             </div>

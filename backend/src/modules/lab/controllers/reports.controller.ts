@@ -49,6 +49,7 @@ export async function summary(req: Request, res: Response){
   res.set('Expires', '0')
 
   const { from, to } = rangeFromQuery(req.query)
+  const { collectionCenterId, wardId, referringDoctorId } = req.query as any
 
   // Fetch all required data in one go
   // Include non-corporate orders OR corporate orders with co-pay (net > 0)
@@ -59,17 +60,31 @@ export async function summary(req: Request, res: Response){
       { corporateId: { $exists: true }, net: { $gt: 0 } },
     ],
   }
+  const tokenMatch: any = {
+    status: 'token_generated',
+    createdAt: { $gte: from, $lte: to },
+    $or: [
+      { corporateId: { $exists: false } },
+      { corporateId: { $exists: true }, net: { $gt: 0 } },
+    ],
+  }
+  if (collectionCenterId) {
+    orderMatch.collectionCenterId = collectionCenterId
+    tokenMatch.collectionCenterId = collectionCenterId
+  }
+  if (wardId) {
+    orderMatch.wardId = wardId
+    tokenMatch.wardId = wardId
+  }
+  if (referringDoctorId) {
+    orderMatch.referringDoctorId = referringDoctorId
+    tokenMatch.referringDoctorId = referringDoctorId
+  }
+
   const [ordersRaw, tokensRaw, expensesRaw, purchasesRaw] = await Promise.all([
     LabOrder.find(orderMatch).select('createdAt tests net status tokenNo receivedAmount receivableAmount testStatuses').lean(),
     // Include unconverted tokens (token_generated) as part of finance, with co-pay only for corporate
-    LabToken.find({
-      status: 'token_generated',
-      createdAt: { $gte: from, $lte: to },
-      $or: [
-        { corporateId: { $exists: false } },
-        { corporateId: { $exists: true }, net: { $gt: 0 } },
-      ],
-    }).select('createdAt tests net receivedAmount receivableAmount corporateId').lean(),
+    LabToken.find(tokenMatch).select('createdAt tests net receivedAmount receivableAmount corporateId').lean(),
     LabExpense.find({}).lean(), // we'll filter by date below since it's a string
     LabPurchase.find({}).lean(), // filter by string date like expenses
   ])
@@ -199,7 +214,7 @@ export async function summary(req: Request, res: Response){
     },
   ])
   // Add unconverted tokens received/receivable
-  const tokenMatch: any = {
+  const tokenAggMatch: any = {
     status: 'token_generated',
     $or: [
       { corporateId: { $exists: false } },
@@ -207,12 +222,15 @@ export async function summary(req: Request, res: Response){
     ],
   }
   if (from || to) {
-    tokenMatch.createdAt = {}
-    if (from) tokenMatch.createdAt.$gte = from
-    if (to) tokenMatch.createdAt.$lte = to
+    tokenAggMatch.createdAt = {}
+    if (from) tokenAggMatch.createdAt.$gte = from
+    if (to) tokenAggMatch.createdAt.$lte = to
   }
+  if (collectionCenterId) tokenAggMatch.collectionCenterId = collectionCenterId
+  if (wardId) tokenAggMatch.wardId = wardId
+  if (referringDoctorId) tokenAggMatch.referringDoctorId = referringDoctorId
   const tokenStageAgg = await LabToken.aggregate([
-    { $match: tokenMatch },
+    { $match: tokenAggMatch },
     {
       $group: {
         _id: null,

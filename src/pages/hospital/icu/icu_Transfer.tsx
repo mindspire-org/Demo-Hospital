@@ -52,7 +52,7 @@ export default function ICU_Transfer() {
 
   async function loadWards() {
     try {
-      const res = await hospitalApi.listWards({ active: true }) as any
+      const res = await hospitalApi.listWards() as any
       setWards(res?.wards || [])
     } catch {}
   }
@@ -82,7 +82,7 @@ export default function ICU_Transfer() {
   }
 
   const patientName = selectedAdmission?.patientId
-    ? `${selectedAdmission.patientId.firstName || ''} ${selectedAdmission.patientId.lastName || ''}`.trim() || 'Unknown'
+    ? String(selectedAdmission.patientId.fullName || selectedAdmission.patientId.name || 'Unknown')
     : 'Select Patient'
 
   const destinations = [
@@ -116,7 +116,7 @@ export default function ICU_Transfer() {
             <div className="space-y-2 max-h-96 overflow-auto">
               {admissions.map((adm) => {
                 const name = adm.patientId
-                  ? `${adm.patientId.firstName || ''} ${adm.patientId.lastName || ''}`.trim() || 'Unknown'
+                  ? String(adm.patientId.fullName || adm.patientId.name || 'Unknown')
                   : 'Unknown'
                 const isSelected = selectedAdmission?._id === adm._id
                 return (

@@ -9,6 +9,27 @@ function currency(n: number){ return `Rs ${Number(n||0).toFixed(2)}` }
 function escapeHtml(x: any){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;') }
 function fmtTime12(iso: string){ try{ const d=new Date(iso); if(isNaN(d.getTime())) return '-'; const PAK=5*60*60*1000; const t=new Date(d.getTime()+PAK); let h=t.getUTCHours(); const m=String(t.getUTCMinutes()).padStart(2,'0'); const s=String(t.getUTCSeconds()).padStart(2,'0'); const am=h<12; const h12=(h%12)||12; const hh=String(h12).padStart(2,'0'); return `${hh}:${m}:${s} ${am?'AM':'PM'}` }catch{ return '-' } }
 
+// Print history tracking (shared across hospital/reception)
+const PRINT_HISTORY_KEY = 'hospital.ipd.printHistory'
+interface PrintHistory { firstPrintAt: string; printCount: number }
+function recordPrint(encounterId: string): PrintHistory {
+  try {
+    const raw = localStorage.getItem(PRINT_HISTORY_KEY) || '{}'
+    const all = JSON.parse(raw)
+    const existing = all[encounterId]
+    const now = new Date().toISOString()
+    const updated: PrintHistory = existing
+      ? { firstPrintAt: existing.firstPrintAt, printCount: existing.printCount + 1 }
+      : { firstPrintAt: now, printCount: 1 }
+    all[encounterId] = updated
+    localStorage.setItem(PRINT_HISTORY_KEY, JSON.stringify(all))
+    return updated
+  } catch {
+    const now = new Date().toISOString()
+    return { firstPrintAt: now, printCount: 1 }
+  }
+}
+
 export default function Reception_IPDTransactions(){
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<any[]>([])
@@ -37,7 +58,7 @@ export default function Reception_IPDTransactions(){
         const pays = (paymentsArrays[i]?.payments || [])
         for (const p of pays){
           flat.push({
-            id: String(p._id||Math.random()),
+            id: `${String(e._id)}-${String(p._id||Math.random())}`,
             encounterId: String(e._id),
             admissionNo: e.admissionNo || '-',
             patientName: e.patientId?.fullName || '-',
@@ -80,7 +101,8 @@ export default function Reception_IPDTransactions(){
       const enc = (encRes||{}).encounter
       const charges = (chRes.items||[])
       const payments = (payRes.payments||[])
-      await printReceiptHtml(enc, charges, payments)
+      const printHistory = recordPrint(rec.encounterId)
+      await printReceiptHtml(enc, charges, payments, printHistory)
     }catch{}
   }
 
@@ -125,15 +147,18 @@ export default function Reception_IPDTransactions(){
     }
   }
 
-  async function printReceiptHtml(enc: any, charges: any[], payments: any[]){
+  async function printReceiptHtml(enc: any, charges: any[], payments: any[], printHistory?: PrintHistory){
     const s: any = await hospitalApi.getSettings().catch(()=>({}))
     const name = s?.name || 'Hospital'
     const address = s?.address || '-'
     const phone = s?.phone || ''
     const logo = s?.logoDataUrl || ''
     const nowIso = new Date().toISOString()
+    const isReprint = (printHistory?.printCount || 1) > 1
+    const firstPrintAt = printHistory?.firstPrintAt || nowIso
 
     const total = charges.reduce((sum:number,c:any)=> sum + Number(c.amount||0), 0)
+    const packageAmount = Number(enc?.packageAmount || 0)
 
     // Total paid = (advance + cash payments) - advance returns - refunds
     const grossPaid = payments.reduce((s:number,p:any)=>{
@@ -155,126 +180,162 @@ export default function Reception_IPDTransactions(){
     const age = String(patient?.age || '-');
     const gender = String(patient?.gender || '-');
 
+    const isFullyPaid = grossPaid >= total
     const linesHtml = charges.length
       ? charges.map((c:any, idx:number) => {
           const qty = Number(c.qty || 1)
-          const paid = Number(c.paidAmount || 0)
+          const itemPaid = Number(c.paidAmount || 0)
           const amt = Number(c.amount || 0)
-          const remaining = Math.max(0, amt - paid)
-          const status = remaining <= 0 ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'UNPAID')
+          const remaining = Math.max(0, amt - itemPaid)
+          const statusCls = isFullyPaid ? 'badge-paid' : (remaining <= 0 ? 'badge-paid' : (itemPaid > 0 ? 'badge-partial' : 'badge-unpaid'))
+          const statusText = isFullyPaid ? 'PAID' : (remaining <= 0 ? 'PAID' : (itemPaid > 0 ? 'PARTIAL' : 'UNPAID'))
           return `<tr>
-            <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center">${idx + 1}</td>
-            <td style="padding:6px 8px;border:1px solid #cbd5e1">${escapeHtml(c.description||'')}</td>
-            <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center">${qty}</td>
-            <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:right">${currency(amt)}</td>
-            <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center">${status}</td>
+            <td class="center">${idx + 1}</td>
+            <td>${escapeHtml(c.description||'')}</td>
+            <td class="center">${qty}</td>
+            <td class="right">${currency(amt)}</td>
+            <td class="center"><span class="badge ${statusCls}">${statusText}</span></td>
           </tr>`
         }).join('')
       : `<tr><td colspan="5" style="padding:16px 8px;text-align:center;color:#94a3b8">No charges</td></tr>`
 
     const paysHtml = payments.length
       ? payments.map((p:any) => `<tr>
-        <td style="padding:6px 8px;border:1px solid #cbd5e1">${fmtDateTime12(p.receivedAt||nowIso)}</td>
-        <td style="padding:6px 8px;border:1px solid #cbd5e1">${escapeHtml(p.method||'-')}</td>
-        <td style="padding:6px 8px;border:1px solid #cbd5e1">${escapeHtml(p.refNo||'')}</td>
-        <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:right">${currency(Number(p.amount||0))}</td>
+        <td>${fmtDateTime12(p.receivedAt||nowIso)}</td>
+        <td>${escapeHtml(p.method||'-')}</td>
+        <td>${escapeHtml(p.refNo||'')}</td>
+        <td class="right">${currency(Number(p.amount||0))}</td>
       </tr>`).join('')
       : `<tr><td colspan="4" style="padding:16px 8px;text-align:center;color:#94a3b8">No payments</td></tr>`
 
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>IPD Final Invoice</title>
       <style>
-        @page { size: A4 portrait; margin: 10mm }
-        body{ font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; color:#0f172a; font-size:13px; line-height:1.35 }
-        .wrap{ width:100%; max-width: 190mm; margin: 0 auto }
-        .hdr{ display:flex; align-items:center; gap:12px; margin-bottom:8px }
-        .logo img{ height:56px; width:auto; object-fit:contain }
-        .hinfo{ text-align:center; flex:1 }
-        .htitle{ font-size:22px; font-weight:800; color:#2563eb; letter-spacing:0.5px }
-        .muted{ color:#475569; font-size:12px }
-        .hr{ border-bottom:1px solid #0ea5e9; margin:10px 0 }
-        .section-title{ font-size:16px; font-weight:700; margin:14px 0 8px }
-        .box{ border:1px solid #0f172a; border-radius:6px; padding:10px 14px; margin:10px 0 }
-        .kv-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:6px 24px; font-size:13px }
-        .kv-item b{ margin-right:4px }
-        table{ width:100%; border-collapse:collapse; font-size:13px }
-        th{ background:#f1f5f9; text-align:left; padding:8px; border:1px solid #0f172a; font-weight:700 }
-        td{ vertical-align:top }
+        @page { size: A4 portrait; margin: 12mm }
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+        body{ font-family: 'Poppins', ui-sans-serif, system-ui, Roboto, Arial, sans-serif; color:#1e293b; font-size:12px; line-height:1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .wrap{ width:100%; max-width: 186mm; margin: 0 auto }
+
+        /* Header */
+        .header{ text-align:center; padding: 10px 16px; background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color:#fff; border-radius: 6px 6px 0 0 }
+        .header .logo img{ height:40px; width:auto; object-fit:contain; filter: brightness(0) invert(1); }
+        .header .hname{ font-size:20px; font-weight:800; letter-spacing:0.3px; margin: 4px 0 1px }
+        .header .htag{ font-size:10px; opacity:0.85; text-transform:uppercase; letter-spacing:1.5px }
+        .header .hcontact{ font-size:10px; opacity:0.9; margin-top:2px }
+        .inv-bar{ background:#f8fafc; padding:6px 16px; border-left:3px solid #2563eb; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center }
+        .inv-bar .inv-title{ font-size:15px; font-weight:700; color:#1e3a5f }
+        .inv-bar .inv-meta{ font-size:10px; color:#64748b }
+        .patient-card{ padding:8px 16px; border:1px solid #e2e8f0; border-top:none; background:#fff }
+        .patient-card .grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap: 4px 24px }
+        .patient-card .item{ display:flex; font-size:11px }
+        .patient-card .item .lbl{ color:#64748b; min-width:100px; font-weight:500 }
+        .patient-card .item .val{ color:#1e293b; font-weight:600 }
+        .sec-header{ background:#f1f5f9; padding:5px 16px; font-size:11px; font-weight:700; color:#1e3a5f; text-transform:uppercase; letter-spacing:0.5px; border-left:3px solid #2563eb; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0 }
+        table{ width:100%; border-collapse:collapse; font-size:11px }
+        thead th{ background:#f8fafc; padding:5px 8px; text-align:left; font-weight:700; color:#475569; border-bottom:1px solid #cbd5e1; border-right:1px solid #e2e8f0 }
+        thead th:last-child{ border-right:none }
+        tbody td{ padding:4px 8px; border-bottom:1px solid #e2e8f0; border-right:1px solid #f1f5f9; vertical-align:top; color:#334155 }
+        tbody td:last-child{ border-right:none }
+        tbody tr:nth-child(even){ background:#fafbfc }
+        tfoot td{ padding:6px 8px; background:#f8fafc; border-top:1px solid #cbd5e1; font-weight:700; color:#1e293b }
         .right{ text-align:right }
-        .summary-row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #e2e8f0; font-size:13px }
-        .summary-row:last-child{ border-bottom:none }
-        .summary-row .label{ font-weight:700 }
-        .green{ color:#16a34a; font-weight:700 }
-        .red{ color:#dc2626; font-weight:700 }
-        .footer{ text-align:center; color:#64748b; margin-top:14px; font-size:11px }
+        .center{ text-align:center }
+        .badge{ display:inline-block; padding:1px 6px; border-radius:10px; font-size:9px; font-weight:700; text-transform:uppercase }
+        .badge-paid{ background:#dcfce7; color:#166534 }
+        .badge-partial{ background:#fef3c7; color:#92400e }
+        .badge-unpaid{ background:#fee2e2; color:#991b1b }
+        .summary-box{ margin-top:10px; border:1px solid #e2e8f0; border-radius:4px; overflow:hidden }
+        .summary-box .row{ display:flex; justify-content:space-between; padding:6px 16px; border-bottom:1px solid #e2e8f0; font-size:12px }
+        .summary-box .row:last-child{ border-bottom:none }
+        .summary-box .row .lbl{ color:#475569; font-weight:600 }
+        .summary-box .row .amt{ font-weight:700 }
+        .summary-box .total-row{ background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color:#fff }
+        .summary-box .total-row .lbl, .summary-box .total-row .amt{ color:#fff }
+        .signatures{ display:flex; justify-content:space-between; margin-top:16px; padding: 0 16px }
+        .sign-box{ text-align:center; width:140px }
+        .sign-line{ border-top:1px solid #94a3b8; padding-top:4px; font-size:10px; color:#64748b }
+        .footer-note{ text-align:center; margin-top:12px; padding:8px; color:#94a3b8; font-size:9px; border-top:1px solid #e2e8f0 }
       </style></head><body>
       <div class="wrap">
-        <div class="hdr">
+        <div class="header">
           <div class="logo">${logo? `<img src="${escapeHtml(logo)}" alt="logo"/>` : ''}</div>
-          <div class="hinfo">
-            <div class="htitle">${escapeHtml(name)}</div>
-            <div class="muted">${escapeHtml(address)}</div>
-            <div class="muted">Tel: ${escapeHtml(phone)}</div>
+          <div class="hname">${escapeHtml(name)}</div>
+          <div class="htag">In-Patient Department</div>
+          <div class="hcontact">${escapeHtml(address)} &nbsp;|&nbsp; Tel: ${escapeHtml(phone)}</div>
+        </div>
+
+        <div class="inv-bar">
+          <div class="inv-title">IPD Final Invoice</div>
+          <div class="inv-meta">Invoice Date: ${fmtDate(nowIso)} &nbsp;|&nbsp; Admission: ${escapeHtml(enc?.admissionNo||'-')}</div>
+        </div>
+        <div class="print-meta" style="padding:4px 16px;background:#f8fafc;border-left:3px solid #2563eb;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;font-size:10px;color:#475569;display:flex;gap:16px;flex-wrap:wrap">
+          ${isReprint
+            ? `<span><strong>First Printed:</strong> ${fmtDateTime12(firstPrintAt)}</span><span style="color:#dc2626"><strong>Duplicate Print:</strong> ${fmtDateTime12(nowIso)}</span>`
+            : `<span><strong>Printed:</strong> ${fmtDateTime12(nowIso)}</span>`
+          }
+        </div>
+
+        <div class="patient-card">
+          <div class="grid">
+            <div class="item"><span class="lbl">Patient Name</span><span class="val">${escapeHtml(patientName)}</span></div>
+            <div class="item"><span class="lbl">MR #</span><span class="val">${escapeHtml(mrn)}</span></div>
+            <div class="item"><span class="lbl">Father / Guardian</span><span class="val">${escapeHtml(fatherName)}</span></div>
+            <div class="item"><span class="lbl">Age / Gender</span><span class="val">${escapeHtml(age)} / ${escapeHtml(gender)}</span></div>
+            <div class="item"><span class="lbl">Phone</span><span class="val">${escapeHtml(patientPhone)}</span></div>
+            <div class="item"><span class="lbl">Address</span><span class="val">${escapeHtml(patientAddress)}</span></div>
+            <div class="item"><span class="lbl">Admission Date</span><span class="val">${fmtDate(startAt)} at ${fmtTime12(startAt)}</span></div>
+            ${isDischarged ? `<div class="item"><span class="lbl">Discharge Date</span><span class="val">${fmtDate(endAt)} at ${fmtTime12(endAt)}</span></div>` : '<div class="item"><span class="lbl">Status</span><span class="val" style="color:#2563eb">Admitted</span></div>'}
           </div>
         </div>
-        <div class="hr"></div>
 
-        <div class="section-title">IPD Final Invoice</div>
+        <div class="sec-header">Services & Charges</div>
+        <table>
+          <thead>
+            <tr>
+              <th class="center" style="width:40px">#</th>
+              <th>Description</th>
+              <th class="center" style="width:50px">Qty</th>
+              <th class="right" style="width:100px">Amount</th>
+              <th class="center" style="width:80px">Status</th>
+            </tr>
+          </thead>
+          <tbody>${linesHtml}</tbody>
+          ${charges.length ? `<tfoot><tr><td colspan="3" class="right">Total Charges</td><td class="right">${currency(total)}</td><td></td></tr></tfoot>` : ''}
+        </table>
 
-        <div class="box">
-          <div class="kv-grid">
-            <div class="kv-item"><b>MR #</b> ${escapeHtml(mrn)}</div>
-            <div class="kv-item"><b>Pt. Name</b> ${escapeHtml(patientName)}</div>
-            <div class="kv-item"><b>Father Name</b> ${escapeHtml(fatherName)}</div>
-            <div class="kv-item"><b>Age / Gender</b> ${escapeHtml(age)} / ${escapeHtml(gender)}</div>
-            <div class="kv-item"><b>Phone</b> ${escapeHtml(patientPhone)}</div>
-            <div class="kv-item"><b>Address</b> ${escapeHtml(patientAddress)}</div>
-            <div class="kv-item"><b>Admission No</b> ${escapeHtml(enc?.admissionNo||'-')}</div>
-            <div class="kv-item"><b>Date Of Admission</b> ${fmtDate(startAt)}</div>
-            <div class="kv-item"><b>Time Of Admission</b> ${fmtTime12(startAt)}</div>
-            ${isDischarged ? `<div class="kv-item"><b>Date Of Discharge</b> ${fmtDate(endAt)}</div><div class="kv-item"><b>Time Of Discharge</b> ${fmtTime12(endAt)}</div>` : ''}
+        <div class="sec-header" style="margin-top:16px">Payment History</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:130px">Date / Time</th>
+              <th>Method</th>
+              <th style="width:100px">Ref #</th>
+              <th class="right" style="width:100px">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${paysHtml}</tbody>
+          ${payments.length ? `<tfoot><tr><td colspan="3" class="right">Total Paid</td><td class="right" style="color:#16a34a">${currency(grossPaid)}</td></tr></tfoot>` : ''}
+        </table>
+
+        <div class="summary-box">
+          <div class="row"><span class="lbl">Package Amount</span><span class="amt" style="color:#7c3aed">${currency(packageAmount)}</span></div>
+          <div class="row"><span class="lbl">Total Bill (Services)</span><span class="amt">${currency(total)}</span></div>
+          <div class="row"><span class="lbl">Total Paid</span><span class="amt" style="color:#16a34a">${currency(grossPaid)}</span></div>
+          <div class="row total-row"><span class="lbl">Balance / Net Due</span><span class="amt">${currency(Math.max(0, Math.max(packageAmount, total) - grossPaid))}</span></div>
+        </div>
+
+        <div class="signatures">
+          <div class="sign-box">
+            <div class="sign-line">Patient / Attendant Signature</div>
+          </div>
+          <div class="sign-box">
+            <div class="sign-line">Accounts Officer</div>
+          </div>
+          <div class="sign-box">
+            <div class="sign-line">Authorized Signature</div>
           </div>
         </div>
 
-        <div class="box" style="padding:0; overflow:hidden">
-          <div style="padding:10px 14px; font-weight:700; border-bottom:1px solid #0f172a">Charges</div>
-          <table>
-            <thead>
-              <tr>
-                <th style="width:40px;text-align:center">#</th>
-                <th>Description</th>
-                <th style="width:60px;text-align:center">Qty</th>
-                <th class="right" style="width:100px">Amount</th>
-                <th style="width:80px;text-align:center">Status</th>
-              </tr>
-            </thead>
-            <tbody>${linesHtml}</tbody>
-            ${charges.length ? `<tfoot><tr><td colspan="3" style="padding:8px;border:1px solid #0f172a;text-align:right;font-weight:700">Total</td><td style="padding:8px;border:1px solid #0f172a;text-align:right;font-weight:700">${currency(total)}</td><td style="padding:8px;border:1px solid #0f172a"></td></tr></tfoot>` : ''}
-          </table>
-        </div>
-
-        <div class="box" style="padding:0; overflow:hidden">
-          <div style="padding:10px 14px; font-weight:700; border-bottom:1px solid #0f172a">Payments</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Date/Time</th>
-                <th>Method</th>
-                <th>Ref</th>
-                <th class="right" style="width:100px">Amount</th>
-              </tr>
-            </thead>
-            <tbody>${paysHtml}</tbody>
-            ${payments.length ? `<tfoot><tr><td colspan="3" style="padding:8px;border:1px solid #0f172a;text-align:right;font-weight:700">Total Paid</td><td style="padding:8px;border:1px solid #0f172a;text-align:right;font-weight:700">${currency(grossPaid)}</td></tr></tfoot>` : ''}
-          </table>
-        </div>
-
-        <div class="box">
-          <div class="summary-row"><span class="label">Total Bill</span><span>${currency(total)}</span></div>
-          <div class="summary-row"><span class="label">Total Paid</span><span class="green">${currency(grossPaid)}</span></div>
-          <div class="summary-row"><span class="label">Balance</span><span class="green">${currency(Math.abs(total - grossPaid))}</span></div>
-        </div>
-
-        <div class="footer">System Generated Receipt</div>
+        <div class="footer-note">This is a computer generated invoice and does not require a physical signature. For queries, please contact the hospital administration.</div>
       </div>
     </body></html>`
     try{

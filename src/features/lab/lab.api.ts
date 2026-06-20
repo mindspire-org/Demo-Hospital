@@ -319,8 +319,9 @@ export const labApi = {
   // -------------------------------------------------------------------------
   // Dashboard & Reports
   // -------------------------------------------------------------------------
-  dashboardSummary: () => api('/lab/dashboard/summary'),
-  reportsSummary: (params?: { from?: string; to?: string }) =>
+  dashboardSummary: (params?: { collectionCenterId?: string; wardId?: string; referringDoctorId?: string }) =>
+    api(withQuery('/lab/dashboard/summary', params)),
+  reportsSummary: (params?: { from?: string; to?: string; collectionCenterId?: string; wardId?: string; referringDoctorId?: string }) =>
     api(withQuery('/lab/reports/summary', params)),
 
   // -------------------------------------------------------------------------
@@ -372,6 +373,19 @@ export const labApi = {
     api(`/lab/collection-centers/${id}/record-payment`, { method: 'POST', body: JSON.stringify(data) }),
   getCollectionCenterPaymentHistory: (id: string) =>
     api(`/lab/collection-centers/${id}/payment-history`),
+
+  // -------------------------------------------------------------------------
+  // Doctors (Referral)
+  // -------------------------------------------------------------------------
+  listDoctors: () => api('/lab/doctors'),
+  getDoctor: (id: string) => api(`/lab/doctors/${id}`),
+  createDoctor: (data: any) => api('/lab/doctors', { method: 'POST', body: JSON.stringify(data) }),
+  updateDoctor: (id: string, data: any) => api(`/lab/doctors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDoctor: (id: string) => api(`/lab/doctors/${id}`, { method: 'DELETE' }),
+  getDoctorStats: (params?: { from?: string; to?: string; doctorId?: string }) =>
+    api(withQuery('/lab/doctors/stats/summary', params)),
+  getDoctorDetailStats: (id: string, params?: { from?: string; to?: string }) =>
+    api(withQuery(`/lab/doctors/${id}/detail-stats`, params)),
 }
 
 export default labApi

@@ -179,6 +179,22 @@ export default function Lab_Orders() {
     let mounted = true
     ;(async () => {
       try {
+        const [settingsRes, doctorsRes] = await Promise.all([
+          labApi.getSettings(),
+          labApi.listDoctors()
+        ])
+        if (!mounted) return
+        setDoctorReferralEnabled(!!settingsRes.doctorReferralEnabled)
+        setDoctors((doctorsRes.items || []).map((d: any) => ({ _id: d._id, name: d.name })))
+      } catch {}
+    })()
+    return () => { mounted = false }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
         const res: any = await labApi.listPackages({ active: 'true', limit: 100 })
         if (!mounted) return
         setPackages((res.items || []).map((x: any) => ({ id: String(x._id), name: x.name, price: Number(x.price || 0), discountPct: Number(x.discountPct || 0), tests: Array.isArray(x.tests) ? x.tests.map((t: any) => ({ testId: String(t.testId), testName: String(t.testName || ''), price: Number(t.price || 0) })) : [] })) )
@@ -202,6 +218,9 @@ export default function Lab_Orders() {
   const [mrNumber, setMrNumber] = useState('')
   const [referring, setReferring] = useState('')
   const [fromReferralId, setFromReferralId] = useState<string>('')
+  const [doctors, setDoctors] = useState<Array<{ _id: string; name: string }>>([])
+  const [selectedDoctorId, setSelectedDoctorId] = useState('')
+  const [doctorReferralEnabled, setDoctorReferralEnabled] = useState(false)
 
   const [patientPickOpen, setPatientPickOpen] = useState(false)
   const [patientPickMatches, setPatientPickMatches] = useState<any[]>([])
@@ -669,7 +688,6 @@ export default function Lab_Orders() {
       let tokenNo = ''
       let createdAtIso = ''
       let createdToken: any = null
-      let convertedOrderId = ''
       if (isEditMode) {
         if (!tokenId) return
         const tokenData: any = {
@@ -679,6 +697,8 @@ export default function Lab_Orders() {
           packageIds: selectedPackageIds.length ? selectedPackageIds : undefined,
           sampleType,
           referringConsultant: referring.trim() || undefined,
+          referringDoctorId: selectedDoctorId || undefined,
+          referringDoctorName: doctors.find(d => d._id === selectedDoctorId)?.name || undefined,
           portal: window.location.pathname.startsWith('/reception') ? 'reception' : 'lab',
           collectionCenterId: selectedCenterId || undefined,
           collectionCenterName: selectedCenterId ? collectionCenters.find(c => c._id === selectedCenterId)?.name : undefined,
@@ -704,6 +724,8 @@ export default function Lab_Orders() {
           packageIds: selectedPackageIds.length ? selectedPackageIds : undefined,
           sampleType,
           referringConsultant: referring.trim() || undefined,
+          referringDoctorId: selectedDoctorId || undefined,
+          referringDoctorName: doctors.find(d => d._id === selectedDoctorId)?.name || undefined,
           portal: window.location.pathname.startsWith('/reception') ? 'reception' : 'lab',
           collectionCenterId: selectedCenterId || undefined,
           collectionCenterName: selectedCenter?.name || undefined,
@@ -735,12 +757,13 @@ export default function Lab_Orders() {
             receivedAmount: receivedNum,
             paymentMethod: billingType,
             referringConsultant: referring.trim() || undefined,
+            referringDoctorId: selectedDoctorId || undefined,
+            referringDoctorName: doctors.find(d => d._id === selectedDoctorId)?.name || undefined,
             corporateId: (billingType === 'Corporate' && corpCompanyId) ? corpCompanyId : undefined,
             corporatePreAuthNo: (billingType === 'Corporate' && corpPreAuthNo) ? corpPreAuthNo : undefined,
             corporateCoPayPercent: (billingType === 'Corporate' && corpCoPayPercent) ? Number(corpCoPayPercent) : undefined,
           }
-          const convertRes: any = await labApi.convertTokenToSample(createdToken._id, convertPayload)
-          convertedOrderId = convertRes?.order?._id || convertRes?.order?.id || ''
+          await labApi.convertTokenToSample(createdToken._id, convertPayload)
           setToast({ type: 'success', message: `Token ${tokenNo} generated and converted to sample` })
         } else {
           setToast({ type: 'success', message: `Token ${tokenNo || ''} created` })
@@ -809,6 +832,7 @@ export default function Lab_Orders() {
         setCnic('')
         setMrNumber('')
         setReferring('')
+        setSelectedDoctorId('')
         setSelectedCenterId('')
         setSelectedTestIds([])
         setSelectedPackageIds([])
@@ -864,6 +888,7 @@ export default function Lab_Orders() {
         setCnic(String(p.cnic || p.cnicNormalized || ''))
         setMrNumber(String(p.mrn || p.mrNumber || ''))
         setReferring(String(t.referringConsultant || ''))
+        setSelectedDoctorId(String(t.referringDoctorId || ''))
         setSelectedCenterId(String(t.collectionCenterId || ''))
         setSelectedTestIds(Array.isArray(t.tests) ? t.tests.map(String) : [])
         setSelectedPackageIds(Array.isArray(t.packageIds) ? t.packageIds.map(String) : [])
@@ -1209,6 +1234,21 @@ export default function Lab_Orders() {
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Referring Consultant</label>
                   <input value={referring} onChange={e => setReferring(e.target.value)} onKeyDown={onEnterNext} className={fldCls} placeholder="Optional" />
                 </div>
+                {doctorReferralEnabled && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Referring Doctor</label>
+                    <select
+                      value={selectedDoctorId}
+                      onChange={e => setSelectedDoctorId(e.target.value)}
+                      className={fldCls}
+                    >
+                      <option value="">Select doctor...</option>
+                      {doctors.map(d => (
+                        <option key={d._id} value={d._id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               {billingType === 'Corporate' && (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -1314,6 +1354,7 @@ export default function Lab_Orders() {
                   setCnic('')
                   setMrNumber('')
                   setReferring('')
+                  setSelectedDoctorId('')
                   setSelectedCenterId('')
                   setFromReferralId('')
                   setSelectedTestIds([])

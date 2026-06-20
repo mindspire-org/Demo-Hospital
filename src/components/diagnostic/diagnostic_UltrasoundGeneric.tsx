@@ -1,7 +1,7 @@
 import React from 'react';
-import { diagnosticApi } from '../../utils/api';
 import Diagnostic_RichTextEditor from './diagnostic_RichTextEditor';
 import { ClipboardList, GitCompare, Wrench, Microscope, Lightbulb, ImagePlus, Trash2 } from 'lucide-react';
+import { printDiagnosticReport } from './diagnosticPrint';
 
 const FINDINGS_HTML_MARKER = '__FINDINGS_HTML__'
 
@@ -76,7 +76,7 @@ const UltrasoundGeneric: React.FC<Props> = ({ value: _value, onChange }) => {
       if (raw.startsWith(FINDINGS_HTML_MARKER)) {
         setFindingsHtml(raw.slice(FINDINGS_HTML_MARKER.length))
       } else {
-        // Legacy plain-text findings → convert to simple HTML
+        // Legacy plain-text findings ? convert to simple HTML
         const html = raw.split(/\r?\n/).filter(Boolean).map((l: string) => `<p>${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')
         setFindingsHtml(html || '')
       }
@@ -219,153 +219,63 @@ export async function printUltrasoundReport(input: {
   value: string
   referringConsultant?: string
 }){
-  const s: any = await diagnosticApi.getSettings().catch(()=>({}))
-  const name = s?.diagnosticName || 'Diagnostic Center'
-  const address = s?.address || '-'
-  const phone = s?.phone || ''
-  const email = s?.email || ''
-  const department = s?.department || 'Department of Diagnostics'
-  const logo = s?.logoDataUrl || ''
-  const footer = s?.reportFooter || 'System Generated Report. No Signature Required.'
-
-  const esc = (x: any)=> String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
-  const fmt = (iso?: string)=>{ const d = iso? new Date(iso): new Date(); return d.toLocaleDateString()+" "+d.toLocaleTimeString() }
   const FHTML = '__FINDINGS_HTML__'
-  const bodyHtml = (()=>{
-    const labels = ['Clinical Information','Comparison','Technique','Findings','FindingsLegacy','Impression','Images']
-    const set = new Set(labels)
-    const sections: Record<string,string> = {}
-    let cur = ''
-    let buf: string[] = []
-    function push(){ if (cur){ sections[cur] = (buf.join('\n')).trim(); buf = [] } }
-    for (const raw of String(input.value||'').split(/\r?\n/)){
-      const line = raw.trim()
-      if (set.has(line)){ push(); cur = line; continue }
-      buf.push(raw)
-    }
-    push()
-    let html = `<div class="title-mid">ULTRASOUND REPORT</div><div class="box">`
-    const printLabels = ['Clinical Information','Comparison','Technique','Findings','Impression','Images']
-    for (const key of printLabels){
-      let val = (sections as any)[key]
-      if (key === 'Findings') {
-        const rawVal = String(val || '')
-        if (rawVal.startsWith(FHTML)) {
-          // New HTML findings
-          const htmlContent = rawVal.slice(FHTML.length)
-          if (htmlContent.replace(/<[^>]+>/g,'').trim()) {
-            html += `<div class="sec"><div class="sec-title">Findings</div><div class="sec-text impression-html">${htmlContent}</div></div>`
-          }
-          continue
-        }
-        // Legacy plain text — fall through to normal render
-      }
-      if (key==='Images' && !val) continue
-      if (!val || !String(val).trim()) continue
-      const isHtml = key === 'Impression'
-      html += `<div class="sec"><div class="sec-title">${esc(key)}</div><div class="sec-text${isHtml ? ' impression-html' : ''}">${isHtml ? val : esc(val)}</div></div>`
-    }
-    html += `</div>`
-    return html
-  })()
-
-  const consultants = ((()=>{
-    const arr: Array<{ name?: string; degrees?: string; title?: string }> = []
-    arr.push({ name: (s as any)?.consultantName, degrees: (s as any)?.consultantDegrees, title: (s as any)?.consultantTitle })
-    const extra = Array.isArray((s as any)?.consultants) ? (s as any).consultants : []
-    for (const c of extra) arr.push({ name: c?.name, degrees: c?.degrees, title: c?.title })
-    const filtered = arr.filter(c => (c?.name || c?.degrees || c?.title))
-    const out = filtered.slice(0,3)
-    return out
-  })())
-  const consultHtml = consultants.length ? `<div class=\"consult-grid\">${consultants.map(c=>`<div class=\\\"consult\\\"><div class=\\\"name\\\">${esc(c.name||'')}</div><div class=\\\"deg\\\">${esc(c.degrees||'')}</div><div class=\\\"title\\\">${esc(c.title||'')}</div></div>`).join('')}</div>` : ''
-
-  const html = `<!doctype html><html><head><meta charset="utf-8"/>
-  <style>
-    @page { size: A4 portrait; margin: 12mm }
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
-    body{ font-family: 'Poppins', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#1e293b; }
-    .wrap{ padding: 0 6mm; min-height: 100vh; display:flex; flex-direction:column }
-    @media print { .wrap{ min-height: calc(100vh - 36mm) } }
-    .hdr{display:grid;grid-template-columns:80px 1fr 80px;align-items:center;padding-bottom:10px;border-bottom:3px solid #0f172a;margin-bottom:8px}
-    .hdr .title{font-size:26px;font-weight:800;text-align:center;letter-spacing:0.5px;color:#0f172a}
-    .hdr .muted{color:#64748b;font-size:11px;text-align:center;margin-top:3px}
-    .dept{font-style:italic;text-align:center;margin:6px 0 2px 0;font-size:13px;color:#334155;font-weight:500}
-    .hr{border-bottom:1px solid #cbd5e1;margin:4px 0}
-    .box{border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin:8px 0;background:#fafafa}
-    .kv{display:grid;grid-template-columns: 130px minmax(0,1fr) 130px minmax(0,1fr) 130px minmax(0,1fr);gap:5px 12px;font-size:11.5px;align-items:start}
-    .kv > div{line-height:1.3;color:#475569}
-    .kv > div:nth-child(odd){font-weight:600;color:#334155}
-    .kv > div:nth-child(2n){word-break:break-word;color:#0f172a}
-    .title-mid{font-size:17px;font-weight:700;text-align:center;margin-top:6px;color:#0f172a;letter-spacing:0.3px}
-    .sec{margin-top:10px}
-    .sec-title{font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid #e2e8f0}
-    .sec-text{white-space:pre-wrap;font-size:12.5px;line-height:1.6;color:#1e293b}
-    .impression-html{white-space:normal}
-    .impression-html p{margin:0 0 6px 0}
-    .impression-html ul,.impression-html ol{margin:0 0 6px 16px;padding:0}
-    .impression-html li{margin-bottom:2px}
-    .content{white-space:pre-wrap;font-size:13px;line-height:1.6}
-    .footnote{margin-top:20px;text-align:center;color:#64748b;font-size:10.5px}
-    .foot-hr{border-bottom:1px solid #94a3b8;margin:10px 0}
-    .spacer{flex:1}
-    .footer-block{ page-break-inside: avoid; break-inside: avoid }
-    .consult-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 20px;margin-top:8px}
-    .consult .name{font-weight:700;text-transform:uppercase;font-size:12px;color:#0f172a}
-    .consult .deg{font-size:11px;color:#475569}
-    .consult .title{font-weight:600;font-size:11px;color:#334155}
-  </style></head><body>
-    <div class="wrap">
-      <div class="hdr">
-        <div>${logo? `<img src="${esc(logo)}" alt="logo" style="height:70px;width:auto;object-fit:contain"/>` : ''}</div>
-        <div>
-          <div class="title">${esc(name)}</div>
-          <div class="muted">${esc(address)}</div>
-          <div class="muted">Ph: ${esc(phone)} ${email? ' • '+esc(email): ''}</div>
-        </div>
-        <div></div>
-      </div>
-      <div class="dept">${esc(department)}</div>
-      <div class="hr"></div>
-      <div class="box">
-        <div class="kv">
-          <div>Medical Record No :</div><div>${esc(input.patient.mrn || '-')}</div>
-          <div>Sample No / Lab No :</div><div>${esc(input.tokenNo || '-')}</div>
-          <div>Patient Name :</div><div>${esc(input.patient.fullName)}</div>
-          <div>Age / Gender :</div><div>${esc(input.patient.age || '')} / ${esc(input.patient.gender || '')}</div>
-          <div>Reg. & Sample Time :</div><div>${fmt(input.createdAt)}</div>
-          <div>Reporting Time :</div><div>${fmt(input.reportedAt || new Date().toISOString())}</div>
-          <div>Contact No :</div><div>${esc(input.patient.phone || '-')}</div>
-          <div>Referring Consultant :</div><div>${esc(input.referringConsultant || '-')}</div>
-          <div>Address :</div><div>${esc(input.patient.address || '-')}</div>
-        </div>
-      </div>
-      ${bodyHtml}
-      <div class="spacer"></div>
-      <div class="footer-block">
-        <div class="footnote">${esc(footer)}</div>
-        <div class="foot-hr"></div>
-        ${consultHtml}
-      </div>
-    </div>
-  </body></html>`
-  // Prefer Electron in-app preview if available
-  try{
-    const api = (window as any).electronAPI
-    if (api && typeof api.printPreviewHtml === 'function'){
-      await api.printPreviewHtml(html, {})
-      return
-    }
-  }catch{}
-  const iframe = document.createElement('iframe')
-  iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0';
-  iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0'; iframe.style.visibility = 'hidden'
-  document.body.appendChild(iframe)
-  const doc = iframe.contentDocument || iframe.contentWindow?.document
-  if (!doc) return
-  doc.open(); doc.write(html); doc.close()
-  iframe.onload = () => {
-    try { iframe.contentWindow?.focus(); iframe.contentWindow?.print() } catch {}
-    setTimeout(()=>{ try { iframe.remove() } catch {} }, 8000)
+  const labels = ['Clinical Information','Comparison','Technique','Findings','FindingsLegacy','Impression','Images']
+  const set = new Set(labels)
+  const sections: Record<string,string> = {}
+  let cur = ''
+  let buf: string[] = []
+  function push(){ if (cur){ sections[cur] = (buf.join('\n')).trim(); buf = [] } }
+  for (const raw of String(input.value||'').split(/\r?\n/)){
+    const line = raw.trim()
+    if (set.has(line)){ push(); cur = line; continue }
+    buf.push(raw)
   }
+  push()
+
+  const sectionDefs: Array<{ key: string; title: string; html: string }> = []
+
+  const clinical = sections['Clinical Information']
+  if (clinical) sectionDefs.push({ key: 'clinicalInformation', title: 'Clinical Information', html: `<p>${clinical.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).join('</p><p>')}</p>` })
+
+  const comparison = sections['Comparison']
+  if (comparison) sectionDefs.push({ key: 'comparison', title: 'Comparison', html: `<p>${comparison.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).join('</p><p>')}</p>` })
+
+  const technique = sections['Technique']
+  if (technique) sectionDefs.push({ key: 'technique', title: 'Technique', html: `<p>${technique.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).join('</p><p>')}</p>` })
+
+  const findingsRaw = sections['Findings']
+  if (findingsRaw) {
+    let findingsHtml = ''
+    if (findingsRaw.startsWith(FHTML)) {
+      findingsHtml = findingsRaw.slice(FHTML.length)
+    } else {
+      findingsHtml = findingsRaw.split(/\r?\n/).map((l: string) => `<p>${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('')
+    }
+    if (findingsHtml.replace(/<[^>]+>/g,'').trim()) {
+      sectionDefs.push({ key: 'findings', title: 'Findings / Report', html: findingsHtml })
+    }
+  }
+
+  const impression = sections['Impression']
+  if (impression) sectionDefs.push({ key: 'impression', title: 'Impression', html: impression })
+
+  const imagesRaw = sections['Images']
+  if (imagesRaw) {
+    const imgs = imagesRaw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean)
+    if (imgs.length) {
+      const imgsHtml = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">` + imgs.map(src=>`<img src="${src}" style="width:100%;height:auto;border-radius:6px;border:1px solid #e2e8f0"/>`).join('') + `</div>`
+      sectionDefs.push({ key: 'images', title: 'Images', html: imgsHtml })
+    }
+  }
+
+  await printDiagnosticReport({
+    tokenNo: input.tokenNo,
+    createdAt: input.createdAt,
+    reportedAt: input.reportedAt,
+    patient: input.patient,
+    referringConsultant: input.referringConsultant,
+    reportTitle: 'Ultrasound Report',
+    sections: sectionDefs,
+  })
 }

@@ -15,6 +15,7 @@ import { CorporateTransaction } from '../../corporate/models/Transaction'
 import { CorporateCompany } from '../../corporate/models/Company'
 import { postFbrInvoiceViaSDC } from '../../hospital/services/fbr'
 import { postLabOrderJournal } from '../../finance/controllers/finance_ledger'
+import { logActivity } from '../../finance/services/activityLog.service'
 import { formatLabNumber } from '../../../common/utils/labNumberFormat'
 
 function getPakistanDate(): string {
@@ -458,6 +459,22 @@ export async function create(req: Request, res: Response){
     console.error('Failed to post Lab revenue journal:', e)
   }
 
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || (req as any).user?.email || 'system'),
+      userName: String(actor || ''),
+      portal: 'lab',
+      action: orderReceived > 0 ? 'Lab Payment Collected' : 'Order Created',
+      module: 'Lab',
+      entityId: String(doc._id),
+      entityLabel: `Order ${tokenNo} — ${(data as any)?.patient?.fullName || ''}`,
+      amount: Number(orderReceived || 0),
+      method: resolvePaidMethod((data as any).paymentMethod),
+      meta: { tokenNo, patientId: String((data as any)?.patientId || ''), labNumber: doc.labNumber, net: orderNet }
+    })
+  } catch {}
+
   const fmt = await LabSettings.findOne().lean().then((s: any) => s?.labNumberFormat).catch(() => undefined)
   res.status(201).json({ ...doc.toObject(), formattedLabNumber: formatLabNumber(doc.labNumber, fmt) })
 }
@@ -514,6 +531,22 @@ export async function receivePayment(req: Request, res: Response){
     })
   } catch {}
 
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || (req as any).user?.email || 'system'),
+      userName: actor,
+      portal: 'lab',
+      action: 'Lab Payment Received',
+      module: 'Lab',
+      entityId: String(tokenNo),
+      entityLabel: `Token ${tokenNo}`,
+      amount: Number(deltaApplied || 0),
+      method: String(method || 'Cash'),
+      meta: { tokenNo, nextReceived, nextReceivable, note: note || '' }
+    })
+  } catch {}
+
   const updated = await LabOrder.find({ tokenNo }).sort({ createdAt: 1 }).lean()
   res.json({ tokenNo, receivedAmount: nextReceived, receivableAmount: nextReceivable, payment, items: updated })
 }
@@ -535,10 +568,17 @@ export async function updateTrack(req: Request, res: Response){
     const updateData: any = {}
     if (otherFields.sampleTime !== undefined) updateData.sampleTime = otherFields.sampleTime
     if (otherFields.status !== undefined) updateData.status = otherFields.status
-    if (otherFields.isReturned !== undefined) updateData.isReturned = otherFields.isReturned
+    if (otherFields.isReturned !== undefined) {
+      updateData.isReturned = otherFields.isReturned
+      if (otherFields.isReturned === true) {
+        updateData.returnedAt = new Date()
+      } else if (otherFields.isReturned === false) {
+        updateData.returnedAt = undefined
+      }
+    }
     if (otherFields.returnReason !== undefined) updateData.returnReason = otherFields.returnReason
-    // Track who performed the sample collection or status change
-    if (updateData.sampleTime !== undefined || updateData.status !== undefined) {
+    // Track who performed the sample collection, status change, or return
+    if (updateData.sampleTime !== undefined || updateData.status !== undefined || updateData.isReturned !== undefined) {
       updateData.performedBy = actor
     }
     

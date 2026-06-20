@@ -20,6 +20,8 @@ const DoctorSchema = new Schema({
   ipdShare: { type: Number },
   active: { type: Boolean, default: true },
   prescriptionTemplate: { type: String, default: 'hospital-rx' },
+  prescriptionLanguage: { type: String, default: 'english' },
+  prescriptionDesign: { type: Schema.Types.Mixed, default: {} },
 }, { timestamps: true })
 
 export type HospitalDoctorDoc = {
@@ -43,6 +45,8 @@ export type HospitalDoctorDoc = {
   ipdShare?: number
   active: boolean
   prescriptionTemplate?: string
+  prescriptionLanguage?: string
+  prescriptionDesign?: any
 }
 
 export const HospitalDoctor = models.Hospital_Doctor || model('Hospital_Doctor', DoctorSchema)

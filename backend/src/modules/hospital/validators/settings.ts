@@ -26,5 +26,12 @@ export const settingsUpdateSchema = z.object({
 
   eyeRxEnabled: z.boolean().optional(),
 
+  timeFormat: z.enum(['12h', '24h']).optional(),
+
+  departmentBillingRules: z.record(z.object({
+    feeMode: z.enum(['department-only', 'doctor-only', 'both', 'none']).optional(),
+    doctorCommissionPercent: z.number().min(0).max(100).optional(),
+  })).optional(),
+
 })
 

@@ -5,7 +5,7 @@ import { api } from '../../api'
 type HeaderHistoryEntry = { url: string; uploadedAt: string; uploadedBy?: string; note?: string }
 
 export default function Lab_Settings() {
-  const [activeTab, setActiveTab] = useState<'lab' | 'system' | 'reportDesign' | 'headerFooter' | 'seeds'>('lab')
+  const [activeTab, setActiveTab] = useState<'lab' | 'system' | 'reportDesign' | 'headerFooter' | 'seeds' | 'doctorReferral'>('lab')
   const [labName, setLabName] = useState('')
   const [parentLab, setParentLab] = useState('')
   const [slogan, setSlogan] = useState('')
@@ -50,6 +50,12 @@ export default function Lab_Settings() {
   const [mergeReportsByPatient, setMergeReportsByPatient] = useState(false)
   const [seedBusy, setSeedBusy] = useState(false)
   const [seedResult, setSeedResult] = useState('')
+  const [seedAllStep, setSeedAllStep] = useState<0 | 1 | 2>(0)
+  const [seedAllPassword, setSeedAllPassword] = useState('')
+  const [seedAllBusy, setSeedAllBusy] = useState(false)
+  const [seedAllError, setSeedAllError] = useState('')
+  const [doctorReferralEnabled, setDoctorReferralEnabled] = useState(false)
+  const [doctorReferralPercentage, setDoctorReferralPercentage] = useState(0)
 
   useEffect(()=>{
     let mounted = true
@@ -87,6 +93,8 @@ export default function Lab_Settings() {
         setValidateStock(!!s.validateStock)
         setSmsActive(!!s.smsActive)
         setHijriOffset(s.labHijriDateOffset || 0)
+        setDoctorReferralEnabled(!!s.doctorReferralEnabled)
+        setDoctorReferralPercentage(s.doctorReferralPercentage || 0)
         setHeaderImageUrl(s.headerImageUrl || '')
         setFooterImageUrl(s.footerImageUrl || '')
         setHeaderHistory(Array.isArray(s.headerHistory) ? s.headerHistory : [])
@@ -144,6 +152,8 @@ export default function Lab_Settings() {
         validateStock,
         smsActive,
         labHijriDateOffset: hijriOffset,
+        doctorReferralEnabled,
+        doctorReferralPercentage,
         watermark,
         watermarkOpacity,
         watermarkAngle,
@@ -214,6 +224,50 @@ export default function Lab_Settings() {
     finally { setSeedBusy(false) }
   }
 
+  async function seedAllTests() {
+    setSeedAllBusy(true); setSeedAllError(''); setSeedResult('')
+    try {
+      const results: string[] = []
+      try {
+        const r1: any = await api('/lab/seed/test-templates', { method: 'POST', body: JSON.stringify({}) })
+        results.push(`Test Templates: ${r1.ok ? 'OK' : 'Failed'} (${r1.seeded ?? '?'})`)
+      } catch (e1: any) { results.push(`Test Templates: Failed — ${e1?.message || e1}`) }
+      try {
+        const r2: any = await api('/lab/seed/critical-parameters', { method: 'POST', body: JSON.stringify({}) })
+        results.push(`Critical Parameters: ${r2.ok ? 'OK' : 'Failed'}`)
+      } catch (e2: any) { results.push(`Critical Parameters: Failed — ${e2?.message || e2}`) }
+      try {
+        const r3: any = await api('/lab/seed/merge-critical-values', { method: 'POST', body: JSON.stringify({}) })
+        results.push(`Merge Critical Values: ${r3.ok ? 'OK' : 'Failed'}`)
+      } catch (e3: any) { results.push(`Merge Critical Values: Failed — ${e3?.message || e3}`) }
+      setSeedResult(`All Seeds Complete:\n${results.join('\n')}`)
+      setSeedAllStep(0)
+    } catch (e: any) { setSeedAllError(`Seed all failed: ${e?.message || e}`) }
+    finally { setSeedAllBusy(false) }
+  }
+
+  async function verifyPasswordAndSeed() {
+    const username = (() => {
+      try {
+        const s = localStorage.getItem('lab.session')
+        if (s) return JSON.parse(s).username
+      } catch {}
+      return ''
+    })()
+    if (!username || !seedAllPassword) {
+      setSeedAllError('Username or password missing')
+      return
+    }
+    setSeedAllBusy(true); setSeedAllError('')
+    try {
+      await labApi.loginUser(username, seedAllPassword)
+      setSeedAllPassword('')
+      await seedAllTests()
+    } catch (e: any) {
+      setSeedAllError('Password verification failed. Please check your credentials.')
+    } finally { setSeedAllBusy(false) }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-slate-800">
@@ -225,8 +279,8 @@ export default function Lab_Settings() {
       )}
 
       <div className="flex items-center gap-2 flex-wrap">
-        {(['lab','system','headerFooter','seeds'] as const).map(t=>(
-          <button key={t} onClick={()=>setActiveTab(t)} className={`rounded-md border px-3 py-1.5 text-sm ${activeTab===t?'border-slate-300 bg-white text-slate-900':'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{t==='lab'?'Lab Profile':t==='system'?'System':t==='headerFooter'?'Header / Footer':'Data Seeds'}</button>
+        {(['lab','system','headerFooter','doctorReferral','seeds'] as const).map(t=>(
+          <button key={t} onClick={()=>setActiveTab(t)} className={`rounded-md border px-3 py-1.5 text-sm ${activeTab===t?'border-slate-300 bg-white text-slate-900':'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{t==='lab'?'Lab Profile':t==='system'?'System':t==='headerFooter'?'Header / Footer':t==='doctorReferral'?'Doctor Referral':'Data Seeds'}</button>
         ))}
       </div>
 
@@ -534,8 +588,146 @@ export default function Lab_Settings() {
             <div className="flex flex-wrap gap-3">
               <button onClick={()=>runSeed('test-templates','Test Templates')} disabled={seedBusy} className="btn disabled:opacity-50">Seed Test Templates</button>
               <button onClick={()=>runSeed('critical-parameters','Critical Parameters')} disabled={seedBusy} className="btn disabled:opacity-50">Seed Critical Parameters</button>
+              <button
+                onClick={() => { setSeedAllStep(1); setSeedAllError(''); setSeedAllPassword('') }}
+                disabled={seedBusy || seedAllBusy}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
+                Seed All Tests
+              </button>
             </div>
             {seedResult && <pre className="whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs text-slate-700">{seedResult}</pre>}
+          </div>
+        </div>
+      )}
+
+      {/* Step 1: Initial Warning Modal */}
+      {seedAllStep === 1 && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-2 sm:px-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <div className="text-base font-semibold text-amber-700 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Warning: Destructive Operation
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-sm text-slate-700">
+                This action will seed <strong>all test templates</strong>, <strong>normal ranges</strong>, <strong>critical parameters</strong>, and <strong>merge critical values</strong> into existing tests.
+              </p>
+              <p className="text-sm text-slate-700">
+                This is a comprehensive operation that may overwrite existing test data. It requires admin password verification.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setSeedAllStep(0)}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setSeedAllStep(2)}
+                  className="rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+                >
+                  Continue to Verification
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Password Verification Modal */}
+      {seedAllStep === 2 && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-2 sm:px-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <div className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Admin Verification Required
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-sm text-slate-600">
+                Please re-enter your password to verify authorization before seeding all test data.
+              </p>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+                <input
+                  type="password"
+                  value={seedAllPassword}
+                  onChange={(e) => { setSeedAllPassword(e.target.value); setSeedAllError('') }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') verifyPasswordAndSeed() }}
+                  placeholder="Enter your password"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                  autoFocus
+                />
+              </div>
+              {seedAllError && (
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{seedAllError}</div>
+              )}
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  onClick={() => { setSeedAllStep(0); setSeedAllError(''); setSeedAllPassword('') }}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={verifyPasswordAndSeed}
+                  disabled={seedAllBusy || !seedAllPassword}
+                  className="rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {seedAllBusy ? 'Verifying...' : 'Verify & Seed All'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'doctorReferral' && (
+        <div className="rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Doctor Referral Settings</div>
+          <div className="space-y-4 p-4">
+            <div className="flex items-center gap-3">
+              <input
+                id="doctorReferralEnabled"
+                type="checkbox"
+                checked={doctorReferralEnabled}
+                onChange={(e) => setDoctorReferralEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+              />
+              <label htmlFor="doctorReferralEnabled" className="text-sm font-medium text-slate-700">
+                Enable Doctor Referral Tracking
+              </label>
+            </div>
+            {doctorReferralEnabled && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm text-slate-700">Default Referral Percentage (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={doctorReferralPercentage}
+                    onChange={(e) => setDoctorReferralPercentage(Number(e.target.value))}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Default commission percentage for referring doctors.</p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={saveLab}
+                disabled={saving}
+                className="rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
           </div>
         </div>
       )}

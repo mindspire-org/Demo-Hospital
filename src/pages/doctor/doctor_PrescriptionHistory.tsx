@@ -633,84 +633,117 @@ export default function Doctor_PrescriptionHistory() {
   return (
     <div className="space-y-4">
       <div className="no-print space-y-4">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="text-xl font-semibold text-slate-800">Prescription History</div>
-        <div className="flex items-center gap-2">
-          <input type="date" value={from} onChange={e=>{ setPage(1); setFrom(e.target.value) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <span className="text-slate-500 text-sm">to</span>
-          <input type="date" value={to} onChange={e=>{ setPage(1); setTo(e.target.value) }} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <select value={limit} onChange={e=>{ setPage(1); setLimit(parseInt(e.target.value)||20) }} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-xl font-semibold text-slate-800">Prescription History</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Date Range */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2 py-1.5 shadow-sm">
+              <div className="flex items-center gap-1.5 px-1">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-slate-400"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <input type="date" value={from} onChange={e=>{ setPage(1); setFrom(e.target.value) }} className="bg-transparent text-sm text-slate-700 outline-none border-none p-0 w-[120px] cursor-pointer" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">to</span>
+              <div className="flex items-center gap-1.5 px-1">
+                <input type="date" value={to} onChange={e=>{ setPage(1); setTo(e.target.value) }} className="bg-transparent text-sm text-slate-700 outline-none border-none p-0 w-[120px] cursor-pointer" />
+              </div>
+            </div>
+            {/* Per Page */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-slate-400"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <select value={limit} onChange={e=>{ setPage(1); setLimit(parseInt(e.target.value)||20) }} className="bg-transparent text-sm text-slate-700 outline-none border-none p-0 cursor-pointer pr-1">
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+            {/* Search */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-sky-100 focus-within:border-sky-300 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-slate-400"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search prescriptions…" className="bg-transparent text-sm text-slate-700 outline-none border-none p-0 w-44 placeholder:text-slate-400" />
+            </div>
+          </div>
         </div>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+          <div className="font-semibold text-slate-800">Results</div>
+          <div className="text-sm text-slate-500">{total ? `${(page-1)*limit+1}-${Math.min(page*limit,total)} of ${total}` : ''}</div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-sm">
-          <div className="font-medium text-slate-800">Results</div>
-          <div className="text-slate-600">{total ? `${(page-1)*limit+1}-${Math.min(page*limit,total)} of ${total}` : ''}</div>
-        </div>
-        <div className="divide-y divide-slate-200">
+        <div className="divide-y divide-slate-100">
           {mine.map(p => (
-            <div key={p.id} className="px-4 py-3 text-sm">
-              <div className="font-medium">{p.patientName} <span className="text-xs text-slate-500">{p.mrNo || ''}</span></div>
-              <div className="text-xs text-slate-600">{new Date(p.createdAt).toLocaleString()} • {p.diagnosis || '-'}</div>
-              {p.primaryComplaint && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Primary Complaint:</span> {p.primaryComplaint}</div>}
-              {p.primaryComplaintHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">History of Primary Complaint:</span> {p.primaryComplaintHistory}</div>}
-              {p.familyHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Family History:</span> {p.familyHistory}</div>}
-              {p.allergyHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Allergy History:</span> {p.allergyHistory}</div>}
-              {p.treatmentHistory && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Treatment History:</span> {p.treatmentHistory}</div>}
-              {p.history && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">History:</span> {p.history}</div>}
-              {p.examFindings && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Findings:</span> {p.examFindings}</div>}
-              {p.advice && <div className="mt-1 text-xs text-slate-700"><span className="font-semibold">Advice:</span> {p.advice}</div>}
-              {p.medicines && <pre className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{p.medicines}</pre>}
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>handlePrint(p.id)}>Print</button>
+            <div key={p.id} className="px-5 py-4 hover:bg-slate-50/50 transition-colors">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">{p.patientName} <span className="text-xs font-normal text-slate-500 ml-1">{p.mrNo || ''}</span></div>
+                  <div className="text-xs text-slate-500 mt-0.5">{new Date(p.createdAt).toLocaleString()} <span className="mx-1 text-slate-300">•</span> {p.diagnosis || 'No diagnosis'}</div>
+                </div>
+                <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 border border-sky-100">{p.prescriptionMode === 'manual' ? 'Manual' : 'Electronic'}</span>
+              </div>
+              <div className="mt-2 grid gap-1">
+                {p.primaryComplaint && <div className="text-xs text-slate-600"><span className="font-medium text-slate-700">Complaint:</span> {p.primaryComplaint}</div>}
+                {p.history && <div className="text-xs text-slate-600"><span className="font-medium text-slate-700">History:</span> {p.history}</div>}
+                {p.examFindings && <div className="text-xs text-slate-600"><span className="font-medium text-slate-700">Findings:</span> {p.examFindings}</div>}
+                {p.advice && <div className="text-xs text-slate-600"><span className="font-medium text-slate-700">Advice:</span> {p.advice}</div>}
+                {p.medicines && <pre className="mt-1 whitespace-pre-wrap text-xs text-slate-700 bg-slate-50 rounded-lg p-2.5 border border-slate-100 leading-relaxed">{p.medicines}</pre>}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <button className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all" onClick={()=>handlePrint(p.id)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Print Rx
+                </button>
                 <button
                   onClick={() => handlePrintPreAssessment(p.id)}
                   disabled={!p.preAnesthesia?.isApplied}
-                  className="flex items-center gap-1 rounded-md border border-teal-600 bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100 hover:border-teal-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   title={!p.preAnesthesia?.isApplied ? 'No Preassessment form in this prescription' : 'Print Preassessment Form'}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                  Print Preassessment
+                  Pre-Anesthesia
                 </button>
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>{ setIpdReferralPrescription(p); setIpdReferralOpen(true) }}>Referral Form</button>
+                <button className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all" onClick={()=>{ setIpdReferralPrescription(p); setIpdReferralOpen(true) }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.99 12 19.79 19.79 0 0 1 1.97 3.18 2 2 0 0 1 3.95 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  Referral
+                </button>
+                <button className="inline-flex items-center gap-1 rounded-lg border border-sky-100 bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 hover:border-sky-200 transition-all" onClick={()=>handlePrintLabSlip(p.id)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                  Print Lab Slip
+                </button>
+                <button className="inline-flex items-center gap-1 rounded-lg border border-violet-100 bg-violet-50 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 hover:border-violet-200 transition-all" onClick={()=>handlePrintDiagnosticSlip(p.id)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                  Print Diagnostic Slip
+                </button>
                 {p.prescriptionMode === 'manual' && (p.manualAttachment?.dataUrl || p.manualAttachment?.fileName) && (
-                  <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openAttachment(p)}>View Attachment</button>
+                  <button className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all" onClick={()=>openAttachment(p)}>View Attachment</button>
                 )}
                 {(() => { const done = !!refFlags[p.id]?.ph; return (
                   <button
-                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${done?'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed':'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300'}`}
                     disabled={done}
                     title={done?'Already referred to pharmacy':''}
                     onClick={()=>openConfirm('pharmacy', p)}
-                  >Refer to Pharmacy</button>
+                  >{done?'Pharmacy ✓':'Refer to Pharmacy'}</button>
                 )})()}
                 {(() => { const done = !!refFlags[p.id]?.lab; return (
                   <button
-                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${done?'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed':'border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:border-sky-300'}`}
                     disabled={done}
                     title={done?'Already referred to lab':''}
                     onClick={()=>openConfirm('lab', p)}
-                  >Refer to Lab</button>
+                  >{done?'Lab ✓':'Refer to Lab'}</button>
                 )})()}
                 {(() => { const done = !!refFlags[p.id]?.diag; return (
                   <button
-                    className={`rounded-md px-3 py-1 text-sm ${done?'border-blue-900 bg-blue-100 text-blue-900':'border border-blue-900 bg-blue-900 text-white hover:bg-blue-950'}`}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${done?'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed':'border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:border-violet-300'}`}
                     disabled={done}
                     title={done?'Already referred to diagnostic':''}
                     onClick={()=>openConfirm('diagnostic', p)}
-                  >Refer to Diagnostic</button>
+                  >{done?'Diagnostic ✓':'Refer to Diagnostic'}</button>
                 )})()}
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openEditor(p.id)}>Edit</button>
-                <button className="rounded-md border border-blue-900 bg-blue-900 px-3 py-1 text-sm text-white hover:bg-blue-950" onClick={()=>openConfirm('delete', p)}>Delete</button>
+                <button className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all" onClick={()=>openEditor(p.id)}>Edit</button>
+                <button className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all" onClick={()=>openConfirm('delete', p)}>Delete</button>
               </div>
             </div>
           ))}
-          {mine.length === 0 && <div className="px-4 py-8 text-center text-slate-500 text-sm">No prescriptions</div>}
+          {mine.length === 0 && <div className="px-5 py-10 text-center text-slate-500 text-sm">No prescriptions found</div>}
         </div>
         <div className="flex items-center justify-between px-4 py-3 text-sm">
           <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</button>
@@ -1070,6 +1103,65 @@ async function fetchPrintData(id: string){
     const mInstr = nt.match(/Instruction:\s*([^;]+)/i)
     return { name: m.name || '', frequency: m.frequency || '', duration: m.duration || '', dose: m.dose || '', route: mRoute?.[1]?.trim() || m.route || '', instruction: mInstr?.[1]?.trim() || m.instruction || '' }
   }), vitals: pres?.vitals, labTests: pres?.labTests || [], labNotes: pres?.labNotes, diagnosticTests: pres?.diagnosticTests || [], diagnosticNotes: pres?.diagnosticNotes, primaryComplaint: pres?.primaryComplaint || pres?.complaints, primaryComplaintHistory: pres?.primaryComplaintHistory, familyHistory: pres?.familyHistory, treatmentHistory: pres?.treatmentHistory, history: pres?.history, examFindings: pres?.examFindings, diagnosis: pres?.diagnosis, advice: pres?.advice, createdAt: pres?.createdAt, tokenNo: pres?.tokenNo || '' }
+}
+
+function openTestSlipWindow({ title, subtitle, patient, mrn, doctorName, tests, settings }: {
+  title: string; subtitle: string; patient: string; mrn: string; doctorName: string; tests: string[]; settings: any
+}) {
+  if (!tests.length) { alert(`No ${subtitle.toLowerCase()} tests to print.`); return }
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>
+body{font-family:system-ui,-apple-system,sans-serif;padding:32px;color:#0f172a;background:#fff}
+.header{text-align:center;border-bottom:2px solid #0ea5e9;padding-bottom:12px;margin-bottom:20px}
+.header h1{margin:0;font-size:22px;color:#0f172a}
+.header p{margin:4px 0;font-size:12px;color:#64748b}
+.badge{display:inline-block;background:#0ea5e9;color:#fff;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12px;margin-bottom:16px}
+.grid div{padding:8px;background:#f8fafc;border-radius:8px}
+.grid strong{color:#334155}
+.tests{display:grid;gap:8px}
+.test-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px}
+.test-number{width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:#0ea5e9;color:#fff;font-size:11px;font-weight:700;border-radius:50%}
+.test-name{font-size:13px;font-weight:500;color:#0f172a}
+.footer{margin-top:24px;text-align:right;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}
+@media print{body{padding:16px}}
+</style></head><body>
+<div class="header"><h1>${settings?.name || 'Hospital'}</h1><p>${[settings?.address, settings?.phone].filter(Boolean).join(' • ') || ''}</p></div>
+<div class="badge">${subtitle}</div>
+<div class="grid">
+<div><strong>Patient:</strong> ${patient}</div>
+<div><strong>MR #:</strong> ${mrn}</div>
+<div><strong>Date:</strong> ${new Date().toLocaleDateString()}</div>
+</div>
+<div class="tests">
+${tests.map((t, i) => `<div class="test-item"><div class="test-number">${i + 1}</div><div class="test-name">${t}</div></div>`).join('')}
+</div>
+<div class="footer">
+<div><strong>Referred By:</strong> ${doctorName}</div>
+<div style="margin-top:4px">Please present this slip at the ${subtitle} counter.</div>
+</div>
+</body></html>`
+  const w = window.open('', '_blank')
+  if (w) { w.document.write(html); w.document.close(); w.print() }
+}
+
+async function handlePrintLabSlip(prescriptionId: string) {
+  try {
+    const data = await fetchPrintData(prescriptionId)
+    const tests = (data.labTests || []).filter(Boolean)
+    openTestSlipWindow({ title: 'Lab Requisition Slip', subtitle: 'Laboratory', patient: data.patient?.name || '-', mrn: data.patient?.mrn || '-', doctorName: data.doctor?.name || '-', tests, settings: data.settings })
+  } catch {
+    alert('Failed to load lab data for printing')
+  }
+}
+
+async function handlePrintDiagnosticSlip(prescriptionId: string) {
+  try {
+    const data = await fetchPrintData(prescriptionId)
+    const tests = (data.diagnosticTests || []).filter(Boolean)
+    openTestSlipWindow({ title: 'Diagnostic Requisition Slip', subtitle: 'Diagnostic / Imaging', patient: data.patient?.name || '-', mrn: data.patient?.mrn || '-', doctorName: data.doctor?.name || '-', tests, settings: data.settings })
+  } catch {
+    alert('Failed to load diagnostic data for printing')
+  }
 }
 
 // helper for fetching data used by both print and download

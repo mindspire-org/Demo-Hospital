@@ -14,6 +14,7 @@ import Diagnostic_Login from './pages/diagnostic/diagnostic_Login'
 import Reception_Login from './pages/reception/reception_Login'
 import Dialysis_Login from './pages/dialysis/dialysis_Login'
 import IndoorPharmacy_Login from './pages/indoorpharmacy/indoorpharmacy_Login'
+import Camp_Login from './pages/camp/camp_Login'
 
 // Lazy load all other pages for faster startup
 const SuperAdminLogin = lazy(() => import('./pages/superAdmin/SuperAdminLogin'))
@@ -22,11 +23,15 @@ const ModuleManager = lazy(() => import('./pages/superAdmin/ModuleManager'))
 const ClientProfilePage = lazy(() => import('./pages/superAdmin/ClientProfilePage'))
 const UsageStatsPage = lazy(() => import('./pages/superAdmin/UsageStatsPage'))
 const SuperAdminUsersPage = lazy(() => import('./pages/superAdmin/SuperAdminUsersPage'))
+const AdminUserManagementPage = lazy(() => import('./pages/admin/AdminUserManagementPage'))
+const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage'))
 const SuperAdminGuard = lazy(() => import('./guards/SuperAdminGuard'))
+const AdminGuard = lazy(() => import('./guards/AdminGuard'))
 const Hospital_Layout = lazy(() => import('./pages/hospital/hospital_Layout'))
 const Hospital_IPDDashboard = lazy(() => import('./pages/hospital/hospital_ipddashboard'))
 const Hospital_SidebarPermissions = lazy(() => import('./pages/hospital/hospital_SidebarPermissions'))
 const Hospital_BedManagement = lazy(() => import('./pages/hospital/hospital_BedManagement'))
+const Hospital_ERBeds = lazy(() => import('./pages/hospital/hospital_ERBeds'))
 const Hospital_TokenGenerator = lazy(() => import('./pages/hospital/hospital_TokenGenerator'))
 const Hospital_TodayTokens = lazy(() => import('./pages/hospital/hospital_TodayTokens'))
 const Hospital_TokenHistory = lazy(() => import('./pages/hospital/hospital_TokenHistory'))
@@ -170,6 +175,7 @@ const Lab_TAT = lazy(() => import('./pages/lab/lab_TAT'))
 const Lab_TestPackages = lazy(() => import('./pages/lab/lab_TestPackages'))
 const Lab_TotalTests = lazy(() => import('./pages/lab/lab_TotalTests'))
 const Lab_WardImports = lazy(() => import('./pages/lab/lab_WardImports'))
+const Lab_DoctorRevenue = lazy(() => import('./pages/lab/lab_DoctorRevenue'))
 const Finance_Transactions = lazy(() => import('./pages/hospital/hospital_Transactions.tsx'))
 const Finance_ExpenseHistory = lazy(() => import('./pages/hospital/hospital_ExpenseHistory.tsx'))
 const Finance_Layout = lazy(() => import('./pages/finance/finance_Layout.tsx'))
@@ -194,6 +200,8 @@ const Finance_ApprovalQueue = lazy(() => import('./pages/finance/finance_Approva
 const Finance_VoucherPrint = lazy(() => import('./pages/finance/finance_VoucherPrint'))
 const Finance_ShiftReports = lazy(() => import('./pages/finance/finance_ShiftReports'))
 const Finance_ShiftSettings = lazy(() => import('./pages/finance/finance_ShiftSettings'))
+const Finance_ExpenseApprovals = lazy(() => import('./pages/finance/finance_ExpenseApprovals'))
+const Finance_ActivityLog = lazy(() => import('./pages/finance/finance_ActivityLog'))
 const Hospital_DoctorPayouts = lazy(() => import('./pages/hospital/hospital_DoctorPayouts'))
 const Hospital_CashSessions = lazy(() => import('./pages/hospital/hospital_CashSessions'))
 const Pharmacy_Layout = lazy(() => import('./pages/pharmacy/pharmacy_Layout'))
@@ -221,7 +229,8 @@ const Pharmacy_Expenses = lazy(() => import('./pages/pharmacy/pharmacy_Expenses'
 const Pharmacy_CustomerReturns = lazy(() => import('./pages/pharmacy/pharmacy_CustomerReturns'))
 const Pharmacy_SupplierReturns = lazy(() => import('./pages/pharmacy/pharmacy_SupplierReturns'))
 const Pharmacy_Guidelines = lazy(() => import('./pages/pharmacy/pharmacy_Guidelines'))
-const Pharmacy_PurchaseOrders = lazy(() => import('./pages/pharmacy/pharmacy_PurchaseOrders'))
+const Pharmacy_PurchaseOrders = lazy(() => import('./pages/pharmacy/pharmacy_PurchaseOrdersPage'))
+const Pharmacy_CreatePurchaseOrder = lazy(() => import('./pages/pharmacy/pharmacy_CreatePurchaseOrder'))
 const Pharmacy_StaffAttendance = lazy(() => import('./pages/pharmacy/pharmacy_StaffAttendance'))
 const Pharmacy_StaffManagement = lazy(() => import('./pages/pharmacy/pharmacy_StaffManagement'))
 const Pharmacy_StaffSettings = lazy(() => import('./pages/pharmacy/pharmacy_StaffSettings'))
@@ -287,6 +296,7 @@ const Dialysis_Dashboard = lazy(() => import('./pages/dialysis/dialysis_Dashboar
 const Dialysis_TokenGenerator = lazy(() => import('./pages/dialysis/dialysis_TokenGenerator'))
 const Dialysis_TokenHistory = lazy(() => import('./pages/dialysis/dialysis_TokenHistory'))
 const Dialysis_Patients = lazy(() => import('./pages/dialysis/dialysis_Patients'))
+const Dialysis_Discharged = lazy(() => import('./pages/dialysis/dialysis_Discharged'))
 const Dialysis_Sessions = lazy(() => import('./pages/dialysis/dialysis_Sessions'))
 const Dialysis_Appointments = lazy(() => import('./pages/dialysis/dialysis_Appointments'))
 const Dialysis_UserManagement = lazy(() => import('./pages/dialysis/dialysis_UserManagement'))
@@ -294,6 +304,23 @@ const Dialysis_SidebarPermissions = lazy(() => import('./pages/dialysis/dialysis
 const Dialysis_AuditLogs = lazy(() => import('./pages/dialysis/dialysis_AuditLogs'))
 const Dialysis_Settings = lazy(() => import('./pages/dialysis/dialysis_Settings'))
 const Dialysis_MasterData = lazy(() => import('./pages/dialysis/dialysis_MasterData'))
+
+// Camp
+const Camp_Layout = lazy(() => import('./pages/camp/camp_Layout'))
+const Camp_Dashboard = lazy(() => import('./pages/camp/camp_Dashboard'))
+const Camp_Schedule = lazy(() => import('./pages/camp/camp_Schedule'))
+const Camp_Patients = lazy(() => import('./pages/camp/camp_Patients'))
+const Camp_Consultations = lazy(() => import('./pages/camp/camp_Consultations'))
+const Camp_Prescriptions = lazy(() => import('./pages/camp/camp_Prescriptions'))
+const Camp_LabOrders = lazy(() => import('./pages/camp/camp_LabOrders'))
+const Camp_Diagnostics = lazy(() => import('./pages/camp/camp_Diagnostics'))
+const Camp_Dispensing = lazy(() => import('./pages/camp/camp_Dispensing'))
+const Camp_Staff = lazy(() => import('./pages/camp/camp_Staff'))
+const Camp_Reports = lazy(() => import('./pages/camp/camp_Reports'))
+const Camp_Settings = lazy(() => import('./pages/camp/camp_Settings'))
+const Camp_UserManagement = lazy(() => import('./pages/camp/camp_UserManagement'))
+const Camp_SidebarPermissions = lazy(() => import('./pages/camp/camp_SidebarPermissions'))
+
 const Aesthetic_Layout = lazy(() => import('./pages/aesthetic/aesthetic_Layout'))
 const Aesthetic_Dashboard = lazy(() => import('./pages/aesthetic/aesthetic_Dashboard'))
 const Aesthetic_TokenGeneratorPage = lazy(() => import('./pages/aesthetic/aesthetic_TokenGenerator'))
@@ -347,6 +374,7 @@ const OT_Sterilization = lazy(() => import('./pages/hospital/ot/ot_Sterilization
 const OT_Equipment = lazy(() => import('./pages/hospital/ot/ot_Equipment'))
 const OT_Reports = lazy(() => import('./pages/hospital/ot/ot_Reports'))
 const OT_Procedures = lazy(() => import('./pages/hospital/ot/ot_Procedures'))
+const OT_CompletedSurgeries = lazy(() => import('./pages/hospital/ot/ot_CompletedSurgeries'))
 // ICU Sub-pages
 const ICU_Beds = lazy(() => import('./pages/hospital/icu/icu_Beds'))
 const ICU_Monitoring = lazy(() => import('./pages/hospital/icu/icu_Monitoring'))
@@ -354,6 +382,12 @@ const ICU_Scoring = lazy(() => import('./pages/hospital/icu/icu_Scoring'))
 const ICU_Ventilator = lazy(() => import('./pages/hospital/icu/icu_Ventilator'))
 const ICU_Reports = lazy(() => import('./pages/hospital/icu/icu_Reports'))
 const ICU_Transfer = lazy(() => import('./pages/hospital/icu/icu_Transfer'))
+const ICU_Referrals = lazy(() => import('./pages/hospital/icu/icu_Referrals'))
+// OT / ICU Patient List & Billing
+const Hospital_OTPatients = lazy(() => import('./pages/hospital/hospital_OTPatients'))
+const Hospital_OTBilling = lazy(() => import('./pages/hospital/hospital_OTBilling'))
+const Hospital_ICUPatients = lazy(() => import('./pages/hospital/hospital_ICUPatients'))
+const Hospital_ICUBilling = lazy(() => import('./pages/hospital/hospital_ICUBilling'))
 
 // Loading fallback component — 3D eye-catching preloader
 const LoadingFallback = () => {
@@ -505,6 +539,7 @@ export default function App() {
         <Route path="er-billing" element={<Hospital_ERBillingAdd />} />
         <Route path="er-billing/collect" element={<Hospital_ERBillingCollect />} />
         <Route path="bed-management" element={<Hospital_BedManagement />} />
+        <Route path="er-beds" element={<Hospital_ERBeds />} />
         <Route path="patient-list" element={<Hospital_PatientList />} />
         <Route path="patient/:id" element={<Hospital_PatientProfile />} />
         <Route path="ipd-referrals" element={<Hospital_IPDReferrals />} />
@@ -587,6 +622,9 @@ export default function App() {
         <Route path="ot/equipment" element={<OT_Equipment />} />
         <Route path="ot/reports" element={<OT_Reports />} />
         <Route path="ot/procedures" element={<OT_Procedures />} />
+        <Route path="ot/completed" element={<OT_CompletedSurgeries />} />
+        <Route path="ot/patients" element={<Hospital_OTPatients />} />
+        <Route path="ot/billing" element={<Hospital_OTBilling />} />
         {/* ICU Module */}
         <Route path="icu" element={<Hospital_ICUDashboard />} />
         <Route path="icu/beds" element={<ICU_Beds />} />
@@ -594,7 +632,10 @@ export default function App() {
         <Route path="icu/scoring" element={<ICU_Scoring />} />
         <Route path="icu/ventilator" element={<ICU_Ventilator />} />
         <Route path="icu/reports" element={<ICU_Reports />} />
+        <Route path="icu/referrals" element={<ICU_Referrals />} />
         <Route path="icu/transfer/:id" element={<ICU_Transfer />} />
+        <Route path="icu/patients" element={<Hospital_ICUPatients />} />
+        <Route path="icu/billing" element={<Hospital_ICUBilling />} />
         {/* Nurse Portal */}
         <Route path="nurse/dashboard" element={<Hospital_NurseDashboard />} />
         <Route path="nurse/tasks" element={<Hospital_NurseTasks />} />
@@ -715,6 +756,7 @@ export default function App() {
         <Route path="collection-centers" element={<Lab_CollectionCenters />} />
         <Route path="center-revenue" element={<Lab_CollectionCenterRevenue />} />
         <Route path="center-payments" element={<Lab_CollectionCenterPayments />} />
+        <Route path="doctor-revenue" element={<Lab_DoctorRevenue />} />
         <Route path="center-rate-list" element={<Lab_CenterRateList />} />
         {/* Blood Bank */}
         <Route path="bb/donors" element={<Lab_BB_Donors />} />
@@ -760,6 +802,8 @@ export default function App() {
         <Route path="staff-monthly" element={<Pharmacy_StaffMonthly />} />
         <Route path="guidelines" element={<Pharmacy_Guidelines />} />
         <Route path="purchase-orders" element={<Pharmacy_PurchaseOrders />} />
+        <Route path="purchase-orders/create" element={<Pharmacy_CreatePurchaseOrder />} />
+        <Route path="purchase-orders/edit/:id" element={<Pharmacy_CreatePurchaseOrder />} />
         <Route path="settings" element={<Pharmacy_Settings />} />
         <Route path="sidebar-permissions" element={<Pharmacy_SidebarPermissions />} />
         <Route path="user-management" element={<Pharmacy_UserManagement />} />
@@ -838,6 +882,8 @@ export default function App() {
         <Route path="voucher-print" element={<Finance_VoucherPrint />} />
         <Route path="shift-reports" element={<Finance_ShiftReports />} />
         <Route path="shift-settings" element={<Finance_ShiftSettings />} />
+        <Route path="expense-approvals" element={<Finance_ExpenseApprovals />} />
+        <Route path="activity-log" element={<Finance_ActivityLog />} />
       </Route>
       <Route path="/reception/login" element={<Reception_Login />} />
       <Route path="/reception" element={<Reception_Layout />}>
@@ -872,6 +918,7 @@ export default function App() {
         <Route path="token-generator" element={<Dialysis_TokenGenerator />} />
         <Route path="token-history" element={<Dialysis_TokenHistory />} />
         <Route path="patients" element={<Dialysis_Patients />} />
+        <Route path="discharged" element={<Dialysis_Discharged />} />
         <Route path="sessions" element={<Dialysis_Sessions />} />
         <Route path="appointments" element={<Dialysis_Appointments />} />
         <Route path="user-management" element={<Dialysis_UserManagement />} />
@@ -880,6 +927,25 @@ export default function App() {
         <Route path="settings" element={<Dialysis_Settings />} />
         <Route path="master-data" element={<Dialysis_MasterData />} />
       </Route>
+
+      {/* Camp Portal */}
+      <Route path="/camp/login" element={<Camp_Login />} />
+      <Route path="/camp" element={<Camp_Layout />}>
+        <Route index element={<Camp_Dashboard />} />
+        <Route path="schedule" element={<Camp_Schedule />} />
+        <Route path="patients" element={<Camp_Patients />} />
+        <Route path="consultations" element={<Camp_Consultations />} />
+        <Route path="prescriptions" element={<Camp_Prescriptions />} />
+        <Route path="lab-orders" element={<Camp_LabOrders />} />
+        <Route path="diagnostics" element={<Camp_Diagnostics />} />
+        <Route path="dispensing" element={<Camp_Dispensing />} />
+        <Route path="staff" element={<Camp_Staff />} />
+        <Route path="reports" element={<Camp_Reports />} />
+        <Route path="settings" element={<Camp_Settings />} />
+        <Route path="user-management" element={<Camp_UserManagement />} />
+        <Route path="sidebar-permissions" element={<Camp_SidebarPermissions />} />
+      </Route>
+
       {/* Super Admin Portal */}
       <Route path="/super-admin/login" element={<SuperAdminLogin />} />
       <Route path="/super-admin" element={<SuperAdminGuard><SuperAdminDashboard /></SuperAdminGuard>} />
@@ -887,6 +953,10 @@ export default function App() {
       <Route path="/super-admin/client" element={<SuperAdminGuard><ClientProfilePage /></SuperAdminGuard>} />
       <Route path="/super-admin/usage" element={<SuperAdminGuard><UsageStatsPage /></SuperAdminGuard>} />
       <Route path="/super-admin/admins" element={<SuperAdminGuard><SuperAdminUsersPage /></SuperAdminGuard>} />
+      {/* Admin Login */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      {/* Unified User Management (Admin Only) */}
+      <Route path="/admin/users" element={<AdminGuard><AdminUserManagementPage /></AdminGuard>} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

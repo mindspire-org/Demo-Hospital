@@ -48,6 +48,7 @@ import { postOpdTokenJournal, reverseOpdTokenJournal, reverseJournalById, revers
 import { FinanceJournal, JournalLine } from '../../finance/models/FinanceJournal'
 
 import { HospitalCashSession } from '../models/CashSession'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 import { resolveOPDPrice } from '../../corporate/utils/price'
 
@@ -498,6 +499,23 @@ export async function createOpd(req: Request, res: Response, next: import('expre
     erBed.status = 'occupied'
     erBed.occupiedByEncounterId = enc._id as any
     await erBed.save()
+    // Prevent this patient from occupying multiple beds: clear any other beds
+    // occupied by this patient's other active encounters
+    const otherActiveEncounters = await HospitalEncounter.find({
+      patientId: data.patientId,
+      _id: { $ne: enc._id },
+      $or: [
+        { type: 'IPD', status: 'admitted' },
+        { type: 'ER', status: { $in: ['in-progress', 'admitted'] } },
+      ],
+    }).select('_id').lean()
+    const otherIds = otherActiveEncounters.map((e: any) => String(e._id))
+    if (otherIds.length) {
+      await HospitalBed.updateMany(
+        { occupiedByEncounterId: { $in: otherIds } },
+        { $set: { status: 'available', occupiedByEncounterId: undefined } }
+      )
+    }
   }
 
 
@@ -877,6 +895,23 @@ export async function createOpd(req: Request, res: Response, next: import('expre
       serviceNames
 
     })
+
+    // Activity log
+    try {
+      const paidMethod = (data as any).corporateId ? 'AR' : ((data as any).paidMethod || 'Cash')
+      logActivity({
+        userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+        userName: String((req as any).user?.username || (req as any).user?.name || ''),
+        portal: 'hospital',
+        action: 'OPD Payment Collected',
+        module: 'OPD',
+        entityId: String((tok as any)._id),
+        entityLabel: `Token ${tokenNo} — ${String((patient as any)?.fullName || '')}`,
+        amount: Number(finalFee || 0),
+        method: paidMethod,
+        meta: { patientId: String((patient as any)?._id || ''), mrn: String((patient as any)?.mrn || ''), doctorId: data.doctorId, departmentId: data.departmentId }
+      })
+    } catch {}
 
   } catch (e) {
 
@@ -1426,6 +1461,16 @@ export async function updateStatus(req: Request, res: Response){
 
     try {
 
+      // Preserve original creator username before re-opening
+      let originalCreatedBy: string | undefined
+      try {
+        const existingJournal: any = await FinanceJournal.findOne({ refType: 'opd_token', refId: String(id) }).lean()
+        if (existingJournal?.lines) {
+          const lineWithUser = existingJournal.lines.find((l: any) => l?.tags?.createdByUsername)
+          if (lineWithUser?.tags?.createdByUsername) originalCreatedBy = String(lineWithUser.tags.createdByUsername)
+        }
+      } catch {}
+
       // Re-open token: re-post base journal (idempotent w.r.t latest reversal)
 
       await postOpdTokenJournal({
@@ -1449,6 +1494,8 @@ export async function updateStatus(req: Request, res: Response){
         tokenNo: String(prev?.tokenNo || ''),
 
         paidMethod: prev?.corporateId ? 'AR' : 'Cash',
+
+        createdByUsername: originalCreatedBy || (req as any).user?.username || (req as any).user?.name || undefined,
 
       } as any)
 
@@ -1788,6 +1835,16 @@ export async function update(req: Request, res: Response){
 
     if (feeChanged || docChanged || depChanged || patientChanged) {
 
+      // Preserve original creator username before reversing
+      let originalCreatedBy: string | undefined
+      try {
+        const existingJournal: any = await FinanceJournal.findOne({ refType: 'opd_token', refId: String(id) }).lean()
+        if (existingJournal?.lines) {
+          const lineWithUser = existingJournal.lines.find((l: any) => l?.tags?.createdByUsername)
+          if (lineWithUser?.tags?.createdByUsername) originalCreatedBy = String(lineWithUser.tags.createdByUsername)
+        }
+      } catch {}
+
       await reverseJournalByRef('opd_token', String(id), 'Repost for token edit')
 
       await postOpdTokenJournal({
@@ -1796,7 +1853,7 @@ export async function update(req: Request, res: Response){
 
         dateIso: String((tok as any)?.dateIso || getPakistanDate()),
 
-        fee: Math.max(0, newFee - newDiscount),
+        fee: Math.max(0, newFee),
 
         doctorId: newDoctorId || undefined,
 
@@ -1811,6 +1868,8 @@ export async function update(req: Request, res: Response){
         tokenNo: String((tok as any)?.tokenNo || '' ) || undefined,
 
         paidMethod: (tok as any).corporateId ? 'AR' : ((tok as any).paidMethod || 'Cash'),
+
+        createdByUsername: originalCreatedBy || (req as any).user?.username || (req as any).user?.name || undefined,
 
       })
 

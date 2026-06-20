@@ -138,12 +138,27 @@ export default function Hospital_PatientList() {
   const [dischargeId, setDischargeId] = useState<string | null>(null)
   const [dischargeName, setDischargeName] = useState<string>('')
   const [dischargeBedLocation, setDischargeBedLocation] = useState<BedLocation | undefined>()
+  const [dischargeSummary, setDischargeSummary] = useState('')
+  const [dischargeError, setDischargeError] = useState('')
+  const [dischargeBilling, setDischargeBilling] = useState<{ pending: number; advance: number } | null>(null)
 
-  function openDischargeConfirm(id: string, name: string, bedLoc?: BedLocation) {
+  async function openDischargeConfirm(id: string, name: string, bedLoc?: BedLocation) {
     setDischargeId(id)
     setDischargeName(name)
     setDischargeBedLocation(bedLoc)
+    setDischargeSummary('')
+    setDischargeError('')
+    setDischargeBilling(null)
     setDischargeOpen(true)
+    // Pre-load billing summary
+    try {
+      const res: any = await hospitalApi.ipdBillingSummary(id)
+      const totals = res?.totals || {}
+      setDischargeBilling({
+        pending: Number(totals?.netOutstanding || totals?.pending || 0),
+        advance: Number(totals?.unallocatedAdvance || 0),
+      })
+    } catch {}
   }
 
   function formatBedLocation(bedLoc?: BedLocation) {
@@ -159,18 +174,15 @@ export default function Hospital_PatientList() {
 
   async function confirmDischarge() {
     if (!dischargeId) return
-    setDischargeOpen(false)
+    setDischargeError('')
     try {
-      await hospitalApi.dischargeIPD(dischargeId)
+      await hospitalApi.dischargeIPD(dischargeId, { dischargeSummary: dischargeSummary.trim() || undefined })
+      setDischargeOpen(false)
       await load()
+      setToast({ type: 'success', message: 'Patient discharged successfully' })
     } catch (e: any) {
       const errMsg = e?.message || e?.error || 'Failed to discharge'
-      // Check if it's a billing block error
-      if (e?.code === 'PENDING_AMOUNT' || e?.code === 'UNALLOCATED_ADVANCE') {
-        setToast({ type: 'error', message: errMsg })
-      } else {
-        setToast({ type: 'error', message: errMsg })
-      }
+      setDischargeError(errMsg)
     }
   }
 
@@ -337,7 +349,7 @@ export default function Hospital_PatientList() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 p-5 text-white shadow-sm">
+      <div className="rounded-2xl bg-linear-to-r from-blue-600 via-indigo-500 to-violet-500 p-5 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-lg font-extrabold">IPD Patient List</div>
@@ -554,18 +566,45 @@ export default function Hospital_PatientList() {
       )}
       {dischargeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-lg bg-white p-4 shadow">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
             <div className="text-base font-semibold text-slate-800">Confirm Discharge</div>
-            <div className="mt-3 text-sm text-slate-600">
+            <div className="mt-2 text-sm text-slate-600">
               Are you sure you want to discharge <span className="font-medium text-slate-800 capitalize">{dischargeName}</span>?
             </div>
-            <div className="mt-3 rounded-md bg-slate-50 p-3 text-sm">
-              <div className="text-slate-500 text-xs uppercase tracking-wider mb-1">Current Bed</div>
+            <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm border border-slate-100">
+              <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Current Bed</div>
               <div className="font-medium text-slate-700">{formatBedLocation(dischargeBedLocation)}</div>
             </div>
+            {dischargeBilling && (dischargeBilling.pending > 0 || dischargeBilling.advance > 0) && (
+              <div className={`mt-3 rounded-lg p-3 text-sm border ${dischargeBilling.pending > 0 ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
+                <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${dischargeBilling.pending > 0 ? 'text-rose-600' : 'text-amber-600'}`}>Billing Alert</div>
+                {dischargeBilling.pending > 0 && (
+                  <div className="text-rose-700 font-medium">Pending: Rs {dischargeBilling.pending.toLocaleString()}</div>
+                )}
+                {dischargeBilling.advance > 0 && (
+                  <div className="text-amber-700 font-medium">Unallocated Advance: Rs {dischargeBilling.advance.toLocaleString()}</div>
+                )}
+                <div className="text-xs mt-1 text-slate-500">Discharge may be blocked until billing is settled.</div>
+              </div>
+            )}
+            <div className="mt-3">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Discharge Summary (optional)</label>
+              <textarea
+                value={dischargeSummary}
+                onChange={e => setDischargeSummary(e.target.value)}
+                placeholder="Enter discharge summary…"
+                rows={3}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 outline-none transition-all resize-none"
+              />
+            </div>
+            {dischargeError && (
+              <div className="mt-3 rounded-lg bg-rose-50 border border-rose-100 p-3 text-sm text-rose-700">
+                <span className="font-semibold">Error:</span> {dischargeError}
+              </div>
+            )}
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={()=>setDischargeOpen(false)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Cancel</button>
-              <button onClick={confirmDischarge} className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700">Discharge</button>
+              <button type="button" onClick={()=>setDischargeOpen(false)} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">Cancel</button>
+              <button onClick={confirmDischarge} disabled={!!dischargeBilling && dischargeBilling.pending > 0} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed">Discharge</button>
             </div>
           </div>
         </div>

@@ -3,11 +3,28 @@ import express, { Request, Response } from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
 import path from 'node:path'
+import session from 'express-session'
+import MongoStore from 'connect-mongo'
 import { env } from './config/env'
 import apiRouter from './routes'
 import { errorHandler } from './common/middleware/error'
 
 const app = express()
+
+// Session middleware: server-side sessions stored in MongoDB
+app.use(session({
+  secret: env.JWT_SECRET || 'fallback-secret-change-me',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({ mongoUrl: env.MONGO_URI }),
+  cookie: {
+    secure: false,
+    httpOnly: true,
+    maxAge: 1000 * 60 * 60 * 8,
+    sameSite: 'lax',
+  },
+  name: 'hims.sid',
+}))
 
 // CORS configuration: allow specific origins for security with credentials
 const allowedOrigins = [

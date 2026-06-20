@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { hospitalApi } from '../../utils/api'
 import { Activity, Users, Scissors, ClipboardList } from 'lucide-react'
 
@@ -28,6 +28,8 @@ export function OTBookingModal({ onClose, onCreated }: { onClose: () => void; on
   const [doctors, setDoctors] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
   const [staff, setStaff] = useState<any[]>([])
+  const [equipment, setEquipment] = useState<any[]>([])
+  const [procedures, setProcedures] = useState<any[]>([])
   const [patientEntryMode, setPatientEntryMode] = useState<PatientEntryMode>('ipd')
   const [form, setForm] = useState({
     encounterId: '', procedure: '', procedureCode: '', surgeonId: '', anesthesiologistId: '',
@@ -54,14 +56,18 @@ export function OTBookingModal({ onClose, onCreated }: { onClose: () => void; on
   useEffect(() => {
     async function loadOptions() {
       try {
-        const [a, d, r, s] = await Promise.all([
+        const [a, d, r, s, eq, proc] = await Promise.all([
           hospitalApi.listIPDAdmissions({ status: 'admitted', limit: 100 }) as any,
           hospitalApi.listDoctors({ limit: 100 }) as any,
           hospitalApi.listOTRooms({ status: 'available', limit: 50 }) as any,
           hospitalApi.listStaff() as any,
+          hospitalApi.listOTEquipment({ limit: 200 }) as any,
+          hospitalApi.listOTProcedures({ limit: 200 }) as any,
         ])
         setPatients(a?.admissions || []); setDoctors(d?.doctors || [])
         setRooms(r?.rooms || []); setStaff(s?.staff || [])
+        setEquipment(eq?.equipment || [])
+        setProcedures(proc?.procedures || [])
       } catch {}
     }
     loadOptions()
@@ -177,7 +183,31 @@ export function OTBookingModal({ onClose, onCreated }: { onClose: () => void; on
           {/* PROCEDURE TAB */}
           {activeTab === 'procedure' && <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <div>{L('Procedure Name *')}<input type="text" value={form.procedure} onChange={e => setForm({...form, procedure: e.target.value})} className={ci} placeholder="e.g., Laparoscopic Appendectomy" required /></div>
+              <div>
+                {L('Procedure Name *')}
+                <select
+                  value={form.procedure}
+                  onChange={e => {
+                    const selectedName = e.target.value
+                    const selectedProc = procedures.find((p: any) => p.name === selectedName)
+                    setForm({
+                      ...form,
+                      procedure: selectedName,
+                      procedureCode: selectedProc?.code || '',
+                      estimatedDuration: selectedProc?.estimatedDuration || form.estimatedDuration,
+                      requiredEquipment: (selectedProc?.requiredEquipment || []).join(', '),
+                      anesthesiaType: selectedProc?.anesthesiaTypes?.[0] || form.anesthesiaType,
+                    })
+                  }}
+                  className={ci}
+                  required
+                >
+                  <option value="">Select Procedure</option>
+                  {procedures.map((p: any) => (
+                    <option key={p._id} value={p.name}>{p.name} {p.code ? `(${p.code})` : ''}</option>
+                  ))}
+                </select>
+              </div>
               <div>{L('Procedure Code (ICD/CPT)')}<input type="text" value={form.procedureCode} onChange={e => setForm({...form, procedureCode: e.target.value})} className={ci} placeholder="e.g., 44970, K35.8" /></div>
             </div>
             <div className="grid grid-cols-3 gap-4">
@@ -196,7 +226,15 @@ export function OTBookingModal({ onClose, onCreated }: { onClose: () => void; on
               <div>{L('Scheduled Date & Time')}<input type="datetime-local" value={form.scheduledAt} onChange={e => setForm({...form, scheduledAt: e.target.value})} className={ci} /></div>
             </div>
             <div>{L('Estimated Duration (minutes)')}<input type="number" value={form.estimatedDuration} onChange={e => setForm({...form, estimatedDuration: parseInt(e.target.value) || 60})} className={ci} min={15} step={15} /></div>
-            <div>{L('Required Equipment')}<textarea value={form.requiredEquipment} onChange={e => setForm({...form, requiredEquipment: e.target.value})} className={ci} rows={2} placeholder="e.g., Laparoscopic set, C-arm" /></div>
+            <div>
+              {L('Required Equipment')}
+              <MultiSelectDropdown
+                options={equipment.map((eq: any) => ({ value: eq.name || eq.label || '', label: `${eq.name || eq.label || ''}${eq.code ? ` (${eq.code})` : ''}` }))}
+                selected={form.requiredEquipment.split(',').map(s => s.trim()).filter(Boolean)}
+                onChange={(selected: string[]) => setForm({ ...form, requiredEquipment: selected.join(', ') })}
+                placeholder="Select equipment..."
+              />
+            </div>
             <div>{L('Implants / Consumables')}<textarea value={form.implants} onChange={e => setForm({...form, implants: e.target.value})} className={ci} rows={2} placeholder="e.g., Mesh, Screws, Plates" /></div>
           </div>}
 
@@ -366,6 +404,94 @@ export function OTBookingModal({ onClose, onCreated }: { onClose: () => void; on
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Multi-select dropdown component
+function MultiSelectDropdown({ options, selected, onChange, placeholder }: {
+  options: { value: string; label: string }[]
+  selected: string[]
+  onChange: (selected: string[]) => void
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const toggle = (value: string) => {
+    const updated = selected.includes(value)
+      ? selected.filter(v => v !== value)
+      : [...selected, value]
+    onChange(updated)
+  }
+
+  const remove = (value: string) => {
+    onChange(selected.filter(v => v !== value))
+  }
+
+  const selectedLabels = selected.map(s => options.find(o => o.value === s)?.label || s)
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="mt-1 flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-left hover:border-slate-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+      >
+        <span className={selected.length ? 'text-slate-800' : 'text-slate-400'}>
+          {selected.length ? `${selected.length} selected` : (placeholder || 'Select...')}
+        </span>
+        <svg className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          {options.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">No options</div>
+          ) : (
+            options.map(opt => {
+              const isSelected = selected.includes(opt.value)
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggle(opt.value)}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 ${isSelected ? 'bg-purple-50 text-purple-700' : 'text-slate-700'}`}
+                >
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-purple-500 bg-purple-500' : 'border-slate-300'}`}>
+                    {isSelected && <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                  </span>
+                  {opt.label}
+                </button>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* Selected chips */}
+      {selected.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {selectedLabels.map((label, idx) => (
+            <span key={selected[idx]} className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700 border border-purple-200">
+              {label}
+              <button type="button" onClick={() => remove(selected[idx])} className="rounded-full p-0.5 hover:bg-purple-100">
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -14,7 +14,7 @@ import {
 
 type ICUAdmission = {
   _id: string
-  encounterId: string
+  encounterId: string | { _id: string; [k: string]: any }
   patientId?: { _id: string; fullName: string; mrNumber: string; age?: number; gender?: string }
   bedId?: { _id: string; name: string }
   admittedAt: string
@@ -95,6 +95,11 @@ export default function Hospital_ICUDashboard() {
     }
   }
 
+  const getEncounterId = (a: ICUAdmission): string => {
+    const e = (a.encounterId as any)
+    return String(e?._id || e || '')
+  }
+
   const formatDuration = (admittedAt: string) => {
     const start = new Date(admittedAt)
     const now = new Date()
@@ -107,7 +112,7 @@ export default function Hospital_ICUDashboard() {
   return (
     <div className="space-y-5">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-pink-600 p-6 text-white dark:from-rose-800 dark:via-red-800 dark:to-pink-800">
+      <div className="relative overflow-hidden rounded-xl bg-linear-to-r from-rose-600 via-red-600 to-pink-600 p-6 text-white dark:from-rose-800 dark:via-red-800 dark:to-pink-800">
         <div className="flex items-center justify-between">
           <div className="max-w-xl">
             <h1 className="text-2xl font-bold">Intensive Care Unit</h1>
@@ -197,7 +202,7 @@ export default function Hospital_ICUDashboard() {
               onClick={() => {
                 if (bed.status === 'occupied') {
                   const admission = admissions.find(a => a.bedId?._id === bed._id)
-                  if (admission) navigate(`/hospital/patient/${admission.encounterId}`)
+                  if (admission) navigate(`/hospital/patient/${getEncounterId(admission)}`)
                 }
               }}
             >
@@ -249,7 +254,7 @@ export default function Hospital_ICUDashboard() {
                 >
                   <td className="px-3 py-2">
                     <button
-                      onClick={() => navigate(`/hospital/patient/${admission.encounterId}`)}
+                      onClick={() => navigate(`/hospital/patient/${getEncounterId(admission)}`)}
                       className="text-rose-600 hover:underline font-medium dark:text-rose-400"
                     >
                       {admission.patientId?.fullName || 'Unknown'}
@@ -276,7 +281,7 @@ export default function Hospital_ICUDashboard() {
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <button
-                        onClick={() => navigate(`/hospital/patient/${admission.encounterId}`)}
+                        onClick={() => navigate(`/hospital/patient/${getEncounterId(admission)}`)}
                         className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
                       >
                         Profile

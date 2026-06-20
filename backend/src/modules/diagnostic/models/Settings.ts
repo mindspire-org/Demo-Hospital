@@ -20,6 +20,17 @@ const SettingsSchema = new Schema({
     type: [{ testId: String, testName: String, templateKey: String }],
     default: [],
   },
+  reportSections: {
+    type: {
+      clinicalInformation: { type: Boolean, default: false },
+      comparison: { type: Boolean, default: false },
+      technique: { type: Boolean, default: false },
+      findings: { type: Boolean, default: true },
+      impression: { type: Boolean, default: false },
+      images: { type: Boolean, default: false },
+    },
+    default: () => ({ findings: true }),
+  },
 }, { timestamps: true })
 
 export type DiagnosticSettingsDoc = {
@@ -36,6 +47,7 @@ export type DiagnosticSettingsDoc = {
   consultantTitle?: string
   consultants?: Array<{ name?: string; degrees?: string; title?: string }>
   templateMappings?: Array<{ testId: string; testName?: string; templateKey: string }>
+  reportSections?: { clinicalInformation?: boolean; comparison?: boolean; technique?: boolean; findings?: boolean; impression?: boolean; images?: boolean }
 }
 
 export const DiagnosticSettings = models.Diagnostic_Settings || model('Diagnostic_Settings', SettingsSchema)

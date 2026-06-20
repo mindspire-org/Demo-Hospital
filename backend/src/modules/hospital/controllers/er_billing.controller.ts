@@ -12,6 +12,7 @@ import { HospitalBed } from '../models/Bed'
 import { HospitalFloor } from '../models/Floor'
 import { HospitalRoom } from '../models/Room'
 import { HospitalWard } from '../models/Ward'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 function clampMoney(n: number){
   return Math.round(Number(n || 0) * 100) / 100
@@ -321,6 +322,23 @@ export async function createPayment(req: Request, res: Response){
     try {
       const pat: any = await LabPatient.findById((enc as any).patientId).lean()
       await postErPaymentJournal({ encounter: enc, payment: row, patient: pat })
+    } catch {}
+
+    // Activity log
+    try {
+      const isRefund = String((data as any).type || '').toLowerCase() === 'refund'
+      logActivity({
+        userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+        userName: String((req as any).user?.username || (req as any).user?.name || ''),
+        portal: req.body.portal || 'hospital',
+        action: isRefund ? 'ER Refund Issued' : 'ER Payment Collected',
+        module: 'ER',
+        entityId: String((row as any)._id),
+        entityLabel: `Encounter ${String(enc._id).slice(-6)} — ${(row as any)?.refNo || ''}`,
+        amount: Number((row as any).amount || (data as any).amount || 0),
+        method: String((row as any).method || (data as any).method || ''),
+        meta: { encounterId: String(enc._id), patientId: String((enc as any).patientId), refNo: (row as any)?.refNo || (data as any).refNo || '' }
+      })
     } catch {}
 
     // FBR fiscalization (ER payment receipt) - best effort

@@ -3,6 +3,7 @@ import { env } from '../config/env'
 import { AestheticUser } from '../modules/aesthetic/models/User'
 import { DiagnosticUser } from '../modules/diagnostic/models/User'
 import { HospitalUser } from '../modules/hospital/models/User'
+import { CampUser } from '../modules/camp/models/CampUser'
 import { FinanceUser } from '../modules/finance/models/finance_User'
 import { LabUser } from '../modules/lab/models/User'
 import { PharmacyUser } from '../modules/pharmacy/models/User'
@@ -30,4 +31,5 @@ export async function ensureDefaultPortalLogins() {
   await ensureOne(LabUser, username, { username, role: 'admin', passwordHash })
   await ensureOne(DiagnosticUser, username, { username, role: 'admin', passwordHash })
   await ensureOne(FinanceUser, username, { username, role: 'admin', passwordHash })
+  await ensureOne(CampUser, username, { username, role: 'admin', active: true, passwordHash })
 }

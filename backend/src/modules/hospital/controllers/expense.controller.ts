@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { HospitalExpense } from '../models/Expense'
 import { HospitalCashSession } from '../models/CashSession'
 import { createExpenseSchema, listExpenseSchema } from '../validators/expense'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 export async function list(req: Request, res: Response){
   const q = listExpenseSchema.safeParse(req.query)
@@ -37,6 +38,23 @@ export async function create(req: Request, res: Response){
     createdBy: createdByUsername,
     createdByUsername,
   })
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?.id || (req as any).user?._id || 'system'),
+      userName: createdByUsername,
+      portal: 'hospital',
+      action: 'Expense Created',
+      module: 'Expense',
+      entityId: String(row._id),
+      entityLabel: `${row.category || ''} — ${row.description || ''}`,
+      amount: Number(row.amount || 0),
+      method: '',
+      meta: { category: row.category, departmentName: row.departmentName || '', dateIso: row.dateIso || '' }
+    })
+  } catch {}
+
   res.status(201).json({ expense: row })
 }
 

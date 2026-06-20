@@ -251,6 +251,11 @@ export default function Lab_Dashboard(){
   const [loading, setLoading] = useState(true)
   const [tick, setTick] = useState(0)
   const [critEvents, setCritEvents] = useState<Array<{ _id: string; patientName?: string; testName?: string; parameter: string; value: string; detectedAt: string }>>([])
+  const [collectionCenters, setCollectionCenters] = useState<Array<{ _id: string; name: string }>>([])
+  const [doctors, setDoctors] = useState<Array<{ _id: string; name: string }>>([])
+  const [selectedCenterId, setSelectedCenterId] = useState('')
+  const [selectedWardId, setSelectedWardId] = useState('')
+  const [selectedDoctorId, setSelectedDoctorId] = useState('')
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -265,8 +270,17 @@ export default function Lab_Dashboard(){
       setLoading(true)
       try {
         const [s, r]: any[] = await Promise.all([
-          labApi.dashboardSummary(),
-          labApi.reportsSummary({ from, to }),
+          labApi.dashboardSummary({
+            collectionCenterId: selectedCenterId || undefined,
+            wardId: selectedWardId || undefined,
+            referringDoctorId: selectedDoctorId || undefined,
+          }),
+          labApi.reportsSummary({
+            from, to,
+            collectionCenterId: selectedCenterId || undefined,
+            wardId: selectedWardId || undefined,
+            referringDoctorId: selectedDoctorId || undefined,
+          }),
         ])
         if (!alive) return
         setToday(s as Summary)
@@ -275,7 +289,23 @@ export default function Lab_Dashboard(){
       finally { if (alive) setLoading(false) }
     })()
     return () => { alive = false }
-  }, [tick, from, to])
+  }, [tick, from, to, selectedCenterId, selectedWardId, selectedDoctorId])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const [ccRes, docRes] = await Promise.all([
+          labApi.listCollectionCenters({ limit: 100 }),
+          labApi.listDoctors(),
+        ])
+        if (!alive) return
+        setCollectionCenters((ccRes.items || []).map((c: any) => ({ _id: c._id, name: c.name })))
+        setDoctors((docRes.items || []).map((d: any) => ({ _id: d._id, name: d.name })))
+      } catch {}
+    })()
+    return () => { alive = false }
+  }, [])
 
   // Derived stats
   const collectionRatio = useMemo(() => {
@@ -319,6 +349,38 @@ export default function Lab_Dashboard(){
           <div className="flex w-full sm:w-auto flex-wrap items-center gap-3">
             <div className="relative z-50 w-full sm:w-auto rounded-2xl bg-white/10 p-1 backdrop-blur-md">
               <DateRangeFilter value={{ from, to }} onChange={r => { setFrom(r.from); setTo(r.to) }} />
+            </div>
+            <div className="flex w-full sm:w-auto flex-wrap items-center gap-2">
+              <select
+                value={selectedCenterId}
+                onChange={e => setSelectedCenterId(e.target.value)}
+                className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-bold text-white backdrop-blur-md outline-none focus:bg-white/20"
+              >
+                <option value="" className="text-slate-900">All Centers</option>
+                {collectionCenters.map(c => (
+                  <option key={c._id} value={c._id} className="text-slate-900">{c.name}</option>
+                ))}
+              </select>
+              <select
+                value={selectedWardId}
+                onChange={e => setSelectedWardId(e.target.value)}
+                className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-bold text-white backdrop-blur-md outline-none focus:bg-white/20"
+              >
+                <option value="" className="text-slate-900">All Wards</option>
+                <option value="ward_1" className="text-slate-900">Ward 1</option>
+                <option value="ward_2" className="text-slate-900">Ward 2</option>
+                <option value="ward_3" className="text-slate-900">Ward 3</option>
+              </select>
+              <select
+                value={selectedDoctorId}
+                onChange={e => setSelectedDoctorId(e.target.value)}
+                className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-bold text-white backdrop-blur-md outline-none focus:bg-white/20"
+              >
+                <option value="" className="text-slate-900">All Doctors</option>
+                {doctors.map(d => (
+                  <option key={d._id} value={d._id} className="text-slate-900">{d.name}</option>
+                ))}
+              </select>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <button 

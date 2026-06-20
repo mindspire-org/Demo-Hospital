@@ -283,6 +283,42 @@ export async function updateDoctor(req: Request, res: Response){
   res.json({ doctor: d })
 }
 
+export async function updateDoctorProfile(req: Request, res: Response){
+  const data = upsertDoctorSchema.safeParse(req.body)
+  if (!data.success) return res.status(400).json({ error: 'Validation failed', issues: data.error.issues })
+  const { password, username, departmentIds, primaryDepartmentId, opdPublicFee, opdPrivateFee, opdSubsidizedFee, opdFollowupFee, followupWindowDays, shares, opdShare, ipdShare, active, cnic, pmdcNo, ...allowedPatch } = (data.data as any)
+  const id = req.params.id
+  const jwtUsername = String((req as any).user?.username || '').trim().toLowerCase()
+  // Look up the doctor being updated and verify ownership by username
+  let doctorRecord: any
+  if (Types.ObjectId.isValid(id)) {
+    doctorRecord = await HospitalDoctor.findById(id).lean()
+  } else {
+    const candidates: any[] = [id]
+    const n = Number(id)
+    if (!Number.isNaN(n)) candidates.push(n)
+    doctorRecord = await HospitalDoctor.collection.findOne({ _id: { $in: candidates } })
+  }
+  if (!doctorRecord) return res.status(404).json({ error: 'Doctor not found' })
+  const doctorUsername = String(doctorRecord.username || '').trim().toLowerCase()
+  if (doctorUsername && doctorUsername !== jwtUsername) {
+    return res.status(403).json({ error: 'You can only update your own profile' })
+  }
+  let d: any
+  if (Types.ObjectId.isValid(id)) {
+    d = await HospitalDoctor.findByIdAndUpdate(id, { $set: allowedPatch }, { new: true })
+  } else {
+    const candidates: any[] = [id]
+    const n = Number(id)
+    if (!Number.isNaN(n)) candidates.push(n)
+    const upd = await HospitalDoctor.collection.updateOne({ _id: { $in: candidates } }, { $set: allowedPatch })
+    if (!upd.matchedCount) return res.status(404).json({ error: 'Doctor not found' })
+    d = await HospitalDoctor.collection.findOne({ _id: { $in: candidates } })
+  }
+  if (!d) return res.status(404).json({ error: 'Doctor not found' })
+  res.json({ doctor: d })
+}
+
 export async function removeDepartment(req: Request, res: Response){
   const id = req.params.id
   const d = await HospitalDepartment.findByIdAndDelete(id)

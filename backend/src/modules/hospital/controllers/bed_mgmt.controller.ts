@@ -135,13 +135,15 @@ export async function listBeds(req: Request, res: Response){
     const locationName = b.locationType === 'room'
       ? (roomMap.get(String(b.locationId)) || '')
       : (wardMap.get(String(b.locationId)) || '')
+    // Only show occupant info when truly occupied; otherwise clear it
+    const showOccupant = statusNormalized === 'occupied' && isTrulyOccupied
     return {
       ...b,
       status: statusNormalized,
-      occupantName: p?.fullName,
-      occupantMrn: p?.mrn,
-      occupantEncounterId: enc?._id,
-      occupantEncounterType: enc?.type,
+      occupantName: showOccupant ? p?.fullName : undefined,
+      occupantMrn: showOccupant ? p?.mrn : undefined,
+      occupantEncounterId: showOccupant ? enc?._id : undefined,
+      occupantEncounterType: showOccupant ? enc?.type : undefined,
       floorName,
       locationName,
     }
@@ -174,6 +176,15 @@ export async function updateBedStatus(req: Request, res: Response){
   const id = req.params.id
   const bed = await HospitalBed.findById(id)
   if (!bed) return res.status(404).json({ error: 'Bed not found' })
+
+  if (data.status === 'occupied' && data.encounterId) {
+    // Prevent same encounter from occupying multiple beds
+    await HospitalBed.updateMany(
+      { _id: { $ne: id }, occupiedByEncounterId: data.encounterId },
+      { $set: { status: 'available', occupiedByEncounterId: undefined } }
+    )
+  }
+
   bed.status = data.status
   if (data.status === 'occupied') bed.occupiedByEncounterId = data.encounterId as any
   if (data.status === 'available') bed.occupiedByEncounterId = undefined as any

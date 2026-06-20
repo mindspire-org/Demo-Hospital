@@ -1,5 +1,4 @@
 import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import type { PrescriptionPdfData } from '../../prescriptionPdf'
 import { ensurePoppins } from '../ensurePoppins'
 
@@ -9,10 +8,15 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
   const H = pdf.internal.pageSize.getHeight()
 
   await ensurePoppins(pdf)
-  const { ensureUrduNastaleeq } = await import('../ensureUrduNastaleeq')
+  const { ensureUrduNastaleeq, drawUrduText } = await import('../ensureUrduNastaleeq')
   const urduOk = await ensureUrduNastaleeq(pdf)
   const wantsUrdu = data.language === 'urdu'
   const isUrdu = wantsUrdu && urduOk
+  const hasUrdu = (s: string) => urduOk && /[\u0600-\u06FF]/.test(s)
+  const safeUrdu = (text: string, x: number, y: number, opts?: any) => {
+    if (drawUrduText) drawUrduText(pdf, text, x, y, opts)
+    else pdf.text(text, x, y, opts)
+  }
 
   try { pdf.setFont('Poppins', 'normal') } catch {}
 
@@ -50,9 +54,10 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
   pdf.text('Advanced Care & Digital Health Services', logoX + logoSize + 6, startY + 13)
   pdf.text(`${data.settings?.address || 'Medical City'} | Tel: ${data.settings?.phone || '(555) 123-4567'}`, logoX + logoSize + 6, startY + 18)
 
+  const drNameT2 = String(data.doctor?.name || 'Sara Ahmed').replace(/^\s*Dr\.?\s*/i, '')
   pdf.setTextColor(muted[0], muted[1], muted[2])
   pdf.setFontSize(9)
-  pdf.text(data.doctor?.name || 'Dr. Sara Ahmed', W - margin - 12, startY + 5, { align: 'right' })
+  pdf.text(`Dr. ${drNameT2}`, W - margin - 12, startY + 5, { align: 'right' })
   pdf.text(data.doctor?.qualification || 'MBBS, MD', W - margin - 12, startY + 10, { align: 'right' })
   pdf.text(new Date(data.createdAt || Date.now()).toLocaleDateString(), W - margin - 12, startY + 15, { align: 'right' })
 
@@ -114,33 +119,70 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
   const medsW = cardW * 0.65
   const sideW = cardW - medsW - 12
 
+  // Manual medicine table with Urdu support
   const { translateRxItem } = await import('../../prescriptionUrdu')
-  const medData = (data.items || []).map(it => {
-    const t = translateRxItem(it as any, isUrdu ? 'urdu' : 'english')
-    return [
-      it.name || '',
-      String(t?.dose || t?.instruction || ''),
-      String(t?.duration || '')
-    ]
+  const meds = (data.items || []).filter(m => String(m?.name || '').trim())
+  const tableX = margin + 12
+  const tableW = medsW
+
+  // Header
+  const cols = [6, medsW * 0.38, medsW * 0.20, medsW * 0.22, medsW * 0.20]
+  const cxPos = (idx: number) => {
+    let px = tableX + 2
+    for (let k = 0; k < idx; k++) px += cols[k]
+    return px
+  }
+  const headers = isUrdu
+    ? ['#', 'دوا', 'خوراک', 'فریکوئنسی', 'مدت']
+    : ['#', 'Medicine', 'Dose', 'Freq', 'Duration']
+
+  const rowH = 7
+  let ty = rxY + 12
+  pdf.setFillColor(248, 250, 255)
+  pdf.roundedRect(tableX, ty, tableW, rowH, 2, 2, 'F')
+  headers.forEach((h, i) => {
+    const center = cxPos(i) + cols[i] / 2
+    pdf.setTextColor(primary[0], primary[1], primary[2])
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7)
+    pdf.text(h, center, ty + 5, { align: 'center' })
   })
+  ty += rowH
 
-  const head = isUrdu
-    ? [['Medicine', 'خوراک', 'مدت']]
-    : [['Medicine', 'Dosage', 'Duration']]
+  // Rows
+  meds.forEach((m, i) => {
+    const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
+    const name = String(m?.name || '').trim()
+    const dose = String(t?.dose || '').trim()
+    const freq = String(t?.frequency || '').trim()
+    const dur = String(t?.duration || '').trim()
 
-  autoTable(pdf, {
-    startY: rxY + 12,
-    head,
-    body: medData.length ? medData : [['', '', '']],
-    theme: 'plain',
-    margin: { left: margin + 18, right: W - margin - 12 - sideW - 6 },
-    styles: { fontSize: 8, cellPadding: 4, textColor: [10, 15, 44] },
-    headStyles: { textColor: [107, 115, 144], fontStyle: 'bold' },
-    columnStyles: {
-      0: { cellWidth: medsW * 0.5 },
-      1: { cellWidth: medsW * 0.3 },
-      2: { cellWidth: medsW * 0.2 }
+    if (i % 2 === 1) {
+      pdf.setFillColor(250, 252, 251)
+      pdf.rect(tableX, ty, tableW, rowH, 'F')
     }
+
+    const colCenter = (cidx: number) => cxPos(cidx) + cols[cidx] / 2
+
+    pdf.setTextColor(muted[0], muted[1], muted[2])
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7)
+    pdf.text(String(i + 1), colCenter(0), ty + 5, { align: 'center' })
+
+    if (hasUrdu(name)) { pdf.setFontSize(9); safeUrdu(name, cxPos(1) + cols[1] - 4, ty + 5.5, { align: 'right', maxWidth: cols[1] - 6 }) }
+    else { pdf.setTextColor(10, 15, 44); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.text(name, cxPos(1) + 3, ty + 5.5) }
+
+    if (hasUrdu(dose)) { pdf.setFontSize(9); safeUrdu(dose, colCenter(2), ty + 5.5, { align: 'center', maxWidth: cols[2] - 4 }) }
+    else { pdf.setTextColor(10, 15, 44); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(dose, colCenter(2), ty + 5.5, { align: 'center' }) }
+
+    if (hasUrdu(freq)) { pdf.setFontSize(9); safeUrdu(freq, colCenter(3), ty + 5.5, { align: 'center', maxWidth: cols[3] - 4 }) }
+    else { pdf.setTextColor(10, 15, 44); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(freq, colCenter(3), ty + 5.5, { align: 'center' }) }
+
+    if (hasUrdu(dur)) { pdf.setFontSize(9); safeUrdu(dur, colCenter(4), ty + 5.5, { align: 'center', maxWidth: cols[4] - 4 }) }
+    else { pdf.setTextColor(10, 15, 44); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.text(dur, colCenter(4), ty + 5.5, { align: 'center' }) }
+
+    pdf.setDrawColor(230, 235, 240)
+    pdf.setLineWidth(0.15)
+    pdf.line(tableX, ty + rowH, tableX + tableW, ty + rowH)
+    ty += rowH
   })
 
   const sideX = margin + 12 + medsW + 6
@@ -171,7 +213,8 @@ export async function buildPrescriptionTwo(data: PrescriptionPdfData) {
   pdf.setFontSize(8)
   pdf.text('This is a digitally generated prescription. Valid only with hospital stamp.', margin + 12, footerY)
 
-  pdf.text(data.doctor?.name || 'Dr. Sara Ahmed', W - margin - 12, footerY, { align: 'right' })
+  const drFootT2 = String(data.doctor?.name || 'Sara Ahmed').replace(/^\s*Dr\.?\s*/i, '')
+  pdf.text(`Dr. ${drFootT2}`, W - margin - 12, footerY, { align: 'right' })
   pdf.setDrawColor(15, 23, 42)
   pdf.setLineWidth(0.3)
   pdf.line(W - margin - 60, footerY + 5, W - margin - 12, footerY + 5)

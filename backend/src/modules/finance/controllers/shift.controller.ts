@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { Shift, ShiftDoc } from '../models/Shift'
 import { Types } from 'mongoose'
+import { logActivity } from '../services/activityLog.service'
 
 // Helper to round to 2 decimals
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
@@ -90,7 +91,7 @@ export async function openShift(req: Request, res: Response) {
     // Check if there's already an open shift for this counter
     const existingOpen = await Shift.findOne({
       counterId,
-      status: { $in: ['open', 'closing'] }
+      status: 'open'
     })
     
     if (existingOpen) {
@@ -117,25 +118,26 @@ export async function openShift(req: Request, res: Response) {
       },
       startTime: new Date(),
       status: 'open',
-      notes,
-      collections: {
-        opd: 0, lab: 0, pharmacy: 0, ipd: 0, er: 0,
-        diagnostic: 0, dialysis: 0, aesthetic: 0, total: 0
-      },
-      expenses: {
-        doctorPayouts: 0, purchases: 0, pettyCash: 0, refunds: 0, total: 0
-      },
-      expectedCash: round2(openingFloat),
-      actualCash: 0,
-      variance: 0,
-      vouchers: [],
-      attachments: []
     })
-    
-    res.status(201).json({
-      message: 'Shift opened successfully',
-      shift
-    })
+
+    // Activity log
+    try {
+      logActivity({
+        userId: String(userId || 'system'),
+        userName: String(username || ''),
+        portal: 'finance',
+        action: 'Shift Opened',
+        module: 'Shift',
+        entityId: String((shift as any)._id),
+        entityLabel: `${shift.shiftName} — ${shift.counterName}`,
+        amount: Number(shift.openingFloat || 0),
+        method: 'Cash',
+        meta: { counterId, counterName, shiftType, openingFloat }
+      })
+    } catch {}
+
+    res.status(201).json({ shift: await Shift.findById((shift as any)._id).lean() })
+    return
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to open shift' })
   }
@@ -277,6 +279,22 @@ export async function closeShift(req: Request, res: Response) {
     }
     
     await shift.save()
+
+    // Activity log
+    try {
+      logActivity({
+        userId: String(userId || 'system'),
+        userName: String(username || ''),
+        portal: 'finance',
+        action: 'Shift Closed',
+        module: 'Shift',
+        entityId: String(id),
+        entityLabel: `${shift.shiftName} — ${shift.counterName}`,
+        amount: Number(shift.actualCash || 0),
+        method: 'Cash',
+        meta: { variance: shift.variance, expectedCash: shift.expectedCash, actualCash: shift.actualCash }
+      })
+    } catch {}
     
     res.json({
       message: variance !== 0 
@@ -321,6 +339,25 @@ export async function approveShiftClosure(req: Request, res: Response) {
     }
     
     await shift.save()
+
+    // Activity log
+    try {
+      const user = (req as any).user
+      const userId2 = String(user?._id || user?.id || user?.sub || 'unknown')
+      const username2 = String(user?.username || user?.name || user?.fullName || user?.email || 'Unknown')
+      logActivity({
+        userId: String(userId2 || 'system'),
+        userName: String(username2 || ''),
+        portal: 'finance',
+        action: 'Shift Closure Approved',
+        module: 'Shift',
+        entityId: String(id),
+        entityLabel: `${shift.shiftName} — ${shift.counterName}`,
+        amount: Number(shift.actualCash || 0),
+        method: 'Cash',
+        meta: { variance: shift.variance, varianceReason: shift.varianceReason || '' }
+      })
+    } catch {}
     
     res.json({
       message: 'Shift closure approved',

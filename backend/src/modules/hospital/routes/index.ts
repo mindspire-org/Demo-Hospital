@@ -44,6 +44,7 @@ import * as OtPharmacy from '../controllers/otPharmacy.controller'
 import * as IndoorOrderQueue from '../../indoorpharmacy/controllers/indoorOrderQueue.controller'
 
 import { auth } from '../../../common/middleware/auth'
+import { requireHospitalAdmin } from '../../../common/middleware/hospital_guard'
 
 import * as PharmacyCashCounts from '../../pharmacy/controllers/cash_count.controller'
 import * as Reports from '../controllers/reports.controller'
@@ -52,15 +53,16 @@ const r = Router()
 
 // Masters
 r.get('/departments', Master.listDepartments)
-r.post('/departments', Master.createDepartment)
-r.put('/departments/:id', Master.updateDepartment)
-r.delete('/departments/:id', Master.removeDepartment)
+r.post('/departments', auth, requireHospitalAdmin, Master.createDepartment)
+r.put('/departments/:id', auth, requireHospitalAdmin, Master.updateDepartment)
+r.delete('/departments/:id', auth, requireHospitalAdmin, Master.removeDepartment)
 
 r.get('/doctors', Master.listDoctors)
 r.get('/doctors/:id', Master.getDoctorById)
-r.post('/doctors', Master.createDoctor)
-r.put('/doctors/:id', Master.updateDoctor)
-r.delete('/doctors/:id', Master.removeDoctor)
+r.post('/doctors', auth, requireHospitalAdmin, Master.createDoctor)
+r.put('/doctors/:id', auth, requireHospitalAdmin, Master.updateDoctor)
+r.put('/doctors/:id/profile', auth, Master.updateDoctorProfile)
+r.delete('/doctors/:id', auth, requireHospitalAdmin, Master.removeDoctor)
 
 // Doctor Schedules
 r.get('/doctor-schedules', DocSchedules.list)
@@ -113,6 +115,9 @@ r.patch('/ipd/admissions/:id/discharge', IPD.discharge)
 
 // ER discharge (reuse discharge summary creation)
 r.patch('/er/encounters/:id/discharge', IPD.discharge)
+
+// Patient transfer between ER and IPD
+r.post('/patients/transfer', IPD.transferPatient)
 
 // ER encounters list
 r.get('/er/encounters', ER.listER)
@@ -444,48 +449,48 @@ r.post('/fbr/retry/:id', FBR.retry)
 
 // Staff
 r.get('/staff', Staff.list)
-r.post('/staff', Staff.create)
-r.put('/staff/:id', Staff.update)
-r.delete('/staff/:id', Staff.remove)
+r.post('/staff', auth, requireHospitalAdmin, Staff.create)
+r.put('/staff/:id', auth, requireHospitalAdmin, Staff.update)
+r.delete('/staff/:id', auth, requireHospitalAdmin, Staff.remove)
 
 // Staff Biometric
-r.post('/staff/biometric/fetch', Staff.fetchBiometricNow)
-r.get('/staff/biometric/status', Staff.biometricStatus)
-r.get('/staff/biometric/device-users', Staff.listBiometricDeviceUsers)
-r.post('/staff/:id/biometric/connect', Staff.connectBiometric)
+r.post('/staff/biometric/fetch', auth, requireHospitalAdmin, Staff.fetchBiometricNow)
+r.get('/staff/biometric/status', auth, requireHospitalAdmin, Staff.biometricStatus)
+r.get('/staff/biometric/device-users', auth, requireHospitalAdmin, Staff.listBiometricDeviceUsers)
+r.post('/staff/:id/biometric/connect', auth, requireHospitalAdmin, Staff.connectBiometric)
 
 // Users (Hospital App Users)
-r.get('/users', Users.list)
-r.post('/users', Users.create)
-r.put('/users/:id', Users.update)
-r.delete('/users/:id', Users.remove)
+r.get('/users', auth, requireHospitalAdmin, Users.list)
+r.post('/users', auth, requireHospitalAdmin, Users.create)
+r.put('/users/:id', auth, requireHospitalAdmin, Users.update)
+r.delete('/users/:id', auth, requireHospitalAdmin, Users.remove)
 r.post('/users/login', Users.login)
 r.post('/users/logout', Users.logout)
 
 // Sidebar Roles & Permissions (Hospital)
-r.get('/sidebar-roles', SidebarPerms.listRoles)
-r.post('/sidebar-roles', SidebarPerms.createRole)
-r.delete('/sidebar-roles/:role', SidebarPerms.deleteRole)
+r.get('/sidebar-roles', auth, requireHospitalAdmin, SidebarPerms.listRoles)
+r.post('/sidebar-roles', auth, requireHospitalAdmin, SidebarPerms.createRole)
+r.delete('/sidebar-roles/:role', auth, requireHospitalAdmin, SidebarPerms.deleteRole)
 
-r.get('/sidebar-permissions', SidebarPerms.getPermissions)
-r.put('/sidebar-permissions/:role', SidebarPerms.updatePermissions)
-r.post('/sidebar-permissions/:role/reset', SidebarPerms.resetToDefaults)
+r.get('/sidebar-permissions', auth, SidebarPerms.getPermissions)
+r.put('/sidebar-permissions/:role', auth, requireHospitalAdmin, SidebarPerms.updatePermissions)
+r.post('/sidebar-permissions/:role/reset', auth, requireHospitalAdmin, SidebarPerms.resetToDefaults)
 
 // Shifts
 r.get('/shifts', Shifts.list)
-r.post('/shifts', Shifts.create)
-r.put('/shifts/:id', Shifts.update)
-r.delete('/shifts/:id', Shifts.remove)
+r.post('/shifts', auth, requireHospitalAdmin, Shifts.create)
+r.put('/shifts/:id', auth, requireHospitalAdmin, Shifts.update)
+r.delete('/shifts/:id', auth, requireHospitalAdmin, Shifts.remove)
 
 // Attendance
 r.get('/attendance', Attendance.list)
-r.post('/attendance', Attendance.upsert)
+r.post('/attendance', auth, requireHospitalAdmin, Attendance.upsert)
 
 // Staff Earnings
 r.get('/staff-earnings', StaffEarnings.list)
-r.post('/staff-earnings', StaffEarnings.create)
-r.put('/staff-earnings/:id', StaffEarnings.update)
-r.delete('/staff-earnings/:id', StaffEarnings.remove)
+r.post('/staff-earnings', auth, requireHospitalAdmin, StaffEarnings.create)
+r.put('/staff-earnings/:id', auth, requireHospitalAdmin, StaffEarnings.update)
+r.delete('/staff-earnings/:id', auth, requireHospitalAdmin, StaffEarnings.remove)
 
 // Expenses
 r.get('/expenses', Expense.list)
@@ -501,23 +506,23 @@ r.get('/finance/cash-bank-accounts/:id/balance', FinanceCtl.getCashBankAccountBa
 
 // Expense Departments & Categories
 r.get('/expense-departments', ExpenseMeta.listExpenseDepartments)
-r.post('/expense-departments', ExpenseMeta.createExpenseDepartment)
-r.delete('/expense-departments/:id', ExpenseMeta.deleteExpenseDepartment)
+r.post('/expense-departments', auth, requireHospitalAdmin, ExpenseMeta.createExpenseDepartment)
+r.delete('/expense-departments/:id', auth, requireHospitalAdmin, ExpenseMeta.deleteExpenseDepartment)
 r.get('/expense-categories', ExpenseMeta.listExpenseCategories)
-r.post('/expense-categories', ExpenseMeta.createExpenseCategory)
-r.delete('/expense-categories/:id', ExpenseMeta.deleteExpenseCategory)
+r.post('/expense-categories', auth, requireHospitalAdmin, ExpenseMeta.createExpenseCategory)
+r.delete('/expense-categories/:id', auth, requireHospitalAdmin, ExpenseMeta.deleteExpenseCategory)
 
 // Audit Logs
-r.get('/audit-logs', Audit.list)
-r.post('/audit-logs', Audit.create)
+r.get('/audit-logs', auth, requireHospitalAdmin, Audit.list)
+r.post('/audit-logs', auth, requireHospitalAdmin, Audit.create)
 
 // Reports
 r.get('/reports/my-activity', auth, Reports.myActivity)
 r.get('/reports/dashboard-stats', auth, Reports.dashboardStats)
 
-// Settings
-r.get('/settings', Settings.get)
-r.put('/settings', Settings.update)
+// Settings (GET open to any auth user for printing; PUT still admin-only)
+r.get('/settings', auth, Settings.get)
+r.put('/settings', auth, requireHospitalAdmin, Settings.update)
 
 // Patients (lookup)
 r.get('/patients/search', Patients.search)

@@ -40,7 +40,7 @@ export const receptionApi = {
   // -------------------------------------------------------------------------
   // Reports
   // -------------------------------------------------------------------------
-  myActivityReport: (params?: { mode?: 'today' | 'shift' }) =>
+  myActivityReport: (params?: { mode?: 'today' | 'shift' | 'custom'; from?: string; to?: string }) =>
     api(withQuery('/reception/reports/my-activity', params)),
 
   // -------------------------------------------------------------------------
@@ -104,6 +104,22 @@ export const receptionApi = {
 
   cashMovementSummary: (params?: { from?: string; to?: string }) =>
     api(withQuery('/reception/cash-movements/summary', params)),
+
+  // -------------------------------------------------------------------------
+  // Expenses (submitted by reception, approved by finance)
+  // -------------------------------------------------------------------------
+  listMyExpenses: (params?: { status?: 'pending' | 'approved' | 'rejected'; from?: string; to?: string; page?: number; limit?: number }) =>
+    api(withQuery('/reception/expenses', params)),
+  createExpense: (data: { date?: string; category: string; amount: number; description: string; receiptUrl?: string }) =>
+    api('/reception/expenses', { method: 'POST', body: JSON.stringify(data) }),
+  deleteMyExpense: (id: string) =>
+    api(`/reception/expenses/${id}`, { method: 'DELETE' }),
+  listAllExpenses: (params?: { status?: 'pending' | 'approved' | 'rejected'; from?: string; to?: string; search?: string; page?: number; limit?: number }) =>
+    api(withQuery('/reception/expenses/all', params)),
+  approveExpense: (id: string) =>
+    api(`/reception/expenses/${id}/approve`, { method: 'POST' }),
+  rejectExpense: (id: string, reason?: string) =>
+    api(`/reception/expenses/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
 }
 
 export default receptionApi

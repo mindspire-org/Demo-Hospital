@@ -6,6 +6,7 @@ import { AuditLog } from '../models/AuditLog'
 import mongoose from 'mongoose'
 import { postFbrInvoiceViaSDC } from '../../hospital/services/fbr'
 import { postPharmacySaleJournal } from '../../finance/controllers/finance_ledger'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 function todayKey(){
   const d = new Date()
@@ -136,6 +137,22 @@ export async function create(req: Request, res: Response){
   } catch (e) {
     console.error('Failed to post Pharmacy revenue journal:', e)
   }
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String((req as any).user?._id || (req as any).user?.id || (req as any).user?.email || 'system'),
+      userName: String((data as any)?.createdBy || (req as any).user?.name || (req as any).user?.email || 'system'),
+      portal: 'pharmacy',
+      action: 'Pharmacy Sale',
+      module: 'Pharmacy',
+      entityId: String(doc._id),
+      entityLabel: `Bill ${doc.billNo} — ${doc.customer}`,
+      amount: Number(doc.total || 0),
+      method: String(doc.payment || 'Cash'),
+      meta: { billNo: doc.billNo, customer: doc.customer, lines: doc.lines?.length || 0 }
+    })
+  } catch {}
 
   res.status(201).json(doc)
 }

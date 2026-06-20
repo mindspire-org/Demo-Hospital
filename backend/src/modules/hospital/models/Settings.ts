@@ -26,6 +26,10 @@ const SettingsSchema = new Schema({
 
   eyeRxEnabled: { type: Boolean, default: true },
 
+  timeFormat: { type: String, default: '12h', enum: ['12h', '24h'] },
+
+  departmentBillingRules: { type: Schema.Types.Mixed, default: {} },
+
 }, { timestamps: true })
 
 
@@ -55,6 +59,10 @@ export type HospitalSettingsDoc = {
   manualRxFields?: Record<string, boolean>
 
   eyeRxEnabled?: boolean
+
+  timeFormat?: '12h' | '24h'
+
+  departmentBillingRules?: Record<string, { feeMode?: 'department-only' | 'doctor-only' | 'both' | 'none'; doctorCommissionPercent?: number }>
 
 }
 

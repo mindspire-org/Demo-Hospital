@@ -43,6 +43,33 @@ const IpdReferralSchema = new Schema({
   remarks: String,
   signStamp: String,
   statusHistory: [{ at: { type: Date, default: Date.now }, action: String, note: String }],
+  // OPD prescription snapshot carried over at referral time
+  prescriptionSnapshot: {
+    primaryComplaint: String,
+    primaryComplaintHistory: String,
+    familyHistory: String,
+    allergyHistory: String,
+    treatmentHistory: String,
+    history: String,
+    examFindings: String,
+    diagnosis: String,
+    advice: String,
+    nextFollowUp: String,
+    items: [{ name: String, dose: String, frequency: String, duration: String, instruction: String, route: String, notes: String }],
+    vitals: {
+      pulse: Number,
+      temperatureC: Number,
+      bloodPressureSys: Number,
+      bloodPressureDia: Number,
+      respiratoryRate: Number,
+      bloodSugar: Number,
+      weightKg: Number,
+      heightCm: Number,
+      spo2: Number,
+    },
+    labTests: [String],
+    diagnosticTests: [String],
+  },
   admittedEncounterId: { type: Schema.Types.ObjectId, ref: 'Hospital_Encounter' },
 }, { timestamps: true })
 

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { CashMovement } from '../models/CashMovement'
 import { cashMovementCreateSchema, cashMovementQuerySchema } from '../validators/cash_movement'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 export async function list(req: Request, res: Response){
   const q = cashMovementQuerySchema.safeParse(req.query)
@@ -28,6 +29,25 @@ export async function list(req: Request, res: Response){
 export async function create(req: Request, res: Response){
   const data = cashMovementCreateSchema.parse(req.body)
   const e = await CashMovement.create(data)
+
+  // Activity log
+  try {
+    const userId = String((req as any).user?._id || (req as any).user?.id || 'system')
+    const userName = String((req as any).user?.username || (req as any).user?.name || 'unknown')
+    logActivity({
+      userId,
+      userName,
+      portal: 'Reception',
+      action: 'Cash Movement',
+      module: 'Cash Session',
+      entityId: String(e._id),
+      entityLabel: `${data.type} — ${data.category || ''}`.trim(),
+      amount: Number(data.amount || 0),
+      method: 'Cash',
+      meta: { type: data.type, category: data.category, receiver: data.receiver, handoverBy: data.handoverBy, note: data.note || '' }
+    })
+  } catch {}
+
   res.status(201).json(e)
 }
 

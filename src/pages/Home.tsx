@@ -1,7 +1,9 @@
 import ModuleCard from '../components/ModuleCard'
-import { Stethoscope, FlaskConical, Pill, FileText, Users, Microscope, Building2, Droplets, Sparkles, HeartPulse } from 'lucide-react'
+import { Stethoscope, FlaskConical, Pill, FileText, Users, Microscope, Building2, Droplets, Sparkles, HeartPulse, Shield, Settings, Lock, LogOut, MapPin } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useSystemConfig } from '../contexts/SystemConfigContext'
+import { useNavigate } from 'react-router-dom'
+import { useAdminAuth } from '../hooks/useAdminAuth'
 import './home.css'
 
 const ALL_MODULES = [
@@ -15,11 +17,22 @@ const ALL_MODULES = [
   { id: 'dialysis', to: '/dialysis/login', title: 'Dialysis', description: 'Dialysis therapy, schedules, and treatment cart.', icon: <Droplets className="size-7 text-indigo-600" />, tone: 'indigo' as const },
   { id: 'aesthetic', to: '/aesthetic/login', title: 'Aesthetic', description: 'Aesthetic treatments, appointments, and inventory.', icon: <Sparkles className="size-7 text-fuchsia-600" />, tone: 'fuchsia' as const },
   { id: 'nurse', to: '/hospital/nurse/login', title: 'Nurse', description: 'Nurse station, ward management, and patient care.', icon: <HeartPulse className="size-7 text-rose-600" />, tone: 'rose' as const },
+  { id: 'camp', to: '/camp/login', title: 'Medical Camp', description: 'Outdoor medical camps, patient registration, and field treatment.', icon: <MapPin className="size-7 text-emerald-600" />, tone: 'emerald' as const },
 ]
 
 export default function Home() {
   const heroRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
   const { getModuleEnabled } = useSystemConfig()
+  const { isAdmin, logout } = useAdminAuth()
+
+  const goToUserManagement = () => {
+    if (!isAdmin) {
+      navigate('/admin/login')
+      return
+    }
+    navigate('/admin/users')
+  }
 
   useEffect(() => {
     const html = document.documentElement
@@ -91,13 +104,49 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl px-6 py-10">
+      <main className="relative z-10 mx-auto max-w-6xl px-6 py-10 space-y-6">
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
           {visibleModules.map((m, i) => (
             <div key={m.title} className="home-card-appear" style={{ animationDelay: `${i * 90}ms` }}>
               <ModuleCard to={m.to} title={m.title} description={m.description} icon={m.icon} tone={m.tone} />
             </div>
           ))}
+        </div>
+
+        {/* Admin Tools — always visible, requires auth to access */}
+        <div className="home-card-appear" style={{ animationDelay: '0ms' }}>
+          <div className="rounded-2xl border border-amber-200 bg-linear-to-r from-amber-50 to-orange-50 p-5 shadow-sm">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Admin Tools</h2>
+                  <p className="text-sm text-slate-600">Manage users across all portals</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goToUserManagement}
+                  className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-amber-700"
+                >
+                  {isAdmin ? <Settings className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                  User Management
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={logout}
+                    className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm font-medium text-amber-700 shadow-sm transition hover:bg-amber-50"
+                    title="Logout from admin"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </div>

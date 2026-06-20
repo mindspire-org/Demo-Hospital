@@ -23,6 +23,10 @@ export const adminApi = {
       method: 'POST',
       body: JSON.stringify({ confirm: 'PURGE' }),
     }),
+
+  dbStats: async () => api('/admin/backup/stats'),
+
+  listAutoBackups: async () => api('/admin/backup/auto-list'),
 }
 
 export default adminApi

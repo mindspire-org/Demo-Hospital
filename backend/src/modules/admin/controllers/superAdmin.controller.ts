@@ -10,6 +10,17 @@ import { SuperAdminAuditLog } from '../models/SuperAdminAuditLog'
 import { loginSchema, setupSchema, createAdminSchema, updateConfigSchema, updateClientSchema } from '../validators/superAdmin'
 import { MODULE_REGISTRY, getAllModuleIds, getAllSubModules } from '../../../config/moduleRegistry'
 
+// Portal user models for admin fallback login
+import { HospitalUser } from '../../hospital/models/User'
+import { ReceptionUser } from '../../reception/models/User'
+import { LabUser } from '../../lab/models/User'
+import { PharmacyUser as OutdoorPharmacyUser } from '../../pharmacy/models/User'
+import { PharmacyUser as IndoorPharmacyUser } from '../../indoorpharmacy/models/indoorUser'
+import { FinanceUser } from '../../finance/models/finance_User'
+import { DialysisUser } from '../../dialysis/models/User'
+import { DiagnosticUser } from '../../diagnostic/models/User'
+import { AestheticUser } from '../../aesthetic/models/User'
+
 const JWT_EXPIRY = '8h'
 
 function getClientIp(req: Request): string {
@@ -65,12 +76,26 @@ function buildDefaultConfig(): any {
 }
 
 export async function getOrCreateDefaultConfig(): Promise<any> {
-  let doc: any = await SystemConfig.findById('default').lean()
-  if (!doc) {
-    const def = buildDefaultConfig()
-    doc = await SystemConfig.create(def)
+  try {
+    let doc: any = await SystemConfig.findById('default').lean()
+    if (!doc) {
+      const def = buildDefaultConfig()
+      try {
+        doc = await SystemConfig.create(def)
+      } catch (createErr: any) {
+        // If create fails (e.g. race condition or validation), try reading again
+        doc = await SystemConfig.findById('default').lean()
+        if (!doc) {
+          console.error('[getOrCreateDefaultConfig] Create failed:', createErr?.message || createErr)
+          return def // return in-memory default without persisting
+        }
+      }
+    }
+    return doc
+  } catch (e: any) {
+    console.error('[getOrCreateDefaultConfig] DB read failed:', e?.message || e)
+    return buildDefaultConfig()
   }
-  return doc
 }
 
 export function stripPublic(config: any): any {
@@ -126,6 +151,7 @@ export async function superAdminLogin(req: Request, res: Response) {
         active: true,
       })
       const token = jwt.sign({ sub: String(newUser._id), username: newUser.username, type: 'db_user', scope: 'super_admin' }, env.JWT_SECRET, { expiresIn: JWT_EXPIRY })
+      ;(req as any).session.adminUser = { id: String(newUser._id), username: newUser.username, role: 'superadmin', scope: 'super_admin' }
       await audit(newUser.username, 'db_user', 'login', req)
       return res.json({ token, type: 'db_user', user: { id: String(newUser._id), username: newUser.username, fullName: newUser.fullName, note: 'Auto-created from hardcoded credentials' } })
     }
@@ -133,14 +159,45 @@ export async function superAdminLogin(req: Request, res: Response) {
 
   // DB user login (standard flow)
   const u: any = await SuperAdminUser.findOne({ username }).lean()
-  if (!u || u.active === false) return res.status(401).json({ error: 'Invalid credentials' })
+  if (u && u.active !== false) {
+    const ok = await bcrypt.compare(data.password, u.passwordHash)
+    if (ok) {
+      const token = jwt.sign({ sub: String(u._id), username: u.username, type: 'db_user', scope: 'super_admin' }, env.JWT_SECRET, { expiresIn: JWT_EXPIRY })
+      ;(req as any).session.adminUser = { id: String(u._id), username: u.username, role: 'superadmin', scope: 'super_admin' }
+      await audit(u.username, 'db_user', 'login', req)
+      return res.json({ token, type: 'db_user', user: { id: String(u._id), username: u.username, fullName: u.fullName } })
+    }
+  }
 
-  const ok = await bcrypt.compare(data.password, u.passwordHash)
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' })
+  // Fallback: check portal admins (any portal user with role admin/superadmin)
+  const PORTAL_MODELS = [
+    HospitalUser, ReceptionUser, LabUser,
+    OutdoorPharmacyUser, IndoorPharmacyUser,
+    FinanceUser, DialysisUser, DiagnosticUser, AestheticUser,
+  ]
+  for (const Model of PORTAL_MODELS) {
+    const user: any = await Model.findOne({ username }).lean()
+    if (!user) continue
+    const role = String(user.role || '').toLowerCase().trim()
+    if (role !== 'admin' && role !== 'superadmin') continue
+    const hash = user.passwordHash || user.password || ''
+    let ok = false
+    if (hash.startsWith('$2')) {
+      ok = await bcrypt.compare(data.password, hash)
+    } else {
+      ok = hash === data.password
+    }
+    if (!ok) continue
+    const token = jwt.sign(
+      { sub: String(user._id), username: user.username, role, scope: 'admin', portal: Model.modelName },
+      env.JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    )
+    ;(req as any).session.adminUser = { id: String(user._id), username: user.username, role, scope: 'admin', portal: Model.modelName }
+    return res.json({ token, type: 'db_user', user: { id: String(user._id), username: user.username, role, portal: Model.modelName } })
+  }
 
-  const token = jwt.sign({ sub: String(u._id), username: u.username, type: 'db_user', scope: 'super_admin' }, env.JWT_SECRET, { expiresIn: JWT_EXPIRY })
-  await audit(u.username, 'db_user', 'login', req)
-  res.json({ token, type: 'db_user', user: { id: String(u._id), username: u.username, fullName: u.fullName } })
+  return res.status(401).json({ error: 'Invalid credentials' })
 }
 
 // POST /api/admin/super/setup
@@ -195,8 +252,14 @@ export async function superAdminSetup(req: Request, res: Response) {
 
 // GET /api/admin/super/public-config
 export async function getPublicConfig(req: Request, res: Response) {
-  const config = await getOrCreateDefaultConfig()
-  res.json(stripPublic(config))
+  try {
+    const config = await getOrCreateDefaultConfig()
+    res.json(stripPublic(config))
+  } catch (e: any) {
+    console.error('[public-config] DB error:', e)
+    // Fallback: return built-in defaults without persisting so the app can still load
+    res.json(stripPublic(buildDefaultConfig()))
+  }
 }
 
 // GET /api/admin/super/config

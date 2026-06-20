@@ -16,6 +16,7 @@ export default function Hospital_IPDReferrals(){
   const [docs, setDocs] = useState<any[]>([])
   const [beds, setBeds] = useState<any[]>([])
   const [toast, setToast] = useState<ToastState>(null)
+  const [dupModal, setDupModal] = useState<{ open: boolean; patientName?: string; mrn?: string }>({ open: false })
 
   useEffect(()=>{ load() }, [status])
   useEffect(()=>{ (async()=>{ try{ const [a,b] = await Promise.all([hospitalApi.listDepartments({ limit: 1000 }) as any, hospitalApi.listDoctors() as any]); setDeps((a?.departments||a)||[]); setDocs((b?.doctors||b)||[]);}catch{}})() }, [])
@@ -132,15 +133,36 @@ export default function Hospital_IPDReferrals(){
         return
       }
     }
+    let dupDetected = false
     try{
       await hospitalApi.admitFromReferral(id, { departmentId: f.departmentId, doctorId: f.doctorId || undefined, bedId: f.bedId || undefined, wardId: f.wardId || undefined, deposit: f.deposit? Number(f.deposit): undefined, tokenFee: f.tokenFee? Number(f.tokenFee): undefined })
-    }catch{
-      // fallback: read referral and call admitIPD
-      try{
-        const ref = rows.find(r=> String(r._id||r.id)===String(id))
-        const pid = String(ref?.patientId?._id || ref?.patientId || '')
-        if (pid && f.departmentId){ await hospitalApi.admitIPD({ patientId: pid, departmentId: f.departmentId, doctorId: f.doctorId || undefined, bedId: f.bedId || undefined, deposit: f.deposit? Number(f.deposit): undefined }); updateLocal(id, { status: 'Admitted' }) }
-      }catch{}
+    }catch (err1: any) {
+      const msg1 = String(err1?.message || err1 || '')
+      if (msg1.toLowerCase().includes('already admitted') || msg1.toLowerCase().includes('discharge the current admission')) {
+        dupDetected = true
+      } else {
+        // fallback: read referral and call admitIPD
+        try{
+          const ref = rows.find(r=> String(r._id||r.id)===String(id))
+          const pid = String(ref?.patientId?._id || ref?.patientId || '')
+          if (pid && f.departmentId){
+            await hospitalApi.admitIPD({ patientId: pid, departmentId: f.departmentId, doctorId: f.doctorId || undefined, bedId: f.bedId || undefined, deposit: f.deposit? Number(f.deposit): undefined })
+            updateLocal(id, { status: 'Admitted' })
+          }
+        }catch (err2: any) {
+          const msg2 = String(err2?.message || err2 || '')
+          if (msg2.toLowerCase().includes('already admitted') || msg2.toLowerCase().includes('discharge the current admission')) {
+            dupDetected = true
+          }
+        }
+      }
+    }
+    if (dupDetected) {
+      const ref = rows.find(r=> String(r._id||r.id)===String(id))
+      setDupModal({ open: true, patientName: ref?.patientName || ref?.patientId?.fullName, mrn: ref?.patientId?.mrn })
+      setOpenAdmit(null)
+      setAdmitForm({ departmentId: '', doctorId: '', bedId: '', wardId: '', deposit: '', tokenFee: '' })
+      return
     }
     setOpenAdmit(null); setAdmitForm({ departmentId: '', doctorId: '', bedId: '', wardId: '', deposit: '', tokenFee: '' }); await load()
   }
@@ -285,6 +307,25 @@ export default function Hospital_IPDReferrals(){
 
       {/* Legacy view modal removed in favor of direct Print preview */}
       <Toast toast={toast} onClose={()=>setToast(null)} />
+
+      {dupModal.open && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl ring-1 ring-black/5 p-5">
+            <div className="flex items-center gap-2 text-amber-600 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span className="font-semibold">Patient Already Admitted</span>
+            </div>
+            <p className="text-sm text-slate-700 mb-1">
+              <strong>{dupModal.patientName || 'This patient'}</strong> is currently admitted in the hospital.
+            </p>
+            {dupModal.mrn && <p className="text-sm text-slate-500 mb-3">MR # {dupModal.mrn}</p>}
+            <p className="text-sm text-slate-600 mb-4">Please discharge the current admission before creating a new one.</p>
+            <div className="flex justify-end">
+              <button onClick={() => setDupModal({ open: false })} className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">OK</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

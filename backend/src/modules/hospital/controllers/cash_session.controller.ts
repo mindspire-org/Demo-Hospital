@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { z } from 'zod'
 import { HospitalCashSession } from '../models/CashSession'
 import { FinanceJournal } from '../../finance/models/FinanceJournal'
+import { logActivity } from '../../finance/services/activityLog.service'
 
 function todayIso(){ return new Date().toISOString().slice(0,10) }
 
@@ -26,6 +27,23 @@ export async function open(req: Request, res: Response){
     note: data.note,
     startAt: new Date(),
   } as any)
+
+  // Activity log
+  try {
+    logActivity({
+      userId: String(userId || 'system'),
+      userName: String(userName || ''),
+      portal: 'hospital',
+      action: 'Cash Session Opened',
+      module: 'Cash Session',
+      entityId: String((sess as any)._id),
+      entityLabel: `Cash Session ${(sess as any).dateIso}`,
+      amount: Number((sess as any).openingFloat || 0),
+      method: 'Cash',
+      meta: { counterId: (sess as any).counterId, shiftId: (sess as any).shiftId, shiftName: (sess as any).shiftName }
+    })
+  } catch {}
+
   res.status(201).json({ session: sess })
 }
 

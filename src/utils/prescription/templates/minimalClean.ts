@@ -151,27 +151,45 @@ export async function previewMinimalCleanPdf(data: MinimalCleanPdfData & Extras)
   const { translateRxItem } = await import('../../prescriptionUrdu')
   const meds = (data.items || []).filter(m => String(m?.name || '').trim())
   if (meds.length > 0) {
-    pdf.setFontSize(8)
+    const contentW = W - 2 * mx
+    const nameW = contentW * 0.38
+    const detailW = contentW * 0.58
+    const detailX = mx + nameW + 6
+
     meds.forEach((m, i) => {
       const t = translateRxItem(m as any, isUrdu ? 'urdu' : 'english')
-      const parts = [
-        String(m?.name || '').trim(),
-        t?.dose ? `— ${t.dose}` : '',
-        t?.frequency ? `• ${t.frequency}` : '',
-        t?.duration ? `× ${t.duration}` : '',
-        t?.route ? `(${t.route})` : '',
-        t?.instruction ? `[${t.instruction}]` : '',
-      ].filter(Boolean).join(' ')
-      pdf.setFont('helvetica', 'normal')
+      const name = String(m?.name || '').trim()
+      const dose = String(t?.dose || '').trim()
+      const freq = String(t?.frequency || '').trim()
+      const dur = String(t?.duration || '').trim()
+      const route = String(t?.route || '').trim()
+      const instr = String(t?.instruction || '').trim()
+      const detailParts = [dose, freq, dur, route, instr].filter(Boolean).join(' · ')
+
+      // Medicine name — LEFT side
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(9)
       pdf.setTextColor(black.r, black.g, black.b)
-      const lines = (pdf as any).splitTextToSize(`${i + 1}. ${parts}`, W - 2 * mx - 4)
-      // If parts contain Urdu, render with safeUrdu
-      if (hasUrduChars(parts)) {
-        safeUrdu(`${i + 1}. ${parts}`, mx + 2, y, { maxWidth: W - 2 * mx - 4 })
+      const nameLines = (pdf as any).splitTextToSize(`${i + 1}. ${name}`, nameW - 4)
+      if (hasUrduChars(name)) {
+        safeUrdu(`${i + 1}. ${name}`, mx + 2, y, { align: 'left', maxWidth: nameW - 4 })
       } else {
-        pdf.text(lines, mx + 2, y)
+        pdf.text(nameLines, mx + 2, y)
       }
-      y += lines.length * 3.5 + 1.5
+
+      // Details — RIGHT side
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(8)
+      pdf.setTextColor(gray.r, gray.g, gray.b)
+      const detailLines = (pdf as any).splitTextToSize(detailParts, detailW)
+      const detailY = y + (nameLines.length > 1 ? (nameLines.length - 1) * 3.5 : 0)
+      if (hasUrduChars(detailParts)) {
+        safeUrdu(detailParts, detailX, detailY, { align: 'left', maxWidth: detailW })
+      } else {
+        pdf.text(detailLines, detailX, detailY)
+      }
+
+      y += Math.max(nameLines.length, detailLines.length) * 3.5 + 2.5
     })
   }
 

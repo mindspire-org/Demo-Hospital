@@ -34,8 +34,11 @@ export default function ICU_Ventilator() {
   useEffect(() => {
     if (admissionId) {
       const adm = admissions.find(a => a._id === admissionId)
-      if (adm) setSelectedAdmission(adm)
-      loadSettings(admissionId)
+      if (adm) {
+        setSelectedAdmission(adm)
+        const encId = adm.encounterId?._id || adm.encounterId
+        if (encId) loadSettings(String(encId))
+      }
     }
   }, [admissionId, admissions])
 
@@ -56,7 +59,7 @@ export default function ICU_Ventilator() {
   async function loadSettings(encounterId: string) {
     try {
       const res = await hospitalApi.listICUFlowsheet(encounterId, { limit: 50 }) as any
-      const entries = res?.entries || []
+      const entries = res?.flowsheet || []
       const ventSettings = entries.filter((e: any) => e.ventilator && (e.ventilator.mode || e.ventilator.fio2 || e.ventilator.peep))
       setSettings(ventSettings)
     } catch {}
@@ -71,14 +74,15 @@ export default function ICU_Ventilator() {
     if (!confirm('Delete this ventilator setting?')) return
     try {
       await hospitalApi.deleteICUFlowsheetEntry(id)
-      if (selectedAdmission?.encounterId?._id) {
-        loadSettings(selectedAdmission.encounterId._id)
+      const encId = selectedAdmission?.encounterId?._id || selectedAdmission?.encounterId
+      if (encId) {
+        loadSettings(String(encId))
       }
     } catch {}
   }
 
   const patientName = selectedAdmission?.patientId
-    ? `${selectedAdmission.patientId.firstName || ''} ${selectedAdmission.patientId.lastName || ''}`.trim() || 'Unknown'
+    ? String(selectedAdmission.patientId.fullName || selectedAdmission.patientId.name || 'Unknown')
     : 'Select Patient'
 
   const currentSetting = settings[0] || null
@@ -110,7 +114,7 @@ export default function ICU_Ventilator() {
             <div className="space-y-2 max-h-96 overflow-auto">
               {admissions.map((adm) => {
                 const name = adm.patientId
-                  ? `${adm.patientId.firstName || ''} ${adm.patientId.lastName || ''}`.trim() || 'Unknown'
+                  ? String(adm.patientId.fullName || adm.patientId.name || 'Unknown')
                   : 'Unknown'
                 const isSelected = selectedAdmission?._id === adm._id
                 return (
@@ -252,7 +256,8 @@ export default function ICU_Ventilator() {
           onClose={() => setShowModal(false)}
           onSaved={() => {
             setShowModal(false)
-            loadSettings(selectedAdmission.encounterId?._id || selectedAdmission.encounterId)
+            const encId = selectedAdmission.encounterId?._id || selectedAdmission.encounterId
+            if (encId) loadSettings(String(encId))
           }}
         />
       )}
@@ -307,10 +312,9 @@ function VentilatorModal({ encounterId, existingSetting, onClose, onSaved }: { e
     e.preventDefault()
     setSaving(true)
     try {
-      const data = {
+      const data: any = {
         recordedAt: existingSetting?.recordedAt || new Date().toISOString(),
         ventilator: form,
-        recordedBy: '',
       }
       if (existingSetting) {
         await hospitalApi.updateICUFlowsheetEntry(existingSetting._id, data)

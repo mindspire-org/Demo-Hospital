@@ -17,6 +17,7 @@ export default function Diagnostic_Settings(){
   const [consultantTitle, setConsultantTitle] = useState('')
   const [consultants, setConsultants] = useState<Array<{ name?: string; degrees?: string; title?: string }>>([])
   const [templateMappings, setTemplateMappings] = useState<Array<{ testId: string; testName?: string; templateKey: string }>>([])
+  const [reportSections, setReportSections] = useState<Record<string, boolean>>({ findings: true })
   const [tests, setTests] = useState<Array<{ id: string; name: string }>>([])
   const [saving, setSaving] = useState(false)
 
@@ -38,6 +39,7 @@ export default function Diagnostic_Settings(){
         setConsultantTitle(s.consultantTitle || '')
         setConsultants(Array.isArray(s.consultants) ? s.consultants : [])
         setTemplateMappings(Array.isArray(s.templateMappings) ? s.templateMappings : [])
+        setReportSections(s.reportSections || { findings: true })
       } catch {}
     })()
     return ()=>{ mounted = false }
@@ -80,6 +82,7 @@ export default function Diagnostic_Settings(){
             templateKey: (m.templateKey||'').trim(),
           }))
           .filter(m => m.testId && m.templateKey),
+        reportSections,
       }
       await diagnosticApi.updateSettings(payload)
       setNotice('Diagnostic settings saved')
@@ -197,6 +200,37 @@ export default function Diagnostic_Settings(){
 
             <div className="flex items-center justify-end">
               <button onClick={saveDiagnostic} disabled={saving} className="btn disabled:opacity-50">{saving? 'Saving...' : 'Save Settings'}</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Report Sections */}
+        <div className="rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Report Sections</div>
+          <div className="space-y-4 p-4">
+            <div className="text-sm text-slate-600">Choose which sections appear on printed diagnostic reports. Only enabled sections will be included.</div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { key: 'clinicalInformation', label: 'Clinical Information' },
+                { key: 'comparison', label: 'Comparison' },
+                { key: 'technique', label: 'Technique' },
+                { key: 'findings', label: 'Findings / Report' },
+                { key: 'impression', label: 'Impression' },
+                { key: 'images', label: 'Images' },
+              ].map((sec) => (
+                <label key={sec.key} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition ${reportSections[sec.key] ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'}`}>
+                  <input
+                    type="checkbox"
+                    checked={!!reportSections[sec.key]}
+                    onChange={(e) => setReportSections(prev => ({ ...prev, [sec.key]: e.target.checked }))}
+                    className="h-4 w-4 accent-violet-600"
+                  />
+                  <span className={`text-sm font-medium ${reportSections[sec.key] ? 'text-violet-900' : 'text-slate-700'}`}>{sec.label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex items-center justify-end">
+              <button onClick={saveDiagnostic} disabled={saving} className="btn disabled:opacity-50">{saving? 'Saving...' : 'Save Sections'}</button>
             </div>
           </div>
         </div>

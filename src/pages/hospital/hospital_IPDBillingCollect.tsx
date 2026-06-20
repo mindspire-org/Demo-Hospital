@@ -4,6 +4,7 @@ import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 import { fmtDateTime12 } from '../../utils/timeFormat'
 import Hospital_IpdPaymentSlip from '../../components/hospital/ipd/payment-slip/Hospital_IpdPaymentSlip'
+import { Wallet, TrendingUp, TrendingDown, Users, Calendar, RotateCcw } from 'lucide-react'
 
 function getReceptionUser(){
   try{
@@ -112,6 +113,7 @@ export default function Reception_IPDBillingCollect(){
 
   async function search(){
     setLoading(true)
+    setDashStats(s => ({ ...s, loadingStats: true }))
     try{
       const currentQ = qRef.current
       const res = await hospitalApi.listIPDAdmissions({ q: currentQ, status: 'admitted', limit: 200 }) as any
@@ -121,9 +123,14 @@ export default function Reception_IPDBillingCollect(){
         admissionNo: a.admissionNo,
         bed: a.bedLocation ? `${a.bedLocation.floor} / ${a.bedLocation.location} / Bed: ${a.bedLocation.bed}` : (a.bedLabel || a.bedId || '-'),
         doctor: a.doctorId?.name || '-',
-        startAt: a.startAt
+        startAt: a.startAt,
+        packageAmount: Number(a.packageAmount || 0),
+        advancedAmount: Number(a.advancedAmount || 0),
+        billTotal: 0,
+        received: 0,
+        pending: 0,
       }))
-      
+
       // Filter by date range only if dates are set
       const fDate = fromDateRef.current
       const tDate = toDateRef.current
@@ -137,14 +144,48 @@ export default function Reception_IPDBillingCollect(){
           return admitDate >= from && admitDate <= to
         })
       }
-      
+
       rows.sort((a:any,b:any)=> new Date(b.startAt).getTime() - new Date(a.startAt).getTime())
+
+      // Load per-row billing summaries and compute dashboard totals
+      let totalBill = 0, totalReceived = 0, totalPending = 0
+      await Promise.all(
+        rows.map(async (r: any) => {
+          try {
+            const res: any = await hospitalApi.ipdBillingSummary(r.id)
+            const t = res?.totals || {}
+            const pkg = Number(r.packageAmount || 0)
+            const services = Number(t?.grandTotal || 0)
+            // Package = flat rate; total bill is the higher of (services total) or (package rate)
+            const bill = pkg > 0 ? Math.max(services, pkg) : services
+            const basePaid = Number(t?.totalPaidToCharges || 0)
+            const encounterAdvance = Number(r.advancedAmount || 0)
+            const received = basePaid + encounterAdvance
+            const netDue = Math.max(0, bill - received)
+            r.billTotal = bill
+            r.received = received
+            r.pending = netDue
+            totalBill += bill
+            totalReceived += received
+            totalPending += netDue
+          } catch {}
+        })
+      )
+
       setList(rows)
+      setDashStats({
+        totalPatients: rows.length,
+        totalBill,
+        totalReceived,
+        totalPending,
+        loadingStats: false,
+      })
+
       // Only auto-select first patient on initial load when no patient is selected
       if (!encIdRef.current && rows.length){
         setEncId(rows[0].id)
       }
-    }catch{ setList([]) }
+    }catch{ setList([]); setDashStats({ totalPatients: 0, totalBill: 0, totalReceived: 0, totalPending: 0, loadingStats: false }) }
     setLoading(false)
   }
 
@@ -154,6 +195,15 @@ export default function Reception_IPDBillingCollect(){
   }
 
   const [billingTotals, setBillingTotals] = useState<any>(null)
+
+  // Mini dashboard stats
+  const [dashStats, setDashStats] = useState({
+    totalPatients: 0,
+    totalBill: 0,
+    totalReceived: 0,
+    totalPending: 0,
+    loadingStats: false,
+  })
 
   async function loadEncounter(id: string){
     try{
@@ -224,10 +274,21 @@ export default function Reception_IPDBillingCollect(){
     return out
   }
 
-  const total = billingTotals?.grandTotal ?? (charges || []).reduce((s, c) => s + Number(c.amount || 0), 0)
-  const paid = billingTotals?.totalPaidToCharges ?? 0
-  const advanceTotal = billingTotals?.unallocatedAdvance ?? 0
-  const netDue = billingTotals?.netOutstanding ?? Math.max(0, total - paid)
+  // Base values from billing items/payments API
+  const baseTotal = billingTotals?.grandTotal ?? (charges || []).reduce((s, c) => s + Number(c.amount || 0), 0)
+  const basePaid = billingTotals?.totalPaidToCharges ?? 0
+  const baseAdvance = billingTotals?.unallocatedAdvance ?? 0
+
+  // Include encounter-level package/advance/pending from token generation
+  const packageAmount = Number(enc?.packageAmount || 0)
+  const encounterAdvance = Number(enc?.advancedAmount || 0)
+
+  // Package = flat rate; total bill is the higher of (services total) or (package rate)
+  const total = packageAmount > 0 ? Math.max(baseTotal, packageAmount) : baseTotal
+  const paid = basePaid + encounterAdvance
+  // Use backend-calculated unallocatedAdvance when available; otherwise fall back to initial admission advance
+  const advanceTotal = billingTotals?.unallocatedAdvance !== undefined ? baseAdvance : encounterAdvance
+  const netDue = Math.max(0, total - paid)
   const pending = netDue
   const discountNum = Math.max(0, parseFloat(String(discount||'0')) || 0)
   const pendingAfterDiscount = Math.max(0, pending - discountNum)
@@ -408,57 +469,119 @@ export default function Reception_IPDBillingCollect(){
   return (
     <>
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="text-lg font-semibold">IPD Billing Collect</div>
-        {/* Date Filters */}
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-600">From Date</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-xl bg-linear-to-r from-indigo-600 via-violet-600 to-purple-600 p-5 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">IPD Billing Collect</h1>
+            <p className="mt-0.5 text-sm opacity-90">Collect payments from admitted patients.</p>
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-600">To Date</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
+          <Wallet className="h-12 w-12 opacity-25" />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        {/* Date Filters */}
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">From Date</label>
+            <div className="relative">
+              <Calendar className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-40 rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">To Date</label>
+            <div className="relative">
+              <Calendar className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-40 rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
           </div>
           <button
             onClick={setTodayFilter}
-            className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700 active:scale-95 transition-transform"
           >
-            Today
+            <Calendar className="h-3.5 w-3.5" /> Today
           </button>
           <button
             onClick={resetFilter}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 transition-transform"
           >
-            Reset
+            <RotateCcw className="h-3.5 w-3.5" /> Reset
           </button>
           <div className="flex-1 min-w-[200px]">
-            <label className="text-xs font-medium text-slate-600">Search (Name, MR No, Admission No)</label>
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by MRN, Name or Admission No" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Search</label>
+            <div className="relative">
+              <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input value={q} onChange={e=>setQ(e.target.value)} placeholder="MRN, Name or Admission No" className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+            </div>
           </div>
-          <button onClick={search} className="btn" disabled={loading}>{loading? 'Searching...' : 'Search'}</button>
+          <button onClick={search} className="btn rounded-lg shadow-sm active:scale-95 transition-transform" disabled={loading}>{loading? 'Searching...' : 'Search'}</button>
         </div>
+
+        {/* Mini Dashboard */}
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Patients</div>
+              <div className="rounded-lg bg-slate-100 p-1.5"><Users className="h-4 w-4 text-slate-500" /></div>
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-900">
+              {dashStats.loadingStats ? '...' : dashStats.totalPatients}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Bill</div>
+              <div className="rounded-lg bg-indigo-50 p-1.5"><Wallet className="h-4 w-4 text-indigo-500" /></div>
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-900">
+              {dashStats.loadingStats ? '...' : `Rs ${dashStats.totalBill.toLocaleString()}`}
+            </div>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Received</div>
+              <div className="rounded-lg bg-emerald-100 p-1.5"><TrendingUp className="h-4 w-4 text-emerald-600" /></div>
+            </div>
+            <div className="mt-2 text-2xl font-bold text-emerald-700">
+              {dashStats.loadingStats ? '...' : `Rs ${dashStats.totalReceived.toLocaleString()}`}
+            </div>
+          </div>
+          <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700">To Receive</div>
+              <div className="rounded-lg bg-rose-100 p-1.5"><TrendingDown className="h-4 w-4 text-rose-600" /></div>
+            </div>
+            <div className="mt-2 text-2xl font-bold text-rose-700">
+              {dashStats.loadingStats ? '...' : `Rs ${dashStats.totalPending.toLocaleString()}`}
+            </div>
+          </div>
+        </div>
+
         {list.length>0 && (
-          <div className="mt-3 overflow-x-auto text-sm">
+          <div className="mt-5 overflow-x-auto text-sm rounded-xl border border-slate-200">
             <table className="min-w-full">
-              <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300"><tr><th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Patient</th><th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Admission No</th><th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Bed</th><th className="px-3 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Actions</th></tr></thead>
-              <tbody>
+              <thead className="bg-slate-50 text-slate-600 border-b border-slate-200"><tr><th className="px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-left">Patient</th><th className="px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-left">Admission No</th><th className="px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-left">Bed</th><th className="px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-right">Bill</th><th className="px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-right">Remaining</th><th className="px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-left">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">
                 {list.map(r=> (
-                  <tr key={r.id} className="border-b">
-                    <td className="px-3 py-2">{r.info}</td>
-                    <td className="px-3 py-2">{r.admissionNo}</td>
-                    <td className="px-3 py-2">{r.bed}</td>
-                    <td className="px-3 py-2"><button className="btn-outline-navy" onClick={()=> openCart(r.id)}>Collect</button></td>
+                  <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-3 py-2.5 font-medium text-slate-800">{r.info}</td>
+                    <td className="px-3 py-2.5 text-slate-600">{r.admissionNo}</td>
+                    <td className="px-3 py-2.5 text-slate-600">{r.bed}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-slate-700">{r.billTotal > 0 ? `Rs ${r.billTotal.toLocaleString()}` : '-'}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-rose-600">{r.pending > 0 ? `Rs ${r.pending.toLocaleString()}` : <span className="text-emerald-600 text-xs font-bold">PAID</span>}</td>
+                    <td className="px-3 py-2.5"><button className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 shadow-sm" onClick={()=> openCart(r.id)}>Collect</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -477,7 +600,7 @@ export default function Reception_IPDBillingCollect(){
                 <div className="mt-1 inline-flex items-center gap-2 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs">
                   <span className="font-semibold text-violet-800">Pkg: Rs {Number(enc.packageAmount).toFixed(0)}</span>
                   <span className="text-violet-600">Adv: Rs {Number(enc?.advancedAmount || 0).toFixed(0)}</span>
-                  <span className="text-violet-600">Pend: Rs {Number(enc?.pendingAmount || 0).toFixed(0)}</span>
+                  <span className="text-violet-600">Pend: Rs {netDue.toFixed(0)}</span>
                   <span className="text-violet-600">Bed: {enc?.bedFeeIncludedInPackage ? 'Incl' : 'Sep'}</span>
                 </div>
               )}
@@ -486,6 +609,11 @@ export default function Reception_IPDBillingCollect(){
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center min-w-[100px]">
                 <div className="text-[10px] uppercase font-bold text-slate-500">Total Bill</div>
                 <div className="text-lg font-bold text-slate-900">{currency(total)}</div>
+                <div className="text-[9px] text-slate-500">{packageAmount > 0 ? (baseTotal > packageAmount ? 'Pkg + Extra' : 'Pkg Rate') : 'Services'}</div>
+              </div>
+              <div className="rounded-lg border border-violet-200 bg-violet-50 p-2 text-center min-w-[100px]">
+                <div className="text-[10px] uppercase font-bold text-violet-700">Package</div>
+                <div className="text-lg font-bold text-violet-700">{currency(packageAmount)}</div>
               </div>
               <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-2 text-center min-w-[100px]">
                 <div className="text-[10px] uppercase font-bold text-indigo-700">Advance</div>

@@ -91,6 +91,62 @@ export default function ModuleManager() {
 
   const moduleIds = getAllModuleIds()
 
+  function enableAllModules() {
+    setConfig((prev: any) => {
+      if (!prev) return prev
+      const next = { ...prev, modules: { ...prev.modules } }
+      const homeSet = new Set(next.homeModules || [])
+      moduleIds.forEach((id: string) => {
+        next.modules[id] = { ...next.modules[id], enabled: true }
+        homeSet.add(id)
+      })
+      next.homeModules = Array.from(homeSet)
+      return next
+    })
+  }
+
+  function disableAllModules() {
+    setConfig((prev: any) => {
+      if (!prev) return prev
+      const next = { ...prev, modules: { ...prev.modules } }
+      const homeSet = new Set(next.homeModules || [])
+      moduleIds.forEach((id: string) => {
+        next.modules[id] = { ...next.modules[id], enabled: false }
+        homeSet.delete(id)
+      })
+      next.homeModules = Array.from(homeSet)
+      return next
+    })
+  }
+
+  function enableAllSubModules(moduleId: string) {
+    setConfig((prev: any) => {
+      if (!prev) return prev
+      const next = { ...prev, modules: { ...prev.modules } }
+      const mod = { ...next.modules[moduleId], subModules: { ...next.modules[moduleId]?.subModules } }
+      const subs = getAllSubModules(moduleId)
+      subs.forEach((subId: string) => {
+        mod.subModules[subId] = { ...mod.subModules?.[subId], enabled: true }
+      })
+      next.modules[moduleId] = mod
+      return next
+    })
+  }
+
+  function disableAllSubModules(moduleId: string) {
+    setConfig((prev: any) => {
+      if (!prev) return prev
+      const next = { ...prev, modules: { ...prev.modules } }
+      const mod = { ...next.modules[moduleId], subModules: { ...next.modules[moduleId]?.subModules } }
+      const subs = getAllSubModules(moduleId)
+      subs.forEach((subId: string) => {
+        mod.subModules[subId] = { ...mod.subModules?.[subId], enabled: false }
+      })
+      next.modules[moduleId] = mod
+      return next
+    })
+  }
+
   return (
     <div className="min-h-dvh bg-slate-50 dark:bg-slate-950">
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
@@ -135,7 +191,13 @@ export default function ModuleManager() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Module List */}
             <div className="lg:col-span-1 space-y-3">
-              <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Modules</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Modules</h2>
+                <div className="flex gap-1.5">
+                  <button onClick={enableAllModules} className="text-xs rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-1 font-medium transition-colors">Enable All</button>
+                  <button onClick={disableAllModules} className="text-xs rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 px-2 py-1 font-medium transition-colors">Disable All</button>
+                </div>
+              </div>
               {moduleIds.map(modId => {
                 const enabled = config?.modules?.[modId]?.enabled !== false
                 const label = (MODULE_REGISTRY as any)[modId]?.label || modId
@@ -172,9 +234,15 @@ export default function ModuleManager() {
             <div className="lg:col-span-2">
               {selectedModule ? (
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6">
-                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-4">
-                    {(MODULE_REGISTRY as any)[selectedModule]?.label || selectedModule} — Sub-modules
-                  </h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      {(MODULE_REGISTRY as any)[selectedModule]?.label || selectedModule} — Sub-modules
+                    </h2>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => enableAllSubModules(selectedModule)} className="text-xs rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-1 font-medium transition-colors">Enable All</button>
+                      <button onClick={() => disableAllSubModules(selectedModule)} className="text-xs rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 px-2 py-1 font-medium transition-colors">Disable All</button>
+                    </div>
+                  </div>
                   <div className="space-y-3">
                     {getAllSubModules(selectedModule).map(subId => {
                       const sub = (MODULE_REGISTRY as any)[selectedModule]?.subModules?.[subId]

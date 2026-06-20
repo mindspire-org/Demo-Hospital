@@ -25,8 +25,11 @@ export default function ICU_Scoring() {
   useEffect(() => {
     if (admissionId) {
       const adm = admissions.find(a => a._id === admissionId)
-      if (adm) setSelectedAdmission(adm)
-      loadScores(admissionId)
+      if (adm) {
+        setSelectedAdmission(adm)
+        const encId = adm.encounterId?._id || adm.encounterId
+        if (encId) loadScores(String(encId))
+      }
     }
   }, [admissionId, admissions])
 
@@ -60,14 +63,15 @@ export default function ICU_Scoring() {
     if (!confirm('Delete this score?')) return
     try {
       await hospitalApi.deleteICUScore(id)
-      if (selectedAdmission?.encounterId?._id) {
-        loadScores(selectedAdmission.encounterId._id)
+      const encId = selectedAdmission?.encounterId?._id || selectedAdmission?.encounterId
+      if (encId) {
+        loadScores(String(encId))
       }
     } catch {}
   }
 
   const patientName = selectedAdmission?.patientId
-    ? `${selectedAdmission.patientId.firstName || ''} ${selectedAdmission.patientId.lastName || ''}`.trim() || 'Unknown'
+    ? String(selectedAdmission.patientId.fullName || selectedAdmission.patientId.name || 'Unknown')
     : 'Select Patient'
 
   const filteredScores = scores.filter(s => s.type === activeTab)
@@ -96,7 +100,7 @@ export default function ICU_Scoring() {
             <div className="space-y-2 max-h-96 overflow-auto">
               {admissions.map((adm) => {
                 const name = adm.patientId
-                  ? `${adm.patientId.firstName || ''} ${adm.patientId.lastName || ''}`.trim() || 'Unknown'
+                  ? String(adm.patientId.fullName || adm.patientId.name || 'Unknown')
                   : 'Unknown'
                 const isSelected = selectedAdmission?._id === adm._id
                 return (
@@ -199,7 +203,8 @@ export default function ICU_Scoring() {
           onClose={() => setShowModal(false)}
           onSaved={() => {
             setShowModal(false)
-            loadScores(selectedAdmission.encounterId?._id || selectedAdmission.encounterId)
+            const encId = selectedAdmission.encounterId?._id || selectedAdmission.encounterId
+            if (encId) loadScores(String(encId))
           }}
         />
       )}

@@ -26,10 +26,11 @@ import * as Attendance from '../controllers/attendance.controller'
 import * as StaffEarnings from '../controllers/staff_earnings.controller'
 import * as SidebarPerms from '../controllers/sidebarPermission.controller'
 import { auth } from '../../../common/middleware/auth'
+import { requireAdmin } from '../../../common/middleware/hospital_guard'
 
 const r = Router()
 
-// Auth
+// Auth (public)
 r.post('/login', Auth.login)
 r.post('/logout', Auth.logout)
 
@@ -38,41 +39,41 @@ r.use(auth)
 
 // Suppliers
 r.get('/suppliers', Suppliers.list)
-r.post('/suppliers', Suppliers.create)
-r.put('/suppliers/:id', Suppliers.update)
-r.delete('/suppliers/:id', Suppliers.remove)
+r.post('/suppliers', requireAdmin, Suppliers.create)
+r.put('/suppliers/:id', requireAdmin, Suppliers.update)
+r.delete('/suppliers/:id', requireAdmin, Suppliers.remove)
 r.post('/suppliers/:id/payment', Suppliers.recordPayment)
 r.get('/suppliers/:id/purchases', Suppliers.purchases)
 
 // Expenses
 r.get('/expenses', Expenses.list)
-r.post('/expenses', Expenses.create)
-r.delete('/expenses/:id', Expenses.remove)
+r.post('/expenses', requireAdmin, Expenses.create)
+r.delete('/expenses/:id', requireAdmin, Expenses.remove)
 r.get('/expenses/summary', Expenses.summary)
 
 // Settings
 r.get('/settings', Settings.get)
-r.put('/settings', Settings.update)
+r.put('/settings', requireAdmin, Settings.update)
 
 // Purchases
 r.get('/purchases', Purchases.list)
-r.post('/purchases', Purchases.create)
-r.delete('/purchases/:id', Purchases.remove)
+r.post('/purchases', requireAdmin, Purchases.create)
+r.delete('/purchases/:id', requireAdmin, Purchases.remove)
 r.get('/purchases/summary', Purchases.summary)
 
 // Returns (Supplier-only effectively)
 r.get('/returns', Returns.list)
-r.post('/returns', Returns.create)
+r.post('/returns', requireAdmin, Returns.create)
 
 // Audit Logs
 r.get('/audit-logs', Audit.list)
-r.post('/audit-logs', Audit.create)
+r.post('/audit-logs', requireAdmin, Audit.create)
 
 // Consent Templates
 r.get('/consent-templates', ConsentTemplates.list)
-r.post('/consent-templates', ConsentTemplates.create)
-r.put('/consent-templates/:id', ConsentTemplates.update)
-r.delete('/consent-templates/:id', ConsentTemplates.remove)
+r.post('/consent-templates', requireAdmin, ConsentTemplates.create)
+r.put('/consent-templates/:id', requireAdmin, ConsentTemplates.update)
+r.delete('/consent-templates/:id', requireAdmin, ConsentTemplates.remove)
 
 // Consents (records)
 r.get('/consents', Consents.list)
@@ -80,9 +81,9 @@ r.post('/consents', Consents.create)
 
 // Procedure Catalog
 r.get('/procedure-catalog', ProcedureCatalog.list)
-r.post('/procedure-catalog', ProcedureCatalog.create)
-r.put('/procedure-catalog/:id', ProcedureCatalog.update)
-r.delete('/procedure-catalog/:id', ProcedureCatalog.remove)
+r.post('/procedure-catalog', requireAdmin, ProcedureCatalog.create)
+r.put('/procedure-catalog/:id', requireAdmin, ProcedureCatalog.update)
+r.delete('/procedure-catalog/:id', requireAdmin, ProcedureCatalog.remove)
 
 // Procedure Sessions
 r.get('/procedure-sessions', ProcedureSessions.list)
@@ -98,9 +99,9 @@ r.post('/procedure-sessions/complete-procedure', ProcedureSessions.completeProce
 r.get('/tokens', Tokens.list)
 r.get('/tokens/next-number', Tokens.nextNumber)
 r.post('/tokens', Tokens.create)
- r.put('/tokens/:id', Tokens.update)
- r.put('/tokens/:id/status', Tokens.updateStatus)
- r.delete('/tokens/:id', Tokens.remove)
+r.put('/tokens/:id', Tokens.update)
+r.put('/tokens/:id/status', Tokens.updateStatus)
+r.delete('/tokens/:id', Tokens.remove)
 
 // Finance - Doctor earnings & payouts
 r.post('/finance/manual-doctor-earning', Finance.postManualDoctorEarning)
@@ -114,31 +115,31 @@ r.post('/finance/journal/:id/reverse', Finance.reverseJournal)
 
 // Staff
 r.get('/staff', Staff.list)
-r.post('/staff', Staff.create)
-r.put('/staff/:id', Staff.update)
-r.delete('/staff/:id', Staff.remove)
+r.post('/staff', requireAdmin, Staff.create)
+r.put('/staff/:id', requireAdmin, Staff.update)
+r.delete('/staff/:id', requireAdmin, Staff.remove)
 
 // Shifts
 r.get('/shifts', Shifts.list)
-r.post('/shifts', Shifts.create)
-r.put('/shifts/:id', Shifts.update)
-r.delete('/shifts/:id', Shifts.remove)
+r.post('/shifts', requireAdmin, Shifts.create)
+r.put('/shifts/:id', requireAdmin, Shifts.update)
+r.delete('/shifts/:id', requireAdmin, Shifts.remove)
 
 // Attendance
 r.get('/attendance', Attendance.list)
-r.post('/attendance', Attendance.upsert)
+r.post('/attendance', requireAdmin, Attendance.upsert)
 
 // Staff Earnings
 r.get('/staff-earnings', StaffEarnings.list)
-r.post('/staff-earnings', StaffEarnings.create)
-r.put('/staff-earnings/:id', StaffEarnings.update)
-r.delete('/staff-earnings/:id', StaffEarnings.remove)
+r.post('/staff-earnings', requireAdmin, StaffEarnings.create)
+r.put('/staff-earnings/:id', requireAdmin, StaffEarnings.update)
+r.delete('/staff-earnings/:id', requireAdmin, StaffEarnings.remove)
 
 // Doctors (Aesthetic)
 r.get('/doctors', Doctors.list)
-r.post('/doctors', Doctors.create)
-r.put('/doctors/:id', Doctors.update)
-r.delete('/doctors/:id', Doctors.remove)
+r.post('/doctors', requireAdmin, Doctors.create)
+r.put('/doctors/:id', requireAdmin, Doctors.update)
+r.delete('/doctors/:id', requireAdmin, Doctors.remove)
 
 // Doctor Schedules (Aesthetic)
 r.get('/doctor-schedules', DocSchedules.list)
@@ -157,18 +158,18 @@ r.delete('/appointments/:id', Appointments.remove)
 
 // Users
 r.get('/users', Users.list)
-r.post('/users', Users.create)
-r.put('/users/:id', Users.update)
-r.delete('/users/:id', Users.remove)
+r.post('/users', requireAdmin, Users.create)
+r.put('/users/:id', requireAdmin, Users.update)
+r.delete('/users/:id', requireAdmin, Users.remove)
 
 // Sidebar Roles & Permissions (Aesthetic)
 r.get('/sidebar-roles', SidebarPerms.listRoles)
-r.post('/sidebar-roles', SidebarPerms.createRole)
-r.delete('/sidebar-roles/:role', SidebarPerms.deleteRole)
+r.post('/sidebar-roles', requireAdmin, SidebarPerms.createRole)
+r.delete('/sidebar-roles/:role', requireAdmin, SidebarPerms.deleteRole)
 
 r.get('/sidebar-permissions', SidebarPerms.getPermissions)
-r.put('/sidebar-permissions/:role', SidebarPerms.updatePermissions)
-r.post('/sidebar-permissions/:role/reset', SidebarPerms.resetToDefaults)
+r.put('/sidebar-permissions/:role', requireAdmin, SidebarPerms.updatePermissions)
+r.post('/sidebar-permissions/:role/reset', requireAdmin, SidebarPerms.resetToDefaults)
 
 // Purchase Drafts
 r.get('/purchase-drafts', Drafts.list)
@@ -179,8 +180,8 @@ r.delete('/purchase-drafts/:id', Drafts.remove)
 // Inventory items
 r.get('/inventory', InventoryItems.list)
 r.get('/inventory/summary', InventoryItems.summary)
-r.delete('/inventory/:key', InventoryItems.remove)
-r.put('/inventory/:key', InventoryItems.update)
+r.delete('/inventory/:key', requireAdmin, InventoryItems.remove)
+r.put('/inventory/:key', requireAdmin, InventoryItems.update)
 
 // Notifications
 r.get('/notifications', Notifications.getNotifications)

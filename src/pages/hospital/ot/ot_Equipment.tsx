@@ -88,10 +88,12 @@ export default function OT_Equipment() {
     e.preventDefault()
     if (!form.name) return
     try {
+      const payload: any = { ...form }
+      if (!payload.roomId) delete payload.roomId
       if (editingItem) {
-        await otApi.updateOTEquipment(editingItem._id, form)
+        await otApi.updateOTEquipment(editingItem._id, payload)
       } else {
-        await otApi.createOTEquipment(form)
+        await otApi.createOTEquipment(payload)
       }
       setShowModal(false)
       load()

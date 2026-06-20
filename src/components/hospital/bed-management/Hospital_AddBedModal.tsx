@@ -56,6 +56,7 @@ export default function Hospital_AddBedModal({ open, onClose, floors, roomsByFlo
             <option>General</option>
             <option>Private</option>
             <option>ICU</option>
+            <option>ER</option>
           </select>
           <button onClick={save} className="rounded-md bg-violet-600 px-3 py-2 text-sm font-medium text-white">Add Bed</button>
         </div>

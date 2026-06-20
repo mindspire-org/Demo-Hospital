@@ -290,10 +290,21 @@ export default function Hospital_IPDBilling() {
     }
   }
 
-  const total = billingTotals?.grandTotal ?? (charges || []).reduce((s, c) => s + Number(c.amount || 0), 0)
-  const paid = billingTotals?.totalPaidToCharges ?? 0
-  const advanceTotal = billingTotals?.unallocatedAdvance ?? 0
-  const netDue = billingTotals?.netOutstanding ?? Math.max(0, total - paid)
+  // Base values from billing items/payments API
+  const baseTotal = billingTotals?.grandTotal ?? (charges || []).reduce((s, c) => s + Number(c.amount || 0), 0)
+  const basePaid = billingTotals?.totalPaidToCharges ?? 0
+  const baseAdvance = billingTotals?.unallocatedAdvance ?? 0
+
+  // Include encounter-level package/advance/pending from token generation
+  const packageAmount = Number(enc?.packageAmount || 0)
+  const encounterAdvance = Number(enc?.advancedAmount || 0)
+
+  // Package = flat rate; total bill is the higher of (services total) or (package rate)
+  const total = packageAmount > 0 ? Math.max(baseTotal, packageAmount) : baseTotal
+  const paid = basePaid + encounterAdvance
+  // Use backend-calculated unallocatedAdvance when available; otherwise fall back to initial admission advance
+  const advanceTotal = billingTotals?.unallocatedAdvance !== undefined ? baseAdvance : encounterAdvance
+  const netDue = Math.max(0, total - paid)
 
   async function reloadBillingSummary(){
     if (!encounterId) { setPayments([]); setBillingTotals(null); return }
@@ -543,15 +554,20 @@ export default function Hospital_IPDBilling() {
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="font-semibold text-violet-800">Package: Rs {Number(enc.packageAmount).toFixed(0)}</span>
                     <span className="text-xs text-violet-600">Advance: Rs {Number(enc?.advancedAmount || 0).toFixed(0)}</span>
-                    <span className="text-xs text-violet-600">Pending: Rs {Number(enc?.pendingAmount || 0).toFixed(0)}</span>
+                    <span className="text-xs text-violet-600">Pending: Rs {netDue.toFixed(0)}</span>
                     <span className="text-xs text-violet-600">Bed: {enc?.bedFeeIncludedInPackage ? 'Included' : 'Separate'}</span>
                   </div>
                 </div>
               )}
-              <div className="mt-4 grid grid-cols-4 gap-4">
+              <div className="mt-4 grid grid-cols-5 gap-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm">
                   <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Total Bill</div>
                   <div className="text-xl font-bold text-slate-900">Rs{total.toFixed(0)}</div>
+                  <div className="text-[10px] text-slate-500">{packageAmount > 0 ? (baseTotal > packageAmount ? 'Package + Extra' : 'Package Rate') : 'Services only'}</div>
+                </div>
+                <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wider text-violet-700 font-bold">Package Amount</div>
+                  <div className="text-xl font-bold text-violet-700">Rs{packageAmount.toFixed(0)}</div>
                 </div>
                 <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 shadow-sm">
                   <div className="text-[10px] uppercase tracking-wider text-indigo-700 font-bold">Advance Available</div>
@@ -664,7 +680,7 @@ export default function Hospital_IPDBilling() {
               </table>
               <div className="mt-3 flex items-center justify-end gap-3 text-sm">
                 <div className="text-slate-600">Total</div>
-                <div className="text-base font-semibold text-slate-900">Rs{Number(total||0).toFixed(0)}</div>
+                <div className="text-base font-semibold text-slate-900">Rs{Number(baseTotal||0).toFixed(0)}</div>
               </div>
             </div>
           )}

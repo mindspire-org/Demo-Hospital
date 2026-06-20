@@ -15,6 +15,7 @@ import { LabPatient } from '../../lab/models/Patient'
 import { CorporateTransaction } from '../../corporate/models/Transaction'
 import { HospitalCashSession } from '../models/CashSession'
 import { postFbrInvoiceViaSDC } from '../services/fbr'
+import { logActivity } from '../../finance/services/activityLog.service'
 import {
   createIpdVitalSchema,
   updateIpdVitalSchema,
@@ -930,6 +931,23 @@ export async function createPayment(req: Request, res: Response){
 
       await FinanceJournal.create({ dateIso, module: 'ipd', refType: isRefund ? 'ipd_refund' : 'ipd_payment', refId: String((row as any)._id), memo: (row as any)?.refNo || (isRefund ? 'IPD Refund' : 'IPD Payment'), lines })
     } catch {}
+
+    // Activity log
+    try {
+      logActivity({
+        userId: String((req as any).user?._id || (req as any).user?.id || 'system'),
+        userName: String((req as any).user?.username || (req as any).user?.name || ''),
+        portal: req.body.portal || 'hospital',
+        action: isRefund ? 'IPD Refund Issued' : 'IPD Payment Collected',
+        module: 'IPD',
+        entityId: String((row as any)._id),
+        entityLabel: `Encounter ${String(enc._id).slice(-6)} — ${(row as any)?.refNo || ''}`,
+        amount: Number((row as any).amount || (data as any).amount || 0),
+        method: String((row as any).method || (data as any).method || ''),
+        meta: { encounterId: String(enc._id), patientId: String(enc.patientId), refNo: (row as any)?.refNo || (data as any).refNo || '' }
+      })
+    } catch {}
+
     const totals5 = await computeIpdTotals(String(enc._id))
     res.status(201).json({ payment: row, totals: totals5 })
   }catch(e){ return handleError(res, e) }
@@ -944,7 +962,24 @@ export async function listPayments(req: Request, res: Response){
     const total = await HospitalIpdPayment.countDocuments({ encounterId: enc._id })
     const rows = await HospitalIpdPayment.find({ encounterId: enc._id }).sort({ receivedAt: -1 }).skip((page-1)*limit).limit(limit).lean()
     const totals = await computeIpdTotals(String(enc._id))
-    res.json({ payments: rows, total, page, limit, totals })
+
+    // Include encounter-level advance as a synthetic payment if set at token generation
+    const encounterAdvance = Number((enc as any).advancedAmount || 0)
+    const hasAdvancePayment = rows.some((p: any) => String(p.method || '').toLowerCase() === 'advance')
+    const allRows = [...rows]
+    if (encounterAdvance > 0 && !hasAdvancePayment) {
+      allRows.unshift({
+        _id: 'encounter-advance',
+        encounterId: enc._id,
+        amount: encounterAdvance,
+        method: 'Advance',
+        refNo: 'Token generation',
+        receivedAt: (enc as any).createdAt || new Date().toISOString(),
+        receivedBy: 'Token',
+        createdAt: (enc as any).createdAt || new Date().toISOString(),
+      } as any)
+    }
+    res.json({ payments: allRows, total: allRows.length, page, limit, totals })
   }catch(e){ return handleError(res, e) }
 }
 export async function updatePayment(req: Request, res: Response){

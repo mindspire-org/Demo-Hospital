@@ -6,6 +6,7 @@ import { getLocalDate } from '../../utils/date'
 import { fmtDateTime12 } from '../../utils/timeFormat'
 import Hospital_ErPaymentSlip from '../../components/hospital/Hospital_ErPaymentSlip'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { Wallet, TrendingUp, TrendingDown, Users } from 'lucide-react'
 
 function getReceptionUser(){
   try{
@@ -68,7 +69,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-[70] mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute z-70 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id}
@@ -118,6 +119,15 @@ export default function Reception_ERBillingCollect(){
   const [allocMode, setAllocMode] = useState<'auto'|'manual'>('auto')
   const [allocSelected, setAllocSelected] = useState<Record<string, boolean>>({})
   const [allocAmounts, setAllocAmounts] = useState<Record<string, string>>({})
+
+  // Mini dashboard stats
+  const [dashStats, setDashStats] = useState({
+    totalPatients: 0,
+    totalBill: 0,
+    totalReceived: 0,
+    totalPending: 0,
+    loadingStats: false,
+  })
 
   const panelRef = useRef<HTMLDivElement|null>(null)
   const [flash, setFlash] = useState(false)
@@ -183,6 +193,7 @@ export default function Reception_ERBillingCollect(){
 
   async function search(){
     setLoading(true)
+    setDashStats(s => ({ ...s, loadingStats: true }))
     try{
       const res: any = await hospitalApi.listEREncounters({ status: 'in-progress', limit: 500 })
       let rows: any[] = res?.encounters || []
@@ -215,21 +226,53 @@ export default function Reception_ERBillingCollect(){
         })
         : rows
 
-      setList(filtered.map(enc => ({
-        id: String(enc._id),  // Use encounter ID as primary
+      // Load per-row billing summaries and compute dashboard totals
+      let totalBill = 0, totalReceived = 0, totalPending = 0
+      const mapped = filtered.map(enc => ({
+        id: String(enc._id),
         encounterId: String(enc._id),
         tokenNo: enc.tokenId?.tokenNo || enc.tokenNo || '-',
         patientName: enc.patientId?.fullName || enc.patientName || '-',
         mrn: enc.patientId?.mrn || enc.mrn || '-',
         createdAt: enc.startAt || enc.createdAt,
         bedLocation: enc.bedLocation || enc.bedId,
-      })))
+        billTotal: 0,
+        received: 0,
+        pending: 0,
+      }))
+      await Promise.all(
+        mapped.map(async (r: any) => {
+          try {
+            const res: any = await hospitalApi.erBillingSummary(r.id)
+            const t = res?.totals || {}
+            const services = Number(t?.grandTotal || 0)
+            const bill = services
+            const received = Number(t?.totalPaidToCharges || 0)
+            const pending = Number(t?.netOutstanding || 0)
+            r.billTotal = bill
+            r.received = received
+            r.pending = pending
+            totalBill += bill
+            totalReceived += received
+            totalPending += pending
+          } catch {}
+        })
+      )
+
+      setList(mapped)
+      setDashStats({
+        totalPatients: mapped.length,
+        totalBill,
+        totalReceived,
+        totalPending,
+        loadingStats: false,
+      })
 
       // Only auto-select first patient on initial load when no patient is selected
       if (!encounterIdRef.current && filtered.length){
         setEncounterId(String(filtered[0]._id))
       }
-    }catch{ setList([]) }
+    }catch{ setList([]); setDashStats({ totalPatients: 0, totalBill: 0, totalReceived: 0, totalPending: 0, loadingStats: false }) }
     setLoading(false)
   }
 
@@ -517,6 +560,46 @@ export default function Reception_ERBillingCollect(){
           <button onClick={search} className="btn" disabled={loading}>{loading? 'Searching...' : 'Search'}</button>
         </div>
 
+        {/* Mini Dashboard */}
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Patients</span>
+              <div className="rounded-lg bg-slate-100 p-1.5"><Users className="h-4 w-4 text-slate-500" /></div>
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-900">
+              {dashStats.loadingStats ? '...' : dashStats.totalPatients}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Bill</span>
+              <div className="rounded-lg bg-indigo-50 p-1.5"><Wallet className="h-4 w-4 text-indigo-500" /></div>
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-900">
+              {dashStats.loadingStats ? '...' : `Rs ${dashStats.totalBill.toLocaleString()}`}
+            </div>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Received</span>
+              <div className="rounded-lg bg-emerald-100 p-1.5"><TrendingUp className="h-4 w-4 text-emerald-600" /></div>
+            </div>
+            <div className="mt-2 text-2xl font-bold text-emerald-700">
+              {dashStats.loadingStats ? '...' : `Rs ${dashStats.totalReceived.toLocaleString()}`}
+            </div>
+          </div>
+          <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-rose-600">To Receive</span>
+              <div className="rounded-lg bg-rose-100 p-1.5"><TrendingDown className="h-4 w-4 text-rose-600" /></div>
+            </div>
+            <div className="mt-2 text-2xl font-bold text-rose-700">
+              {dashStats.loadingStats ? '...' : `Rs ${dashStats.totalPending.toLocaleString()}`}
+            </div>
+          </div>
+        </div>
+
         <div className="mt-3 overflow-x-auto text-sm">
           <table className="min-w-full">
             <thead className="bg-slate-100/50 text-slate-700 border-b-2 border-slate-300">
@@ -525,18 +608,28 @@ export default function Reception_ERBillingCollect(){
                 <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">MRN</th>
                 <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Token</th>
                 <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Bed</th>
+                <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-right">Bill</th>
+                <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-right">Remaining</th>
                 <th className="px-2 py-3 text-[13px] font-extrabold uppercase tracking-wider text-left">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {list.length===0 ? (
-                <tr><td colSpan={5} className="px-2 py-6 text-center text-slate-500">{loading ? 'Loading...' : 'No ER billing records found. Tokens will appear here once billing charges are added.'}</td></tr>
+                <tr><td colSpan={7} className="px-2 py-6 text-center text-slate-500">{loading ? 'Loading...' : 'No ER billing records found. Tokens will appear here once billing charges are added.'}</td></tr>
               ) : list.map(r => (
                 <tr key={r.id}>
                   <td className="px-2 py-2">{r.patientName}</td>
                   <td className="px-2 py-2">{r.mrn}</td>
                   <td className="px-2 py-2 font-medium">{r.tokenNo}</td>
                   <td className="px-2 py-2">{formatBedLocation(r.bedLocation)}</td>
+                  <td className="px-2 py-2 text-right font-medium">{r.billTotal > 0 ? `Rs ${r.billTotal.toLocaleString()}` : '-'}</td>
+                  <td className="px-2 py-2 text-right">
+                    {r.pending <= 0 ? (
+                      <span className="text-emerald-600 font-bold text-xs">PAID</span>
+                    ) : (
+                      <span className="text-rose-600 font-medium">Rs {r.pending.toLocaleString()}</span>
+                    )}
+                  </td>
                   <td className="px-2 py-2"><button className="btn-outline-navy" onClick={()=>openCart(r.id)}>Collect</button></td>
                 </tr>
               ))}

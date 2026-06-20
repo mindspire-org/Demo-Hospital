@@ -5,6 +5,7 @@ import IpdInvoiceSlip from '../../components/hospital/hospital_IpdInvoiceslip'
 import ReceivedDeathForm from '../../components/hospital/hospital_ReceivedDeathForm'
 import Hospital_ShortStayForm from '../../components/hospital/hospital_ShortStayForm'
 import DeathCertificateForm from '../../components/hospital/hospital_DeathCertificateForm'
+import Hospital_IpdReferOutForm from '../../components/hospital/hospital_IpdReferOutForm'
 import { hospitalApi } from '../../utils/api'
 
 const formDefs = [
@@ -15,6 +16,7 @@ const formDefs = [
   { key: 'ShortStay', label: 'Short Stay', render: (p: any) => <Hospital_ShortStayForm encounterId={p?.encounterId} patient={p} /> },
   { key: 'DeathCertificate', label: 'Death Certificate', render: (p: any) => <DeathCertificateForm encounterId={p?.encounterId} patient={p} /> },
   { key: 'ReceivedDeath', label: 'Received Death', render: (p: any) => <ReceivedDeathForm encounterId={p?.encounterId} patient={p} /> },
+  { key: 'ReferOut', label: 'Refer Out Letter', render: (p: any) => <Hospital_IpdReferOutForm encounterId={p?.encounterId} patient={p} /> },
 ]
 
 export default function Hospital_DischargeForms(){
