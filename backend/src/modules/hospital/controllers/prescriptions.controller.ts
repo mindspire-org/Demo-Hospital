@@ -36,6 +36,9 @@ export async function create(req: Request, res: Response){
     advice: data.advice,
     vitals: (data as any).vitals,
     preAnesthesia: (data as any).preAnesthesia,
+    dentalChart: (data as any).dentalChart,
+    eyeExamination: (data as any).eyeExamination,
+    departmentClinical: (data as any).departmentClinical,
     createdBy: data.createdBy,
   })
 
@@ -257,6 +260,9 @@ export async function update(req: Request, res: Response){
   if (data.advice !== undefined) set.advice = data.advice
   if ((data as any).vitals !== undefined) set.vitals = (data as any).vitals
   if ((data as any).preAnesthesia !== undefined) set.preAnesthesia = (data as any).preAnesthesia
+  if ((data as any).dentalChart !== undefined) set.dentalChart = (data as any).dentalChart
+  if ((data as any).eyeExamination !== undefined) set.eyeExamination = (data as any).eyeExamination
+  if ((data as any).departmentClinical !== undefined) set.departmentClinical = (data as any).departmentClinical
   const row = await HospitalPrescription.findByIdAndUpdate(String(id), { $set: set }, { new: true })
     .populate({ path: 'encounterId', select: 'doctorId patientId startAt', populate: [{ path: 'doctorId', select: 'name' }, { path: 'patientId', select: 'fullName mrn' }] })
     .lean()

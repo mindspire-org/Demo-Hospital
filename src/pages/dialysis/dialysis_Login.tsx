@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dialysisApi } from '../../features/dialysis/dialysis.api'
+import { loginErrorMessage } from '../../utils/authError'
 
 export default function Dialysis_Login() {
   const navigate = useNavigate()
@@ -15,7 +16,7 @@ export default function Dialysis_Login() {
 
   useEffect(()=>{}, [theme])
 
-  const logoSrc = `${(import.meta as any).env?.BASE_URL || '/'}hospital_icon.jpeg`
+  const logoSrc = `/hospital_icon.jpeg`
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,7 +39,7 @@ export default function Dialysis_Login() {
       }
       navigate('/dialysis')
     } catch (err: any) {
-      setError(err?.message || 'Login failed. Please try again.')
+      setError(loginErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -46,25 +47,25 @@ export default function Dialysis_Login() {
 
   return (
     <div className={theme === 'dark' ? 'dialysis-scope dark' : 'dialysis-scope'}>
-      <div className="min-h-screen bg-gradient-to-br from-teal-900 via-cyan-900 to-slate-900 flex items-center justify-center p-4 overflow-hidden relative">
+      <div className="min-h-screen bg-linear-to-br from-teal-900 via-cyan-900 to-slate-900 flex items-center justify-center p-4 overflow-hidden relative">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-48 -right-48 h-96 w-96 rounded-full bg-teal-500/20 blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
-          <div className="absolute -bottom-56 -left-56 h-[28rem] w-[28rem] rounded-full bg-cyan-500/20 blur-3xl animate-pulse" style={{ animationDuration: '6s', animationDelay: '1s' }} />
-          <div className="absolute left-1/2 top-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/15 blur-3xl animate-pulse" style={{ animationDuration: '5s', animationDelay: '2s' }} />
+          <div className="absolute -bottom-56 -left-56 h-112 w-md rounded-full bg-cyan-500/20 blur-3xl animate-pulse" style={{ animationDuration: '6s', animationDelay: '1s' }} />
+          <div className="absolute left-1/2 top-1/2 h-136 w-136 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/15 blur-3xl animate-pulse" style={{ animationDuration: '5s', animationDelay: '2s' }} />
         </div>
 
         <style>{`@keyframes float{0%,100%{transform:translateY(0px) rotateX(45deg) rotateZ(45deg)}50%{transform:translateY(-20px) rotateX(55deg) rotateZ(50deg)}}@keyframes rotate3d{0%{transform:perspective(1000px) rotateY(0deg) rotateX(10deg)}100%{transform:perspective(1000px) rotateY(360deg) rotateX(10deg)}}.card-3d{transform-style:preserve-3d;transition:transform .6s cubic-bezier(.23,1,.32,1)}.card-3d:hover{transform:perspective(1000px) rotateY(5deg) rotateX(-5deg) scale(1.02)}`}</style>
 
         <div className="card-3d relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-br from-white/10 via-white/5 to-transparent" />
           <div className="relative">
             <div className="relative p-8 pb-6 text-center">
-              <div className="mx-auto mb-6 h-24 w-24 overflow-hidden rounded-3xl bg-gradient-to-br from-teal-400/20 to-cyan-600/20 p-1 backdrop-blur-sm" style={{ animation: 'rotate3d 20s linear infinite' }}>
+              <div className="mx-auto mb-6 h-24 w-24 overflow-hidden rounded-3xl bg-linear-to-br from-teal-400/20 to-cyan-600/20 p-1 backdrop-blur-sm" style={{ animation: 'rotate3d 20s linear infinite' }}>
                 <div className="h-full w-full overflow-hidden rounded-[1.3rem] bg-white/10 ring-1 ring-white/20">
                   <img src={logoSrc} alt="Dialysis Portal" className="h-full w-full object-cover" />
                 </div>
               </div>
-              <h1 className="text-3xl font-black bg-gradient-to-r from-teal-200 via-cyan-200 to-emerald-200 bg-clip-text text-transparent mb-2">Dialysis Portal</h1>
+              <h1 className="text-3xl font-black bg-linear-to-r from-teal-200 via-cyan-200 to-emerald-200 bg-clip-text text-transparent mb-2">Dialysis Portal</h1>
               <p className="text-sm text-white/60 font-medium">Dialysis Management System</p>
             </div>
 
@@ -101,8 +102,8 @@ export default function Dialysis_Login() {
                   <div className="rounded-2xl border-2 border-rose-400/30 bg-rose-500/10 backdrop-blur-sm px-4 py-3 text-sm text-rose-200 font-medium">{error}</div>
                 )}
 
-                <button type="submit" disabled={loading} className="group relative mt-2 w-full overflow-hidden rounded-2xl bg-gradient-to-r from-teal-500 via-cyan-500 to-emerald-600 px-4 py-4 font-bold text-white shadow-2xl shadow-teal-500/30 transition-all hover:shadow-teal-500/50 hover:scale-[1.02] focus:outline-none focus:ring-4 focus:ring-teal-400/50 disabled:opacity-70 disabled:cursor-not-allowed">
-                  <div className="absolute inset-0 bg-gradient-to-r from-teal-400 via-cyan-400 to-emerald-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                <button type="submit" disabled={loading} className="group relative mt-2 w-full overflow-hidden rounded-2xl bg-linear-to-r from-teal-500 via-cyan-500 to-emerald-600 px-4 py-4 font-bold text-white shadow-2xl shadow-teal-500/30 transition-all hover:shadow-teal-500/50 hover:scale-[1.02] focus:outline-none focus:ring-4 focus:ring-teal-400/50 disabled:opacity-70 disabled:cursor-not-allowed">
+                  <div className="absolute inset-0 bg-linear-to-r from-teal-400 via-cyan-400 to-emerald-500 opacity-0 transition-opacity group-hover:opacity-100" />
                   <span className="relative flex items-center justify-center gap-2">
                     {loading ? 'Logging in...' : 'Login'}
                     {!loading && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 transition-transform group-hover:translate-x-1"><path d="M13.3 17.3 18.6 12l-5.3-5.3-1.4 1.4 3.2 3.2H4v2h11.1l-3.2 3.2 1.4 1.5Z"/></svg>}

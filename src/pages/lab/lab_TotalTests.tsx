@@ -272,8 +272,8 @@ export default function Lab_TotalTests() {
                 const maxCount = testStats[0]?.count || 1
                 const pct = Math.round((t.count / maxCount) * 100)
                 const barColor = t.delayed > 0
-                  ? 'bg-gradient-to-r from-violet-500 to-rose-400'
-                  : 'bg-gradient-to-r from-violet-500 to-violet-400'
+                  ? 'bg-linear-to-r from-violet-500 to-rose-400'
+                  : 'bg-linear-to-r from-violet-500 to-violet-400'
                 return (
                   <div key={idx} className="group flex items-center gap-3">
                     <div className="w-36 truncate text-xs font-medium text-slate-800" title={t.name}>{t.name}</div>

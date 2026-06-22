@@ -4,6 +4,7 @@ import * as OPD from '../controllers/opd.controller'
 import * as IPD from '../controllers/ipd.controller'
 import * as Prescriptions from '../controllers/prescriptions.controller'
 import * as PrescriptionTemplates from '../controllers/prescription_templates.controller'
+import * as Department from '../controllers/department.controller'
 import * as Staff from '../controllers/staff.controller'
 import * as Expense from '../controllers/expense.controller'
 import * as ExpenseMeta from '../controllers/expenseMeta.controller'
@@ -90,6 +91,13 @@ r.put('/opd/prescriptions/:id', Prescriptions.update)
 r.delete('/opd/prescriptions/:id', Prescriptions.remove)
 r.get('/opd/prescriptions/encounter/:encounterId', Prescriptions.getByEncounterId)
 r.put('/opd/prescriptions/encounter/:encounterId/vitals', Prescriptions.upsertVitals)
+
+// Department patient queue + progress timeline
+r.get('/department-queue', Department.queue)
+r.get('/department-progress', Department.listProgress)
+r.post('/department-progress', Department.createProgress)
+r.put('/department-progress/:id', Department.updateProgress)
+r.delete('/department-progress/:id', Department.removeProgress)
 
 // Prescription Templates (per doctor)
 r.get('/prescription-templates', PrescriptionTemplates.list)

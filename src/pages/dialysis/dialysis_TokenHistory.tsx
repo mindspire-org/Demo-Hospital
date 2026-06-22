@@ -151,7 +151,7 @@ export default function Dialysis_TokenHistory() {
   }
 
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 dark:from-teal-900/30 dark:via-cyan-900/20 dark:to-emerald-900/20 p-6">
+    <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 dark:from-teal-900/30 dark:via-cyan-900/20 dark:to-emerald-900/20 p-6">
       <div className="w-full rounded-xl bg-white dark:bg-slate-800 p-6 shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
@@ -222,7 +222,7 @@ export default function Dialysis_TokenHistory() {
 
         <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-sm">
-            <thead className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white">
+            <thead className="bg-linear-to-r from-teal-500 to-cyan-500 text-white">
               <tr className="text-left">
                 <Th>Date</Th>
                 <Th>Time</Th>

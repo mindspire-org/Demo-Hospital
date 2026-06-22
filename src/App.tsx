@@ -15,6 +15,7 @@ import Reception_Login from './pages/reception/reception_Login'
 import Dialysis_Login from './pages/dialysis/dialysis_Login'
 import IndoorPharmacy_Login from './pages/indoorpharmacy/indoorpharmacy_Login'
 import Camp_Login from './pages/camp/camp_Login'
+import Cafeteria_Login from './pages/cafeteria/cafeteria_Login'
 
 // Lazy load all other pages for faster startup
 const SuperAdminLogin = lazy(() => import('./pages/superAdmin/SuperAdminLogin'))
@@ -118,6 +119,7 @@ const Doctor_Layout = lazy(() => import('./pages/doctor/doctor_Layout'))
 const Doctor_Dashboard = lazy(() => import('./pages/doctor/doctor_Dashboard'))
 const Doctor_Patients = lazy(() => import('./pages/doctor/doctor_Patients'))
 const Doctor_Prescription = lazy(() => import('./pages/doctor/doctor_Prescription'))
+const Doctor_DepartmentQueue = lazy(() => import('./pages/doctor/doctor_DepartmentQueue'))
 const Doctor_PrescriptionHistory = lazy(() => import('./pages/doctor/doctor_PrescriptionHistory'))
 const Doctor_PrescriptionTemplates = lazy(() => import('./pages/doctor/doctor_PrescriptionTemplates'))
 const Doctor_Notifications = lazy(() => import('./pages/doctor/doctor_Notifications'))
@@ -320,6 +322,21 @@ const Camp_Reports = lazy(() => import('./pages/camp/camp_Reports'))
 const Camp_Settings = lazy(() => import('./pages/camp/camp_Settings'))
 const Camp_UserManagement = lazy(() => import('./pages/camp/camp_UserManagement'))
 const Camp_SidebarPermissions = lazy(() => import('./pages/camp/camp_SidebarPermissions'))
+
+// Cafeteria
+const Cafeteria_Layout = lazy(() => import('./pages/cafeteria/cafeteria_Layout'))
+const Cafeteria_Dashboard = lazy(() => import('./pages/cafeteria/cafeteria_Dashboard'))
+const Cafeteria_POS = lazy(() => import('./pages/cafeteria/cafeteria_POS'))
+const Cafeteria_MenuItems = lazy(() => import('./pages/cafeteria/cafeteria_MenuItems'))
+const Cafeteria_SalesHistory = lazy(() => import('./pages/cafeteria/cafeteria_SalesHistory'))
+const Cafeteria_Reports = lazy(() => import('./pages/cafeteria/cafeteria_Reports'))
+const Cafeteria_Settings = lazy(() => import('./pages/cafeteria/cafeteria_Settings'))
+const Cafeteria_UserManagement = lazy(() => import('./pages/cafeteria/cafeteria_UserManagement'))
+const Cafeteria_AuditLogs = lazy(() => import('./pages/cafeteria/cafeteria_AuditLogs'))
+const Cafeteria_SidebarPermissions = lazy(() => import('./pages/cafeteria/cafeteria_SidebarPermissions'))
+const Cafeteria_Deals = lazy(() => import('./pages/cafeteria/cafeteria_Deals'))
+const Cafeteria_Billing = lazy(() => import('./pages/cafeteria/cafeteria_Billing'))
+const Cafeteria_DailyShift = lazy(() => import('./pages/cafeteria/cafeteria_DailyShift'))
 
 const Aesthetic_Layout = lazy(() => import('./pages/aesthetic/aesthetic_Layout'))
 const Aesthetic_Dashboard = lazy(() => import('./pages/aesthetic/aesthetic_Dashboard'))
@@ -709,6 +726,7 @@ export default function App() {
         <Route path="emergency-services" element={<Hospital_EmergencyServices />} />
         <Route path="emergency/:id/services" element={<Hospital_EmergencyServices />} />
         <Route path="prescription" element={<Doctor_Prescription />} />
+        <Route path="department" element={<Doctor_DepartmentQueue />} />
         <Route path="prescriptions" element={<Doctor_PrescriptionHistory />} />
         <Route path="prescription-history" element={<Doctor_PrescriptionHistory />} />
         <Route path="prescription-templates" element={<Doctor_PrescriptionTemplates />} />
@@ -944,6 +962,23 @@ export default function App() {
         <Route path="settings" element={<Camp_Settings />} />
         <Route path="user-management" element={<Camp_UserManagement />} />
         <Route path="sidebar-permissions" element={<Camp_SidebarPermissions />} />
+      </Route>
+
+      {/* Cafeteria Portal */}
+      <Route path="/cafeteria/login" element={<Cafeteria_Login />} />
+      <Route path="/cafeteria" element={<Cafeteria_Layout />}>
+        <Route index element={<Cafeteria_Dashboard />} />
+        <Route path="pos" element={<Cafeteria_POS />} />
+        <Route path="deals" element={<Cafeteria_Deals />} />
+        <Route path="menu-items" element={<Cafeteria_MenuItems />} />
+        <Route path="sales-history" element={<Cafeteria_SalesHistory />} />
+        <Route path="billing" element={<Cafeteria_Billing />} />
+        <Route path="daily-shift" element={<Cafeteria_DailyShift />} />
+        <Route path="reports" element={<Cafeteria_Reports />} />
+        <Route path="settings" element={<Cafeteria_Settings />} />
+        <Route path="user-management" element={<Cafeteria_UserManagement />} />
+        <Route path="audit-logs" element={<Cafeteria_AuditLogs />} />
+        <Route path="sidebar-permissions" element={<Cafeteria_SidebarPermissions />} />
       </Route>
 
       {/* Super Admin Portal */}

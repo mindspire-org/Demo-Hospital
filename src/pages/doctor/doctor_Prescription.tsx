@@ -19,6 +19,12 @@ import Toast from '../../components/ui/Toast'
 import type { ToastState } from '../../components/ui/Toast'
 import DoctorCustomEntriesModal from '../../components/doctor/DoctorCustomEntriesModal'
 import PreviousPrescriptionsModal from '../../components/doctor/PreviousPrescriptionsModal'
+import DentalChart, { type DentalChartValue } from '../../components/doctor/DentalChart'
+import EyeExamination, { emptyEyeExamination, type EyeExaminationValue } from '../../components/doctor/EyeExamination'
+import { resolveDoctorMode } from '../../utils/doctorDepartment'
+import { useSystemConfig } from '../../contexts/SystemConfigContext'
+import { getDepartmentModule } from '../../config/departmentModules'
+import { previewDepartmentRxPdf } from '../../utils/prescription/templates/departmentRx'
 
 type DoctorSession = { id: string; name: string; username: string }
 
@@ -80,6 +86,7 @@ export default function Doctor_Prescription() {
     },
     recommendation: '',
   })
+  const emptyDentalChart = (): DentalChartValue => ({ teeth: [], generalNotes: '' })
   const [form, setForm] = useState({
     patientKey: '',
     primaryComplaint: '',
@@ -98,11 +105,30 @@ export default function Doctor_Prescription() {
     diagDisplay: { testsText: '' },
     meds: Array.from({ length: 5 }, () => emptyMedRow()) as MedicineRow[],
     preAnesthesia: emptyPreAnesthesia(),
+    dentalChart: emptyDentalChart() as DentalChartValue,
+    eyeExamination: emptyEyeExamination() as EyeExaminationValue,
+    departmentData: null as any,
   })
   const [saved, setSaved] = useState(false)
   const [settings] = useState<{ name: string; address: string; phone: string; logoDataUrl?: string }>({ name: 'Hospital', address: '', phone: '' })
   const [pat] = useState<{ address?: string; phone?: string; fatherName?: string; gender?: string; age?: string } | null>(null)
-  const [doctorInfo, setDoctorInfo] = useState<{ name?: string; specialization?: string; phone?: string; qualification?: string; departmentName?: string } | null>(null)
+  const [doctorInfo, setDoctorInfo] = useState<{ name?: string; specialization?: string; phone?: string; qualification?: string; departmentName?: string; doctorClinicalModule?: string; departmentClinicalModule?: string } | null>(null)
+  // Department-specific prescription mode + super-admin module gating.
+  // Precedence: doctor.clinicalModule → department.clinicalModule → name inference.
+  const { getSubModuleEnabled } = useSystemConfig()
+  const deptMode = useMemo(() => resolveDoctorMode(doctorInfo?.departmentName, doctorInfo?.specialization, {
+    doctorClinicalModule: doctorInfo?.doctorClinicalModule,
+    departmentClinicalModule: doctorInfo?.departmentClinicalModule,
+  }), [doctorInfo?.departmentName, doctorInfo?.specialization, doctorInfo?.doctorClinicalModule, doctorInfo?.departmentClinicalModule])
+  const dentalModuleOn = getSubModuleEnabled('hospital', 'dentalRx')
+  const eyeModuleOn = getSubModuleEnabled('hospital', 'eyeRx')
+  const showDental = deptMode.isDental && dentalModuleOn
+  const showEye = deptMode.isEye && eyeModuleOn
+  // Registry-driven departments (cardiac, breast-onco, omfs, neuro)
+  const activeDept = useMemo(() => getDepartmentModule(deptMode.departmentKey), [deptMode.departmentKey])
+  const showDept = !!activeDept && getSubModuleEnabled('hospital', activeDept.moduleFlag)
+  // Active department form value (falls back to the module's empty shape until edited)
+  const deptValue = (form as any).departmentData ?? activeDept?.empty?.() ?? {}
   const [prescriptionTemplate, setPrescriptionTemplate] = useState<PrescriptionPdfTemplate>('hospital-rx')
   const [prescriptionLanguage, setPrescriptionLanguage] = useState<PrescriptionLanguage>('english')
   const [openReferral, setOpenReferral] = useState(false)
@@ -114,7 +140,7 @@ export default function Doctor_Prescription() {
   const [medNameSuggestions, setMedNameSuggestions] = useState<string[]>([])
   const [labTestSuggestions, setLabTestSuggestions] = useState<string[]>([])
   const [diagnosticTestSuggestions, setDiagnosticTestSuggestions] = useState<string[]>([])
-  const [activeTab, setActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'medication'|'anesthesia'>('details')
+  const [activeTab, setActiveTab] = useState<'details'|'vitals'|'labs'|'diagnostics'|'medication'|'anesthesia'|'dental'|'eye'|'department'>('details')
   const [showLoadPrevButton, setShowLoadPrevButton] = useState(false)
   const [prevPrescriptionsModalOpen, setPrevPrescriptionsModalOpen] = useState(false)
   const [heldPrescriptionsModalOpen, setHeldPrescriptionsModalOpen] = useState(false)
@@ -294,8 +320,9 @@ export default function Doctor_Prescription() {
         const doctors: any[] = drRes?.doctors || []
         const depArray: any[] = ((depRes as any)?.departments || (depRes as any) || []) as any[]
         const d = doctors.find(x => String(x._id || x.id) === String(doc.id))
-        const deptName = d?.primaryDepartmentId ? (depArray.find((z: any)=> String(z._id||z.id) === String(d.primaryDepartmentId))?.name || '') : ''
-        if (d) setDoctorInfo({ name: d.name || '', specialization: d.specialization || '', phone: d.phone || '', qualification: d.qualification || '', departmentName: deptName })
+        const dep = d?.primaryDepartmentId ? depArray.find((z: any)=> String(z._id||z.id) === String(d.primaryDepartmentId)) : null
+        const deptName = dep?.name || ''
+        if (d) setDoctorInfo({ name: d.name || '', specialization: d.specialization || '', phone: d.phone || '', qualification: d.qualification || '', departmentName: deptName, doctorClinicalModule: d.clinicalModule || '', departmentClinicalModule: dep?.clinicalModule || '' })
       } catch {}
     })()
   }, [doc?.id])
@@ -468,6 +495,25 @@ export default function Doctor_Prescription() {
     })()
   }, [form.patientKey, tokens])
 
+  // Auto-load existing prescription for the current encounter when patient is selected
+  useEffect(() => {
+    const sel = tokens.find(t => `${t.id}` === form.patientKey)
+    if (!sel?.encounterId) return
+
+    ;(async () => {
+      try {
+        const existingRes: any = await hospitalApi.getPrescriptionByEncounterId(sel.encounterId)
+        const existingPres = existingRes?.prescription
+        if (existingPres && Array.isArray(existingPres.items) && existingPres.items.length > 0) {
+          loadPreviousPrescription(existingPres)
+        }
+      } catch {
+        // No existing prescription for this encounter
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.patientKey])
+
   // Manual function to load previous prescription data
   const loadPreviousPrescription = async (prescription: any) => {
     if (!prescription) return
@@ -586,6 +632,14 @@ export default function Doctor_Prescription() {
         },
         recommendation: pres.preAnesthesia.recommendation || '',
       } : emptyPreAnesthesia(),
+      dentalChart: pres.dentalChart ? {
+        teeth: Array.isArray(pres.dentalChart.teeth) ? pres.dentalChart.teeth.map((t: any) => ({ toothId: Number(t.toothId), condition: String(t.condition || 'Other'), notes: t.notes || '' })) : [],
+        generalNotes: pres.dentalChart.generalNotes || '',
+      } : emptyDentalChart(),
+      eyeExamination: pres.eyeExamination ? { ...emptyEyeExamination(), ...pres.eyeExamination } : emptyEyeExamination(),
+      departmentData: (pres.departmentClinical && activeDept && pres.departmentClinical.type === activeDept.key)
+        ? { ...activeDept.empty(), ...(pres.departmentClinical.data || {}) }
+        : null,
     }))
 
     // Also update child widgets if they expose setters
@@ -747,8 +801,11 @@ export default function Doctor_Prescription() {
         nextFollowUp: form.nextFollowUp || undefined,
         vitals,
         preAnesthesia: form.preAnesthesia,
+        dentalChart: showDental ? form.dentalChart : undefined,
+        eyeExamination: showEye ? form.eyeExamination : undefined,
+        departmentClinical: (showDept && activeDept) ? { type: activeDept.key, data: deptValue } : undefined,
       }
-      
+
       if (existingPresId) {
         // Update existing prescription for this encounter (same token)
         await hospitalApi.updatePrescription(existingPresId, prescriptionData)
@@ -788,7 +845,7 @@ export default function Doctor_Prescription() {
       if (andPrint) {
         try { await openPrint() } catch { /* print error handled internally */ }
       }
-      setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia() })
+      setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia(), dentalChart: emptyDentalChart(), eyeExamination: emptyEyeExamination(), departmentData: null })
       try { vitalsRef.current?.setDisplay?.({}) } catch {}
       try { diagRef.current?.setDisplay?.({ testsText: '' }) } catch {}
       setTimeout(()=>setSaved(false), 2000)
@@ -908,9 +965,17 @@ export default function Doctor_Prescription() {
         }
       }
     } catch {}
-    console.log('openPrint - sel:', sel)
-    console.log('openPrint - tokenNo being passed:', (sel as any)?.tokenNo)
-    await previewPrescriptionPdf({ doctor, settings: settingsNorm, patient, items, primaryComplaint: form.primaryComplaint, primaryComplaintHistory: form.primaryComplaintHistory, familyHistory: form.familyHistory, allergyHistory: form.allergyHistory, treatmentHistory: form.treatmentHistory, history: form.history, examFindings: form.examFindings, diagnosis: form.diagnosis, advice: form.advice, vitals, labTests: form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean), diagnosticTests: Array.isArray(dPrint.tests)?dPrint.tests:[], tokenNo: (sel as any)?.tokenNo, createdAt: new Date(), language: prescriptionLanguage }, tpl)
+    const basePdfData = { doctor, settings: settingsNorm, patient, items, primaryComplaint: form.primaryComplaint, primaryComplaintHistory: form.primaryComplaintHistory, familyHistory: form.familyHistory, allergyHistory: form.allergyHistory, treatmentHistory: form.treatmentHistory, history: form.history, examFindings: form.examFindings, diagnosis: form.diagnosis, advice: form.advice, vitals, labTests: form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean), diagnosticTests: Array.isArray(dPrint.tests)?dPrint.tests:[], tokenNo: (sel as any)?.tokenNo, createdAt: new Date(), language: prescriptionLanguage }
+    // Registry departments (cardiac, breast-onco, omfs, neuro) use the generic
+    // department PDF builder driven by their section descriptors.
+    if (showDept && activeDept) {
+      await previewDepartmentRxPdf(basePdfData, { deptLabel: activeDept.pdfDeptLabel, accent: activeDept.pdfAccent, sections: activeDept.sections(deptValue) })
+      return
+    }
+    // Dental / eye use their dedicated template variants.
+    if (showDental) tpl = 'dental-rx'
+    else if (showEye) tpl = 'eye-rx'
+    await previewPrescriptionPdf({ ...basePdfData, dentalChart: showDental ? form.dentalChart : undefined, eyeExamination: showEye ? form.eyeExamination : undefined }, tpl)
   }
 
   async function openAnesthesiaPrint() {
@@ -1068,7 +1133,7 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
   }
 
   function resetForms(){
-    setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia() })
+    setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia(), dentalChart: emptyDentalChart(), eyeExamination: emptyEyeExamination(), departmentData: null })
     try { vitalsRef.current?.setDisplay?.({}) } catch {}
     try { diagRef.current?.setDisplay?.({ testsText: '' }) } catch {}
     setActiveTab('details')
@@ -1128,10 +1193,20 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
   const defaultDurations = ['1 day', '2 days', '3 days', '5 days', '7 days', '10 days', '14 days', '1 week', '2 weeks', '3 weeks', '4 weeks', '1 month', '2 months', '3 months', '6 months']
   const defaultFrequencies = ['Once daily (OD)', 'Twice daily (BD)', 'Thrice daily (TID)', 'Four times daily (QID)', 'Every morning', 'Every night', 'Every 4 hours', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours', 'SOS', 'Stat', 'Alternate days', 'Weekly', 'Monthly']
 
-  // Suggestions for medication fields (defaults only)
+  // Suggestions for medication fields (defaults + department-specific extras)
   const sugDose = useMemo(() => defaultDoses, [])
-  const sugInstr = useMemo(() => defaultInstructions, [])
-  const sugRoute = useMemo(() => defaultRoutes, [])
+  const sugInstr = useMemo(() => {
+    if (showDental) return ['Apply locally', 'Rinse and spit', 'Do not swallow', 'After brushing', 'Avoid hard food', ...defaultInstructions]
+    if (showEye) return ['Instill in affected eye', 'One drop both eyes', 'Apply at bedtime', 'Shake well before use', ...defaultInstructions]
+    if (showDept && activeDept?.medInstr?.length) return [...activeDept.medInstr, ...defaultInstructions]
+    return defaultInstructions
+  }, [showDental, showEye, showDept, activeDept])
+  const sugRoute = useMemo(() => {
+    if (showEye) return ['Eye drops', 'Eye ointment', 'Both eyes', 'Right eye (OD)', 'Left eye (OS)', ...defaultRoutes]
+    if (showDental) return ['Topical (oral)', 'Local application', ...defaultRoutes]
+    if (showDept && activeDept?.medRoutes?.length) return [...activeDept.medRoutes, ...defaultRoutes]
+    return defaultRoutes
+  }, [showDental, showEye, showDept, activeDept])
   const sugDuration = useMemo(() => defaultDurations, [])
   const sugFreq = useMemo(() => defaultFrequencies, [])
   // Vitals suggestions (empty - doctors manage their own)
@@ -1234,6 +1309,9 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
             <nav className="flex gap-1 overflow-x-auto scrollbar-hide py-2">
               {[
                 { id: 'details', label: 'Details' },
+                ...(showDental ? [{ id: 'dental', label: 'Dental Chart' }] : []),
+                ...(showEye ? [{ id: 'eye', label: 'Eye Exam' }] : []),
+                ...(showDept && activeDept ? [{ id: 'department', label: activeDept.tabLabel }] : []),
                 { id: 'medication', label: 'Medication' },
                 { id: 'vitals', label: 'Vitals' },
                 { id: 'labs', label: 'Lab Orders' },
@@ -1400,6 +1478,45 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
             </div>
           </div>
         )}
+        {activeTab==='dental' && showDental && (
+          <div className="p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="mb-4 flex items-center gap-2 rounded-xl bg-linear-to-r from-sky-500 to-cyan-500 px-4 py-3 text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M12 5.5c-1.5-2-4-2.5-5.5-1.5C4.5 5.5 5 9 6 12c.7 2 1 5 1.5 6.5.4 1.2 1.6 1.2 2-.5.3-1.3.5-3 1.5-3s1.2 1.7 1.5 3c.4 1.7 1.6 1.7 2 .5C16 17 16.3 14 17 12c1-3 1.5-6.5-.5-8-1.5-1-4-.5-4.5 1.5z"/></svg>
+              <div>
+                <div className="text-sm font-bold">Dental Department</div>
+                <div className="text-[11px] text-sky-50">Interactive tooth chart · FDI numbering</div>
+              </div>
+            </div>
+            <DentalChart value={form.dentalChart} onChange={(dentalChart) => setForm(f => ({ ...f, dentalChart }))} />
+          </div>
+        )}
+
+        {activeTab==='eye' && showEye && (
+          <div className="p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="mb-4 flex items-center gap-2 rounded-xl bg-linear-to-r from-indigo-500 to-violet-500 px-4 py-3 text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              <div>
+                <div className="text-sm font-bold">Eye Department</div>
+                <div className="text-[11px] text-indigo-50">Ophthalmic examination · glasses prescription</div>
+              </div>
+            </div>
+            <EyeExamination value={form.eyeExamination} onChange={(eyeExamination) => setForm(f => ({ ...f, eyeExamination }))} />
+          </div>
+        )}
+
+        {activeTab==='department' && showDept && activeDept && (
+          <div className="p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className={`mb-4 flex items-center gap-2 rounded-xl bg-linear-to-r ${activeDept.gradient} px-4 py-3 text-white`}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d={activeDept.iconPath} /></svg>
+              <div>
+                <div className="text-sm font-bold">{activeDept.bannerTitle}</div>
+                <div className="text-[11px] text-white/80">{activeDept.bannerSubtitle}</div>
+              </div>
+            </div>
+            <activeDept.Form value={deptValue} onChange={(d: any) => setForm(f => ({ ...f, departmentData: d }))} />
+          </div>
+        )}
+
         {activeTab==='medication' && (
           <div>
             <PrescriptionMedication
@@ -1618,6 +1735,10 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
         examFindings={form.examFindings}
         diagnosis={form.diagnosis}
         advice={form.advice}
+        dentalChart={showDental ? form.dentalChart : undefined}
+        eyeExamination={showEye ? form.eyeExamination : undefined}
+        departmentTitle={showDept && activeDept ? activeDept.bannerTitle : undefined}
+        departmentSections={showDept && activeDept ? activeDept.sections(deptValue) : undefined}
         createdAt={new Date()}
         language={prescriptionLanguage}
       />

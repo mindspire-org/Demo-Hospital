@@ -9,6 +9,7 @@ import { LabUser } from '../modules/lab/models/User'
 import { PharmacyUser } from '../modules/pharmacy/models/User'
 import { PharmacyUser as IndoorPharmacyUser } from '../modules/indoorpharmacy/models/indoorUser'
 import { ReceptionUser } from '../modules/reception/models/User'
+import { CafeteriaUser } from '../modules/cafeteria/models/User'
 
 async function ensureOne(model: any, username: string, doc: any) {
   const existing = await model.findOne({ username }).lean()
@@ -32,4 +33,5 @@ export async function ensureDefaultPortalLogins() {
   await ensureOne(DiagnosticUser, username, { username, role: 'admin', passwordHash })
   await ensureOne(FinanceUser, username, { username, role: 'admin', passwordHash })
   await ensureOne(CampUser, username, { username, role: 'admin', active: true, passwordHash })
+  await ensureOne(CafeteriaUser, username, { username, role: 'admin', passwordHash })
 }

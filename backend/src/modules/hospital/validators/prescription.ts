@@ -38,6 +38,48 @@ const preAnesthesiaSchema = z.object({
   recommendation: z.string().optional().nullable(),
 }).partial().optional()
 
+const dentalChartSchema = z.object({
+  teeth: z.array(z.object({
+    toothId: z.coerce.number(),
+    condition: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  })).optional(),
+  generalNotes: z.string().optional().nullable(),
+}).partial().optional()
+
+const glassesSchema = z.object({
+  sph: z.string().optional().nullable(),
+  cyl: z.string().optional().nullable(),
+  axis: z.string().optional().nullable(),
+  add: z.string().optional().nullable(),
+}).partial().optional()
+
+const eyeExaminationSchema = z.object({
+  visualAcuityRight: z.string().optional().nullable(),
+  visualAcuityLeft: z.string().optional().nullable(),
+  nearVisionRight: z.string().optional().nullable(),
+  nearVisionLeft: z.string().optional().nullable(),
+  iopRight: z.string().optional().nullable(),
+  iopLeft: z.string().optional().nullable(),
+  refractionRight: z.string().optional().nullable(),
+  refractionLeft: z.string().optional().nullable(),
+  slitLamp: z.string().optional().nullable(),
+  fundus: z.string().optional().nullable(),
+  diagnosis: z.string().optional().nullable(),
+  glassesRight: glassesSchema,
+  glassesLeft: glassesSchema,
+  generalNotes: z.string().optional().nullable(),
+}).partial().optional()
+
+// Generic department-specific clinical payload. The concrete shape of `data`
+// is owned by each department module on the frontend; here we accept any object
+// and only constrain the discriminator. Per-type validators can be added to
+// departmentClinicalValidators below as departments harden.
+const departmentClinicalSchema = z.object({
+  type: z.string().optional().nullable(),
+  data: z.any().optional().nullable(),
+}).partial().optional()
+
 const baseSchema = z.object({
   encounterId: z.string().min(1),
   prescriptionMode: z.enum(['electronic','manual']).optional(),
@@ -73,6 +115,9 @@ const baseSchema = z.object({
     iop: z.string().optional(),
   }).partial().optional(),
   preAnesthesia: preAnesthesiaSchema,
+  dentalChart: dentalChartSchema,
+  eyeExamination: eyeExaminationSchema,
+  departmentClinical: departmentClinicalSchema,
   createdBy: z.string().optional(),
 })
 
@@ -128,4 +173,7 @@ export const updatePrescriptionSchema = z.object({
     iop: z.string().optional(),
   }).partial().optional(),
   preAnesthesia: preAnesthesiaSchema,
+  dentalChart: dentalChartSchema,
+  eyeExamination: eyeExaminationSchema,
+  departmentClinical: departmentClinicalSchema,
 })

@@ -220,8 +220,8 @@ export default function Pharmacy_Reports() {
   const tickColor = darkTheme ? '#cbd5e1' : '#64748b'
   const gridColor = darkTheme ? 'rgba(148,163,184,0.25)' : 'rgba(148,163,184,0.35)'
   const dcsContainer = darkTheme
-    ? 'rounded-2xl border-2 border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800 p-6 shadow-lg'
-    : 'rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-sky-50/30 p-6 shadow-lg'
+    ? 'rounded-2xl border-2 border-slate-700 bg-linear-to-br from-slate-900 to-slate-800 p-6 shadow-lg'
+    : 'rounded-2xl border-2 border-slate-200 bg-linear-to-br from-white to-sky-50/30 p-6 shadow-lg'
   const innerPanelClass = darkTheme
     ? 'mt-6 rounded-2xl border-2 border-slate-700 bg-slate-800/70 backdrop-blur-sm p-6 shadow-inner'
     : 'mt-6 rounded-2xl border-2 border-slate-200 bg-white/70 backdrop-blur-sm p-6 shadow-inner'
@@ -501,13 +501,13 @@ export default function Pharmacy_Reports() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 shadow-lg">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-sky-500 to-indigo-600 shadow-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-white">
                   <path d="M11.25 4.533A9.707 9.707 0 006 3a9.735 9.735 0 00-3.25.555.75.75 0 00-.5.707v14.25a.75.75 0 001 .707A8.237 8.237 0 016 18.75c1.995 0 3.823.707 5.25 1.886V4.533zM12.75 20.636A8.214 8.214 0 0118 18.75c.966 0 1.89.166 2.75.47a.75.75 0 001-.708V4.262a.75.75 0 00-.5-.707A9.735 9.735 0 0018 3a9.707 9.707 0 00-5.25 1.533v16.103z" />
                 </svg>
               </div>
               <div>
-                <div className="text-2xl font-black bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">Daily Closing Sheet</div>
+                <div className="text-2xl font-black bg-linear-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">Daily Closing Sheet</div>
                 <div className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Financial summary for the selected period</div>
               </div>
             </div>
@@ -553,7 +553,7 @@ export default function Pharmacy_Reports() {
                 ].join('\n')
                 downloadTextFile(`closing-sheet-${pharmacyName.replace(/\s+/g, '-')}-${from}-to-${to}.txt`, text)
               }}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 px-4 py-2.5 font-bold text-white shadow-lg hover:from-sky-700 hover:to-indigo-700 transition-all"
+              className="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-sky-600 to-indigo-600 px-4 py-2.5 font-bold text-white shadow-lg hover:from-sky-700 hover:to-indigo-700 transition-all"
             >
               <Download className="h-4 w-4" />
               Download
@@ -567,34 +567,34 @@ export default function Pharmacy_Reports() {
               <div className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Financial Summary</div>
               <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Period: <span className="font-semibold text-slate-700 dark:text-slate-300">{from} to {to}</span></div>
             </div>
-            <div className="rounded-lg bg-gradient-to-br from-sky-100 to-indigo-100 px-3 py-1.5 dark:from-sky-900/30 dark:to-indigo-900/30">
+            <div className="rounded-lg bg-linear-to-br from-sky-100 to-indigo-100 px-3 py-1.5 dark:from-sky-900/30 dark:to-indigo-900/30">
               <div className="text-xs font-semibold text-sky-700 dark:text-sky-400">HealthSpire</div>
             </div>
           </div>
 
           <div className="space-y-3">
-            <div className={rowBg('bg-gradient-to-r from-emerald-50 to-teal-50')}>
+            <div className={rowBg('bg-linear-to-r from-emerald-50 to-teal-50')}>
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-700 dark:text-slate-300">💰 Total Revenue</span>
                 <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400">PKR {summary.totalRevenue.toLocaleString()}</span>
               </div>
             </div>
             
-            <div className={rowBg('bg-gradient-to-r from-blue-50 to-sky-50')}>
+            <div className={rowBg('bg-linear-to-r from-blue-50 to-sky-50')}>
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-700 dark:text-slate-300">📦 Total Purchases</span>
                 <span className="text-lg font-bold text-blue-700 dark:text-blue-400">PKR {summary.totalPurchases.toLocaleString()}</span>
               </div>
             </div>
             
-            <div className={rowBg('bg-gradient-to-r from-rose-50 to-pink-50')}>
+            <div className={rowBg('bg-linear-to-r from-rose-50 to-pink-50')}>
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-700 dark:text-slate-300">💸 Total Expenses</span>
                 <span className="text-lg font-bold text-rose-700 dark:text-rose-400">PKR {summary.totalExpenses.toLocaleString()}</span>
               </div>
             </div>
 
-            <div className="rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 p-5 shadow-lg">
+            <div className="rounded-2xl bg-linear-to-r from-sky-600 to-indigo-600 p-5 shadow-lg">
               <div className="flex items-center justify-between">
                 <span className="text-lg font-bold text-white">🎯 Net Profit</span>
                 <span className="text-2xl font-black text-white">{summary.totalProfit >= 0 ? '+' : ''}PKR {summary.totalProfit.toLocaleString()}</span>

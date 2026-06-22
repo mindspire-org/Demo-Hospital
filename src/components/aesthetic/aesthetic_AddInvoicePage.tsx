@@ -905,7 +905,7 @@ export default function Pharmacy_AddInvoicePage() {
             </div>
 
             {/* Totals Summary */}
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl shadow-sm border border-emerald-200 dark:from-slate-900/40 dark:to-slate-900/20 dark:border-slate-700">
+            <div className="bg-linear-to-br from-emerald-50 to-emerald-100 rounded-xl shadow-sm border border-emerald-200 dark:from-slate-900/40 dark:to-slate-900/20 dark:border-slate-700">
               <div className="px-6 py-4">
                 <h2 className="text-lg font-semibold text-emerald-800 dark:text-emerald-200">Invoice Summary</h2>
               </div>

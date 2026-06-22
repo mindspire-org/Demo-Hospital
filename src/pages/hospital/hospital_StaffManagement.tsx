@@ -434,7 +434,7 @@ export default function Hospital_StaffManagement(){
           </select>
           <button 
             onClick={()=>setAddOpen(true)}
-            className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all"
+            className="flex items-center gap-2 px-6 py-2 bg-linear-to-r from-fuchsia-600 to-purple-600 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all"
           >
             <PlusCircle className="h-5 w-5" />
             Add Staff
@@ -488,7 +488,7 @@ export default function Hospital_StaffManagement(){
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 ${s.status === 'Active' ? 'bg-gradient-to-br from-fuchsia-400 to-purple-500' : 'bg-slate-300'}`}>
+                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 ${s.status === 'Active' ? 'bg-linear-to-br from-fuchsia-400 to-purple-500' : 'bg-slate-300'}`}>
                         {s.name.charAt(0)}
                       </div>
                       <div className="min-w-0">

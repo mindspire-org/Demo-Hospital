@@ -9,6 +9,7 @@ const MODULE_TO_COLLECTION: Record<string, string> = {
   diagnostic: 'diagnostic',
   dialysis: 'dialysis',
   aesthetic: 'aesthetic',
+  cafeteria: 'cafeteria',
   general: 'opd' // fallback to opd for general
 }
 

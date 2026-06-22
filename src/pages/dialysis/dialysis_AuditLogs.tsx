@@ -86,7 +86,7 @@ export default function Dialysis_AuditLogs() {
   const showingTo = Math.min(page * limit, total)
 
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
+    <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
       <div className="w-full rounded-xl bg-white p-6 shadow-lg">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-800">Audit Logs</h2>
@@ -120,7 +120,7 @@ export default function Dialysis_AuditLogs() {
 
         <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white">
+            <thead className="bg-linear-to-r from-teal-500 to-cyan-500 text-white">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Time</th>
                 <th className="px-4 py-3 text-left font-semibold">Actor</th>

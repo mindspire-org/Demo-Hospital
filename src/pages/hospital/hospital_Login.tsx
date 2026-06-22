@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
 import { useNavigate } from 'react-router-dom'
+import { loginErrorMessage } from '../../utils/authError'
 
 export default function Hospital_Login() {
   const navigate = useNavigate()
@@ -13,7 +14,7 @@ export default function Hospital_Login() {
   })
   useEffect(()=>{}, [theme])
 
-  const logoSrc = `${(import.meta as any).env?.BASE_URL || '/'}hospital_icon.jpeg`
+  const logoSrc = `/hospital_icon.jpeg`
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,7 +70,7 @@ export default function Hospital_Login() {
       navigate(redirectTo)
       return
     } catch (err) {
-      setError('Invalid credentials')
+      setError(loginErrorMessage(err))
     }
   }
 

@@ -91,9 +91,6 @@ r.post('/login', Users.login)
 
 r.post('/logout', Users.logout)
 
-// Authenticate all routes below (login/logout remain public)
-r.use(auth)
-
 // Admin: idempotent seeders (no auth required — internal ops)
 r.post('/seed/test-templates', async (req, res) => {
   try {
@@ -144,8 +141,32 @@ r.post('/seed/merge-critical-values', async (_req, res) => {
   } catch (e: any) { res.status(500).json({ message: e?.message || 'merge failed' }) }
 })
 
-// All other Lab endpoints require auth
+r.post('/seed/import-json-tests', async (req, res) => {
+  try {
+    const { importLabTestsFromJson } = await import('../seeds/importJsonTests')
+    const dryRun = (req.body && req.body.dryRun) === true
+    const result = await importLabTestsFromJson({ dryRun })
+    res.json({ ok: true, ...result })
+  } catch (e: any) { res.status(500).json({ message: e?.message || 'import failed' }) }
+})
 
+r.post('/seed/normal-ranges', async (_req, res) => {
+  try {
+    const { seedNormalRanges } = await import('../seeds/normalRanges')
+    const result = await seedNormalRanges()
+    res.json({ ok: true, ...result })
+  } catch (e: any) { res.status(500).json({ message: e?.message || 'normal ranges seed failed' }) }
+})
+
+r.post('/seed/admin', async (_req, res) => {
+  try {
+    const { ensureDefaultPortalLogins } = await import('../../../seeds/default_logins')
+    await ensureDefaultPortalLogins()
+    res.json({ ok: true, message: 'Default portal logins ensured (admin / 123)' })
+  } catch (e: any) { res.status(500).json({ message: e?.message || 'admin seed failed' }) }
+})
+
+// Authenticate all routes below (login/logout/seed remain public)
 r.use(auth)
 r.use(attachScope)
 

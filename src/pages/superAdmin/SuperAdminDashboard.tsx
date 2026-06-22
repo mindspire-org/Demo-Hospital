@@ -47,7 +47,7 @@ export default function SuperAdminDashboard() {
       <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
         <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="inline-flex rounded-lg p-2 bg-gradient-to-br from-sky-500 to-cyan-400 text-white shadow-sm">
+            <div className="inline-flex rounded-lg p-2 bg-linear-to-br from-sky-500 to-cyan-400 text-white shadow-sm">
               <Shield className="h-5 w-5" />
             </div>
             <div>
@@ -72,7 +72,7 @@ export default function SuperAdminDashboard() {
 
       <main className="mx-auto max-w-6xl px-6 py-8 space-y-8">
         {/* Hero */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 p-8 text-white shadow-lg">
+        <div className="relative overflow-hidden rounded-2xl bg-linear-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 p-8 text-white shadow-lg">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-40 h-40 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
           <div className="relative flex items-start gap-4">

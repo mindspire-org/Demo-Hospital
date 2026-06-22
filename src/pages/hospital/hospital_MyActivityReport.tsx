@@ -485,7 +485,7 @@ export default function Hospital_MyActivityReport(){
     <div className="w-full px-4 md:px-6 py-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg">
+          <div className="h-12 w-12 rounded-xl bg-linear-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg">
             <FileText className="h-6 w-6 text-white" />
           </div>
           <div>
@@ -555,7 +555,7 @@ export default function Hospital_MyActivityReport(){
             </div>
             
             <div className="p-4">
-              <div className={`rounded-xl p-4 mb-4 ${Number(summary?.net || 0) >= 0 ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100' : 'bg-gradient-to-r from-rose-50 to-red-50 border border-rose-100'}`}>
+              <div className={`rounded-xl p-4 mb-4 ${Number(summary?.net || 0) >= 0 ? 'bg-linear-to-r from-emerald-50 to-teal-50 border border-emerald-100' : 'bg-linear-to-r from-rose-50 to-red-50 border border-rose-100'}`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="text-sm font-medium text-slate-600">Net Balance</div>

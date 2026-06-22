@@ -20,11 +20,37 @@ type Props = {
   diagnosis?: string
   advice?: string
   nextFollowUp?: string
+  dentalChart?: {
+    teeth?: Array<{ toothId: number; condition: string; notes?: string }>
+    generalNotes?: string
+  }
+  eyeExamination?: {
+    visualAcuityRight?: string; visualAcuityLeft?: string
+    nearVisionRight?: string; nearVisionLeft?: string
+    iopRight?: string; iopLeft?: string
+    refractionRight?: string; refractionLeft?: string
+    slitLamp?: string; fundus?: string; diagnosis?: string
+    glassesRight?: { sph?: string; cyl?: string; axis?: string; add?: string }
+    glassesLeft?: { sph?: string; cyl?: string; axis?: string; add?: string }
+    generalNotes?: string
+  }
+  departmentTitle?: string
+  departmentSections?: Array<
+    | { title: string; type: 'kv'; kv: [string, string][] }
+    | { title: string; type: 'text'; text: string }
+    | { title: string; type: 'table'; table: { headers: string[]; rows: string[][] } }
+  >
   createdAt?: string | Date
   language?: PrescriptionLanguage
 }
 
-export default function PrescriptionPrint({ printId = 'prescription-print', doctor, settings, patient, items, labTests, labNotes, diagnosticTests, diagnosticNotes, primaryComplaint, primaryComplaintHistory, familyHistory, treatmentHistory, allergyHistory, history, examFindings, diagnosis, advice, nextFollowUp, createdAt, language = 'english' }: Props){
+const CONDITION_COLORS: Record<string, string> = {
+  'Sound': '#dcfce7', 'Decay': '#fde68a', 'Filling': '#bfdbfe', 'Crown': '#fef08a',
+  'Root Canal': '#ddd6fe', 'Extracted': '#fecaca', 'Missing': '#e5e7eb', 'Implant': '#99f6e4',
+  'Fracture': '#fdba74', 'Abscess': '#fbcfe8', 'Calculus': '#d6c3a5', 'Mobility': '#c7d2fe', 'Other': '#e2e8f0',
+}
+
+export default function PrescriptionPrint({ printId = 'prescription-print', doctor, settings, patient, items, labTests, labNotes, diagnosticTests, diagnosticNotes, primaryComplaint, primaryComplaintHistory, familyHistory, treatmentHistory, allergyHistory, history, examFindings, diagnosis, advice, nextFollowUp, dentalChart, eyeExamination, departmentTitle, departmentSections, createdAt, language = 'english' }: Props){
   const dt = createdAt ? new Date(createdAt) : new Date()
   const isUrdu = language === 'urdu'
   
@@ -270,6 +296,139 @@ export default function PrescriptionPrint({ printId = 'prescription-print', doct
             </table>
           </div>
         </div>
+
+        {/* Dental chart summary */}
+        {Array.isArray(dentalChart?.teeth) && dentalChart!.teeth!.length > 0 && (
+          <div className="mt-4">
+            <div className="text-sm font-semibold border-b border-slate-300 pb-1 mb-2">Dental Chart — Tooth Conditions</div>
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th className="w-24 border border-slate-300 px-2 py-1 text-left">Tooth (FDI)</th>
+                  <th className="w-40 border border-slate-300 px-2 py-1 text-left">Condition</th>
+                  <th className="border border-slate-300 px-2 py-1 text-left">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...dentalChart!.teeth!].sort((a, b) => Number(a.toothId) - Number(b.toothId)).map((t, i) => (
+                  <tr key={i}>
+                    <td className="border border-slate-300 px-2 py-1 font-medium">{t.toothId}</td>
+                    <td className="border border-slate-300 px-2 py-1">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full align-middle mr-1.5" style={{ background: CONDITION_COLORS[t.condition] || '#e2e8f0', border: '1px solid rgba(0,0,0,0.15)' }} />
+                      {t.condition}
+                    </td>
+                    <td className="border border-slate-300 px-2 py-1 text-slate-600">{t.notes || ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {dentalChart?.generalNotes && dentalChart.generalNotes.trim() && (
+              <div className="mt-2 text-sm"><span className="font-semibold">General Dental Notes: </span>{dentalChart.generalNotes}</div>
+            )}
+          </div>
+        )}
+
+        {/* Eye examination summary */}
+        {eyeExamination && (
+          (() => {
+            const e = eyeExamination
+            const gR = e.glassesRight || {}, gL = e.glassesLeft || {}
+            const hasGlasses = ['sph','cyl','axis','add'].some(k => (gR as any)[k] || (gL as any)[k])
+            const hasExam = e.visualAcuityRight || e.visualAcuityLeft || e.nearVisionRight || e.nearVisionLeft || e.iopRight || e.iopLeft || e.refractionRight || e.refractionLeft || e.slitLamp || e.fundus || e.diagnosis || hasGlasses
+            if (!hasExam) return null
+            return (
+              <div className="mt-4">
+                <div className="text-sm font-semibold border-b border-slate-300 pb-1 mb-2">Ophthalmic Examination</div>
+                <table className="w-full border-collapse text-sm mb-2">
+                  <thead>
+                    <tr>
+                      <th className="border border-slate-300 px-2 py-1 text-left">Test</th>
+                      <th className="border border-slate-300 px-2 py-1">Right (OD)</th>
+                      <th className="border border-slate-300 px-2 py-1">Left (OS)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td className="border border-slate-300 px-2 py-1 font-medium">Visual Acuity</td><td className="border border-slate-300 px-2 py-1 text-center">{e.visualAcuityRight || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{e.visualAcuityLeft || '-'}</td></tr>
+                    <tr><td className="border border-slate-300 px-2 py-1 font-medium">Near Vision</td><td className="border border-slate-300 px-2 py-1 text-center">{e.nearVisionRight || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{e.nearVisionLeft || '-'}</td></tr>
+                    <tr><td className="border border-slate-300 px-2 py-1 font-medium">IOP (mmHg)</td><td className="border border-slate-300 px-2 py-1 text-center">{e.iopRight || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{e.iopLeft || '-'}</td></tr>
+                    <tr><td className="border border-slate-300 px-2 py-1 font-medium">Refraction</td><td className="border border-slate-300 px-2 py-1 text-center">{e.refractionRight || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{e.refractionLeft || '-'}</td></tr>
+                  </tbody>
+                </table>
+                {e.slitLamp && e.slitLamp.trim() && <div className="text-sm"><span className="font-semibold">Slit Lamp: </span>{e.slitLamp}</div>}
+                {e.fundus && e.fundus.trim() && <div className="text-sm"><span className="font-semibold">Fundus: </span>{e.fundus}</div>}
+                {e.diagnosis && e.diagnosis.trim() && <div className="text-sm"><span className="font-semibold">Diagnosis: </span>{e.diagnosis}</div>}
+                {hasGlasses && (
+                  <div className="mt-2">
+                    <div className="text-sm font-semibold mb-1">Glasses Prescription</div>
+                    <table className="w-full border-collapse text-sm">
+                      <thead>
+                        <tr>
+                          <th className="border border-slate-300 px-2 py-1">Eye</th>
+                          <th className="border border-slate-300 px-2 py-1">SPH</th>
+                          <th className="border border-slate-300 px-2 py-1">CYL</th>
+                          <th className="border border-slate-300 px-2 py-1">AXIS</th>
+                          <th className="border border-slate-300 px-2 py-1">ADD</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr><td className="border border-slate-300 px-2 py-1 font-medium">Right (OD)</td><td className="border border-slate-300 px-2 py-1 text-center">{gR.sph || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{gR.cyl || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{gR.axis || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{gR.add || '-'}</td></tr>
+                        <tr><td className="border border-slate-300 px-2 py-1 font-medium">Left (OS)</td><td className="border border-slate-300 px-2 py-1 text-center">{gL.sph || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{gL.cyl || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{gL.axis || '-'}</td><td className="border border-slate-300 px-2 py-1 text-center">{gL.add || '-'}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {e.generalNotes && e.generalNotes.trim() && <div className="mt-2 text-sm"><span className="font-semibold">Eye Notes: </span>{e.generalNotes}</div>}
+              </div>
+            )
+          })()
+        )}
+
+        {/* Generic department clinical sections (cardiac, breast-onco, omfs, neuro) */}
+        {Array.isArray(departmentSections) && departmentSections.length > 0 && (
+          <div className="mt-4">
+            {departmentTitle && <div className="text-sm font-semibold border-b border-slate-300 pb-1 mb-2">{departmentTitle}</div>}
+            {departmentSections.map((s, si) => (
+              <div key={si} className="mb-3">
+                <div className="text-xs font-semibold text-slate-700 mb-1">{s.title}</div>
+                {s.type === 'text' && (
+                  <div className="whitespace-pre-wrap rounded-md border border-slate-300 p-2 text-sm">{s.text}</div>
+                )}
+                {s.type === 'kv' && (
+                  <table className="w-full border-collapse text-sm">
+                    <tbody>
+                      {s.kv.map(([k, val], ki) => (
+                        <tr key={ki}>
+                          <td className="w-44 border border-slate-300 px-2 py-1 font-medium align-top">{k}</td>
+                          <td className="border border-slate-300 px-2 py-1 align-top">{val}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {s.type === 'table' && (
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr>
+                        {s.table.headers.map((h, hi) => (
+                          <th key={hi} className="border border-slate-300 px-2 py-1 text-left">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {s.table.rows.map((row, ri) => (
+                        <tr key={ri}>
+                          {row.map((cell, ci) => (
+                            <td key={ci} className="border border-slate-300 px-2 py-1 align-top">{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <style>{`
         @page { size: A4; margin: 0; }

@@ -162,6 +162,22 @@ type ResultRow = {
   decimals?: number;
 };
 
+function pickNormalRange(
+  male?: string,
+  female?: string,
+  pediatric?: string,
+  patient?: { age?: string; gender?: string },
+): string | undefined {
+  if (!patient) return male || female || pediatric || undefined;
+  const ageStr = String(patient.age || "").trim();
+  const ageNum = parseInt(ageStr, 10);
+  const isPediatric = Number.isFinite(ageNum) && ageNum > 0 && ageNum < 15;
+  if (isPediatric && pediatric) return pediatric;
+  const g = String(patient.gender || "").toLowerCase().trim();
+  if (g === "female" || g === "f") return female || male || pediatric || undefined;
+  return male || female || pediatric || undefined;
+}
+
 function parseRange(r?: string) {
   if (!r) return null;
   const m = r.match(/(-?\d+(?:\.\d+)?)\s*[-–]\s*(-?\d+(?:\.\d+)?)/);
@@ -282,6 +298,7 @@ export default function Lab_Results() {
   const [trackTokenNo, setTrackTokenNo] = useState<string | null>(null);
   // Pagination and search for sample selection (must be declared before effects that use them)
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [rowsPer, setRowsPer] = useState(10);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<
@@ -328,14 +345,52 @@ export default function Lab_Results() {
     };
   }, []);
 
+  // Fetch tests only once on mount
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const [ordersRes, testsRes] = await Promise.all([
-          labApi.listOrders({ q: q || undefined, limit: rowsPer, page }),
-          labApi.listTests({ limit: 1000 }),
-        ]);
+        const testsRes: any = await labApi.listTests({ limit: 1000 });
+        if (!mounted) return;
+        setTests(
+          (testsRes.items || []).map((t: any) => ({
+            id: t._id,
+            name: t.name,
+            price: Number(t.price || 0),
+            parameter: t.parameter,
+            unit: t.unit,
+            normalRangeMale: t.normalRangeMale,
+            normalRangeFemale: t.normalRangeFemale,
+            normalRangePediatric: t.normalRangePediatric,
+            parameters: Array.isArray(t.parameters) ? t.parameters : [],
+            template: t.template || "general",
+            sections: Array.isArray(t.sections) ? t.sections : [],
+          })),
+        );
+      } catch {
+        setTests([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQ(q);
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  // Fetch orders when debounced search / page / rowsPer changes
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const ordersRes: any = await labApi.listOrders({ q: debouncedQ || undefined, limit: rowsPer, page });
         if (!mounted) return;
         const o: Order[] = (ordersRes.items || [])
           .map((x: any) => ({
@@ -380,25 +435,9 @@ export default function Lab_Results() {
             ]),
           ),
         );
-        setTests(
-          (testsRes.items || []).map((t: any) => ({
-            id: t._id,
-            name: t.name,
-            price: Number(t.price || 0),
-            parameter: t.parameter,
-            unit: t.unit,
-            normalRangeMale: t.normalRangeMale,
-            normalRangeFemale: t.normalRangeFemale,
-            normalRangePediatric: t.normalRangePediatric,
-            parameters: Array.isArray(t.parameters) ? t.parameters : [],
-            template: t.template || "general",
-            sections: Array.isArray(t.sections) ? t.sections : [],
-          })),
-        );
       } catch (e) {
         console.error(e);
         setOrders([]);
-        setTests([]);
         setTrack({});
         setTotal(0);
         setTotalPages(1);
@@ -407,7 +446,7 @@ export default function Lab_Results() {
     return () => {
       mounted = false;
     };
-  }, [tick, q, page, rowsPer]);
+  }, [tick, debouncedQ, page, rowsPer]);
 
   const testsMap = useMemo(
     () => Object.fromEntries(tests.map((t) => [t.id, t])),
@@ -521,11 +560,7 @@ export default function Lab_Results() {
           initial.push({
             id: genId(),
             test: p.name || t.name,
-            normal:
-              p.normalRangeMale ||
-              p.normalRangeFemale ||
-              p.normalRangePediatric ||
-              undefined,
+            normal: pickNormalRange(p.normalRangeMale, p.normalRangeFemale, p.normalRangePediatric, o.patient),
             unit: p.unit || undefined,
             formula: p.formula,
             dependencies: p.dependencies,
@@ -548,11 +583,7 @@ export default function Lab_Results() {
           initial.push({
             id: genId(),
             test: String(t.parameter).trim(),
-            normal:
-              t.normalRangeMale ||
-              t.normalRangeFemale ||
-              t.normalRangePediatric ||
-              undefined,
+            normal: pickNormalRange(t.normalRangeMale, t.normalRangeFemale, t.normalRangePediatric, o.patient),
             unit: t.unit,
             lockedMeta: true,
             kind: "quantitative",
@@ -562,11 +593,7 @@ export default function Lab_Results() {
         initial.push({
           id: genId(),
           test: t.parameter || t.name,
-          normal:
-            t.normalRangeMale ||
-            t.normalRangeFemale ||
-            t.normalRangePediatric ||
-            undefined,
+          normal: pickNormalRange(t.normalRangeMale, t.normalRangeFemale, t.normalRangePediatric, o.patient),
           unit: t.unit,
           lockedMeta: true,
           kind: "quantitative",
@@ -609,16 +636,33 @@ export default function Lab_Results() {
 
     // Calculate derived values
     return rows.map((r) => {
-      // Special case: eGFR uses patient age/gender (MDRD formula)
+      // Patient-based renal formulas (need creatinine + age/gender, and weight for CrCl)
       const testName = (r.test || "").trim().toLowerCase();
-      if (testName === 'egfr' && patient) {
-        const scr = valueMap['serum_creatinine'] || valueMap['creatinine'];
-        const age = parseFloat(patient.age || '');
-        const isFemale = (patient.gender || '').toLowerCase() === 'female';
+      const renalName = testName.replace(/[^a-z]/g, "");
+      const scr = valueMap['serum_creatinine'] || valueMap['creatinine'];
+      const age = parseFloat(patient?.age || '');
+      const isFemale = (patient?.gender || '').toLowerCase() === 'female';
+      const weight = parseFloat((patient as any)?.weight || (patient as any)?.weightKg || '');
+
+      // eGFR / GFR — CKD-EPI 2021 (race-free creatinine equation)
+      if ((testName === 'egfr' || testName === 'gfr') && patient) {
         if (scr && !isNaN(age) && age > 0) {
-          let egfr = 186 * Math.pow(scr, -1.154) * Math.pow(age, -0.203);
-          if (isFemale) egfr *= 0.742;
+          const k = isFemale ? 0.7 : 0.9;
+          const a = isFemale ? -0.241 : -0.302;
+          const ratio = scr / k;
+          let egfr = 142 * Math.pow(Math.min(ratio, 1), a) * Math.pow(Math.max(ratio, 1), -1.200) * Math.pow(0.9938, age);
+          if (isFemale) egfr *= 1.012;
           return { ...r, value: egfr.toFixed(0), isCalculated: true };
+        }
+        return r;
+      }
+
+      // Creatinine Clearance — Cockcroft-Gault (requires patient weight)
+      if ((renalName === 'crcl' || renalName === 'creatinineclearance') && patient) {
+        if (scr && !isNaN(age) && age > 0 && !isNaN(weight) && weight > 0) {
+          let crcl = ((140 - age) * weight) / (72 * scr);
+          if (isFemale) crcl *= 0.85;
+          return { ...r, value: crcl.toFixed(0), isCalculated: true };
         }
         return r;
       }
@@ -664,6 +708,15 @@ export default function Lab_Results() {
       }
     });
   };
+
+  // Memoize computed flags to avoid recalculating on every render
+  const computedFlags = useMemo(() => {
+    const map: Record<string, string | undefined> = {};
+    for (const r of rows) {
+      map[r.id] = r.flag?.startsWith("critical") ? r.flag : autoFlagForRow(r);
+    }
+    return map;
+  }, [rows]);
 
   // Update a row value and recalculate derived parameters
   const updateRowValue = (id: string, value: string) => {
@@ -1106,8 +1159,9 @@ export default function Lab_Results() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredItems = items.filter(
-    (o) => !selectedCompany || o.corporateId === selectedCompany,
+  const filteredItems = useMemo(
+    () => items.filter((o) => !selectedCompany || o.corporateId === selectedCompany),
+    [items, selectedCompany],
   );
 
   // Status counts for MiniDashboard
@@ -1785,9 +1839,7 @@ export default function Lab_Results() {
               }
 
               const renderRow = (r: ResultRow, i: number) => {
-                const computed = r.flag?.startsWith("critical")
-                  ? r.flag
-                  : autoFlagForRow(r);
+                const computed = computedFlags[r.id];
                 const isCritical = computed?.startsWith("critical");
                 const isAbnormal = computed?.startsWith("abnormal");
                 const isLow = computed?.endsWith("low");

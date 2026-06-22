@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { financeApi } from '../../utils/api'
-import { LayoutDashboard, Receipt, CheckCircle, Clock, TrendingUp, CreditCard, ArrowUpRight, ArrowDownRight, Users, BarChart3, FlaskConical, PieChart, BookOpen, Printer, RefreshCw, Calendar, AlertTriangle, Landmark, Shield, Download, Stethoscope, Building2, Scan, UserCog, Bed, DoorOpen, Scissors } from 'lucide-react'
+import { LayoutDashboard, Receipt, CheckCircle, Clock, TrendingUp, CreditCard, ArrowUpRight, ArrowDownRight, Users, BarChart3, FlaskConical, PieChart, BookOpen, Printer, RefreshCw, Calendar, AlertTriangle, Landmark, Shield, Download, Stethoscope, Building2, Scan, UserCog, Bed, DoorOpen, Scissors, Coffee } from 'lucide-react'
 import { ShiftDashboard } from '../../components/finance/ShiftDashboard'
 
 function money(n: any) { const v = Number(n || 0); return `PKR ${Math.round(v).toLocaleString()}` }
@@ -18,7 +18,7 @@ export default function Finance_Dashboard() {
   const [fiscalPeriods, setFiscalPeriods] = useState<any[]>([]); const [bankReconciliations, setBankReconciliations] = useState(0)
   const [plSummary, setPlSummary] = useState({ revenue: 0, expense: 0, net: 0 })
   const [cashFlowSummary, setCashFlowSummary] = useState({ operating: 0, investing: 0, financing: 0 }); const [trialBalanceDiff, setTrialBalanceDiff] = useState(0)
-  const [moduleStats, setModuleStats] = useState({ hospital: 0, lab: 0, pharmacy: 0, radiology: 0, ipd: 0, opd: 0, ot: 0, emergency: 0 })
+  const [moduleStats, setModuleStats] = useState({ hospital: 0, lab: 0, pharmacy: 0, radiology: 0, ipd: 0, opd: 0, ot: 0, emergency: 0, cafeteria: 0 })
   const [deptStats] = useState<Record<string, number>>({})
   const [staffSalaries] = useState(0)
 
@@ -103,6 +103,7 @@ export default function Finance_Dashboard() {
           'ot': 'ot', 'ot revenue': 'ot', 'operation theatre': 'ot', 'surgery': 'ot', 'procedure revenue': 'ot',
           'emergency': 'emergency', 'er revenue': 'emergency', 'er': 'emergency',
           'hospital': 'hospital', 'hospital revenue': 'hospital',
+          'cafeteria': 'cafeteria', 'cafeteria revenue': 'cafeteria', 'cafeteria sale': 'cafeteria',
         }
 
         for (const tx of txItems) {
@@ -131,6 +132,7 @@ export default function Finance_Dashboard() {
             opd:       modRevs['opd']       || prev.opd,
             ot:        modRevs['ot']        || prev.ot,
             emergency: modRevs['emergency'] || prev.emergency,
+            cafeteria:  modRevs['cafeteria']  || prev.cafeteria,
           }))
         }
       } catch {}
@@ -155,6 +157,7 @@ export default function Finance_Dashboard() {
             opd:       modRevs['opd']       || modRevs['outpatient'] || prev.opd,
             ot:        modRevs['ot']        || modRevs['theatre']    || prev.ot,
             emergency: modRevs['emergency'] || modRevs['er']         || prev.emergency,
+            cafeteria:  modRevs['cafeteria']  || prev.cafeteria,
           }))
         }
       } catch {}
@@ -348,7 +351,7 @@ export default function Finance_Dashboard() {
         <p className="text-base font-bold text-slate-900 mb-1">Module Revenue Breakdown</p>
         <p className="text-xs text-slate-500 mb-4">Revenue by module for selected period</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[{ label: 'Hospital', value: moduleStats.hospital, icon: Building2, color: 'bg-violet-50 text-violet-600 border-violet-200' }, { label: 'Lab', value: moduleStats.lab, icon: FlaskConical, color: 'bg-sky-50 text-sky-600 border-sky-200' }, { label: 'Pharmacy', value: moduleStats.pharmacy, icon: BarChart3, color: 'bg-rose-50 text-rose-600 border-rose-200' }, { label: 'Radiology', value: moduleStats.radiology, icon: Scan, color: 'bg-amber-50 text-amber-600 border-amber-200' }, { label: 'IPD', value: moduleStats.ipd, icon: Bed, color: 'bg-emerald-50 text-emerald-600 border-emerald-200' }, { label: 'OPD', value: moduleStats.opd, icon: Stethoscope, color: 'bg-indigo-50 text-indigo-600 border-indigo-200' }, { label: 'OT', value: moduleStats.ot, icon: Scissors, color: 'bg-pink-50 text-pink-600 border-pink-200' }, { label: 'Emergency', value: moduleStats.emergency, icon: DoorOpen, color: 'bg-red-50 text-red-600 border-red-200' }].map(m => (
+          {[{ label: 'Hospital', value: moduleStats.hospital, icon: Building2, color: 'bg-violet-50 text-violet-600 border-violet-200' }, { label: 'Lab', value: moduleStats.lab, icon: FlaskConical, color: 'bg-sky-50 text-sky-600 border-sky-200' }, { label: 'Pharmacy', value: moduleStats.pharmacy, icon: BarChart3, color: 'bg-rose-50 text-rose-600 border-rose-200' }, { label: 'Radiology', value: moduleStats.radiology, icon: Scan, color: 'bg-amber-50 text-amber-600 border-amber-200' }, { label: 'IPD', value: moduleStats.ipd, icon: Bed, color: 'bg-emerald-50 text-emerald-600 border-emerald-200' }, { label: 'OPD', value: moduleStats.opd, icon: Stethoscope, color: 'bg-indigo-50 text-indigo-600 border-indigo-200' }, { label: 'OT', value: moduleStats.ot, icon: Scissors, color: 'bg-pink-50 text-pink-600 border-pink-200' }, { label: 'Emergency', value: moduleStats.emergency, icon: DoorOpen, color: 'bg-red-50 text-red-600 border-red-200' }, { label: 'Cafeteria', value: moduleStats.cafeteria, icon: Coffee, color: 'bg-orange-50 text-orange-600 border-orange-200' }].map(m => (
           <div key={m.label} className={`rounded-xl border p-4 ${m.color}`}>
             <div className="flex items-center justify-between mb-2">
               <m.icon className="h-5 w-5 shrink-0" />

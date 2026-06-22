@@ -103,7 +103,7 @@ export default function Diagnostic_IncomeLedger() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-emerald-50 to-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-linear-to-br from-emerald-50 to-white p-4">
           <div className="flex items-center gap-2">
             <div className="rounded-lg bg-emerald-100 p-2">
               <TrendingUp className="h-5 w-5 text-emerald-600" />
@@ -113,7 +113,7 @@ export default function Diagnostic_IncomeLedger() {
           <div className="mt-2 text-2xl font-bold text-emerald-700">{formatCurrency(summary.totalNet)}</div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50 to-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-linear-to-br from-blue-50 to-white p-4">
           <div className="flex items-center gap-2">
             <div className="rounded-lg bg-blue-100 p-2">
               <CreditCard className="h-5 w-5 text-blue-600" />
@@ -123,7 +123,7 @@ export default function Diagnostic_IncomeLedger() {
           <div className="mt-2 text-2xl font-bold text-blue-700">{formatCurrency(summary.totalReceived)}</div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-amber-50 to-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-linear-to-br from-amber-50 to-white p-4">
           <div className="flex items-center gap-2">
             <div className="rounded-lg bg-amber-100 p-2">
               <DollarSign className="h-5 w-5 text-amber-600" />
@@ -133,7 +133,7 @@ export default function Diagnostic_IncomeLedger() {
           <div className="mt-2 text-2xl font-bold text-amber-700">{formatCurrency(summary.totalPending)}</div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-orange-50 to-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-linear-to-br from-orange-50 to-white p-4">
           <div className="flex items-center gap-2">
             <div className="rounded-lg bg-orange-100 p-2">
               <TrendingUp className="h-5 w-5 text-orange-600" />

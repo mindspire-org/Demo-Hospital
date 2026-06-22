@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const upsertDepartmentSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  clinicalModule: z.string().optional().nullable(),
   opdBaseFee: z.number().min(0),
   opdFollowupFee: z.number().min(0).optional(),
   followupWindowDays: z.number().int().min(0).optional(),
@@ -25,6 +26,7 @@ export const upsertDoctorSchema = z.object({
   password: z.string().optional(),
   phone: z.string().optional(),
   specialization: z.string().optional(),
+  clinicalModule: z.string().optional().nullable(),
   qualification: z.string().optional(),
   cnic: z.string().optional(),
   pmdcNo: z.string().optional(),

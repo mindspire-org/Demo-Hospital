@@ -24,7 +24,7 @@ export const opdApi = {
   // -------------------------------------------------------------------------
   createOpdToken: (data: any) => api('/hospital/tokens/opd', { method: 'POST', body: JSON.stringify(data) }),
   getToken: (id: string) => api(`/hospital/tokens/${id}`),
-  listTokens: (params?: { date?: string; from?: string; to?: string; status?: 'queued' | 'in-progress' | 'completed' | 'returned' | 'cancelled'; doctorId?: string; departmentId?: string; scheduleId?: string; page?: number; limit?: number }) =>
+  listTokens: (params?: { date?: string; from?: string; to?: string; fromTime?: string; toTime?: string; serviceId?: string; status?: 'queued' | 'in-progress' | 'completed' | 'returned' | 'cancelled'; doctorId?: string; departmentId?: string; scheduleId?: string; page?: number; limit?: number }) =>
     api(withQuery('/hospital/tokens', params)),
   updateTokenStatus: (id: string, status: 'queued' | 'in-progress' | 'completed' | 'returned' | 'cancelled') =>
     api(`/hospital/tokens/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -60,6 +60,19 @@ export const opdApi = {
   getPrescriptionByEncounterId: (encounterId: string) => api(`/hospital/opd/prescriptions/encounter/${encodeURIComponent(encounterId)}`),
   upsertPrescriptionVitals: (encounterId: string, vitals: { pulse?: number; temperatureC?: number; bloodPressureSys?: number; bloodPressureDia?: number; respiratoryRate?: number; bloodSugar?: number; weightKg?: number; heightCm?: number; bmi?: number; bsa?: number; spo2?: number; ar?: string; va?: string; iop?: string }) =>
     api(`/hospital/opd/prescriptions/encounter/${encodeURIComponent(encounterId)}/vitals`, { method: 'PUT', body: JSON.stringify({ vitals }) }),
+
+  // -------------------------------------------------------------------------
+  // Department patient queue + progress timeline
+  // -------------------------------------------------------------------------
+  getDepartmentQueue: (params?: { departmentId?: string; doctorId?: string; status?: string; type?: string; from?: string; to?: string; page?: number; limit?: number }) =>
+    api(withQuery('/hospital/department-queue', params)),
+  listDepartmentProgress: (params?: { patientId?: string; patientMrn?: string; departmentKey?: string; departmentId?: string; status?: string }) =>
+    api(withQuery('/hospital/department-progress', params)),
+  createDepartmentProgress: (data: { patientId?: string; patientMrn?: string; departmentId?: string; departmentKey?: string; doctorId?: string; encounterId?: string; title: string; stage?: string; status?: 'active' | 'completed' | 'on-hold'; notes?: string; date?: string; nextDate?: string; createdBy?: string }) =>
+    api('/hospital/department-progress', { method: 'POST', body: JSON.stringify(data) }),
+  updateDepartmentProgress: (id: string, data: Partial<{ title: string; stage: string; status: 'active' | 'completed' | 'on-hold'; notes: string; date: string; nextDate: string }>) =>
+    api(`/hospital/department-progress/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDepartmentProgress: (id: string) => api(`/hospital/department-progress/${id}`, { method: 'DELETE' }),
 
   // -------------------------------------------------------------------------
   // Prescription Templates

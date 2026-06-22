@@ -3,6 +3,10 @@ import { Schema, model, models } from 'mongoose'
 const DepartmentSchema = new Schema({
   name: { type: String, required: true, unique: true },
   description: { type: String },
+  // Explicit binding to a specialized clinical module (dental, eye, cardiac,
+  // breast-onco, omfs, neuro). Empty/undefined = General; falls back to
+  // name-based inference. Removes dependence on department-name spelling.
+  clinicalModule: { type: String },
   opdBaseFee: { type: Number, required: true, min: 0 },
   opdFollowupFee: { type: Number },
   followupWindowDays: { type: Number },
@@ -16,6 +20,7 @@ export type HospitalDepartmentDoc = {
   _id: string
   name: string
   description?: string
+  clinicalModule?: string
   opdBaseFee: number
   opdFollowupFee?: number
   followupWindowDays?: number

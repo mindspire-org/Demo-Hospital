@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { WifiOff } from 'lucide-react'
 import { superAdminApi } from '../features/superAdmin'
 import { resolveSubModule, getAllModuleIds, getAllSubModules } from '../config/moduleRegistry'
 
@@ -45,7 +46,7 @@ function buildDefault(): SystemConfig {
   modules.finance = { enabled: true, subModules: {} }
 
   // Default visible hospital sub-modules
-  const defaultHospitalSubs = ['tokenGen', 'doctor', 'admin']
+  const defaultHospitalSubs = ['tokenGen', 'doctor', 'admin', 'dentalRx', 'eyeRx']
   for (const subId of getAllSubModules('hospital')) {
     modules.hospital.subModules[subId] = { enabled: defaultHospitalSubs.includes(subId) }
   }
@@ -168,8 +169,12 @@ export function SystemConfigProvider({ children }: { children: React.ReactNode }
     <SystemConfigContext.Provider value={value}>
       {children}
       {isOffline && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-amber-100 text-amber-900 text-xs px-4 py-1.5 text-center border-t border-amber-300">
-          Running in offline mode — using cached settings.
+        <div
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 text-amber-800 px-3 py-1.5 shadow-md hover:bg-amber-200 transition-colors cursor-default"
+          title="Running in offline mode — using cached settings"
+        >
+          <WifiOff className="h-3.5 w-3.5" />
+          <span className="text-[11px] font-medium">Offline</span>
         </div>
       )}
     </SystemConfigContext.Provider>

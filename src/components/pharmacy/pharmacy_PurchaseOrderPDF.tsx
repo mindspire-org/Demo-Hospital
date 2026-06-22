@@ -410,7 +410,7 @@ export default function Pharmacy_PurchaseOrderPDF({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-4">
       <div className="relative flex h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-blue-800 to-blue-900 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-linear-to-r from-blue-800 to-blue-900 px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/20">
               <FileText className="h-5 w-5 text-white" />

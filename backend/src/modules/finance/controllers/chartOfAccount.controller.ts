@@ -474,6 +474,7 @@ export async function seedDefaultAccounts(req: Request, res: Response) {
     // ── ASSETS: Module-specific inventory ──
     { code: '2000-700', name: 'PHARMACY INVENTORY', type: 'ASSETS', subType: 'INVENTORY', module: 'pharmacy', systemNames: ['PHARMACY_INVENTORY'] },
     { code: '2000-701', name: 'LAB CONSUMABLES', type: 'ASSETS', subType: 'INVENTORY', module: 'lab', systemNames: ['LAB_CONSUMABLES'] },
+    { code: '2000-702', name: 'CAFETERIA INVENTORY', type: 'ASSETS', subType: 'INVENTORY', module: 'cafeteria', systemNames: ['CAFETERIA_INVENTORY'] },
     // ── LIABILITIES: Payables (shared) ──
     { code: '3000-200', name: 'ACCOUNTS PAYABLE', type: 'LIABILITIES', subType: 'CREDITORS', systemNames: ['DOCTOR_PAYABLE', 'ACCOUNTS_PAYABLE'] },
     { code: '3000-206', name: 'SALARY PAYABLE', type: 'LIABILITIES', subType: 'PAYABLE', systemNames: ['SALARY_PAYABLE'] },
@@ -486,9 +487,11 @@ export async function seedDefaultAccounts(req: Request, res: Response) {
     { code: '4000-124', name: 'AESTHETIC REVENUE', type: 'INCOME', subType: 'SERVICE_REVENUE', module: 'aesthetic', systemNames: ['AESTHETIC_REVENUE', 'PROCEDURE_REVENUE'] },
     { code: '4000-128', name: 'PHARMACY REVENUE', type: 'INCOME', subType: 'SERVICE_REVENUE', module: 'pharmacy', systemNames: ['PHARMACY_REVENUE'] },
     { code: '4000-129', name: 'DIALYSIS REVENUE', type: 'INCOME', subType: 'SERVICE_REVENUE', module: 'dialysis', systemNames: ['DIALYSIS_REVENUE'] },
+    { code: '4000-130', name: 'CAFETERIA REVENUE', type: 'INCOME', subType: 'SERVICE_REVENUE', module: 'cafeteria', systemNames: ['CAFETERIA_REVENUE'] },
     // ── EXPENSE: Module-specific COGS ──
     { code: '6000-148', name: 'PHARMACY COGS', type: 'EXPENSE', subType: 'COGS', module: 'pharmacy', systemNames: ['PHARMACY_COGS'] },
     { code: '6000-149', name: 'LAB COGS', type: 'EXPENSE', subType: 'COGS', module: 'lab', systemNames: ['LAB_COGS'] },
+    { code: '6000-150', name: 'CAFETERIA COGS', type: 'EXPENSE', subType: 'COGS', module: 'cafeteria', systemNames: ['CAFETERIA_COGS'] },
     // ── EXPENSE: Shared ──
     { code: '7000-100', name: 'DOCTORS SHARES', type: 'EXPENSE', subType: 'DOCTORS SHARES', systemNames: ['DOCTOR_SHARE_EXPENSE'] },
     { code: '6000-147', name: 'DISCOUNT ALLOWED', type: 'EXPENSE', subType: 'EXPENDITURES', systemNames: ['DISCOUNT'] },

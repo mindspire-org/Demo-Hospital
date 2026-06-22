@@ -1074,7 +1074,7 @@ export default function Pharmacy_CreatePurchaseOrderDialog({
         className="w-full max-w-7xl h-[90vh] flex flex-col bg-white shadow-2xl rounded-xl overflow-hidden animate-in zoom-in-95 duration-300"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-gradient-to-r from-blue-800 to-blue-900 shrink-0">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-linear-to-r from-blue-800 to-blue-900 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/20">
               <FileText className="h-5 w-5 text-white" />
@@ -1594,7 +1594,7 @@ export default function Pharmacy_CreatePurchaseOrderDialog({
       {alertModal.open && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
+            <div className="flex items-center gap-3 px-6 py-4 bg-linear-to-r from-amber-50 to-orange-50 border-b border-amber-100">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
                 <AlertTriangle className="h-5 w-5 text-amber-600" />
               </div>

@@ -12,6 +12,8 @@ import { previewPediatricFriendlyPdf } from './prescription/templates/pediatricF
 import { previewBilingualRxPdf } from './prescription/templates/bilingualRx'
 import { buildPrescriptionOne } from './prescription/templates/templateOne'
 import { buildPrescriptionTwo } from './prescription/templates/templateTwo'
+import { previewDentalRxPdf } from './prescription/templates/dentalRx'
+import { previewEyeRxPdf } from './prescription/templates/eyeRx'
 
 export type PrescriptionPdfData = {
   doctor?: { name?: string; qualification?: string; departmentName?: string; phone?: string; title?: string; specialization?: string }
@@ -50,6 +52,20 @@ export type PrescriptionPdfData = {
   labNotes?: string
   diagnosticTests?: string[]
   diagnosticNotes?: string
+  dentalChart?: {
+    teeth?: Array<{ toothId: number; condition: string; notes?: string }>
+    generalNotes?: string
+  }
+  eyeExamination?: {
+    visualAcuityRight?: string; visualAcuityLeft?: string
+    nearVisionRight?: string; nearVisionLeft?: string
+    iopRight?: string; iopLeft?: string
+    refractionRight?: string; refractionLeft?: string
+    slitLamp?: string; fundus?: string; diagnosis?: string
+    glassesRight?: { sph?: string; cyl?: string; axis?: string; add?: string }
+    glassesLeft?: { sph?: string; cyl?: string; axis?: string; add?: string }
+    generalNotes?: string
+  }
   createdAt?: string | Date
   language?: 'english' | 'urdu'
 }
@@ -69,6 +85,8 @@ export type PrescriptionPdfTemplate =
   | 'template-one'
   | 'template-two'
   | 'bilingual-rx'
+  | 'dental-rx'
+  | 'eye-rx'
 
 export const PRESCRIPTION_PDF_TEMPLATES: PrescriptionPdfTemplate[] = [
   'hospital-rx',
@@ -85,6 +103,8 @@ export const PRESCRIPTION_PDF_TEMPLATES: PrescriptionPdfTemplate[] = [
   'template-one',
   'template-two',
   'bilingual-rx',
+  'dental-rx',
+  'eye-rx',
 ]
 
 export const TEMPLATE_LABELS: Record<PrescriptionPdfTemplate, string> = {
@@ -102,6 +122,8 @@ export const TEMPLATE_LABELS: Record<PrescriptionPdfTemplate, string> = {
   'template-one':         'Template 11',
   'template-two':         'Template 12',
   'bilingual-rx':         'Bilingual Rx',
+  'dental-rx':            'Dental Rx',
+  'eye-rx':               'Eye Rx',
 }
 
 export const TEMPLATE_DESCRIPTIONS: Record<PrescriptionPdfTemplate, string> = {
@@ -119,6 +141,8 @@ export const TEMPLATE_DESCRIPTIONS: Record<PrescriptionPdfTemplate, string> = {
   'template-one':         'Custom clinic layout — style A',
   'template-two':         'Custom clinic layout — style B',
   'bilingual-rx':         'English + Urdu side-by-side with auto date ranges',
+  'dental-rx':            'Dental department · tooth-condition chart summary',
+  'eye-rx':               'Eye department · examination + glasses prescription',
 }
 
 export function isPrescriptionPdfTemplate(v: any): v is PrescriptionPdfTemplate {
@@ -184,6 +208,12 @@ async function renderTemplate(data: PrescriptionPdfData, template: PrescriptionP
     }
     case 'bilingual-rx':
       await previewBilingualRxPdf(data)
+      return
+    case 'dental-rx':
+      await previewDentalRxPdf(data as any)
+      return
+    case 'eye-rx':
+      await previewEyeRxPdf(data as any)
       return
     default:
       await previewHospitalRxPdf(data)

@@ -63,7 +63,7 @@ export default function Dialysis_Patients() {
   }
 
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
+    <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 p-6">
       <div className="w-full rounded-xl bg-white p-6 shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -91,7 +91,7 @@ export default function Dialysis_Patients() {
 
         <div className="mt-6 overflow-hidden rounded-xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white">
+            <thead className="bg-linear-to-r from-teal-500 to-cyan-500 text-white">
               <tr className="text-left">
                 <th className="px-3 py-3 font-semibold">Dialysis ID</th>
                 <th className="px-3 py-3 font-semibold">MRN</th>

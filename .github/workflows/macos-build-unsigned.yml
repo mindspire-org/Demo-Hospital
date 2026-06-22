@@ -1,0 +1,88 @@
+name: macOS Build (Unsigned)
+
+
+
+on:
+
+  workflow_dispatch:
+
+  push:
+
+    tags:
+
+      - 'v*'
+
+
+
+jobs:
+
+  build-mac:
+
+    runs-on: macos-latest
+
+    strategy:
+
+      fail-fast: false
+
+      matrix:
+
+        arch: [arm64, x64]
+
+    steps:
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+
+
+      - name: Setup Node
+
+        uses: actions/setup-node@v4
+
+        with:
+
+          node-version: '20'
+
+          cache: 'npm'
+
+
+
+      - name: Install root deps
+
+        run: npm ci
+
+
+
+      - name: Install backend deps
+
+        run: npm --prefix backend ci
+
+
+
+      - name: Build mac (unsigned)
+
+        env:
+
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+        run: npm run dist:mac:unsigned:${{ matrix.arch }}
+
+
+
+      - name: Upload artifacts
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: mac-dmg-${{ matrix.arch }}
+
+          path: |
+
+            release/*.dmg
+
+            release/*.zip
+
+          if-no-files-found: warn
+

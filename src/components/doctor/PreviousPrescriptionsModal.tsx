@@ -8,7 +8,7 @@ type Prescription = {
   createdAt: string
   primaryComplaint?: string
   diagnosis?: string
-  items?: Array<{ name?: string; medicine?: string; frequency?: string; duration?: string; dose?: string; instruction?: string; route?: string }>
+  items?: Array<{ name?: string; medicine?: string; frequency?: string; duration?: string; dose?: string; instruction?: string; route?: string; notes?: string }>
   labTests?: string[]
   diagnosticTests?: string[]
   tokenNo?: string
@@ -313,15 +313,20 @@ export default function PreviousPrescriptionsModal({ isOpen, onClose, patientMrn
                     )}
                     {prescription.items && prescription.items.length > 0 && (
                       <div className="mt-2 text-sm">
-                        <span className="font-semibold text-slate-700">Medicines:</span>{' '}
-                        <span className="text-slate-600">
+                        <span className="font-semibold text-slate-700">Medicines:</span>
+                        <div className="mt-1 space-y-1">
                           {prescription.items.map((item, i) => (
-                            <span key={i}>
-                              {i > 0 && ', '}
-                              {item.name || item.medicine || ''}
-                            </span>
+                            <div key={i} className="text-slate-600 flex flex-wrap gap-x-3 text-xs">
+                              <span className="font-medium">{i + 1}. {item.name || item.medicine || '-'}</span>
+                              {item.dose && <span className="text-slate-500">Dose: {item.dose}</span>}
+                              {item.frequency && <span className="text-slate-500">Freq: {item.frequency}</span>}
+                              {item.duration && <span className="text-slate-500">Dur: {item.duration}</span>}
+                              {item.route && <span className="text-slate-500">Route: {item.route}</span>}
+                              {item.instruction && <span className="text-slate-500">Instr: {item.instruction}</span>}
+                              {item.notes && <span className="text-slate-500">Notes: {item.notes}</span>}
+                            </div>
                           ))}
-                        </span>
+                        </div>
                       </div>
                     )}
                   </div>

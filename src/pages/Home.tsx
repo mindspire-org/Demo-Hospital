@@ -1,5 +1,5 @@
 import ModuleCard from '../components/ModuleCard'
-import { Stethoscope, FlaskConical, Pill, FileText, Users, Microscope, Building2, Droplets, Sparkles, HeartPulse, Shield, Settings, Lock, LogOut, MapPin } from 'lucide-react'
+import { Stethoscope, FlaskConical, Pill, FileText, Users, Microscope, Building2, Droplets, Sparkles, HeartPulse, Shield, Settings, Lock, LogOut, MapPin, Coffee } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useSystemConfig } from '../contexts/SystemConfigContext'
 import { useNavigate } from 'react-router-dom'
@@ -18,6 +18,7 @@ const ALL_MODULES = [
   { id: 'aesthetic', to: '/aesthetic/login', title: 'Aesthetic', description: 'Aesthetic treatments, appointments, and inventory.', icon: <Sparkles className="size-7 text-fuchsia-600" />, tone: 'fuchsia' as const },
   { id: 'nurse', to: '/hospital/nurse/login', title: 'Nurse', description: 'Nurse station, ward management, and patient care.', icon: <HeartPulse className="size-7 text-rose-600" />, tone: 'rose' as const },
   { id: 'camp', to: '/camp/login', title: 'Medical Camp', description: 'Outdoor medical camps, patient registration, and field treatment.', icon: <MapPin className="size-7 text-emerald-600" />, tone: 'emerald' as const },
+  { id: 'cafeteria', to: '/cafeteria/login', title: 'Cafeteria', description: 'POS, menu management, and sales tracking.', icon: <Coffee className="size-7 text-orange-600" />, tone: 'orange' as const },
 ]
 
 export default function Home() {

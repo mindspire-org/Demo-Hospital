@@ -55,6 +55,7 @@ const TOKEN_KEYS: Record<string, string[]> = {
   '/indoor-pharmacy': ['indoorpharmacy.token', 'hospital.token', 'reception.token'],
   '/dialysis': ['dialysis.token', 'hospital.token', 'reception.token'],
   '/camp': ['camp.token', 'hospital.token', 'reception.token'],
+  '/cafeteria': ['cafeteria.token', 'hospital.token', 'reception.token'],
   '/biometric': ['hospital.token', 'reception.token'],
   '/super-admin': ['super_admin.token'],
   '/admin/super': ['super_admin.token'],
@@ -86,6 +87,7 @@ export function getToken(path?: string): string {
       'hospital.token', 'lab.token', 'reception.token',
       'diagnostic.token', 'aesthetic.token', 'pharmacy.token',
       'indoorpharmacy.token', 'dialysis.token', 'super_admin.token',
+      'cafeteria.token',
     ]
     for (const key of allPortalKeys) {
       const token = localStorage.getItem(key)
@@ -135,7 +137,17 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
   }
   if (token && !headers['Authorization']) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${baseURL}${path}`, { ...init, headers, credentials: 'include' })
+  let res: Response
+  try {
+    res = await fetch(`${baseURL}${path}`, { ...init, headers, credentials: 'include' })
+  } catch (networkErr) {
+    // fetch only rejects on network-level failures (server down, no connection,
+    // CORS, DNS). Surface a clear, distinguishable error for callers/login pages.
+    const err = new Error('Unable to reach the server. Please check your connection and try again.')
+    ;(err as any).code = 'NETWORK_ERROR'
+    ;(err as any).cause = networkErr
+    throw err
+  }
 
   if (!res.ok) {
     const text = await res.text()
@@ -144,6 +156,7 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
       const json = JSON.parse(text)
       // Create error with message, but also attach all fields from response
       const err = new Error(json?.error || json?.message || res.statusText)
+      ;(err as any).status = res.status
       // Attach additional fields for billing block errors
       if (json?.code) (err as any).code = json.code
       if (json?.netOutstanding !== undefined) (err as any).netOutstanding = json.netOutstanding
@@ -153,7 +166,9 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
     } catch (parseError) {
       // If not JSON or parsing failed, use raw text
       if (parseError instanceof SyntaxError) {
-        throw new Error(text || res.statusText)
+        const err = new Error(text || res.statusText)
+        ;(err as any).status = res.status
+        throw err
       }
       throw parseError
     }
@@ -241,6 +256,14 @@ function handleTokenPersistence(path: string, data: any): void {
     }
     if (path.startsWith('/admin/super') && /\/logout$/.test(path)) {
       removeToken('super_admin')
+    }
+
+    // Cafeteria login/logout
+    if (path.startsWith('/cafeteria') && /\/users\/login$/.test(path) && data?.token) {
+      setToken('cafeteria', data.token)
+    }
+    if (path.startsWith('/cafeteria') && /\/users\/logout$/.test(path)) {
+      removeToken('cafeteria')
     }
   } catch { }
 }

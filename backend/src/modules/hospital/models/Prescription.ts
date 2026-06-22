@@ -70,6 +70,44 @@ const PrescriptionSchema = new Schema({
     },
     recommendation: { type: String }, // e.g., Fit for surgery, Unfit, High Risk
   },
+  dentalChart: {
+    teeth: [{
+      toothId: { type: Number },
+      condition: { type: String },
+      notes: { type: String },
+    }],
+    generalNotes: { type: String },
+  },
+  eyeExamination: {
+    visualAcuityRight: { type: String },
+    visualAcuityLeft: { type: String },
+    nearVisionRight: { type: String },
+    nearVisionLeft: { type: String },
+    iopRight: { type: String },
+    iopLeft: { type: String },
+    refractionRight: { type: String },
+    refractionLeft: { type: String },
+    slitLamp: { type: String },
+    fundus: { type: String },
+    diagnosis: { type: String },
+    glassesRight: {
+      sph: { type: String },
+      cyl: { type: String },
+      axis: { type: String },
+      add: { type: String },
+    },
+    glassesLeft: {
+      sph: { type: String },
+      cyl: { type: String },
+      axis: { type: String },
+      add: { type: String },
+    },
+    generalNotes: { type: String },
+  },
+  // Generic department-specific clinical payload for the department-module
+  // registry (cardiac, breast-onco, omfs, neuro, ...). Shape { type, data } is
+  // validated per-type by Zod at the API layer; stored as Mixed for flexibility.
+  departmentClinical: { type: Schema.Types.Mixed, default: undefined },
   tokenNo: { type: String },
   createdBy: { type: String },
 }, { timestamps: true })
@@ -122,6 +160,27 @@ export type HospitalPrescriptionDoc = {
     }
     recommendation?: string
   }
+  dentalChart?: {
+    teeth?: Array<{ toothId: number; condition: string; notes?: string }>
+    generalNotes?: string
+  }
+  eyeExamination?: {
+    visualAcuityRight?: string
+    visualAcuityLeft?: string
+    nearVisionRight?: string
+    nearVisionLeft?: string
+    iopRight?: string
+    iopLeft?: string
+    refractionRight?: string
+    refractionLeft?: string
+    slitLamp?: string
+    fundus?: string
+    diagnosis?: string
+    glassesRight?: { sph?: string; cyl?: string; axis?: string; add?: string }
+    glassesLeft?: { sph?: string; cyl?: string; axis?: string; add?: string }
+    generalNotes?: string
+  }
+  departmentClinical?: { type?: string; data?: any }
   tokenNo?: string
   createdBy?: string
 }

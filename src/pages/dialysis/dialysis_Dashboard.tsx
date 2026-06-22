@@ -443,7 +443,7 @@ export default function Dialysis_Dashboard() {
           onClick={() => navigate('/dialysis/token-generator')}
           className="flex items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm hover:border-teal-300 dark:hover:border-teal-600 hover:shadow-md transition-all"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-teal-500 to-cyan-500">
             <Droplets className="h-6 w-6 text-white" />
           </div>
           <div className="text-left">
@@ -456,7 +456,7 @@ export default function Dialysis_Dashboard() {
           onClick={() => navigate('/dialysis/token-history')}
           className="flex items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm hover:border-cyan-300 dark:hover:border-cyan-600 hover:shadow-md transition-all"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-cyan-500 to-teal-500">
             <Activity className="h-6 w-6 text-white" />
           </div>
           <div className="text-left">
@@ -469,7 +469,7 @@ export default function Dialysis_Dashboard() {
           onClick={() => navigate('/dialysis/appointments')}
           className="flex items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm hover:border-amber-300 dark:hover:border-amber-600 hover:shadow-md transition-all"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-500">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-amber-500 to-orange-500">
             <Calendar className="h-6 w-6 text-white" />
           </div>
           <div className="text-left">
@@ -482,7 +482,7 @@ export default function Dialysis_Dashboard() {
           onClick={() => navigate('/dialysis/master-data')}
           className="flex items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm hover:border-violet-300 dark:hover:border-violet-600 hover:shadow-md transition-all"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-500">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-violet-500 to-purple-500">
             <Stethoscope className="h-6 w-6 text-white" />
           </div>
           <div className="text-left">

@@ -12,6 +12,7 @@ import biometricRouter from './modules/biometric/routes'
 import dialysisRouter from './modules/dialysis/routes'
 import financeRouter from './modules/finance/routes'
 import campRouter from './modules/camp/routes'
+import cafeteriaRouter from './modules/cafeteria/routes'
 
 const router = Router()
 
@@ -28,5 +29,6 @@ router.use('/biometric', biometricRouter)
 router.use('/dialysis', dialysisRouter)
 router.use('/finance', financeRouter)
 router.use('/camp', campRouter)
+router.use('/cafeteria', cafeteriaRouter)
 
 export default router

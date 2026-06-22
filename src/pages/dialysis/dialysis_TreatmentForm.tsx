@@ -65,7 +65,7 @@ export default function Dialysis_TreatmentForm() {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
               <FileText className="h-6 w-6" />
             </div>
             <div>
@@ -78,7 +78,7 @@ export default function Dialysis_TreatmentForm() {
               setSelectedForm(null)
               setDialogOpen(true)
             }}
-            className="flex items-center gap-2 rounded-md bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:from-teal-700 hover:to-cyan-700"
+            className="flex items-center gap-2 rounded-md bg-linear-to-r from-teal-600 to-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:from-teal-700 hover:to-cyan-700"
           >
             <Plus className="h-4 w-4" />
             Add Form

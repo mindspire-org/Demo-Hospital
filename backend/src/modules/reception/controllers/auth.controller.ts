@@ -57,10 +57,10 @@ export async function login(req: Request, res: Response){
     }
   }
 
-  if (!user) return res.status(401).json({ message: 'Invalid credentials' })
+  if (!user) return res.status(401).json({ message: 'No account found with this username', code: 'USER_NOT_FOUND' })
 
   const ok = await verifyPassword(password, user.passwordHash)
-  if (!ok) return res.status(401).json({ message: 'Invalid credentials' })
+  if (!ok) return res.status(401).json({ message: 'Incorrect password', code: 'INVALID_PASSWORD' })
 
   // Optional shift restriction
   if (user.shiftRestricted) {

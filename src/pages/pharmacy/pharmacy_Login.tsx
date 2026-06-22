@@ -1,6 +1,7 @@
  import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { pharmacyApi } from '../../utils/api'
+import { loginErrorMessage } from '../../utils/authError'
 
 export default function Pharmacy_Login() {
   const navigate = useNavigate()
@@ -37,9 +38,7 @@ export default function Pharmacy_Login() {
       } catch {}
       navigate('/pharmacy')
     } catch (e: any) {
-      const raw = (e?.message || '').trim(); let msg = raw
-      try { const j = JSON.parse(raw); if (j?.error) msg = j.error } catch {}
-      setError(msg || 'Invalid credentials')
+      setError(loginErrorMessage(e))
     }
   }
 
@@ -63,7 +62,7 @@ export default function Pharmacy_Login() {
             <div className="relative p-8 pb-6 text-center">
               <div className="mx-auto mb-6 h-24 w-24 overflow-hidden rounded-3xl bg-linear-to-br from-sky-400/20 to-blue-600/20 p-1 backdrop-blur-sm" style={{ animation: 'rotate3d 20s linear infinite' }}>
                 <div className="h-full w-full overflow-hidden rounded-[1.3rem] bg-white/10 ring-1 ring-white/20">
-                  <img src={`${(import.meta as any).env?.BASE_URL || '/'}hospital_icon.jpeg`} alt="Healthspire" className="h-full w-full object-cover" />
+                  <img src={`/hospital_icon.jpeg`} alt="Healthspire" className="h-full w-full object-cover" />
                 </div>
               </div>
               <h1 className="text-3xl font-black bg-linear-to-r from-sky-200 via-blue-200 to-indigo-200 bg-clip-text text-transparent mb-2">HealthSpire</h1>

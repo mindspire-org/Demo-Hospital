@@ -89,9 +89,9 @@ export async function login(req: Request, res: Response){
   const password = String((req.body?.password ?? '')).trim()
   if (!username) return res.status(400).json({ error: 'Username required' })
   const u: any = await LabUser.findOne({ username }).lean()
-  if (!u) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!u) return res.status(401).json({ error: 'No account found with this username', code: 'USER_NOT_FOUND' })
   const passOk = password ? await bcrypt.compare(password, u.passwordHash || '') : false
-  if (!passOk) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!passOk) return res.status(401).json({ error: 'Incorrect password', code: 'INVALID_PASSWORD' })
 
   // Optional shift restriction
   try {

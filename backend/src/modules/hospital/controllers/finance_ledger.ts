@@ -37,13 +37,19 @@ export async function createDoctorPayout(
   memo?: string,
   sessionId?: string,
   sourceAccount?: string,       // COA account name/code (e.g. 'CASH IN HAND' or '2000-101')
-  destinationAccount?: string   // defaults to 'DOCTOR_PAYABLE'
+  destinationAccount?: string,   // defaults to 'DOCTOR_PAYABLE'
+  createdByUsername?: string
 ){
+  if (!amount || amount <= 0) throw new Error('Amount must be greater than zero')
+  if (!sourceAccount) throw new Error('Source account is required')
+  if (sourceAccount === destinationAccount) throw new Error('Source and destination accounts cannot be the same')
+
   const dateIso = todayIso()
   const tags: any = { doctorId: toOid(doctorId) }
   if (sessionId) tags.sessionId = String(sessionId)
   if (sourceAccount) tags.sourceAccount = String(sourceAccount)
   if (destinationAccount) tags.destinationAccount = String(destinationAccount)
+  if (createdByUsername) tags.createdByUsername = String(createdByUsername)
 
   const creditAccount = sourceAccount || (method === 'Bank' ? 'BANK' : 'CASH')
   const debitAccount = destinationAccount || 'DOCTOR_PAYABLE'

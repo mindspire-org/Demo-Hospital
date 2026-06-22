@@ -1,8 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { hospitalApi } from '../../utils/api'
-import { LayoutDashboard, Users, Stethoscope, ScrollText, Bell, Search, FileText, Settings as SettingsIcon, Copy, Share2, BedDouble, Siren } from 'lucide-react'
+import { useSystemConfig } from '../../contexts/SystemConfigContext'
+import { LayoutDashboard, Users, Stethoscope, ScrollText, Bell, Search, FileText, Settings as SettingsIcon, Copy, Share2, BedDouble, Siren, Activity } from 'lucide-react'
 
-type NavItem = { to: string; label: string; end?: boolean; icon: any }
+type NavItem = { to: string; label: string; end?: boolean; icon: any; flag?: string }
 
 const nav: NavItem[] = [
   { to: '/doctor', label: 'Dashboard', end: true, icon: LayoutDashboard },
@@ -11,6 +12,7 @@ const nav: NavItem[] = [
   { to: '/doctor/emergency', label: 'Emergency Queue', icon: Siren },
   { to: '/doctor/patient-search', label: 'Patient Search', icon: Search },
   { to: '/doctor/prescription', label: 'Prescription', icon: Stethoscope },
+  { to: '/doctor/department', label: 'My Department', icon: Activity, flag: 'deptQueue' },
   { to: '/doctor/prescription-templates', label: 'Templates', icon: Copy },
   { to: '/doctor/prescription-history', label: 'Prescription History', icon: ScrollText },
   { to: '/doctor/referrals', label: 'Referrals', icon: Share2 },
@@ -21,6 +23,8 @@ const nav: NavItem[] = [
 
 export default function Doctor_Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate()
+  const { getSubModuleEnabled } = useSystemConfig()
+  const visibleNav = nav.filter(item => !item.flag || getSubModuleEnabled('hospital', item.flag))
   const logout = async () => {
     try {
       const raw = localStorage.getItem('doctor.session')
@@ -36,7 +40,7 @@ export default function Doctor_Sidebar({ collapsed = false }: { collapsed?: bool
       style={{ background: '#ffffff', borderColor: '#e2e8f0' }}
     >
       <nav className={`flex-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-3'} space-y-1`}>
-        {nav.map(item => {
+        {visibleNav.map(item => {
           const Icon = item.icon
           return (
             <NavLink

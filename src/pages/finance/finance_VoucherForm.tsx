@@ -415,7 +415,7 @@ export default function Finance_VoucherForm() {
     <div className="p-6">
       <Toast toast={toast} onClose={() => setToast(null)} />
 
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow p-5 mb-6 flex items-center justify-between text-white">
+      <div className="bg-linear-to-r from-blue-600 to-indigo-700 rounded-lg shadow p-5 mb-6 flex items-center justify-between text-white">
         <div>
           <h1 className="text-2xl font-semibold">{isEdit ? 'Edit Voucher' : isExpenseMode ? 'New Expense Voucher' : 'New Voucher'}</h1>
           <p className="text-sm text-blue-100 mt-1">{isEdit ? voucherNo : isExpenseMode ? 'Record an expense payment via voucher' : 'Create a new voucher'}</p>

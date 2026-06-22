@@ -33,6 +33,7 @@ export interface ShiftDoc {
     diagnostic: number
     dialysis: number
     aesthetic: number
+    cafeteria: number
     total: number
   }
   
@@ -103,6 +104,7 @@ const ShiftSchema = new Schema<ShiftDoc>({
     diagnostic: { type: Number, default: 0 },
     dialysis: { type: Number, default: 0 },
     aesthetic: { type: Number, default: 0 },
+    cafeteria: { type: Number, default: 0 },
     total: { type: Number, default: 0 }
   },
   

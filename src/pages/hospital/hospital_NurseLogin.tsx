@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HeartPulse, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { hospitalApi } from '../../utils/api'
+import { loginErrorMessage } from '../../utils/authError'
 
 export default function Hospital_NurseLogin() {
   const navigate = useNavigate()
@@ -50,7 +51,7 @@ export default function Hospital_NurseLogin() {
         setError('Invalid response from server')
       }
     } catch (e: any) {
-      setError(e?.message || 'Login failed. Please check your credentials.')
+      setError(loginErrorMessage(e))
     } finally {
       setLoading(false)
     }

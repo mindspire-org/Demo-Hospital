@@ -175,10 +175,11 @@ export async function login(req: Request, res: Response){
   const data = loginSchema.parse(req.body)
   const username = data.username.trim().toLowerCase()
   const u: any = await HospitalUser.findOne({ username }).lean()
-  if (!u || u.active === false) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!u) return res.status(401).json({ error: 'No account found with this username', code: 'USER_NOT_FOUND' })
+  if (u.active === false) return res.status(403).json({ error: 'This account is inactive', code: 'ACCOUNT_INACTIVE' })
   const pass = String(data.password || '')
   let ok = false
-  if (!pass) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!pass) return res.status(401).json({ error: 'Password is required', code: 'INVALID_PASSWORD' })
   const stored = String(u.passwordHash || '')
   const isHashed = stored.startsWith('$2')
   if (stored) {
@@ -202,17 +203,17 @@ export async function login(req: Request, res: Response){
       } catch {}
     }
   }
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!ok) return res.status(401).json({ error: 'Incorrect password', code: 'INVALID_PASSWORD' })
 
   // Optional shift restriction
   try {
     if (u.shiftRestricted) {
-      if (!u.shiftId) return res.status(403).json({ error: 'Shift not assigned' })
+      if (!u.shiftId) return res.status(403).json({ error: 'Shift not assigned', code: 'SHIFT_NOT_ASSIGNED' })
       const shift: any = await HospitalShift.findById(String(u.shiftId)).lean()
       if (!shift) return res.status(403).json({ error: 'Shift not found' })
       const now = new Date()
       if (!isNowWithinShift(shift, now)) {
-        return res.status(403).json({ error: `Login not allowed outside shift timing (${shift.name}: ${to12h(shift.start)}-${to12h(shift.end)})` })
+        return res.status(403).json({ error: `Login not allowed outside shift timing (${shift.name}: ${to12h(shift.start)}-${to12h(shift.end)})`, code: 'OUTSIDE_SHIFT' })
       }
     }
   } catch {}

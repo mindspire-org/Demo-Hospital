@@ -7,7 +7,7 @@ export default function Finance_DoctorPayouts(){
   const [doctors, setDoctors] = useState<Array<{ id: string; name: string }>>([])
   const [doctorId, setDoctorId] = useState('')
   const [balance, setBalance] = useState<number | null>(null)
-  const [payouts, setPayouts] = useState<Array<{ id: string; dateIso: string; memo?: string; amount: number; createdByUsername?: string; doctorId?: string; doctorName?: string }>>([])
+  const [payouts, setPayouts] = useState<Array<{ id: string; dateIso: string; memo?: string; amount: number; createdByUsername?: string; doctorId?: string; doctorName?: string; sourceAccount?: string; destinationAccount?: string }>>([])
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [totalRows, setTotalRows] = useState(0)
@@ -89,6 +89,8 @@ export default function Finance_DoctorPayouts(){
         createdByUsername: t.createdByUsername,
         doctorId: t.doctorId ? String(t.doctorId) : undefined,
         doctorName: t.doctorName,
+        sourceAccount: t.sourceAccount,
+        destinationAccount: t.destinationAccount,
       }))
       setPayouts(rows)
       setTotalRows(Number(res?.total || 0))
@@ -102,18 +104,19 @@ export default function Finance_DoctorPayouts(){
   const canPay = useMemo(()=>{
     const amt = parseFloat(amount || '0')
     const hasBalance = sourceBalance == null || sourceBalance >= amt
-    return doctorId && !loading && amt > 0 && hasBalance && !!sourceAccount && accounts.length > 0
-  }, [doctorId, amount, loading, sourceBalance, sourceAccount, accounts.length])
+    const accountsDifferent = sourceAccount !== destinationAccount
+    return doctorId && !loading && amt > 0 && hasBalance && !!sourceAccount && accounts.length > 0 && accountsDifferent
+  }, [doctorId, amount, loading, sourceBalance, sourceAccount, destinationAccount, accounts.length])
 
   async function pay(){
     const amt = parseFloat(amount || '0')
     if (!(amt>0) || !doctorId) return
     setLoading(true)
     try {
-      await financeApi.doctorPayout({ doctorId, amount: amt, method, memo: memo || undefined, sourceAccount, destinationAccount })
+      const currentUser = JSON.parse(localStorage.getItem('hospital.session') || '{}')?.username || ''
+      await financeApi.doctorPayout({ doctorId, amount: amt, method, memo: memo || undefined, sourceAccount, destinationAccount, createdByUsername: currentUser })
       if (generateVoucher) {
         try {
-          const acc = accounts.find(a=>a.code===sourceAccount)
           const voucherMethod = method === 'Bank' ? 'bank' : 'cash'
           await financeApi.createExpenseVoucher({
             dateIso: new Date().toISOString().slice(0,10),
@@ -148,7 +151,7 @@ export default function Finance_DoctorPayouts(){
     finally { setLoading(false) }
   }
 
-  function openSlipForRow(p: { id: string; dateIso: string; memo?: string; amount: number; createdByUsername?: string; doctorId?: string; doctorName?: string }){
+  function openSlipForRow(p: { id: string; dateIso: string; memo?: string; amount: number; createdByUsername?: string; doctorId?: string; doctorName?: string; sourceAccount?: string; destinationAccount?: string }){
     const docName = p.doctorName || doctors.find(d => d.id === (p.doctorId || doctorId))?.name || '-'
     setSlipData({
       doctorId: p.doctorId || doctorId,
@@ -158,6 +161,8 @@ export default function Finance_DoctorPayouts(){
       memo: p.memo || undefined,
       createdByUsername: p.createdByUsername,
       createdAt: p.dateIso ? new Date(p.dateIso).toISOString() : undefined,
+      sourceAccount: p.sourceAccount,
+      destinationAccount: p.destinationAccount,
     })
     setSlipAutoPrint(false)
     setSlipOpen(true)
@@ -326,7 +331,10 @@ export default function Finance_DoctorPayouts(){
               {payouts.map(p => (
                 <tr key={p.id} className="group transition hover:bg-slate-50/80">
                   <td className="px-5 py-4 text-sm text-slate-600">{new Date(p.dateIso).toLocaleString()}</td>
-                  <td className="px-5 py-4 font-semibold text-slate-900">{p.doctorName || currentDoctor?.name || '-'}</td>
+                  <td className="px-5 py-4">
+                    <p className="font-semibold text-slate-900">{p.doctorName || currentDoctor?.name || '-'}</p>
+                    <p className="text-[10px] text-slate-400">{p.sourceAccount || '—'} {p.destinationAccount ? '→ ' + p.destinationAccount : ''}</p>
+                  </td>
                   <td className="px-5 py-4 font-semibold text-emerald-600">Rs {p.amount.toFixed(2)}</td>
                   <td className="px-5 py-4 text-sm text-slate-500">{p.createdByUsername || '-'}</td>
                   <td className="px-5 py-4 text-sm text-slate-500">{p.memo || '-'}</td>

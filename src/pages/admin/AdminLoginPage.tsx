@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Shield, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { superAdminApi } from '../../features/superAdmin/superAdmin.api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { loginErrorMessage } from '../../utils/authError'
 
 export default function AdminLoginPage() {
   const navigate = useNavigate()
@@ -28,7 +29,7 @@ export default function AdminLoginPage() {
       }
       setToast({ type: 'error', message: 'Invalid credentials' })
     } catch (err: any) {
-      setToast({ type: 'error', message: err?.message || 'Login failed' })
+      setToast({ type: 'error', message: loginErrorMessage(err) })
     } finally {
       setLoading(false)
     }

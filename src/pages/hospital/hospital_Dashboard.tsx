@@ -3,6 +3,7 @@ import { DollarSign, Users, Activity, RefreshCw, Clock, Filter, RotateCcw, BarCh
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
 import { hospitalApi, labApi } from '../../utils/api'
 import ModernDateInput from '../../components/common/ModernDateInput'
+import TimePicker from '../../components/common/TimePicker'
 
 function iso(d: Date){ return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 function startOfMonth(d: Date){ const x = new Date(d); x.setDate(1); return x }
@@ -90,7 +91,9 @@ export default function Hospital_Dashboard() {
   }
 
   function toTimeMs(x:any){
-    const s = String(x?.receivedAt||x?.dateIso||x?.date||x?.createdAt||'')
+    // Prefer the full timestamp; dateIso/date are date-only and would collapse
+    // every record to midnight, breaking the time-window / shift filters.
+    const s = String(x?.createdAt||x?.receivedAt||x?.dateIso||x?.date||'')
     const t = new Date(s).getTime()
     return Number.isFinite(t) ? t : NaN
   }
@@ -102,7 +105,7 @@ export default function Hospital_Dashboard() {
       const tDate = toDateRef.current
       
       const [tokensRes, expensesRes, bedsAllRes, bedsOccRes, shiftsRes, ipdAdmsRes, _doctorsRes, _depsRes] = await Promise.all([
-        hospitalApi.listTokens({ from: fDate, to: tDate }) as any,
+        hospitalApi.listTokens({ from: fDate, to: tDate, limit: 100000 }) as any,
         hospitalApi.listExpenses({ from: fDate, to: tDate }) as any,
         hospitalApi.listBeds() as any,
         hospitalApi.listBeds({ status: 'occupied' }) as any,
@@ -306,12 +309,12 @@ export default function Hospital_Dashboard() {
   ], [stats])
 
   const topCards = [
-    { title: 'TOTAL REVENUE', value: `Rs ${totalRevenueByMethod.toLocaleString()}`, tone: 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white', icon: Wallet, label: 'REVENUE' },
-    { title: 'TOKENS ISSUED', value: String(stats.tokens), tone: 'bg-gradient-to-br from-violet-500 to-purple-600 text-white', icon: Activity, label: 'OPD' },
-    { title: 'ACTIVE IPD', value: String(dashboardStats?.activePatients?.ipd || stats.activeIpd), tone: 'bg-gradient-to-br from-sky-500 to-blue-600 text-white', icon: Users, label: 'INPATIENT' },
-    { title: 'BEDS AVAILABLE', value: String(stats.bedsAvailable), tone: 'bg-gradient-to-br from-cyan-500 to-cyan-600 text-white', icon: BedDouble, label: 'WARD' },
-    { title: 'AVG FEE', value: `Rs ${stats.avgFee.toLocaleString()}`, tone: 'bg-gradient-to-br from-amber-500 to-orange-600 text-white', icon: DollarSign, label: 'METRIC' },
-    { title: 'ER PATIENTS', value: String(dashboardStats?.activePatients?.er || stats.erCount), tone: 'bg-gradient-to-br from-rose-500 to-red-600 text-white', icon: Activity, label: 'EMERGENCY' },
+    { title: 'TOTAL REVENUE', value: `Rs ${totalRevenueByMethod.toLocaleString()}`, tone: 'bg-linear-to-br from-emerald-500 to-teal-600 text-white', icon: Wallet, label: 'REVENUE' },
+    { title: 'TOKENS ISSUED', value: String(stats.tokens), tone: 'bg-linear-to-br from-violet-500 to-purple-600 text-white', icon: Activity, label: 'OPD' },
+    { title: 'ACTIVE IPD', value: String(dashboardStats?.activePatients?.ipd || stats.activeIpd), tone: 'bg-linear-to-br from-sky-500 to-blue-600 text-white', icon: Users, label: 'INPATIENT' },
+    { title: 'BEDS AVAILABLE', value: String(stats.bedsAvailable), tone: 'bg-linear-to-br from-cyan-500 to-cyan-600 text-white', icon: BedDouble, label: 'WARD' },
+    { title: 'AVG FEE', value: `Rs ${stats.avgFee.toLocaleString()}`, tone: 'bg-linear-to-br from-amber-500 to-orange-600 text-white', icon: DollarSign, label: 'METRIC' },
+    { title: 'ER PATIENTS', value: String(dashboardStats?.activePatients?.er || stats.erCount), tone: 'bg-linear-to-br from-rose-500 to-red-600 text-white', icon: Activity, label: 'EMERGENCY' },
   ]
 
   const statsCards: any[] = [
@@ -413,16 +416,12 @@ export default function Hospital_Dashboard() {
               </div>
             </div>
           </label>
-          <label className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider"><span>Start Time</span>
-            <div className="relative">
-              <input type="time" value={fromTime} onChange={e=>{ setFromTime(e.target.value); if (e.target.value) setFilterShiftId('') }} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 outline-none transition-all hover:border-slate-300" />
-            </div>
-          </label>
-          <label className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider"><span>End Time</span>
-            <div className="relative">
-              <input type="time" value={toTime} onChange={e=>{ setToTime(e.target.value); if (e.target.value) setFilterShiftId('') }} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 outline-none transition-all hover:border-slate-300" />
-            </div>
-          </label>
+          <div><span className="mb-1.5 block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Start Time</span>
+            <TimePicker value={fromTime} onChange={v=>{ setFromTime(v); if (v) setFilterShiftId('') }} />
+          </div>
+          <div><span className="mb-1.5 block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">End Time</span>
+            <TimePicker value={toTime} onChange={v=>{ setToTime(v); if (v) setFilterShiftId('') }} />
+          </div>
           <div className="flex items-end">
             <button onClick={()=>{ setFromDate(iso(startOfMonth(new Date()))); setToDate(iso(new Date())); setFilterShiftId(''); setFromTime(''); setToTime('') }} className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 dark:bg-sky-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:hover:bg-sky-500 transition-all shadow-md shadow-slate-300/50 dark:shadow-sky-900/30"><RotateCcw className="h-4 w-4" /> RESET</button>
           </div>
@@ -481,7 +480,7 @@ export default function Hospital_Dashboard() {
         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-lg shadow-slate-200/40 dark:shadow-none relative">
           <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-lg"><BedDouble className="h-5 w-5 text-rose-500" /> Bed Occupancy</div>
           <div className="h-[300px] w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={280} minWidth={0}>
               <PieChart>
                 <Pie
                   data={occupancyData}
@@ -516,7 +515,7 @@ export default function Hospital_Dashboard() {
         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-lg shadow-slate-200/40 dark:shadow-none">
           <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-lg"><BarChart3 className="h-5 w-5 text-indigo-500" /> Department Revenue</div>
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={280} minWidth={0}>
               <BarChart data={deptRevenueData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                 <defs>
                   <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
@@ -547,7 +546,7 @@ export default function Hospital_Dashboard() {
             <BarChart3 className="h-5 w-5 text-emerald-500" /> Revenue & Expense Trend
           </div>
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={280} minWidth={0}>
               <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">

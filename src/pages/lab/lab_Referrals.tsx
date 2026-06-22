@@ -75,7 +75,7 @@ export default function Lab_Referrals() {
   return (
     <div className="min-h-screen bg-slate-50/50 p-4 transition-colors duration-300 dark:bg-slate-950 lg:p-8">
       {/* Header */}
-      <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-700 via-slate-800 to-indigo-900 p-8 shadow-2xl text-white">
+      <div className="relative mb-6 overflow-hidden rounded-3xl bg-linear-to-r from-indigo-700 via-slate-800 to-indigo-900 p-8 shadow-2xl text-white">
         <div className="absolute top-0 right-0 -mr-20 -mt-20 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -108,7 +108,7 @@ export default function Lab_Referrals() {
           { label: 'Avg Tests/Referral', value: totalReferrals ? (totalTests / totalReferrals).toFixed(1) : '0', icon: FileText, gradient: 'from-rose-500 to-pink-600', color: 'text-rose-600', bg: 'bg-rose-50' },
         ].map((card, i) => (
           <div key={i} className="group relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 dark:border-slate-800 dark:bg-slate-900">
-            <div className={`absolute -right-4 -top-4 h-24 w-24 rounded-full bg-gradient-to-br ${card.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
+            <div className={`absolute -right-4 -top-4 h-24 w-24 rounded-full bg-linear-to-br ${card.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
             <div className="relative flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">{card.label}</p>

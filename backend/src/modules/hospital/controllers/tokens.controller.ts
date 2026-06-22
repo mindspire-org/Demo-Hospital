@@ -1057,6 +1057,10 @@ export async function list(req: Request, res: Response){
 
   const to = q.to ? String(q.to) : ''
 
+  const fromTime = q.fromTime ? String(q.fromTime) : ''
+
+  const toTime = q.toTime ? String(q.toTime) : ''
+
   const status = q.status ? String(q.status) : ''
 
   const doctorId = q.doctorId ? String(q.doctorId) : ''
@@ -1081,6 +1085,29 @@ export async function list(req: Request, res: Response){
 
     if (to) crit.dateIso.$lte = to
 
+  }
+
+  // Time-of-day filter (Pakistan time). Applied server-side via $expr so it is
+  // consistent across pagination AND the aggregate stats below. fromTime/toTime
+  // are 24h "HH:mm" strings from the time picker.
+  const toMinutes = (hhmm: string): number | null => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim())
+    if (!m) return null
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+  }
+  const fromMinVal = fromTime ? toMinutes(fromTime) : null
+  const toMinVal = toTime ? toMinutes(toTime) : null
+  if (fromMinVal != null || toMinVal != null) {
+    const minutesOfDay = {
+      $add: [
+        { $multiply: [{ $hour: { date: '$createdAt', timezone: 'Asia/Karachi' } }, 60] },
+        { $minute: { date: '$createdAt', timezone: 'Asia/Karachi' } },
+      ],
+    }
+    const conds: any[] = []
+    if (fromMinVal != null) conds.push({ $gte: [minutesOfDay, fromMinVal] })
+    if (toMinVal != null) conds.push({ $lte: [minutesOfDay, toMinVal] })
+    crit.$expr = conds.length > 1 ? { $and: conds } : conds[0]
   }
 
   if (status) crit.status = status

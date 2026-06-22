@@ -2,14 +2,25 @@ import { useEffect, useState } from 'react'
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
 import { Plus, Search, FileDown, Calendar, Building2, DollarSign } from 'lucide-react'
+import { CLINICAL_MODULE_OPTIONS, CANONICAL_DEPARTMENT_NAMES, resolveDepartmentKey, moduleLabel } from '../../utils/doctorDepartment'
 
 type Department = {
   id: string
   name: string
   description?: string
+  clinicalModule?: string
   baseFee?: number
   doctorFees?: Array<{ doctorId: string; price: number }>
   createdAt: string // YYYY-MM-DD
+}
+
+// Live preview of which module a typed name/explicit selection will enable.
+function ModuleBadge({ name, clinicalModule }: { name: string; clinicalModule: string }) {
+  const resolved = clinicalModule || resolveDepartmentKey(name)
+  if (resolved && resolved !== 'general') {
+    return <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">✓ Will enable <b>{moduleLabel(resolved)}</b> features{!clinicalModule ? ' (detected from name)' : ''}</div>
+  }
+  return <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500">No specialized module — pick one to enable department features</div>
 }
 
 export default function Hospital_Departments() {
@@ -23,9 +34,9 @@ export default function Hospital_Departments() {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState({ name: '', description: '', baseFee: '', doctorFees: [] as Array<{ doctorId: string; price: string }> })
+  const [addForm, setAddForm] = useState({ name: '', description: '', clinicalModule: '', baseFee: '', doctorFees: [] as Array<{ doctorId: string; price: string }> })
   const [editId, setEditId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', description: '', baseFee: '', doctorFees: [] as Array<{ doctorId: string; price: string }> })
+  const [editForm, setEditForm] = useState({ name: '', description: '', clinicalModule: '', baseFee: '', doctorFees: [] as Array<{ doctorId: string; price: string }> })
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastState>(null)
 
@@ -46,6 +57,7 @@ export default function Hospital_Departments() {
         id: String(d._id || d.id),
         name: d.name,
         description: d.description,
+        clinicalModule: d.clinicalModule || '',
         baseFee: d.opdBaseFee,
         doctorFees: (d.doctorPrices || []).map((p: any) => ({ doctorId: String(p.doctorId), price: Number(p.price)||0 })),
         createdAt: (d.createdAt ? new Date(d.createdAt) : new Date()).toISOString().slice(0,10),
@@ -83,7 +95,7 @@ export default function Hospital_Departments() {
     loadDepartments()
   }, [page, limit, query, from, to])
 
-  const openAdd = () => { setAddForm({ name: '', description: '', baseFee: '', doctorFees: [] }); setShowAdd(true) }
+  const openAdd = () => { setAddForm({ name: '', description: '', clinicalModule: '', baseFee: '', doctorFees: [] }); setShowAdd(true) }
   const saveAdd = async () => {
     if (!addForm.name.trim()) return
     const baseFeeNum = Number(addForm.baseFee) || 0
@@ -92,7 +104,7 @@ export default function Hospital_Departments() {
       .map(r => ({ doctorId: r.doctorId, price: Number(r.price) || 0 }))
       .reduce((acc: Array<{ doctorId: string; price: number }>, cur) => { if (!acc.some(x => x.doctorId === cur.doctorId)) acc.push(cur); return acc }, [])
     try {
-      await hospitalApi.createDepartment({ name: addForm.name.trim(), description: addForm.description.trim() || undefined, opdBaseFee: baseFeeNum, doctorPrices })
+      await hospitalApi.createDepartment({ name: addForm.name.trim(), description: addForm.description.trim() || undefined, clinicalModule: addForm.clinicalModule || undefined, opdBaseFee: baseFeeNum, doctorPrices } as any)
       await loadDepartments()
       setShowAdd(false)
       try { window.dispatchEvent(new CustomEvent('hospital:departments:refresh')) } catch {}
@@ -109,6 +121,7 @@ export default function Hospital_Departments() {
     setEditForm({
       name: d.name,
       description: d.description || '',
+      clinicalModule: d.clinicalModule || '',
       baseFee: d.baseFee != null ? String(d.baseFee) : '',
       doctorFees: (d.doctorFees || []).map(r => ({ doctorId: r.doctorId, price: String(r.price) })),
     })
@@ -121,7 +134,7 @@ export default function Hospital_Departments() {
       .map(r => ({ doctorId: r.doctorId, price: Number(r.price) || 0 }))
       .reduce((acc: Array<{ doctorId: string; price: number }>, cur) => { if (!acc.some(x => x.doctorId === cur.doctorId)) acc.push(cur); return acc }, [])
     try {
-      await hospitalApi.updateDepartment(editId, { name: editForm.name.trim() || 'Department', description: editForm.description || undefined, opdBaseFee: baseFeeNum, doctorPrices })
+      await hospitalApi.updateDepartment(editId, { name: editForm.name.trim() || 'Department', description: editForm.description || undefined, clinicalModule: editForm.clinicalModule || undefined, opdBaseFee: baseFeeNum, doctorPrices } as any)
       await loadDepartments()
       setEditId(null)
       try { window.dispatchEvent(new CustomEvent('hospital:departments:refresh')) } catch {}
@@ -273,6 +286,18 @@ export default function Hospital_Departments() {
                 </div>
               </div>
 
+              {(() => {
+                const resolved = dep.clinicalModule || resolveDepartmentKey(dep.name)
+                if (!resolved || resolved === 'general') return null
+                return (
+                  <div className="mt-3">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+                      {moduleLabel(resolved)}{!dep.clinicalModule ? ' · auto' : ''}
+                    </span>
+                  </div>
+                )
+              })()}
+
               <div className="mt-6 flex items-center justify-between border-t border-slate-50 pt-4">
                 <div className="flex items-center gap-1.5">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
@@ -365,7 +390,16 @@ export default function Hospital_Departments() {
             <div className="mt-4 space-y-3">
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Name</label>
-                <input value={addForm.name} onChange={e=>setAddForm(f=>({ ...f, name: e.target.value }))} placeholder="Department name" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+                <input list="dept-canonical-names" value={addForm.name} onChange={e=>setAddForm(f=>({ ...f, name: e.target.value }))} placeholder="Department name" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+                <datalist id="dept-canonical-names">{CANONICAL_DEPARTMENT_NAMES.map(n => <option key={n} value={n} />)}</datalist>
+                <ModuleBadge name={addForm.name} clinicalModule={addForm.clinicalModule} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Specialized Clinical Module</label>
+                <select value={addForm.clinicalModule} onChange={e=>setAddForm(f=>({ ...f, clinicalModule: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200">
+                  {CLINICAL_MODULE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">Binds department features explicitly — independent of the name's spelling. Leave as "None" to auto-detect from the name.</p>
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Description</label>
@@ -408,7 +442,15 @@ export default function Hospital_Departments() {
             <div className="mt-4 space-y-3">
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Name</label>
-                <input value={editForm.name} onChange={e=>setEditForm(f=>({ ...f, name: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+                <input list="dept-canonical-names" value={editForm.name} onChange={e=>setEditForm(f=>({ ...f, name: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+                <ModuleBadge name={editForm.name} clinicalModule={editForm.clinicalModule} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Specialized Clinical Module</label>
+                <select value={editForm.clinicalModule} onChange={e=>setEditForm(f=>({ ...f, clinicalModule: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200">
+                  {CLINICAL_MODULE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">Binds department features explicitly — independent of the name's spelling. Leave as "None" to auto-detect from the name.</p>
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Description</label>

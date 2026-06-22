@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { campApi } from '../../features/camp/camp.api'
+import { loginErrorMessage } from '../../utils/authError'
 
 export default function Camp_Login() {
   const navigate = useNavigate()
@@ -15,7 +16,7 @@ export default function Camp_Login() {
     if (token) navigate('/camp')
   }, [navigate])
 
-  const logoSrc = `${(import.meta as any).env?.BASE_URL || '/'}hospital_icon.jpeg`
+  const logoSrc = `/hospital_icon.jpeg`
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,7 +36,7 @@ export default function Camp_Login() {
       }
       navigate('/camp')
     } catch (err: any) {
-      setError(err?.message || 'Login failed. Please try again.')
+      setError(loginErrorMessage(err))
     } finally {
       setLoading(false)
     }

@@ -92,7 +92,7 @@ export default function Doctor_Finance() {
       ) : (
         <>
           {/* Balance Card */}
-          <div className="mb-6 rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm">
+          <div className="mb-6 rounded-xl border border-slate-200 bg-linear-to-br from-blue-50 to-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-medium text-slate-600">Current Payable</div>

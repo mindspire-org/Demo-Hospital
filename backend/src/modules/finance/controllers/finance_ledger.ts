@@ -644,3 +644,53 @@ export async function postVendorPaymentJournal(args: {
     status: 'active'
   })
 }
+
+// Post Cafeteria sale revenue journal (with COGS)
+export async function postCafeteriaSaleJournal(args: {
+  billNo: string
+  dateIso: string
+  revenueAmount: number
+  cogsAmount: number
+  paidMethod?: 'Cash' | 'Bank' | 'AR'
+  customer?: string
+  createdByUsername?: string
+}) {
+  const existing: any = await FinanceJournal.findOne({ refType: 'cafeteria_sale', refId: args.billNo }).lean()
+  if (existing) return existing
+
+  const debitAccount = args.paidMethod === 'Bank' ? 'BANK' : (args.paidMethod === 'Cash' ? 'CASH' : 'AR')
+  const tags: any = { module: 'cafeteria' }
+  if (args.customer) tags.customer = args.customer
+  if (args.createdByUsername) tags.createdByUsername = args.createdByUsername
+
+  const lines: JournalLine[] = [
+    { account: debitAccount, debit: args.revenueAmount, tags },
+    { account: 'CAFETERIA_REVENUE', credit: args.revenueAmount, tags },
+  ]
+
+  // COGS entry: Debit CAFETERIA_COGS, Credit CAFETERIA_INVENTORY
+  if (args.cogsAmount > 0) {
+    lines.push({ account: 'CAFETERIA_COGS', debit: args.cogsAmount, tags: { ...tags } })
+    lines.push({ account: 'CAFETERIA_INVENTORY', credit: args.cogsAmount, tags: { ...tags } })
+  }
+
+  const memo = `Cafeteria Sale ${args.billNo}`
+  const journal = await FinanceJournal.create({
+    dateIso: args.dateIso || todayIso(),
+    module: 'cafeteria',
+    refType: 'cafeteria_sale',
+    refId: args.billNo,
+    memo,
+    lines,
+    status: 'active'
+  })
+
+  // Update active shift collections
+  await addJournalToShiftCollections({
+    module: 'cafeteria',
+    refType: 'cafeteria_sale',
+    amount: Number(args.revenueAmount || 0)
+  })
+
+  return journal
+}

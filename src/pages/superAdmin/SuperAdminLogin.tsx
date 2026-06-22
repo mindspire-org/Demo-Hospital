@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { superAdminApi } from '../../features/superAdmin'
+import { loginErrorMessage } from '../../utils/authError'
 import { Settings, Shield } from 'lucide-react'
 
 export default function SuperAdminLogin() {
@@ -65,7 +66,7 @@ export default function SuperAdminLogin() {
         setError('Login failed')
       }
     } catch (err: any) {
-      setError(err?.message || 'Invalid credentials')
+      setError(loginErrorMessage(err))
     } finally {
       setLoading(false)
     }

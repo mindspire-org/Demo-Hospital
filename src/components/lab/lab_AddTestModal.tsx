@@ -140,7 +140,7 @@ export type LabTestFormValues = {
   normalRangePediatric?: string
   criticalMin?: string
   criticalMax?: string
-  parameters?: Array<{ name: string; unit?: string; normalRangeMale?: string; normalRangeFemale?: string; normalRangePediatric?: string; formula?: string; dependencies?: string[]; kind?: 'quantitative'|'qualitative'; criticalMin?: string; criticalMax?: string; sectionKey?: string; order?: number; qualitativeOptions?: string[]; interpretationRules?: Array<{ expression: string; label: string; text: string }>; contributesToTotalPercent?: boolean; totalPercentGroup?: string; isSensitivityRow?: boolean; drugList?: string[] }>
+  parameters?: Array<{ name: string; unit?: string; normalRangeMale?: string; normalRangeFemale?: string; normalRangePediatric?: string; formula?: string; dependsOn?: string[]; kind?: 'quantitative'|'qualitative'; criticalMin?: string; criticalMax?: string; sectionKey?: string; order?: number; qualitativeOptions?: string[]; interpretationRules?: Array<{ expression: string; label: string; text: string }>; contributesToTotalPercent?: boolean; totalPercentGroup?: string; isSensitivityRow?: boolean; drugList?: string[] }>
   consumables?: Array<{ item: string; qty: number }>
   category?: string
   template?: string
@@ -192,7 +192,7 @@ export default function Lab_AddTestModal({ open, onClose, onSave, initial }: { o
       let initParams = (initial?.parameters || [])
         .slice()
         .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .map(p=> ({ id: crypto.randomUUID(), name: p.name||'', unit: p.unit||'', normalRangeMale: p.normalRangeMale||'', normalRangeFemale: p.normalRangeFemale||'', normalRangePediatric: p.normalRangePediatric||'', formula: p.formula||'', dependencies: p.dependencies||[], kind: p.kind||'quantitative', criticalMin: p.criticalMin||'', criticalMax: p.criticalMax||'', sectionKey: p.sectionKey||'', order: p.order||0, qualitativeOptions: p.qualitativeOptions || [], interpretationRules: p.interpretationRules || [], contributesToTotalPercent: p.contributesToTotalPercent || false, totalPercentGroup: p.totalPercentGroup || '', isSensitivityRow: p.isSensitivityRow || false, drugList: p.drugList || [] }))
+        .map(p=> ({ id: crypto.randomUUID(), name: p.name||'', unit: p.unit||'', normalRangeMale: p.normalRangeMale||'', normalRangeFemale: p.normalRangeFemale||'', normalRangePediatric: p.normalRangePediatric||'', formula: p.formula||'', dependencies: p.dependsOn || (p as any).dependencies || [], kind: p.kind||'quantitative', criticalMin: p.criticalMin||'', criticalMax: p.criticalMax||'', sectionKey: p.sectionKey||'', order: p.order||0, qualitativeOptions: p.qualitativeOptions || [], interpretationRules: p.interpretationRules || [], contributesToTotalPercent: p.contributesToTotalPercent || false, totalPercentGroup: p.totalPercentGroup || '', isSensitivityRow: p.isSensitivityRow || false, drugList: p.drugList || [] }))
       
       if (initParams.length === 0 && initial?.parameter) {
         initParams = [{
@@ -321,7 +321,7 @@ export default function Lab_AddTestModal({ open, onClose, onSave, initial }: { o
           createParam('VLDL Cholesterol', 'mg/dL', '<30', '<30', 'Triglycerides / 5', ['Triglycerides'], 3),
           createParam('LDL Cholesterol', 'mg/dL', '<100', '<100', 'Total_Cholesterol - HDL_Cholesterol - VLDL_Cholesterol', ['Total Cholesterol', 'HDL Cholesterol', 'VLDL Cholesterol'], 4),
           createParam('Non-HDL Cholesterol', 'mg/dL', '<130', '<130', 'Total_Cholesterol - HDL_Cholesterol', ['Total Cholesterol', 'HDL Cholesterol'], 5),
-          createParam('Total Lipid', 'mg/dL', '400-600', '400-600', 'Total_Cholesterol + HDL_Cholesterol + VLDL_Cholesterol + LDL_Cholesterol + 200', ['Total Cholesterol', 'HDL Cholesterol', 'VLDL Cholesterol', 'LDL Cholesterol'], 6),
+          createParam('Total Lipid', 'mg/dL', '400-600', '400-600', 'Total_Cholesterol + Triglycerides + HDL_Cholesterol + LDL_Cholesterol + VLDL_Cholesterol + 250', ['Total Cholesterol', 'Triglycerides', 'HDL Cholesterol', 'LDL Cholesterol', 'VLDL Cholesterol'], 6),
           createParam('Chol/HDL Ratio', '', '<3.5', '<3.5', 'Total_Cholesterol / HDL_Cholesterol', ['Total Cholesterol', 'HDL Cholesterol'], 7),
         ])
         break
@@ -484,7 +484,7 @@ export default function Lab_AddTestModal({ open, onClose, onSave, initial }: { o
         normalRangeFemale: (p.normalRangeFemale||'').trim() || undefined,
         normalRangePediatric: (p.normalRangePediatric||'').trim() || undefined,
         formula: (p.formula||'').trim() || undefined,
-        dependencies: p.dependencies && p.dependencies.length > 0 ? p.dependencies : undefined,
+        dependsOn: p.dependencies && p.dependencies.length > 0 ? p.dependencies : undefined,
         kind: p.kind || 'quantitative',
         criticalMin: (p.criticalMin||'').trim() || undefined,
         criticalMax: (p.criticalMax||'').trim() || undefined,

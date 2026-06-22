@@ -370,6 +370,7 @@ export async function listDoctorPayouts(req: Request, res: Response){
 }
 
 export async function listAllTransactions(req: Request, res: Response){
+  try {
   const from = String((req.query as any)?.from || '')
   const to = String((req.query as any)?.to || '')
   const type = String((req.query as any)?.type || 'All')
@@ -568,7 +569,11 @@ export async function listAllTransactions(req: Request, res: Response){
       $lookup: {
         from: 'hospital_doctors',
         let: { docId: '$doctorId' },
-        pipeline: [{ $match: { $expr: { $eq: ['$_id', { $toObjectId: '$$docId' }] } } }, { $project: { name: 1 } }],
+        pipeline: [{ $match: { $expr: { $and: [
+          { $ne: ['$$docId', null] },
+          { $ne: ['$$docId', ''] },
+          { $eq: ['$_id', { $convert: { input: '$$docId', to: 'objectId', onError: null } }] }
+        ] } } }, { $project: { name: 1 } }],
         as: 'doctor'
       }
     })
@@ -582,7 +587,11 @@ export async function listAllTransactions(req: Request, res: Response){
       $lookup: {
         from: 'hospital_departments',
         let: { depId: '$departmentId' },
-        pipeline: [{ $match: { $expr: { $eq: ['$_id', { $toObjectId: '$$depId' }] } } }, { $project: { name: 1 } }],
+        pipeline: [{ $match: { $expr: { $and: [
+          { $ne: ['$$depId', null] },
+          { $ne: ['$$depId', ''] },
+          { $eq: ['$_id', { $convert: { input: '$$depId', to: 'objectId', onError: null } }] }
+        ] } } }, { $project: { name: 1 } }],
         as: 'department'
       }
     })
@@ -726,6 +735,10 @@ export async function listAllTransactions(req: Request, res: Response){
       netIncome: 0, // calculated below
     }
   })
+  } catch (e: any) {
+    console.error('listAllTransactions error:', e)
+    return res.status(500).json({ error: e?.message || 'Failed to fetch transactions' })
+  }
 }
 
 export async function doctorAccruals(req: Request, res: Response){

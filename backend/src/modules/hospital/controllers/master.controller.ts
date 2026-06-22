@@ -4,6 +4,7 @@ import { HospitalDepartment } from '../models/Department'
 import { HospitalDoctor } from '../models/Doctor'
 import { HospitalUser } from '../models/User'
 import { HospitalAuditLog } from '../models/AuditLog'
+import { resolveDepartmentMode } from '../utils/departmentMode'
 import { Types } from 'mongoose'
 
 export async function listDepartments(req: Request, res: Response){
@@ -125,7 +126,22 @@ export async function getDoctorById(req: Request, res: Response){
     d = await HospitalDoctor.collection.findOne({ _id: { $in: candidates } })
   }
   if (!d) return res.status(404).json({ error: 'Doctor not found' })
-  res.json({ doctor: d })
+  // Resolve the doctor's primary department name and derive dental/eye flags so
+  // the prescription page can decide which department-specific sections to show.
+  let primaryDepartmentName = ''
+  let departmentClinicalModule: string | undefined
+  try {
+    if (d.primaryDepartmentId) {
+      const dep: any = await HospitalDepartment.findById(d.primaryDepartmentId).select('name clinicalModule').lean()
+      primaryDepartmentName = dep?.name || ''
+      departmentClinicalModule = dep?.clinicalModule || undefined
+    }
+  } catch {}
+  const { isDental, isEye, departmentModule } = resolveDepartmentMode(primaryDepartmentName, d.specialization, {
+    doctorClinicalModule: d.clinicalModule,
+    departmentClinicalModule,
+  })
+  res.json({ doctor: { ...d, primaryDepartmentName, departmentClinicalModule, isDental, isEye, departmentModule } })
 }
 
 export async function createDoctor(req: Request, res: Response){

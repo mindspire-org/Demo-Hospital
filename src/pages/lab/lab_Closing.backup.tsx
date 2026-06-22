@@ -391,35 +391,35 @@ export default function Lab_Closing() {
 
       {/* Summary Cards - Compact & Colorful */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="relative rounded-2xl bg-gradient-to-br from-violet-500 to-violet-600 p-6 text-white shadow-lg shadow-violet-200 overflow-hidden">
+        <div className="relative rounded-2xl bg-linear-to-br from-violet-500 to-violet-600 p-6 text-white shadow-lg shadow-violet-200 overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-8 -mt-8"></div>
           <FileText className="h-8 w-8 mb-3 opacity-90" />
           <div className="text-3xl font-black mb-1">{summary.totalTokens}</div>
           <div className="text-sm font-medium opacity-90">Total Tokens</div>
         </div>
 
-        <div className="relative rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 text-white shadow-lg shadow-emerald-200 overflow-hidden">
+        <div className="relative rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 p-6 text-white shadow-lg shadow-emerald-200 overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-8 -mt-8"></div>
           <TestTube className="h-8 w-8 mb-3 opacity-90" />
           <div className="text-3xl font-black mb-1">{summary.totalTests}</div>
           <div className="text-sm font-medium opacity-90">Total Tests</div>
         </div>
 
-        <div className="relative rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 p-6 text-white shadow-lg shadow-purple-200 overflow-hidden">
+        <div className="relative rounded-2xl bg-linear-to-br from-purple-500 to-purple-600 p-6 text-white shadow-lg shadow-purple-200 overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-8 -mt-8"></div>
           <Activity className="h-8 w-8 mb-3 opacity-90" />
           <div className="text-3xl font-black mb-1">{summary.uniqueTests}</div>
           <div className="text-sm font-medium opacity-90">Unique Tests</div>
         </div>
 
-        <div className="relative rounded-2xl bg-gradient-to-br from-green-500 to-green-600 p-6 text-white shadow-lg shadow-green-200 overflow-hidden">
+        <div className="relative rounded-2xl bg-linear-to-br from-green-500 to-green-600 p-6 text-white shadow-lg shadow-green-200 overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-8 -mt-8"></div>
           <CheckCircle className="h-8 w-8 mb-3 opacity-90" />
           <div className="text-3xl font-black mb-1">{summary.completedOrders}</div>
           <div className="text-sm font-medium opacity-90">Completed</div>
         </div>
 
-        <div className="relative rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 p-6 text-white shadow-lg shadow-blue-200 overflow-hidden">
+        <div className="relative rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 p-6 text-white shadow-lg shadow-blue-200 overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-8 -mt-8"></div>
           <FileText className="h-8 w-8 mb-3 opacity-90" />
           <div className="text-2xl font-black mb-1">Rs {fmtMoney(summary.totalRevenue)}</div>
@@ -456,7 +456,7 @@ export default function Lab_Closing() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-black text-lg shadow-lg shadow-emerald-200">
+                    <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-linear-to-br from-emerald-500 to-emerald-600 text-white font-black text-lg shadow-lg shadow-emerald-200">
                       {stat.count}
                     </span>
                   </td>
@@ -479,13 +479,13 @@ export default function Lab_Closing() {
               )}
             </tbody>
             {testStats.length > 0 && (
-              <tfoot className="bg-gradient-to-r from-emerald-50 to-green-50 border-t-2 border-emerald-200">
+              <tfoot className="bg-linear-to-r from-emerald-50 to-green-50 border-t-2 border-emerald-200">
                 <tr>
                   <td colSpan={3} className="px-6 py-5 text-right font-black text-slate-900 text-lg">
                     TOTAL:
                   </td>
                   <td className="px-6 py-5 text-center">
-                    <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-600 to-green-600 text-white font-black text-xl shadow-xl shadow-emerald-300">
+                    <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-linear-to-br from-emerald-600 to-green-600 text-white font-black text-xl shadow-xl shadow-emerald-300">
                       {summary.totalTests}
                     </span>
                   </td>

@@ -3,7 +3,7 @@ import { Schema, model, models } from 'mongoose'
 const ACCOUNT_TYPES = ['ASSETS','LIABILITIES','EQUITY','INCOME','EXPENSE'] as const
 export type AccountType = typeof ACCOUNT_TYPES[number]
 
-const ACCOUNT_MODULES = ['opd','er','ipd','lab','pharmacy','diagnostic','dialysis','aesthetic','general'] as const
+const ACCOUNT_MODULES = ['opd','er','ipd','lab','pharmacy','diagnostic','dialysis','aesthetic','cafeteria','general'] as const
 export type AccountModule = typeof ACCOUNT_MODULES[number]
 
 const ChartOfAccountSchema = new Schema({

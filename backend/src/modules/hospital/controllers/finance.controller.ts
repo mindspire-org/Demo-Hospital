@@ -198,7 +198,8 @@ export async function postDoctorPayout(req: Request, res: Response){
       }
     }
   } catch {}
-  const j: any = await createDoctorPayout(data.doctorId, data.amount, data.method, data.memo, sessionId, data.sourceAccount, data.destinationAccount)
+  const createdByUsername = String((req as any).user?.username || '')
+  const j: any = await createDoctorPayout(data.doctorId, data.amount, data.method, data.memo, sessionId, data.sourceAccount, data.destinationAccount, createdByUsername)
 
   // Activity log
   try {
@@ -212,21 +213,8 @@ export async function postDoctorPayout(req: Request, res: Response){
       entityLabel: `Payout — Dr. ${data.doctorId}`,
       amount: Number(data.amount || 0),
       method: String(data.method || 'Cash'),
-      meta: { doctorId: data.doctorId, memo: data.memo || '', sessionId: sessionId || '' }
+      meta: { doctorId: data.doctorId, memo: data.memo || '', sessionId: sessionId || '', sourceAccount: data.sourceAccount || '', destinationAccount: data.destinationAccount || '' }
     })
-  } catch {}
-
-  // Best-effort tagging of createdBy for reporting
-  try {
-    const createdByUserId = String((req as any).user?._id || (req as any).user?.id || '')
-    const createdByUsername = String((req as any).user?.username || '')
-    if (j?._id && (createdByUserId || createdByUsername)){
-      const tagsPatch: any = {}
-      if (createdByUserId) tagsPatch['lines.$[].tags.createdByUserId'] = createdByUserId
-      if (createdByUsername) tagsPatch['lines.$[].tags.createdByUsername'] = createdByUsername
-      // Use updateOne with $set on array elements (Mongo supports $[])
-      await FinanceJournal.updateOne({ _id: j._id }, { $set: tagsPatch })
-    }
   } catch {}
   res.status(201).json({ journal: j })
 }
@@ -242,20 +230,23 @@ export async function listDoctorPayouts(req: Request, res: Response){
   const limit = Math.min(parseInt(String((req.query as any)?.limit || '20')) || 20, 100)
   const rows = await FinanceJournal.find({ refType: 'doctor_payout', refId: id }).sort({ createdAt: -1 }).limit(limit).lean()
   const items = rows.map((j: any) => {
-    const createdByUsername = (j.lines || []).find((l: any) => l?.tags?.createdByUsername)?.tags?.createdByUsername
-    const createdByUserId = (j.lines || []).find((l: any) => l?.tags?.createdByUserId)?.tags?.createdByUserId
+    const firstLine = (j.lines || [])[0]
+    const createdByUsername = firstLine?.tags?.createdByUsername
+    const sourceAccount = firstLine?.tags?.sourceAccount
+    const destinationAccount = firstLine?.tags?.destinationAccount
     const cash = (j.lines || [])
       .filter((l: any) => l.account === 'CASH' || l.account === 'BANK')
       .reduce((s: number, l: any) => s + (l.credit || 0), 0)
     const amount = cash || (j.lines || [])
       .filter((l: any) => l.account === 'DOCTOR_PAYABLE')
       .reduce((s: number, l: any) => s + (l.debit || 0), 0)
-    return { id: String(j._id), refId: j.refId, dateIso: j.dateIso, memo: j.memo, amount, createdByUsername, createdByUserId }
+    return { id: String(j._id), refId: j.refId, dateIso: j.dateIso, memo: j.memo, amount, createdByUsername, sourceAccount, destinationAccount }
   })
   res.json({ payouts: items })
 }
 
 export async function listAllTransactions(req: Request, res: Response){
+  try {
   const from = String((req.query as any)?.from || '')
   const to = String((req.query as any)?.to || '')
   const type = String((req.query as any)?.type || 'All')
@@ -369,6 +360,8 @@ export async function listAllTransactions(req: Request, res: Response){
       encounterId: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.encounterId', null] } } }, as: 'x', in: '$$x.tags.encounterId' } }, 0] },
       tokenNoFromTags: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.tokenNo', null] } } }, as: 'x', in: '$$x.tags.tokenNo' } }, 0] },
       createdByUsername: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.createdByUsername', null] } } }, as: 'x', in: '$$x.tags.createdByUsername' } }, 0] },
+      sourceAccount: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.sourceAccount', null] } } }, as: 'x', in: '$$x.tags.sourceAccount' } }, 0] },
+      destinationAccount: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$lines', as: 'l', cond: { $ne: ['$$l.tags.destinationAccount', null] } } }, as: 'x', in: '$$x.tags.destinationAccount' } }, 0] },
     }
   })
 
@@ -404,7 +397,11 @@ export async function listAllTransactions(req: Request, res: Response){
     $lookup: {
       from: 'hospital_doctors',
       let: { docId: '$doctorId' },
-      pipeline: [{ $match: { $expr: { $eq: ['$_id', { $toObjectId: '$$docId' }] } } }, { $project: { name: 1 } }],
+      pipeline: [{ $match: { $expr: { $and: [
+        { $ne: ['$$docId', null] },
+        { $ne: ['$$docId', ''] },
+        { $eq: ['$_id', { $convert: { input: '$$docId', to: 'objectId', onError: null } }] }
+      ] } } }, { $project: { name: 1 } }],
       as: 'doctor'
     }
   })
@@ -414,7 +411,11 @@ export async function listAllTransactions(req: Request, res: Response){
     $lookup: {
       from: 'hospital_departments',
       let: { depId: '$departmentId' },
-      pipeline: [{ $match: { $expr: { $eq: ['$_id', { $toObjectId: '$$depId' }] } } }, { $project: { name: 1 } }],
+      pipeline: [{ $match: { $expr: { $and: [
+        { $ne: ['$$depId', null] },
+        { $ne: ['$$depId', ''] },
+        { $eq: ['$_id', { $convert: { input: '$$depId', to: 'objectId', onError: null } }] }
+      ] } } }, { $project: { name: 1 } }],
       as: 'department'
     }
   })
@@ -478,6 +479,8 @@ export async function listAllTransactions(req: Request, res: Response){
         tokenByEncounter: { $arrayElemAt: ['$tokenByEncounter', 0] },
         tokenNoFromTags: 1,
         createdByUsername: 1,
+        sourceAccount: 1,
+        destinationAccount: 1,
         doctorPayableLine: 1,
         // Extract fee from revenue line (credit for normal, debit for reversals)
         fee: {
@@ -553,6 +556,10 @@ export async function listAllTransactions(req: Request, res: Response){
       netIncome: 0, // calculated below
     }
   })
+  } catch (e: any) {
+    console.error('listAllTransactions error:', e)
+    return res.status(500).json({ error: e?.message || 'Failed to fetch transactions' })
+  }
 }
 
 export async function doctorAccruals(req: Request, res: Response){

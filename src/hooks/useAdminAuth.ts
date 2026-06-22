@@ -19,6 +19,11 @@ export function useAdminAuth() {
   const [state, setState] = useState<AuthState>({ user: null, loading: true, checked: false })
 
   const check = useCallback(async () => {
+    const token = localStorage.getItem('super_admin.token')
+    if (!token) {
+      setState({ user: null, loading: false, checked: true })
+      return
+    }
     try {
       const data = await api('/admin/me')
       if (data?.authenticated && data?.user) {

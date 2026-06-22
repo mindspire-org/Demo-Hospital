@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CLINICAL_MODULE_OPTIONS } from '../../utils/doctorDepartment'
 
 export type HospitalDoctorInput = {
   name: string
@@ -6,6 +7,7 @@ export type HospitalDoctorInput = {
   pmdcNo: string
   specialization: string
   qualification: string
+  clinicalModule: string
   phone: string
   publicFee: string
   privateFee: string
@@ -30,13 +32,13 @@ export default function Hospital_AddDoctorDialog({
   departments: Array<{ id: string; name: string }>
 }) {
   const [form, setForm] = useState<HospitalDoctorInput>({
-    name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', doctorShare: '100', opdShare: '', ipdShare: '', username: '', password: '', primaryDepartmentId: ''
+    name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', clinicalModule: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', doctorShare: '100', opdShare: '', ipdShare: '', username: '', password: '', primaryDepartmentId: ''
   })
 
   useEffect(() => {
     if (open) {
       const firstDeptId = departments.length > 0 ? departments[0].id : ''
-      setForm({ name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', doctorShare: '100', opdShare: '', ipdShare: '', username: '', password: '', primaryDepartmentId: firstDeptId })
+      setForm({ name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', clinicalModule: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', doctorShare: '100', opdShare: '', ipdShare: '', username: '', password: '', primaryDepartmentId: firstDeptId })
     }
   }, [open, departments])
 
@@ -73,6 +75,13 @@ export default function Hospital_AddDoctorDialog({
           <div>
             <label className="mb-1 block text-sm text-slate-700">Specialization</label>
             <input value={form.specialization} onChange={e=>update('specialization', e.target.value)} placeholder="e.g., Cardiologist, Gynecologist" className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-slate-700">Specialized Module Override</label>
+            <select value={form.clinicalModule} onChange={e=>update('clinicalModule', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200">
+              {CLINICAL_MODULE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <p className="mt-1 text-[11px] text-slate-400">Optional — overrides the department's module for this doctor.</p>
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-700">Qualification</label>

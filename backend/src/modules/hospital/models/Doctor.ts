@@ -12,6 +12,9 @@ const DoctorSchema = new Schema({
   username: { type: String },
   phone: { type: String },
   specialization: { type: String },
+  // Optional override binding the doctor to a specialized clinical module,
+  // taking precedence over the department's binding/inference.
+  clinicalModule: { type: String },
   qualification: { type: String },
   cnic: { type: String },
   pmdcNo: { type: String },
@@ -37,6 +40,7 @@ export type HospitalDoctorDoc = {
   username?: string
   phone?: string
   specialization?: string
+  clinicalModule?: string
   qualification?: string
   cnic?: string
   pmdcNo?: string

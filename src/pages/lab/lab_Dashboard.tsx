@@ -322,6 +322,10 @@ export default function Lab_Dashboard(){
     const total = rep.dailyRevenue.reduce((s, d) => s + d.value, 0)
     return Math.round(total / rep.dailyRevenue.length)
   }, [rep])
+  const avgOrder = useMemo(() => {
+    if (!rep || !rep.totalOrders || rep.totalOrders === 0) return 0
+    return Math.round(rep.totalRevenue / rep.totalOrders)
+  }, [rep])
 
   return (
     <div className="min-h-[calc(100dvh-3.5rem)] bg-white p-6 dark:bg-slate-950">
@@ -450,7 +454,7 @@ export default function Lab_Dashboard(){
           icon={Wallet}
           tone="violet"
           sublabel={peakRev ? `Peak day: ${fmtRs(peakRev)}` : undefined}
-          delta={rep && avgRev > 0 ? { up: (rep.totalRevenue / Math.max(1, rep.dailyRevenue.length)) >= avgRev, text: `avg ${fmtRs(avgRev)}` } : undefined}
+          delta={rep && avgOrder > 0 ? { up: true, text: `AVG ORDER ${fmtRs(avgOrder)}` } : undefined}
         />
       </div>
 

@@ -317,7 +317,7 @@ export default function Dialysis_TreatmentFormDialog({ open, onClose, onSave, in
           </button>
           <button
             onClick={handleSave}
-            className="rounded-md bg-gradient-to-r from-teal-600 to-cyan-600 px-6 py-2 text-sm font-semibold text-white hover:from-teal-700 hover:to-cyan-700"
+            className="rounded-md bg-linear-to-r from-teal-600 to-cyan-600 px-6 py-2 text-sm font-semibold text-white hover:from-teal-700 hover:to-cyan-700"
           >
             Save Form
           </button>

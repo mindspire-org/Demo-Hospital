@@ -111,7 +111,7 @@ export default function Hospital_CorporateReports() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4 sm:p-6 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-slate-100 p-4 sm:p-6 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -177,7 +177,7 @@ export default function Hospital_CorporateReports() {
 
       {/* Summary Cards */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-rose-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-rose-900/20 dark:to-slate-800">
+        <div className="rounded-xl border border-slate-200 bg-linear-to-br from-rose-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-rose-900/20 dark:to-slate-800">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide dark:text-slate-400">Total Outstanding</p>
@@ -189,7 +189,7 @@ export default function Hospital_CorporateReports() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-emerald-900/20 dark:to-slate-800">
+        <div className="rounded-xl border border-slate-200 bg-linear-to-br from-emerald-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-emerald-900/20 dark:to-slate-800">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide dark:text-slate-400">Total Accrued</p>
@@ -201,7 +201,7 @@ export default function Hospital_CorporateReports() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-blue-900/20 dark:to-slate-800">
+        <div className="rounded-xl border border-slate-200 bg-linear-to-br from-blue-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-blue-900/20 dark:to-slate-800">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide dark:text-slate-400">Total Claimed</p>
@@ -213,7 +213,7 @@ export default function Hospital_CorporateReports() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-amber-900/20 dark:to-slate-800">
+        <div className="rounded-xl border border-slate-200 bg-linear-to-br from-amber-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-amber-900/20 dark:to-slate-800">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide dark:text-slate-400">Payments Received</p>

@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "seed:aesthetic-admin": "ts-node-dev --transpile-only src/seeds/aesthetic_admin.ts",
     "seed:super-admin": "ts-node-dev --transpile-only src/seeds/super_admin.ts",
+    "seed:lab-tests-json": "ts-node-dev --transpile-only src/modules/lab/seeds/importJsonTests.ts",
     "seed:activity-log": "ts-node-dev --transpile-only src/scripts/seedActivityLog.ts",
     "import:lab-tests": "ts-node-dev --transpile-only src/scripts/import_lab_tests.ts",
     "import:diagnostic-tests": "ts-node-dev --transpile-only src/scripts/import_diagnostic_tests.ts"

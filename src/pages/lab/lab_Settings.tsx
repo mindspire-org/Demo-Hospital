@@ -229,17 +229,25 @@ export default function Lab_Settings() {
     try {
       const results: string[] = []
       try {
-        const r1: any = await api('/lab/seed/test-templates', { method: 'POST', body: JSON.stringify({}) })
-        results.push(`Test Templates: ${r1.ok ? 'OK' : 'Failed'} (${r1.seeded ?? '?'})`)
-      } catch (e1: any) { results.push(`Test Templates: Failed — ${e1?.message || e1}`) }
+        const r1: any = await api('/lab/seed/import-json-tests', { method: 'POST', body: JSON.stringify({}) })
+        results.push(`Import JSON Tests: ${r1.ok ? 'OK' : 'Failed'} (${r1.created ?? '?'} created, ${r1.updated ?? '?'} updated)`)
+      } catch (e1: any) { results.push(`Import JSON Tests: Failed — ${e1?.message || e1}`) }
       try {
-        const r2: any = await api('/lab/seed/critical-parameters', { method: 'POST', body: JSON.stringify({}) })
-        results.push(`Critical Parameters: ${r2.ok ? 'OK' : 'Failed'}`)
-      } catch (e2: any) { results.push(`Critical Parameters: Failed — ${e2?.message || e2}`) }
+        const r2: any = await api('/lab/seed/test-templates', { method: 'POST', body: JSON.stringify({}) })
+        results.push(`Test Templates: ${r2.ok ? 'OK' : 'Failed'} (${r2.seeded ?? '?'})`)
+      } catch (e2: any) { results.push(`Test Templates: Failed — ${e2?.message || e2}`) }
       try {
-        const r3: any = await api('/lab/seed/merge-critical-values', { method: 'POST', body: JSON.stringify({}) })
-        results.push(`Merge Critical Values: ${r3.ok ? 'OK' : 'Failed'}`)
-      } catch (e3: any) { results.push(`Merge Critical Values: Failed — ${e3?.message || e3}`) }
+        const r3: any = await api('/lab/seed/critical-parameters', { method: 'POST', body: JSON.stringify({}) })
+        results.push(`Critical Parameters: ${r3.ok ? 'OK' : 'Failed'}`)
+      } catch (e3: any) { results.push(`Critical Parameters: Failed — ${e3?.message || e3}`) }
+      try {
+        const r4: any = await api('/lab/seed/merge-critical-values', { method: 'POST', body: JSON.stringify({}) })
+        results.push(`Merge Critical Values: ${r4.ok ? 'OK' : 'Failed'}`)
+      } catch (e4: any) { results.push(`Merge Critical Values: Failed — ${e4?.message || e4}`) }
+      try {
+        const r5: any = await api('/lab/seed/normal-ranges', { method: 'POST', body: JSON.stringify({}) })
+        results.push(`Normal Ranges: ${r5.ok ? 'OK' : 'Failed'} (${r5.updated ?? '?'} updated, ${r5.skipped ?? '?'} skipped)`)
+      } catch (e5: any) { results.push(`Normal Ranges: Failed — ${e5?.message || e5}`) }
       setSeedResult(`All Seeds Complete:\n${results.join('\n')}`)
       setSeedAllStep(0)
     } catch (e: any) { setSeedAllError(`Seed all failed: ${e?.message || e}`) }
@@ -588,6 +596,15 @@ export default function Lab_Settings() {
             <div className="flex flex-wrap gap-3">
               <button onClick={()=>runSeed('test-templates','Test Templates')} disabled={seedBusy} className="btn disabled:opacity-50">Seed Test Templates</button>
               <button onClick={()=>runSeed('critical-parameters','Critical Parameters')} disabled={seedBusy} className="btn disabled:opacity-50">Seed Critical Parameters</button>
+              <button onClick={()=>runSeed('import-json-tests','Import JSON Tests (692 tests)')} disabled={seedBusy} className="btn disabled:opacity-50">Import JSON Tests</button>
+              <button onClick={()=>runSeed('normal-ranges','Normal Ranges (all tests)')} disabled={seedBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M3 3v18h18"/><path d="M7 12l4-4 4 4 5-5"/></svg>
+                Seed Normal Ranges
+              </button>
+              <button onClick={()=>runSeed('admin','Lab Admin (admin / 123)')} disabled={seedBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                Seed Admin
+              </button>
               <button
                 onClick={() => { setSeedAllStep(1); setSeedAllError(''); setSeedAllPassword('') }}
                 disabled={seedBusy || seedAllBusy}

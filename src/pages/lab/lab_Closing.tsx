@@ -668,7 +668,7 @@ export default function Lab_Closing() {
 
       {/* Opening and Closing Balance */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-6 shadow-lg">
+        <div className="rounded-2xl border-2 border-blue-200 bg-linear-to-br from-blue-50 to-white p-6 shadow-lg">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
               <Wallet className="h-5 w-5" />
@@ -679,7 +679,7 @@ export default function Lab_Closing() {
           <div className="text-xs text-slate-500 mt-2">Balance at start of period</div>
         </div>
 
-        <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-lg">
+        <div className="rounded-2xl border-2 border-emerald-200 bg-linear-to-br from-emerald-50 to-white p-6 shadow-lg">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600">
               <Wallet className="h-5 w-5" />

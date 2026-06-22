@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { hospitalApi, corporateApi, opdApi } from '../../utils/api'
 import { getLocalDate } from '../../utils/date'
+import DatePicker from '../../components/common/DatePicker'
+import TimePicker from '../../components/common/TimePicker'
 import { fmtDateTime12 } from '../../utils/timeFormat'
 import { createCacheKey, getCache, setCache, invalidateCache } from '../../utils/apiCache'
 import Hospital_TokenSlip from '../../components/hospital/Hospital_TokenSlip'
@@ -258,6 +260,8 @@ export default function Hospital_TodayTokens(){
     if (departmentId !== 'All') params.departmentId = departmentId
     if (doctorId !== 'All') params.doctorId = doctorId
     if (serviceId !== 'All') params.serviceId = serviceId
+    if (fromTime) params.fromTime = fromTime
+    if (toTime) params.toTime = toTime
     
     // Check cache first (unless forcing refresh)
     const cacheKey = createCacheKey('/hospital/tokens', params)
@@ -287,8 +291,8 @@ export default function Hospital_TodayTokens(){
     } finally {
       setIsLoading(false)
     }
-  }, [departmentId, doctorId, serviceId, page, rowsPerPage, fromDate, toDate])
-  
+  }, [departmentId, doctorId, serviceId, page, rowsPerPage, fromDate, toDate, fromTime, toTime])
+
   useEffect(() => { load(forceRefresh > 0) }, [load, forceRefresh])
   
   async function processTokens(tokens: any[]) {
@@ -375,18 +379,8 @@ export default function Hospital_TodayTokens(){
       })
     }
 
-    // Time filter (client-side)
-    if (fromTime || toTime) {
-      result = result.filter(r => {
-        const t = String(r.time || '').trim()
-        if (!t) return true
-        const parts = t.split(', ')
-        const timePart = parts[1] || parts[0] || ''
-        if (fromTime && timePart < fromTime) return false
-        if (toTime && timePart > toTime) return false
-        return true
-      })
-    }
+    // Time-of-day filtering is handled server-side (see listTokens fromTime/toTime),
+    // so it stays consistent with pagination and the header counts/stats.
 
     const q = query.trim().toLowerCase()
     if (q) {
@@ -758,31 +752,19 @@ export default function Hospital_TodayTokens(){
         <div className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-4">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">From Date</label>
-            <div className="relative">
-              <input type="date" value={fromDate} onChange={e=>{ setFromDate(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium" />
-              <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            </div>
+            <DatePicker value={fromDate} onChange={v=>{ setFromDate(v); setPage(1) }} />
           </div>
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">From Time</label>
-            <div className="relative">
-              <input type="time" value={fromTime} onChange={e=>{ setFromTime(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium" />
-              <Clock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            </div>
+            <TimePicker value={fromTime} onChange={v=>{ setFromTime(v); setPage(1) }} />
           </div>
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">To Date</label>
-            <div className="relative">
-              <input type="date" value={toDate} onChange={e=>{ setToDate(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium" />
-              <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            </div>
+            <DatePicker value={toDate} onChange={v=>{ setToDate(v); setPage(1) }} />
           </div>
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">To Time</label>
-            <div className="relative">
-              <input type="time" value={toTime} onChange={e=>{ setToTime(e.target.value); setPage(1) }} className="w-full rounded-xl border-slate-200 bg-slate-50/50 py-2.5 px-3 pr-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium" />
-              <Clock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            </div>
+            <TimePicker value={toTime} onChange={v=>{ setToTime(v); setPage(1) }} />
           </div>
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Department</label>

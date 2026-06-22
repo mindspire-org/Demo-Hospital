@@ -282,7 +282,7 @@ export default function Doctor_Reports(){
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-sky-100 to-violet-100 p-5">
+      <div className="rounded-2xl border border-slate-200 bg-linear-to-r from-sky-100 to-violet-100 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-slate-600">Doctor Portal</div>

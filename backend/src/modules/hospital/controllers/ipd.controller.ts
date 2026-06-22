@@ -213,12 +213,13 @@ export async function admit(req: Request, res: Response){
 }
 
 export async function discharge(req: Request, res: Response){
+  try {
   const data = dischargeIPDSchema.parse(req.body)
   const id = req.params.id
   const enc = await HospitalEncounter.findById(id)
   if (!enc) return res.status(404).json({ error: 'Encounter not found' })
   // Allow discharge for both IPD and ER encounters
-  if (enc.type !== 'IPD' && enc.type !== 'ER') return res.status(400).json({ error: 'Not an IPD or ER encounter' })
+  if (enc.type !== 'IPD' && enc.type !== 'ER') return res.status(400).json({ error: `Not an IPD or ER encounter (type=${enc.type || 'undefined'})` })
   if (enc.status === 'discharged'){
     // If already discharged, allow updating discharge timestamp when provided
     if (data.endAt){
@@ -296,6 +297,12 @@ export async function discharge(req: Request, res: Response){
     })
   } catch {}
   res.json({ encounter: enc })
+  } catch (e: any) {
+    console.error('discharge error:', e)
+    if (e?.name === 'ZodError') return res.status(400).json({ error: e.errors?.[0]?.message || 'Invalid payload' })
+    if (e?.name === 'CastError') return res.status(400).json({ error: 'Invalid encounter ID format' })
+    return res.status(500).json({ error: e?.message || 'Discharge failed' })
+  }
 }
 
 export async function transferPatient(req: Request, res: Response){

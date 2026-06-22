@@ -297,7 +297,7 @@ export default function Hospital_FbrDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex h-full items-center justify-center rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-500 dark:from-slate-800 dark:to-slate-900 dark:text-slate-400">
+              <div className="flex h-full items-center justify-center rounded-lg bg-linear-to-br from-slate-50 to-slate-100 text-sm text-slate-500 dark:from-slate-800 dark:to-slate-900 dark:text-slate-400">
                 Loading chart data...
               </div>
             )}

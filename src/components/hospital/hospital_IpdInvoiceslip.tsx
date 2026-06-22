@@ -563,7 +563,7 @@ export default function InvoicePage(props: { patientId?: string; embedded?: bool
       </div>
       <div className="mt-2 flex items-center justify-between">
         <h2 className="font-semibold text-lg tracking-tight flex items-center gap-2">
-          <span className="inline-block w-1.5 h-5 rounded bg-gradient-to-b from-cyan-500 to-emerald-400" />
+          <span className="inline-block w-1.5 h-5 rounded bg-linear-to-b from-cyan-500 to-emerald-400" />
           Invoice
         </h2>
         <div className="text-xs text-slate-600 flex items-center gap-2">

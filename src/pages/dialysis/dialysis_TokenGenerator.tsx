@@ -521,7 +521,7 @@ export default function Dialysis_TokenGenerator() {
   }
 
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 dark:from-teal-900/30 dark:via-cyan-900/20 dark:to-emerald-900/20 p-6">
+    <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/20 via-cyan-300/20 to-emerald-300/20 dark:from-teal-900/30 dark:via-cyan-900/20 dark:to-emerald-900/20 p-6">
       {toast && (
         <div className={`fixed right-4 top-4 z-50 rounded-xl border px-4 py-3 shadow-lg ${
           toast.type === 'success' 
@@ -883,7 +883,7 @@ export default function Dialysis_TokenGenerator() {
       {showPhonePicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg overflow-hidden rounded-xl bg-white dark:bg-slate-800 shadow-2xl">
-            <div className="bg-gradient-to-r from-teal-500 to-cyan-500 px-5 py-4 text-white">
+            <div className="bg-linear-to-r from-teal-500 to-cyan-500 px-5 py-4 text-white">
               <div className="text-lg font-bold">Select Patient</div>
               <div className="text-sm opacity-90">Multiple records found for this phone</div>
             </div>

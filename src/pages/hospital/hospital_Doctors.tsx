@@ -3,6 +3,7 @@ import { Stethoscope, Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, U
 import Hospital_AddDoctorDialog, { type HospitalDoctorInput } from '../../components/hospital/Hospital_AddDoctorDialog'
 import { hospitalApi } from '../../utils/api'
 import Toast, { type ToastState } from '../../components/ui/Toast'
+import { CLINICAL_MODULE_OPTIONS } from '../../utils/doctorDepartment'
 
 type Doctor = {
   id: string
@@ -11,6 +12,7 @@ type Doctor = {
   pmdcNo: string
   specialization: string
   qualification: string
+  clinicalModule?: string
   phone: string
   publicFee: number
   privateFee: number
@@ -34,7 +36,7 @@ export default function Hospital_Doctors() {
   const [showAdd, setShowAdd] = useState(false)
   // moved to dialog component
   const [editId, setEditId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', primaryDepartmentId: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', shares: '100', opdShare: '', ipdShare: '', username: '', password: '' })
+  const [editForm, setEditForm] = useState({ name: '', cnic: '', pmdcNo: '', specialization: '', qualification: '', clinicalModule: '', primaryDepartmentId: '', phone: '', publicFee: '0', privateFee: '0', subsidizedFee: '0', shares: '100', opdShare: '', ipdShare: '', username: '', password: '' })
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([])
   const [page, setPage] = useState(1)
@@ -77,6 +79,7 @@ export default function Hospital_Doctors() {
           pmdcNo: d.pmdcNo || '',
           specialization: d.specialization || '',
           qualification: d.qualification || '',
+          clinicalModule: d.clinicalModule || '',
           phone: d.phone || '',
           publicFee: pubFee,
           privateFee: prvFee,
@@ -156,6 +159,7 @@ export default function Hospital_Doctors() {
         phone: addForm.phone.trim() || undefined,
         specialization: addForm.specialization.trim() || undefined,
         qualification: addForm.qualification.trim() || undefined,
+        clinicalModule: addForm.clinicalModule || undefined,
         primaryDepartmentId: addForm.primaryDepartmentId || undefined,
         cnic: addForm.cnic.trim() || undefined,
         pmdcNo: addForm.pmdcNo.trim() || undefined,
@@ -181,6 +185,7 @@ export default function Hospital_Doctors() {
       pmdcNo: d.pmdcNo || '',
       specialization: d.specialization || '',
       qualification: d.qualification || '',
+      clinicalModule: d.clinicalModule || '',
       primaryDepartmentId: d.primaryDepartmentId || '',
       phone: d.phone || '',
       publicFee: String(d.publicFee || 0),
@@ -217,6 +222,7 @@ export default function Hospital_Doctors() {
         phone: editForm.phone.trim() || undefined,
         specialization: editForm.specialization.trim() || undefined,
         qualification: editForm.qualification.trim() || undefined,
+        clinicalModule: editForm.clinicalModule || undefined,
         primaryDepartmentId: editForm.primaryDepartmentId || undefined,
         cnic: editForm.cnic.trim() || undefined,
         pmdcNo: (editForm.pmdcNo || '').trim() || undefined,
@@ -693,6 +699,13 @@ export default function Hospital_Doctors() {
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Specialization</label>
                 <input value={editForm.specialization} onChange={e=>setEditForm(f=>({ ...f, specialization: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Specialized Module Override</label>
+                <select value={editForm.clinicalModule} onChange={e=>setEditForm(f=>({ ...f, clinicalModule: e.target.value }))} className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200">
+                  {CLINICAL_MODULE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">Overrides the department's module for this doctor. Leave as "None" to inherit from the department.</p>
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-700">Qualification</label>

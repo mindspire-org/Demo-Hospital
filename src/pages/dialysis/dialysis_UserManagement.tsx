@@ -103,7 +103,7 @@ export default function Dialysis_UserManagement() {
   }
 
   return (
-    <div className="min-h-[70dvh] rounded-xl bg-gradient-to-br from-teal-500/30 via-cyan-300/30 to-emerald-300/30 p-6">
+    <div className="min-h-[70dvh] rounded-xl bg-linear-to-br from-teal-500/30 via-cyan-300/30 to-emerald-300/30 p-6">
       <div className="w-full rounded-xl bg-white p-6 shadow">
         <div className="mb-4 flex items-center justify-between">
           <div className="text-xl font-bold text-slate-800">User Management</div>

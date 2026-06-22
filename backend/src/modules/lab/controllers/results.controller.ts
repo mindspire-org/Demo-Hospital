@@ -22,7 +22,18 @@ function resolveActor(req: Request) {
  * Compute flags, auto-interpretation, validation, critical-event candidates
  * for a saved/updated result. Returns the enriched data.
  */
-async function enrichResult(testId: string | undefined, rows: any[], existingTest?: any) {
+function pickNormalRangeForPatient(male?: string, female?: string, pediatric?: string, patient?: any): string | undefined {
+  if (!patient) return male || female || pediatric || undefined
+  const ageStr = String(patient.age || '').trim()
+  const ageNum = parseInt(ageStr, 10)
+  const isPediatric = Number.isFinite(ageNum) && ageNum > 0 && ageNum < 15
+  if (isPediatric && pediatric) return pediatric
+  const g = String(patient.gender || '').toLowerCase().trim()
+  if (g === 'female' || g === 'f') return female || male || pediatric || undefined
+  return male || female || pediatric || undefined
+}
+
+async function enrichResult(testId: string | undefined, rows: any[], existingTest?: any, patient?: any) {
   let test: any = existingTest
   if (!test && testId) test = await LabTest.findById(testId).lean()
 
@@ -46,7 +57,7 @@ async function enrichResult(testId: string | undefined, rows: any[], existingTes
         r.numericValue = num
         const flag = computeFlag({
           value: num,
-          normalRange: p.normalRangeMale || p.normalRangeFemale || p.normalRangePediatric,
+          normalRange: pickNormalRangeForPatient(p.normalRangeMale, p.normalRangeFemale, p.normalRangePediatric, patient),
           criticalMin: p.criticalMin,
           criticalMax: p.criticalMax,
         })
@@ -128,7 +139,15 @@ export async function create(req: Request, res: Response){
 
   // Enrich rows: flags, auto-interpretation, validation, critical detection
   const incomingRows = Array.isArray((data as any).rows) ? (data as any).rows : []
-  const enrich = await enrichResult((data as any).testId, incomingRows)
+  // Fetch patient from order for gender-aware normal ranges
+  let patient: any = undefined
+  try {
+    if (data.orderId) {
+      const order: any = await LabOrder.findById(data.orderId).lean()
+      patient = order?.patient
+    }
+  } catch {}
+  const enrich = await enrichResult((data as any).testId, incomingRows, undefined, patient)
 
   // Block save when total% group is invalid (CBC clerical-mistake rule).
   // Only block if reportStatus !== 'pending' OR caller explicitly asks for strict.
@@ -309,7 +328,15 @@ export async function update(req: Request, res: Response){
 
   // Re-enrich on every update so flags + validation stay current
   try {
-    const enrich = await enrichResult((doc as any).testId, doc.rows as any[])
+    // Fetch patient from order for gender-aware normal ranges
+    let patient: any = undefined
+    try {
+      if (doc.orderId) {
+        const order: any = await LabOrder.findById(doc.orderId).lean()
+        patient = order?.patient
+      }
+    } catch {}
+    const enrich = await enrichResult((doc as any).testId, doc.rows as any[], undefined, patient)
     doc.rows = enrich.rows as any
     ;(doc as any).validation = enrich.validation
     ;(doc as any).autoInterpretation = enrich.autoInterpretation

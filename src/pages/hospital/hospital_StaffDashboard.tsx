@@ -246,7 +246,7 @@ export default function Hospital_StaffDashboard(){
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map(({ title, value, icon: Icon, tone, sub }) => (
-          <div key={title} className={`group relative overflow-hidden rounded-xl p-3.5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-br ${tone}`}>
+          <div key={title} className={`group relative overflow-hidden rounded-xl p-3.5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-linear-to-br ${tone}`}>
             <div className="absolute -right-3 -bottom-3 h-16 w-16 rounded-full bg-white/10" />
             <div className="relative flex items-center justify-between gap-2">
               <div className="min-w-0">

@@ -17,7 +17,7 @@ export const financeApi = {
   // -------------------------------------------------------------------------
   manualDoctorEarning: (data: { doctorId: string; departmentId?: string; departmentName?: string; phone?: string; amount: number; revenueAccount?: 'OPD_REVENUE' | 'PROCEDURE_REVENUE' | 'IPD_REVENUE'; paidMethod?: 'Cash' | 'Bank' | 'AR'; memo?: string; sharePercent?: number; patientName?: string; mrn?: string; createdByUsername?: string }) =>
     api('/finance/manual-doctor-earning', { method: 'POST', body: JSON.stringify(data) }),
-  doctorPayout: (data: { doctorId: string; amount: number; method?: 'Cash' | 'Bank'; memo?: string; sourceAccount?: string; destinationAccount?: string }) =>
+  doctorPayout: (data: { doctorId: string; amount: number; method?: 'Cash' | 'Bank'; memo?: string; sourceAccount?: string; destinationAccount?: string; createdByUsername?: string }) =>
     api('/finance/doctor-payout', { method: 'POST', body: JSON.stringify(data) }),
   listRecentDoctorPayouts: (params?: { page?: number; limit?: number }) =>
     api(withQuery('/finance/transactions', { ...params, type: 'Doctor Payout' })),

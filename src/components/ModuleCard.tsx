@@ -13,7 +13,7 @@ export default function ModuleCard({
   title: string
   description: string
   icon: ReactNode
-  tone?: 'sky' | 'emerald' | 'violet' | 'amber' | 'teal' | 'slate' | 'indigo' | 'rose' | 'cyan' | 'fuchsia' | 'blue' | 'lime'
+  tone?: 'sky' | 'emerald' | 'violet' | 'amber' | 'teal' | 'slate' | 'indigo' | 'rose' | 'cyan' | 'fuchsia' | 'blue' | 'lime' | 'orange'
 }) {
   const toneMap: Record<string, string> = {
     sky: 'bg-sky-50 border-sky-100 dark:bg-sky-900/20 dark:border-sky-800/50',
@@ -28,6 +28,7 @@ export default function ModuleCard({
     fuchsia: 'bg-fuchsia-50 border-fuchsia-100 dark:bg-fuchsia-900/20 dark:border-fuchsia-800/50',
     blue: 'bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800/50',
     lime: 'bg-lime-50 border-lime-100 dark:bg-lime-900/20 dark:border-lime-800/50',
+    orange: 'bg-orange-50 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800/50',
   }
 
   const cardRef = useRef<HTMLDivElement>(null)

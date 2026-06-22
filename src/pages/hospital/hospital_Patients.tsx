@@ -249,7 +249,7 @@ export default function Hospital_Patients() {
           { label: 'Male Patients', value: stats.male, icon: Users, tone: 'from-sky-500 to-sky-600', sub: 'Active' },
           { label: 'Female Patients', value: stats.female, icon: Users, tone: 'from-rose-500 to-rose-600', sub: 'Active' },
         ].map((item, idx) => (
-          <div key={idx} className={`group relative overflow-hidden rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-br ${item.tone}`}>
+          <div key={idx} className={`group relative overflow-hidden rounded-2xl p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-linear-to-br ${item.tone}`}>
             <div className="absolute -right-4 -bottom-4 h-20 w-20 rounded-full bg-white/10" />
             <div className="relative flex items-center justify-between gap-3">
               <div className="min-w-0">

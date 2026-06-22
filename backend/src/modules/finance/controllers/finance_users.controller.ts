@@ -36,10 +36,10 @@ export async function remove(req: Request, res: Response){
 export async function login(req: Request, res: Response){
   const { username, password } = (req.body || {}) as { username?: string; password?: string }
   const u: any = await FinanceUser.findOne({ username }).lean()
-  if (!u) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!u) return res.status(401).json({ error: 'No account found with this username', code: 'USER_NOT_FOUND' })
   const pass = String(password || '')
   const ok = pass ? await bcrypt.compare(pass, u.passwordHash || '') : false
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!ok) return res.status(401).json({ error: 'Incorrect password', code: 'INVALID_PASSWORD' })
   res.json({ user: { id: String(u._id), username: u.username, role: u.role } })
 }
 

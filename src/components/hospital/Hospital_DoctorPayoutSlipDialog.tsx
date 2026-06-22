@@ -96,6 +96,8 @@ export default function Hospital_DoctorPayoutSlipDialog({
           <div className="text-right"><span className="text-slate-600">Date/Time:</span> {fmtDateTime12(createdAtIso)}</div>
           <div><span className="text-slate-600">Method:</span> {data?.method || '-'}</div>
           <div className="text-right"><span className="text-slate-600">User:</span> {performedBy || '-'}</div>
+          <div><span className="text-slate-600">From:</span> {data?.sourceAccount || '-'}</div>
+          <div className="text-right"><span className="text-slate-600">To:</span> {data?.destinationAccount || 'DOCTOR_PAYABLE'}</div>
           <div className="col-span-2"><span className="text-slate-600">Memo:</span> {data?.memo || '-'}</div>
         </div>
 

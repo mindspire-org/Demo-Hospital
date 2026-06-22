@@ -242,7 +242,7 @@ export default function Store_Dashboard() {
 
       {/* Alerts Banner */}
       {totalAlerts > 0 && (
-        <div className="mt-6 rounded-xl border border-rose-200 dark:border-rose-800 bg-gradient-to-r from-rose-50 to-amber-50 dark:from-rose-900/40 dark:to-amber-900/40 p-4">
+        <div className="mt-6 rounded-xl border border-rose-200 dark:border-rose-800 bg-linear-to-r from-rose-50 to-amber-50 dark:from-rose-900/40 dark:to-amber-900/40 p-4">
           <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300">
             <AlertTriangle className="h-5 w-5" />
             <span className="font-semibold">Stock Alerts Require Attention</span>
@@ -349,7 +349,7 @@ export default function Store_Dashboard() {
 
       {/* Secondary Stats Row */}
       <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
             Pending Approvals
@@ -365,7 +365,7 @@ export default function Store_Dashboard() {
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <Archive className="h-4 w-4 text-amber-500 dark:text-amber-400" />
             Held Purchases
@@ -376,7 +376,7 @@ export default function Store_Dashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <BarChart3 className="h-4 w-4 text-violet-500 dark:text-violet-400" />
             Monthly Purchases
