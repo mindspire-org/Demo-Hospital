@@ -46,6 +46,11 @@ export default function Doctor_Settings() {
     return 'english'
   })
   const [saved, setSaved] = useState(false)
+  // Auto-archive window for pending-investigation drafts (0 = keep all)
+  const [draftRetentionDays, setDraftRetentionDays] = useState<number>(() => {
+    try { const v = Number(localStorage.getItem('doctor.rx.draftRetentionDays')); if (isFinite(v) && v >= 0) return v } catch {}
+    return 7
+  })
   const [hospitalSettings, setHospitalSettings] = useState<HospitalSettings>({
     name: 'Hospital',
     phone: '',
@@ -90,6 +95,7 @@ export default function Doctor_Settings() {
               } catch {}
             }
             if (d?.prescriptionDesign) setDesign((prev) => ({ ...prev, ...d.prescriptionDesign }))
+            if (d?.prescriptionDesign?.draftRetentionDays != null) setDraftRetentionDays(Number(d.prescriptionDesign.draftRetentionDays))
             // Load doctor profile — merge API data with any locally saved overrides
             const profileFromApi = {
               name: d?.name || sess?.name || '',
@@ -133,7 +139,7 @@ export default function Doctor_Settings() {
         await hospitalApi.updateDoctorProfile(doc.id, {
           prescriptionTemplate: tpl,
           prescriptionLanguage: language,
-          prescriptionDesign: design,
+          prescriptionDesign: { ...design, draftRetentionDays },
           name: doctorProfile.name || undefined,
           qualification: doctorProfile.qualification || undefined,
           specialization: doctorProfile.specialization || undefined,
@@ -150,6 +156,7 @@ export default function Doctor_Settings() {
         localStorage.setItem(`doctor.rx.language.${doc.id}`, language)
         localStorage.setItem('doctor.rx.language.default', language)
         localStorage.setItem(`doctor.rx.design.${doc.id}`, JSON.stringify(design))
+        localStorage.setItem('doctor.rx.draftRetentionDays', String(draftRetentionDays))
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -303,6 +310,30 @@ export default function Doctor_Settings() {
                   Ensure Jameel Noori Nastaleeq font is installed on your computer for correct Urdu printing.
                 </p>
               )}
+            </div>
+          </section>
+
+          {/* Pending Investigation Drafts */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+              <Languages className="h-5 w-5 text-amber-600" />
+              <h2 className="font-bold text-slate-800">Pending Investigation Drafts</h2>
+            </div>
+            <div className="p-5 space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Auto-archive drafts after</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={draftRetentionDays}
+                  onChange={(e) => setDraftRetentionDays(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-24 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-400/20 outline-none"
+                />
+                <span className="text-sm text-slate-500">days</span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Drafts older than this are hidden from the “Pending Investigations” list (still retrievable from Patient History). Set to <b>0</b> to keep all drafts. Use <b>Discard</b> in the list to permanently delete one.
+              </p>
             </div>
           </section>
 

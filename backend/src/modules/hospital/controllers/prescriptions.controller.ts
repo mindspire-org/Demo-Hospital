@@ -18,6 +18,7 @@ export async function create(req: Request, res: Response){
     patientId: enc.patientId,
     encounterId: data.encounterId,
     tokenNo: (data as any).tokenNo,
+    status: (data as any).status || 'final',
     prescriptionMode: (data as any).prescriptionMode || 'electronic',
     manualAttachment: att,
     items: (data as any).items || [],
@@ -49,6 +50,7 @@ export async function list(req: Request, res: Response){
   const q = req.query as any
   const doctorId = q.doctorId ? String(q.doctorId) : ''
   const patientMrn = q.patientMrn ? String(q.patientMrn) : ''
+  const status = q.status ? String(q.status) : ''
   const from = q.from ? new Date(String(q.from)) : null
   const to = q.to ? new Date(String(q.to)) : null
   if (to) to.setHours(23,59,59,999)
@@ -65,8 +67,16 @@ export async function list(req: Request, res: Response){
   const encs = await HospitalEncounter.find(encCrit).select('_id').lean()
   const encIds = encs.map(e => e._id)
 
+  // If filtering by doctor and there are no matching encounters, return empty
+  // rather than falling through to an unscoped query (the patient-MRN path is
+  // handled separately below, incl. the IPD-discharge fallback).
+  if (doctorId && !patientMrn && encIds.length === 0) {
+    return res.json({ prescriptions: [], total: 0, page, limit })
+  }
+
   const presCrit: any = {}
   if (encIds.length) presCrit.encounterId = { $in: encIds }
+  if (status) presCrit.status = status
   if (from || to) {
     presCrit.createdAt = {}
     if (from) presCrit.createdAt.$gte = from
@@ -236,6 +246,7 @@ export async function update(req: Request, res: Response){
   const { id } = req.params as any
   const data = updatePrescriptionSchema.parse(req.body)
   const set: any = {}
+  if ((data as any).status !== undefined) set.status = (data as any).status
   if ((data as any).tokenNo !== undefined) set.tokenNo = (data as any).tokenNo
   if ((data as any).prescriptionMode !== undefined) set.prescriptionMode = (data as any).prescriptionMode
   if ((data as any).manualAttachment !== undefined) {

@@ -8,6 +8,7 @@ import { previewPreAnesthesiaPdf } from '../../utils/preAnesthesiaPdf'
 import Doctor_IpdReferralForm from '../../components/doctor/Doctor_IpdReferralForm'
 import { previewIpdReferralPdf } from '../../utils/ipdReferralPdf'
 import PrescriptionPrint from '../../components/doctor/PrescriptionPrint'
+import DatePicker from '../../components/common/DatePicker'
 import PrescriptionMedication, { type MedicineRow } from '../../components/doctor/PrescriptionMedication'
 import { getSavedPrescriptionLanguage, type PrescriptionLanguage } from '../../utils/prescriptionUrdu'
 import PrescriptionVitals from '../../components/doctor/PrescriptionVitals'
@@ -144,6 +145,11 @@ export default function Doctor_Prescription() {
   const [showLoadPrevButton, setShowLoadPrevButton] = useState(false)
   const [prevPrescriptionsModalOpen, setPrevPrescriptionsModalOpen] = useState(false)
   const [heldPrescriptionsModalOpen, setHeldPrescriptionsModalOpen] = useState(false)
+  const [pendingOpen, setPendingOpen] = useState(false)
+  const [pendingDrafts, setPendingDrafts] = useState<any[]>([])
+  // A patient reopened from History/Pending whose visit isn't in today's queue —
+  // surfaced as a selectable entry so the full editor + Save/Print work normally.
+  const [reopenedPatient, setReopenedPatient] = useState<any | null>(null)
   const [templates, setTemplates] = useState<any[]>([])
   const [customEntriesModalOpen, setCustomEntriesModalOpen] = useState(false)
   const [customEntriesCategory, setCustomEntriesCategory] = useState('primaryComplaint')
@@ -363,9 +369,10 @@ export default function Doctor_Prescription() {
       if (to) params.to = to
       const res = await hospitalApi.listPrescriptions(params) as any
       const prescriptions = res.prescriptions || []
-      // Track encounterIds and MRNs of COMPLETED prescriptions (have items/medicines)
-      // Patients with only vitals should still appear in dropdown
-      const completedPrescriptions = prescriptions.filter((p: any) => Array.isArray(p.items) && p.items.length > 0)
+      // Track encounterIds and MRNs of FINAL prescriptions (have items/medicines).
+      // Drafts (investigations advised, treatment pending) must NOT exclude the
+      // patient — they stay in the queue so the doctor can reopen and finalize.
+      const completedPrescriptions = prescriptions.filter((p: any) => p.status !== 'draft' && Array.isArray(p.items) && p.items.length > 0)
       const ids: string[] = completedPrescriptions.map((p: any) => String(p.encounterId?._id || p.encounterId || ''))
       const mrns: string[] = completedPrescriptions
         .map((p: any) => String(p.patientId?.mrn || p.mrn || ''))
@@ -406,8 +413,12 @@ export default function Doctor_Prescription() {
         return !encounterExcluded && !mrnExcluded
       })
     console.log('myPatients - result:', result.length, result.map(t => t.id))
+    // Include a reopened (History/Pending) patient so it's selectable + the editor renders full
+    if (reopenedPatient && !result.some(t => String(t.encounterId) === String(reopenedPatient.encounterId))) {
+      return [...result, reopenedPatient]
+    }
     return result
-  }, [tokens, doc, presEncounterIds, presMrns])
+  }, [tokens, doc, presEncounterIds, presMrns, reopenedPatient])
 
   // If opened from queue with tokenId, preselect that patient.
   useEffect(() => {
@@ -504,7 +515,9 @@ export default function Doctor_Prescription() {
       try {
         const existingRes: any = await hospitalApi.getPrescriptionByEncounterId(sel.encounterId)
         const existingPres = existingRes?.prescription
-        if (existingPres && Array.isArray(existingPres.items) && existingPres.items.length > 0) {
+        // Load if there are medicines OR it's a saved draft (investigations advised,
+        // treatment still pending) so the advised tests/history reappear on reopen.
+        if (existingPres && ((Array.isArray(existingPres.items) && existingPres.items.length > 0) || existingPres.status === 'draft')) {
           loadPreviousPrescription(existingPres)
         }
       } catch {
@@ -654,6 +667,32 @@ export default function Doctor_Prescription() {
     } catch {}
     try { diagRef.current?.setDisplay?.({ testsText: diagTestsText }) } catch {}
 
+    // Make this patient selectable so the full editor + Save/Print work, even if
+    // the visit isn't in today's queue (e.g. reopened from History).
+    try {
+      const encId = String(pres.encounterId?._id || pres.encounterId || '')
+      if (encId) {
+        const existingTok = tokens.find(t => String(t.encounterId) === encId)
+        if (existingTok) {
+          setReopenedPatient(null)
+          setForm(f => ({ ...f, patientKey: String(existingTok.id) }))
+        } else {
+          const pat = pres.patientId || pres.encounterId?.patientId || {}
+          const synth = {
+            id: `reopen-${encId}`,
+            createdAt: pres.createdAt || new Date().toISOString(),
+            patientName: pat.fullName || pat.name || 'Reopened patient',
+            mrNo: pat.mrn || '',
+            encounterId: encId,
+            doctorId: doc?.id,
+            tokenNo: pres.tokenNo || '',
+          }
+          setReopenedPatient(synth)
+          setForm(f => ({ ...f, patientKey: synth.id }))
+        }
+      }
+    } catch {}
+
     setToast({ type: 'success', message: 'Previous prescription loaded' })
   }
 
@@ -662,28 +701,6 @@ export default function Doctor_Prescription() {
       const raw = localStorage.getItem('doctor.held.prescriptions')
       return raw ? JSON.parse(raw) : []
     } catch { return [] }
-  }
-
-  function holdPrescription() {
-    const sel = tokens.find(t => `${t.id}` === form.patientKey)
-    if (!sel) { setToast({ type: 'error', message: 'Select a patient first' }); return }
-    try {
-      const held = getHeldPrescriptions()
-      const id = crypto.randomUUID()
-      const entry = {
-        id,
-        patientName: sel.patientName,
-        mrNo: sel.mrNo,
-        tokenId: sel.id,
-        encounterId: sel.encounterId,
-        heldAt: new Date().toISOString(),
-        data: { ...form },
-      }
-      localStorage.setItem('doctor.held.prescriptions', JSON.stringify([entry, ...held]))
-      setToast({ type: 'success', message: 'Prescription held (saved as draft)' })
-    } catch {
-      setToast({ type: 'error', message: 'Failed to hold prescription' })
-    }
   }
 
   function loadHeldPrescription(entry: any) {
@@ -725,8 +742,54 @@ export default function Doctor_Prescription() {
   }
 
 
-  const save = async (e?: React.FormEvent, andPrint: boolean = false) => {
+  // Pending Investigations: server-side draft prescriptions for this doctor.
+  async function openPending() {
+    try {
+      const res: any = await hospitalApi.listPrescriptions({ doctorId: doc?.id, status: 'draft', limit: 100 })
+      let drafts: any[] = res?.prescriptions || []
+      // Auto-archive (hide) drafts older than the doctor's retention window. 0 = keep all.
+      const days = Number(localStorage.getItem('doctor.rx.draftRetentionDays') || '0')
+      if (days > 0) {
+        const cutoff = Date.now() - days * 86400000
+        drafts = drafts.filter((p: any) => { const t = new Date(p.createdAt || 0).getTime(); return !isFinite(t) || t >= cutoff })
+      }
+      setPendingDrafts(drafts)
+    } catch { setPendingDrafts([]) }
+    setPendingOpen(true)
+  }
+
+  async function discardDraft(id: string) {
+    if (typeof window !== 'undefined' && !window.confirm('Discard this draft? This permanently deletes the pending investigation record.')) return
+    try {
+      await hospitalApi.deletePrescription(id)
+      setPendingDrafts(prev => prev.filter((p: any) => String(p._id) !== String(id)))
+      try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
+      loadPresIds(); loadTokens()
+      setToast({ type: 'success', message: 'Draft discarded' })
+    } catch (e: any) {
+      setToast({ type: 'error', message: e?.message || 'Failed to discard draft' })
+    }
+  }
+
+  // Reopen a draft into the full editor. If the visit's token is still in the
+  // queue (same day), select it so the existing draft auto-loads; otherwise load
+  // the draft data directly.
+  function reopenDraft(pres: any) {
+    const encId = String(pres?.encounterId?._id || pres?.encounterId || '')
+    const tok = tokens.find(t => String(t.encounterId) === encId)
+    setPendingOpen(false)
+    setActiveTab('details')
+    if (tok) {
+      setForm(f => ({ ...f, patientKey: String(tok.id) }))
+    } else {
+      loadPreviousPrescription(pres)
+      setToast({ type: 'success', message: 'Draft loaded (this visit is not in today’s queue).' })
+    }
+  }
+
+  const save = async (e?: React.FormEvent, andPrint: boolean = false, status: 'draft' | 'final' = 'final') => {
     if (e) e.preventDefault()
+    const isDraft = status === 'draft'
     const sel = myPatients.find(t => `${t.id}` === form.patientKey)
 
     if (!doc || !sel || !sel.encounterId) { setToast({ type: 'error', message: 'Select a patient first' }); return }
@@ -742,8 +805,9 @@ export default function Doctor_Prescription() {
         notes: m.notes ? String(m.notes).trim() : undefined,
       }))
     
-    if (!items.length) { setToast({ type: 'error', message: 'Add at least one medicine' }); return }
-    
+    // A draft (investigations advised, treatment pending) may have no medicines yet.
+    if (!isDraft && !items.length) { setToast({ type: 'error', message: 'Add at least one medicine' }); return }
+
     const labTests = form.labTestsText.split(/\n|,/).map(s=>s.trim()).filter(Boolean)
     try {
       let vRaw = undefined as any
@@ -785,6 +849,7 @@ export default function Doctor_Prescription() {
       
       const prescriptionData = {
         prescriptionMode: 'electronic' as const,
+        status,
         tokenNo: (sel as any)?.tokenNo,
         items: items,
         labTests: labTests.length ? labTests : undefined,
@@ -828,8 +893,9 @@ export default function Doctor_Prescription() {
         }
       }
 
-      // Mark token as completed after prescription save
-      if (sel.id) {
+      // Mark token completed only for a FINAL prescription. A draft keeps the
+      // token open so the patient stays in the queue / Pending Investigations.
+      if (!isDraft && sel.id) {
         try {
           await hospitalApi.updateTokenStatus(sel.id, 'completed')
           invalidateCache('/hospital/tokens')
@@ -840,11 +906,12 @@ export default function Doctor_Prescription() {
 
       try { window.dispatchEvent(new CustomEvent('doctor:pres-saved')) } catch {}
       setSaved(true)
-      setToast({ type: 'success', message: 'Prescription saved successfully' })
+      setToast({ type: 'success', message: isDraft ? 'Saved as draft — patient kept in Pending Investigations' : 'Prescription saved successfully' })
       // If save-and-print requested, print before clearing form (form state still holds current data)
       if (andPrint) {
         try { await openPrint() } catch { /* print error handled internally */ }
       }
+      setReopenedPatient(null)
       setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia(), dentalChart: emptyDentalChart(), eyeExamination: emptyEyeExamination(), departmentData: null })
       try { vitalsRef.current?.setDisplay?.({}) } catch {}
       try { diagRef.current?.setDisplay?.({ testsText: '' }) } catch {}
@@ -1041,6 +1108,32 @@ export default function Doctor_Prescription() {
     setActiveTab(tab)
   }
 
+  // Clinical-history block for investigation requisition slips, so the
+  // radiologist / lab / diagnostic centre can see why the test was advised.
+  function clinicalSlipBlock(): string {
+    const esc = (s: string) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
+    const rows: Array<[string, string]> = []
+    if (form.primaryComplaint?.trim()) rows.push(['Chief Complaint', form.primaryComplaint.trim()])
+    if ((form as any).primaryComplaintHistory?.trim()) rows.push(['Clinical Notes', (form as any).primaryComplaintHistory.trim()])
+    if (form.history?.trim()) rows.push(['History', form.history.trim()])
+    if (form.examFindings?.trim()) rows.push(['Examination', form.examFindings.trim()])
+    if (form.diagnosis?.trim()) rows.push(['Provisional Diagnosis', form.diagnosis.trim()])
+    const vd: any = (form as any).vitalsDisplay || {}
+    const vitals = [
+      (vd.bloodPressureSys && vd.bloodPressureDia) ? `BP ${vd.bloodPressureSys}/${vd.bloodPressureDia}` : '',
+      vd.pulse ? `Pulse ${vd.pulse}` : '',
+      vd.temperature ? `Temp ${vd.temperature}` : '',
+      vd.weightKg ? `Wt ${vd.weightKg}kg` : '',
+      vd.spo2 ? `SpO2 ${vd.spo2}%` : '',
+    ].filter(Boolean).join('  ·  ')
+    if (vitals) rows.push(['Vitals', vitals])
+    if (!rows.length) return ''
+    return `<div style="margin:0 0 16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
+<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#475569;margin-bottom:6px">Clinical History</div>
+${rows.map(([k, v]) => `<div style="font-size:12px;color:#0f172a;margin:3px 0;line-height:1.4"><span style="font-weight:600;color:#334155">${k}:</span> ${esc(v)}</div>`).join('')}
+</div>`
+  }
+
   async function printLabSlip() {
     const sel = myPatients.find(t => `${t.id}` === form.patientKey)
     if (!sel) { setToast({ type: 'error', message: 'Select a patient first' }); return }
@@ -1071,6 +1164,7 @@ body{font-family:system-ui,-apple-system,sans-serif;padding:32px;color:#0f172a;b
 <div><strong>MR #:</strong> ${sel.mrNo || '-'}</div>
 <div><strong>Date:</strong> ${new Date().toLocaleDateString()}</div>
 </div>
+${clinicalSlipBlock()}
 <div class="tests">
 ${tests.map((t, i) => `<div class="test-item"><div class="test-number">${i + 1}</div><div class="test-name">${t}</div></div>`).join('')}
 </div>
@@ -1120,6 +1214,7 @@ body{font-family:system-ui,-apple-system,sans-serif;padding:32px;color:#0f172a;b
 <div><strong>MR #:</strong> ${sel.mrNo || '-'}</div>
 <div><strong>Date:</strong> ${new Date().toLocaleDateString()}</div>
 </div>
+${clinicalSlipBlock()}
 <div class="tests">
 ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-number">${i + 1}</div><div class="test-name">${t}</div></div>`).join('')}
 </div>
@@ -1133,6 +1228,7 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
   }
 
   function resetForms(){
+    setReopenedPatient(null)
     setForm({ patientKey: '', primaryComplaint: '', primaryComplaintHistory: '', familyHistory: '', allergyHistory: '', treatmentHistory: '', history: '', examFindings: '', diagnosis: '', advice: '', nextFollowUp: '', labTestsText: '', vitalsDisplay: {}, vitalsNormalized: {}, diagDisplay: { testsText: '' }, meds: Array.from({ length: 5 }, () => emptyMedRow()), preAnesthesia: emptyPreAnesthesia(), dentalChart: emptyDentalChart(), eyeExamination: emptyEyeExamination(), departmentData: null })
     try { vitalsRef.current?.setDisplay?.({}) } catch {}
     try { diagRef.current?.setDisplay?.({ testsText: '' }) } catch {}
@@ -1248,9 +1344,9 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
           
           <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-3 py-2 shadow-sm">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 text-slate-400 shrink-0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="border-0 p-0 text-xs font-medium text-slate-600 focus:ring-0 bg-transparent w-28" />
+            <DatePicker value={from} onChange={v => setFrom(v)} placeholder="From" max={to || undefined} className="w-32" />
             <span className="text-slate-300 text-xs">–</span>
-            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="border-0 p-0 text-xs font-medium text-slate-600 focus:ring-0 bg-transparent w-28" />
+            <DatePicker value={to} onChange={v => setTo(v)} placeholder="To" min={from || undefined} className="w-32" />
             <div className="flex gap-1 ml-1 border-l border-slate-100 pl-2">
               <button type="button" onClick={()=>{ const t = new Date().toISOString().slice(0,10); setFrom(t); setTo(t) }} className="rounded-md px-2 py-1 text-[10px] font-semibold text-sky-600 hover:bg-sky-50 transition-all">Today</button>
               <button type="button" onClick={()=>{ setFrom(''); setTo('') }} className="rounded-md px-2 py-1 text-[10px] font-semibold text-slate-400 hover:bg-slate-100 transition-all">Clear</button>
@@ -1627,19 +1723,20 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
             <button
               type="button"
               disabled={!sel}
-              onClick={holdPrescription}
+              onClick={()=>save(undefined, false, 'draft')}
+              title="Save investigations now and finish treatment later — keeps the patient in Pending Investigations"
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 hover:border-amber-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-              Hold
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save as Draft
             </button>
             <button
               type="button"
-              onClick={() => setHeldPrescriptionsModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all"
+              onClick={openPending}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 transition-all"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Held
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Pending Investigations
             </button>
             <button
               type="submit"
@@ -1817,6 +1914,61 @@ ${tests.map((t: string, i: number) => `<div class="test-item"><div class="test-n
                   </div>
                 )
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-2 sm:px-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div>
+                <div className="text-base font-semibold text-slate-900">Pending Investigations</div>
+                <div className="text-xs text-slate-500">Drafts saved while awaiting reports — reopen to add treatment</div>
+              </div>
+              <button onClick={() => setPendingOpen(false)} className="rounded-md border border-slate-300 px-3 py-1 text-sm hover:bg-slate-50">Close</button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-4">
+              {pendingDrafts.length === 0 ? (
+                <div className="py-6 text-center text-slate-500">No pending investigation drafts</div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingDrafts.map((p: any) => {
+                    const pname = p.patientId?.fullName || p.encounterId?.patientId?.fullName || 'Unknown'
+                    const pmrn = p.patientId?.mrn || p.encounterId?.patientId?.mrn || '-'
+                    const labs = Array.isArray(p.labTests) ? p.labTests : []
+                    const diag = Array.isArray(p.diagnosticTests) ? p.diagnosticTests : []
+                    return (
+                      <div key={p._id} className="rounded-lg border border-slate-200 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-slate-800">{pname} <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 align-middle">Draft</span></div>
+                            <div className="text-xs text-slate-500">MRN: {pmrn} · {p.createdAt ? new Date(p.createdAt).toLocaleString() : ''}</div>
+                            {p.primaryComplaint && <div className="mt-1 text-xs text-slate-600"><span className="font-semibold">Complaint:</span> {p.primaryComplaint}</div>}
+                            {(labs.length > 0 || diag.length > 0) && (
+                              <div className="mt-1 text-xs text-slate-600"><span className="font-semibold">Investigations:</span> {[...labs, ...diag].join(', ')}</div>
+                            )}
+                          </div>
+                          <div className="shrink-0 flex flex-col gap-1.5">
+                            <button
+                              onClick={() => reopenDraft(p)}
+                              className="rounded-md border border-green-600 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-100"
+                            >
+                              Reopen
+                            </button>
+                            <button
+                              onClick={() => discardDraft(String(p._id))}
+                              className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-100"
+                            >
+                              Discard
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

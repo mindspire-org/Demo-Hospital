@@ -164,34 +164,68 @@ export async function previewLetterheadRxPdf(data: PrescriptionPdfData) {
     pdf.setFillColor(250, 248, 245) // light cream tint
     pdf.setDrawColor(crRule.r, crRule.g, crRule.b)
     pdf.setLineWidth(0.3)
-    pdf.roundedRect(mx, y, cw, 10, 1.5, 1.5, 'FD')
+
+    const rowHeight = 10
+    const maxX = W - mx
+    const labelX = mx + 3
+    const startX = mx + 20
+    const startY = y + 7
+
+    // First pass: determine how many rows are needed so the box height is correct
+    let vitX = startX
+    let vitY = startY
+    let rows = 1
+    for (const vit of vitalsList) {
+      const labelText = `${vit.label}:`
+      const labelW = pdf.getStringUnitWidth(labelText) * 8 / pdf.internal.scaleFactor
+      const valueW = pdf.getStringUnitWidth(vit.value) * 8 / pdf.internal.scaleFactor
+      const itemW = labelW + valueW + 6
+      if (vitX + itemW > maxX && vitX > startX) {
+        vitX = startX
+        vitY += rowHeight
+        rows += 1
+      }
+      vitX += itemW + 4
+    }
+
+    const boxHeight = rows * rowHeight + 4
+    pdf.roundedRect(mx, y, cw, boxHeight, 1.5, 1.5, 'FD')
     // Vitals label
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(7)
     pdf.setTextColor(mid.r, mid.g, mid.b)
-    pdf.text('VITALS', mx + 3, y + 4)
-    // Vitals values
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    pdf.setTextColor(ink.r, ink.g, ink.b)
-    let vitX = mx + 18
+    pdf.text('VITALS', labelX, y + 4)
+
+    // Second pass: draw the vitals
+    vitX = startX
+    vitY = startY
     for (const vit of vitalsList) {
       pdf.setFont('helvetica', 'bold')
       pdf.setTextColor(navy.r, navy.g, navy.b)
-      pdf.text(`${vit.label}:`, vitX, y + 7)
-      const labelW = pdf.getStringUnitWidth(`${vit.label}:`) * 8 / pdf.internal.scaleFactor
+      const labelText = `${vit.label}:`
+      const labelW = pdf.getStringUnitWidth(labelText) * 8 / pdf.internal.scaleFactor
+      const valueW = pdf.getStringUnitWidth(vit.value) * 8 / pdf.internal.scaleFactor
+      const itemW = labelW + valueW + 6
+
+      if (vitX + itemW > maxX && vitX > startX) {
+        vitX = startX
+        vitY += rowHeight
+      }
+
+      pdf.text(labelText, vitX, vitY)
       pdf.setFont('helvetica', 'normal')
       pdf.setTextColor(ink.r, ink.g, ink.b)
       // Check for Urdu in vitals value
       const vitValueUrdu = hasUrdu(vit.value)
       if (vitValueUrdu) {
-        safeUrduText(vit.value, vitX + labelW + 12, y + 7, { align: 'right' })
+        safeUrduText(vit.value, vitX + labelW + 4, vitY, { align: 'right' })
       } else {
-        pdf.text(vit.value, vitX + labelW + 2, y + 7)
+        pdf.text(vit.value, vitX + labelW + 2, vitY)
       }
-      vitX += labelW + pdf.getStringUnitWidth(vit.value) * 8 / pdf.internal.scaleFactor + 10
+      vitX += itemW + 4
     }
-    y += 14
+
+    y += boxHeight + 4
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -212,8 +246,16 @@ export async function previewLetterheadRxPdf(data: PrescriptionPdfData) {
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(navy.r, navy.g, navy.b)
     pdf.text(title + ':', mx, y)
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(ink.r, ink.g, ink.b)
-    const lines = (pdf as any).splitTextToSize(val2.trim(), cw - 40)
-    pdf.text(lines, mx + 42, y)
+    const txt = val2.trim()
+    const lines = (pdf as any).splitTextToSize(txt, cw - 40)
+    if (hasUrdu(txt)) {
+      // Render Urdu values right-to-left with the Nastaleeq font so they don't show as boxes
+      for (let i = 0; i < lines.length; i++) {
+        safeUrduText(lines[i], W - mx, y + i * 4.5, { align: 'right' })
+      }
+    } else {
+      pdf.text(lines, mx + 42, y)
+    }
     // Ruled underline for each line
     pdf.setDrawColor(crRule.r, crRule.g, crRule.b)
     pdf.setLineWidth(0.2)
@@ -229,6 +271,11 @@ export async function previewLetterheadRxPdf(data: PrescriptionPdfData) {
   sect('Examination Findings', data.examFindings)
   sect('Family History', data.familyHistory)
   sect('Allergy History', data.allergyHistory)
+  // Advised investigations — important part of the medical record / final prescription
+  sect('Lab Investigations', (data.labTests || []).filter(Boolean).join(', '))
+  if ((data as any).labNotes) sect('Lab Notes', (data as any).labNotes)
+  sect('Diagnostic / Imaging', (data.diagnosticTests || []).filter(Boolean).join(', '))
+  if ((data as any).diagnosticNotes) sect('Diagnostic Notes', (data as any).diagnosticNotes)
   sect('Advice / Referral', data.advice)
   sect('Next Follow Up', data.nextFollowUp)
 

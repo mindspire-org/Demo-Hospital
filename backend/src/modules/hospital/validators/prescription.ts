@@ -82,6 +82,7 @@ const departmentClinicalSchema = z.object({
 
 const baseSchema = z.object({
   encounterId: z.string().min(1),
+  status: z.enum(['draft','final']).optional(),
   prescriptionMode: z.enum(['electronic','manual']).optional(),
   manualAttachment: manualAttachmentSchema.optional(),
   labTests: z.array(z.string().min(1)).optional(),
@@ -127,7 +128,9 @@ export const createPrescriptionSchema = z.union([
     manualAttachment: manualAttachmentSchema.extend({ dataUrl: z.string().min(10) }),
     items: z.array(itemSchema).optional(),
   }),
-  baseSchema.extend({ prescriptionMode: z.literal('electronic').optional(), items: z.array(itemSchema).min(1) }),
+  // Electronic: a draft (investigations advised, treatment pending) may have no
+  // medicines yet, so items is optional here; the frontend enforces ≥1 for final.
+  baseSchema.extend({ prescriptionMode: z.literal('electronic').optional(), items: z.array(itemSchema).optional().default([]) }),
 ])
 
 export const updatePrescriptionSchema = z.object({
@@ -140,6 +143,7 @@ export const updatePrescriptionSchema = z.object({
     route: z.string().optional(),
     instruction: z.string().optional(),
   })).min(1).optional(),
+  status: z.enum(['draft','final']).optional(),
   prescriptionMode: z.enum(['electronic','manual']).optional(),
   manualAttachment: manualAttachmentSchema.optional(),
   labTests: z.array(z.string().min(1)).optional(),

@@ -4,6 +4,9 @@ const PrescriptionSchema = new Schema({
   patientId: { type: Schema.Types.ObjectId, ref: 'Lab_Patient', required: true, index: true },
   encounterId: { type: Schema.Types.ObjectId, ref: 'Hospital_Encounter', required: true },
   prescriptionMode: { type: String, default: 'electronic' },
+  // Draft = investigations advised, treatment pending (appears in the Pending
+  // Investigations list); final = completed prescription.
+  status: { type: String, enum: ['draft', 'final'], default: 'final', index: true },
   manualAttachment: {
     mimeType: { type: String },
     fileName: { type: String },
@@ -117,6 +120,7 @@ export type HospitalPrescriptionDoc = {
   patientId: string
   encounterId: string
   prescriptionMode?: 'electronic'|'manual'
+  status?: 'draft'|'final'
   manualAttachment?: { mimeType?: string; fileName?: string; dataUrl?: string; uploadedAt?: string }
   items: Array<{ name: string; dose?: string; frequency?: string; duration?: string; notes?: string; route?: string; instruction?: string }>
   labTests?: string[]
