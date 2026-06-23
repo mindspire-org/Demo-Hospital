@@ -4,6 +4,12 @@ import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
 // ── Helpers ──
 const pad = (n: number) => String(n).padStart(2, '0')
 const formatInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+const parseDateValue = (s?: string) => {
+  if (!s) return null
+  const [y, m, d] = s.split('-').map(n => parseInt(n, 10))
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
 const formatDisplay = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 const daysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate()
 const firstDayOfMonth = (y: number, m: number) => new Date(y, m, 1).getDay()
@@ -23,32 +29,42 @@ interface DatePickerProps {
 
 export default function DatePicker({ value, onChange, placeholder = 'Select date', label, min, max, dark, className = '' }: DatePickerProps) {
   const [open, setOpen] = useState(false)
-  const [viewDate, setViewDate] = useState(() => {
-    if (value) return new Date(value + 'T00:00:00')
-    return new Date()
-  })
+  const [viewDate, setViewDate] = useState(() => parseDateValue(value) || new Date())
   const ref = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (value) setViewDate(new Date(value + 'T00:00:00'))
+    const parsed = parseDateValue(value)
+    if (parsed) setViewDate(parsed)
   }, [value])
 
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
+    if (!open) return
+    const onDoc = (e: Event) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false)
     }
-    if (open) document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('touchstart', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('touchstart', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [open])
 
-  const selectedDate = value ? new Date(value + 'T00:00:00') : null
+  const selectedDate = parseDateValue(value)
   const today = new Date(); today.setHours(0,0,0,0)
 
   const isDisabled = (y: number, m: number, d: number) => {
     const dt = new Date(y, m, d)
-    if (min && dt < new Date(min + 'T00:00:00')) return true
-    if (max && dt > new Date(max + 'T00:00:00')) return true
+    const minDate = parseDateValue(min)
+    const maxDate = parseDateValue(max)
+    if (minDate && dt < minDate) return true
+    if (maxDate && dt > maxDate) return true
     return false
   }
 
@@ -109,7 +125,7 @@ export default function DatePicker({ value, onChange, placeholder = 'Select date
       >
         <CalendarDays className={`h-4 w-4 shrink-0 ${mutedText}`} />
         <span className={value ? '' : mutedText}>
-          {value ? formatDisplay(new Date(value + 'T00:00:00')) : placeholder}
+          {value ? formatDisplay(parseDateValue(value) || new Date()) : placeholder}
         </span>
         {value && (
           <span className="ml-auto" onClick={(e) => { e.stopPropagation(); clear() }}>
@@ -121,17 +137,17 @@ export default function DatePicker({ value, onChange, placeholder = 'Select date
       {open && (
         <div
           ref={popupRef}
-          className={`absolute z-50 mt-2 w-72 overflow-hidden rounded-2xl border shadow-xl ${popupBg}`}
+          className={`absolute z-50 mt-2 w-80 overflow-hidden rounded-2xl border shadow-xl ${popupBg}`}
         >
           {/* Header */}
           <div className={`flex items-center justify-between border-b px-4 py-3 ${dark ? 'border-white/10' : 'border-slate-100'}`}>
-            <button type="button" onClick={prevMonth} className={`rounded-lg p-1 transition-colors ${hoverBase}`}>
+            <button type="button" onClick={prevMonth} className={`rounded-lg p-2.5 transition-colors ${hoverBase}`} aria-label="Previous month">
               <ChevronLeft className={`h-4 w-4 ${headerText}`} />
             </button>
             <div className={`text-sm font-bold ${headerText}`}>
               {monthNames[m]} {y}
             </div>
-            <button type="button" onClick={nextMonth} className={`rounded-lg p-1 transition-colors ${hoverBase}`}>
+            <button type="button" onClick={nextMonth} className={`rounded-lg p-2.5 transition-colors ${hoverBase}`} aria-label="Next month">
               <ChevronRight className={`h-4 w-4 ${headerText}`} />
             </button>
           </div>
@@ -156,7 +172,7 @@ export default function DatePicker({ value, onChange, placeholder = 'Select date
                       type="button"
                       disabled={disabled}
                       onClick={() => selectDate(y, m, day)}
-                      className={`mx-auto my-0.5 flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-all
+                      className={`mx-auto my-0.5 flex h-11 w-11 items-center justify-center rounded-full text-xs font-semibold transition-all
                         ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
                         ${sel ? selectedClass : ''}
                         ${!sel && tod ? todayClass : ''}

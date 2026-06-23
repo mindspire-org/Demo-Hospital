@@ -144,7 +144,7 @@ export default function Reception_ERBillingCollect(){
     let timer: any
     const run = () => { search().catch(()=>{}) }
     run()
-    timer = setInterval(run, 15000)
+    timer = setInterval(() => { if (!document.hidden) run() }, 15000)
     return ()=> { if (timer) clearInterval(timer) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

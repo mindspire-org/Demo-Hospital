@@ -12,6 +12,7 @@ import { LabSettings } from '../models/Settings'
 import { postLabOrderJournal } from '../../finance/controllers/finance_ledger'
 import { logActivity } from '../../finance/services/activityLog.service'
 import { HospitalReferral } from '../../hospital/models/Referral'
+import { HospitalDoctor } from '../../hospital/models/Doctor'
 import { formatLabNumber } from '../../../common/utils/labNumberFormat'
 import { z } from 'zod'
 
@@ -290,6 +291,20 @@ export async function create(req: Request, res: Response) {
 
   const tests: any[] = Array.from(testsMap.values())
 
+  // Auto-populate referringDoctorId/Name from referral if not explicitly provided
+  let referringDoctorId = data.referringDoctorId
+  let referringDoctorName = data.referringDoctorName
+  if (!referringDoctorId && data.referralId) {
+    try {
+      const ref: any = await HospitalReferral.findById(data.referralId).lean()
+      if (ref?.doctorId) {
+        referringDoctorId = String(ref.doctorId)
+        const doc: any = await HospitalDoctor.findById(ref.doctorId).select('name').lean()
+        if (doc) referringDoctorName = doc.name
+      }
+    } catch {}
+  }
+
   const token = await LabToken.create({
     labNumber,
     tokenNo,
@@ -300,8 +315,8 @@ export async function create(req: Request, res: Response) {
     generatedAt: now,
     generatedBy: actor,
     referringConsultant: data.referringConsultant,
-    referringDoctorId: data.referringDoctorId,
-    referringDoctorName: data.referringDoctorName,
+    referringDoctorId,
+    referringDoctorName,
     referralId: data.referralId,
     corporateId: data.corporateId,
     portal,

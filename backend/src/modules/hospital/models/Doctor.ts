@@ -21,6 +21,7 @@ const DoctorSchema = new Schema({
   shares: { type: Number, default: 100 },
   opdShare: { type: Number },
   ipdShare: { type: Number },
+  labCommissionPercent: { type: Number, default: 0, min: 0, max: 100 },
   active: { type: Boolean, default: true },
   prescriptionTemplate: { type: String, default: 'hospital-rx' },
   prescriptionLanguage: { type: String, default: 'english' },
@@ -47,6 +48,7 @@ export type HospitalDoctorDoc = {
   shares?: number
   opdShare?: number
   ipdShare?: number
+  labCommissionPercent?: number
   active: boolean
   prescriptionTemplate?: string
   prescriptionLanguage?: string

@@ -48,7 +48,7 @@ function ServiceSelect({ svcCatalog, onSelect, initialValue = '' }: { svcCatalog
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-[70] mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute z-70 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
           {filtered.map(svc => (
             <button
               key={svc.id || svc._id}
@@ -137,7 +137,7 @@ export default function Reception_ERBilling(){
     let timer: any
     const run = () => { search().catch(()=>{}) }
     run()
-    timer = setInterval(run, 15000)
+    timer = setInterval(() => { if (!document.hidden) run() }, 15000)
     return ()=> { if (timer) clearInterval(timer) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

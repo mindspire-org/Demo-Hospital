@@ -56,6 +56,9 @@ export default function Lab_Settings() {
   const [seedAllError, setSeedAllError] = useState('')
   const [doctorReferralEnabled, setDoctorReferralEnabled] = useState(false)
   const [doctorReferralPercentage, setDoctorReferralPercentage] = useState(0)
+  const [referralDoctors, setReferralDoctors] = useState<Array<{ _id: string; name: string; commissionPercent?: number }>>([])
+  const [referralDoctorsLoading, setReferralDoctorsLoading] = useState(false)
+  const [referralDoctorsSaving, setReferralDoctorsSaving] = useState<string[]>([])
 
   useEffect(()=>{
     let mounted = true
@@ -95,6 +98,8 @@ export default function Lab_Settings() {
         setHijriOffset(s.labHijriDateOffset || 0)
         setDoctorReferralEnabled(!!s.doctorReferralEnabled)
         setDoctorReferralPercentage(s.doctorReferralPercentage || 0)
+        // load doctor referral list when settings load
+        loadReferralDoctors()
         setHeaderImageUrl(s.headerImageUrl || '')
         setFooterImageUrl(s.footerImageUrl || '')
         setHeaderHistory(Array.isArray(s.headerHistory) ? s.headerHistory : [])
@@ -114,6 +119,32 @@ export default function Lab_Settings() {
   // System Settings form state (loaded from API, not localStorage)
   const [dateFormat, setDateFormat] = useState<string>('DD/MM/YYYY')
   const [currency, setCurrency] = useState<string>('PKR')
+
+  async function loadReferralDoctors() {
+    setReferralDoctorsLoading(true)
+    try {
+      const res: any = await labApi.listDoctors()
+      setReferralDoctors((res.items || []).map((d: any) => ({ _id: String(d._id || d.id), name: String(d.name || ''), commissionPercent: Number(d.commissionPercent || 0) })))
+    } catch {
+      setReferralDoctors([])
+    } finally {
+      setReferralDoctorsLoading(false)
+    }
+  }
+
+  async function saveDoctorPercentage(id: string, commissionPercent: number) {
+    setReferralDoctorsSaving(prev => [...prev, id])
+    try {
+      await labApi.updateDoctor(id, { commissionPercent })
+      setReferralDoctors(prev => prev.map(d => d._id === id ? { ...d, commissionPercent } : d))
+      setNotice('Doctor percentage saved')
+    } catch (e: any) {
+      setNotice(e?.message || 'Failed to save doctor percentage')
+    } finally {
+      setReferralDoctorsSaving(prev => prev.filter(x => x !== id))
+      setTimeout(() => setNotice(''), 2000)
+    }
+  }
 
   const saveLab = async () => {
     setSaving(true)
@@ -721,18 +752,75 @@ export default function Lab_Settings() {
               </label>
             </div>
             {doctorReferralEnabled && (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-700">Default Referral Percentage (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={doctorReferralPercentage}
+                      onChange={(e) => setDoctorReferralPercentage(Number(e.target.value))}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">Default commission percentage for referring doctors.</p>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="mb-1 block text-sm text-slate-700">Default Referral Percentage (%)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={doctorReferralPercentage}
-                    onChange={(e) => setDoctorReferralPercentage(Number(e.target.value))}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <p className="mt-1 text-xs text-slate-500">Default commission percentage for referring doctors.</p>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="block text-sm font-medium text-slate-700">Doctor-wise Referral Percentages</label>
+                    <span className="text-xs text-slate-500">{referralDoctors.length} doctors</span>
+                  </div>
+                  {referralDoctorsLoading ? (
+                    <div className="py-4 text-sm text-slate-500">Loading doctors...</div>
+                  ) : referralDoctors.length === 0 ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                      No doctors found. Doctors are automatically synced from the hospital portal. Add doctors in <a href="/hospital/doctors" className="font-medium text-violet-600 hover:underline">Hospital Doctors</a> to get started.
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-slate-50">
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Doctor Name</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Lab Commission %</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {referralDoctors.map((d) => (
+                            <tr key={d._id} className="bg-white">
+                              <td className="px-3 py-2 text-slate-800">{d.name}</td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={d.commissionPercent ?? 0}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value)
+                                    setReferralDoctors(prev => prev.map(x => x._id === d._id ? { ...x, commissionPercent: val } : x))
+                                  }}
+                                  className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <button
+                                  onClick={() => saveDoctorPercentage(d._id, d.commissionPercent || 0)}
+                                  disabled={referralDoctorsSaving.includes(d._id)}
+                                  className="rounded-md bg-violet-600 px-3 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                                >
+                                  {referralDoctorsSaving.includes(d._id) ? 'Saving...' : 'Save'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

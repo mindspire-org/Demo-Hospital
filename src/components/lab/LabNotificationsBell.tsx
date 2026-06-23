@@ -48,7 +48,7 @@ export default function LabNotificationsBell() {
   }
   useEffect(() => {
     load()
-    const t = setInterval(load, POLL_MS)
+    const t = setInterval(() => { if (!document.hidden) load() }, POLL_MS)
     return () => clearInterval(t)
   }, [])
 

@@ -88,9 +88,10 @@ export default function Hospital_StaffDashboard(){
   useEffect(()=>{
     if (!live) return
     const id = setInterval(async ()=>{
+      if (document.hidden) return
       await reloadAttendance()
       setTick(t => t + 1)
-    }, Math.max(3000, refreshMs))
+    }, Math.max(10000, refreshMs))
     return () => clearInterval(id)
   }, [live, refreshMs, fromDate, toDate, selectedShiftId])
 

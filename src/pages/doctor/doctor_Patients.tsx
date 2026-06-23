@@ -87,7 +87,7 @@ export default function Doctor_Patients() {
   useEffect(() => { load() }, [doc?.id, from, to, page, limit])
   useEffect(() => {
     if (!doc?.id) return
-    const id = setInterval(() => { load() }, 15000)
+    const id = setInterval(() => { if (!document.hidden) load() }, 30000)
     return () => clearInterval(id)
   }, [doc?.id])
 

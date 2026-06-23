@@ -147,18 +147,6 @@ export default function Lab_DoctorRevenue() {
     }
   }
 
-  const removeDoctor = async (id: string) => {
-    if (!window.confirm('Delete this doctor?')) return
-    try {
-      await labApi.deleteDoctor(id)
-      setNotice('Doctor deleted')
-      loadData()
-      setTimeout(() => setNotice(''), 2000)
-    } catch (e: any) {
-      setNotice(e?.message || 'Failed to delete doctor')
-    }
-  }
-
   const statMap = useMemo(() => {
     const m = new Map<string, DoctorStat>()
     for (const s of stats) m.set(s.doctorId, s)
@@ -191,7 +179,7 @@ export default function Lab_DoctorRevenue() {
           <input type="date" value={to} max={today} onChange={e => setTo(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <button onClick={() => { setFrom(''); setTo('') }} className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">Reset</button>
-        <button onClick={() => openForm()} className="ml-auto rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">+ Add Doctor</button>
+        <div className="ml-auto text-xs text-slate-500">Doctors are synced from hospital portal</div>
       </div>
 
       {/* Summary cards */}
@@ -216,13 +204,13 @@ export default function Lab_DoctorRevenue() {
 
       {/* Doctors table */}
       <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Doctors</div>
+        <div className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">Doctors <span className="ml-2 text-xs font-normal text-slate-500">(from hospital portal)</span></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2 text-left font-semibold text-slate-600">Doctor</th>
-                <th className="px-4 py-2 text-left font-semibold text-slate-600">Commission %</th>
+                <th className="px-4 py-2 text-left font-semibold text-slate-600">Lab Commission %</th>
                 <th className="px-4 py-2 text-right font-semibold text-slate-600">Orders</th>
                 <th className="px-4 py-2 text-right font-semibold text-slate-600">Tests</th>
                 <th className="px-4 py-2 text-right font-semibold text-slate-600">Revenue</th>
@@ -235,7 +223,7 @@ export default function Lab_DoctorRevenue() {
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Loading...</td></tr>
               )}
               {!loading && doctors.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No doctors found. Add a doctor to get started.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No doctors found. Doctors are synced from the hospital portal.</td></tr>
               )}
               {!loading && doctors.map(d => {
                 const s = statMap.get(d._id)
@@ -255,7 +243,6 @@ export default function Lab_DoctorRevenue() {
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => openDetail(d)} className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">Detail</button>
                         <button onClick={() => openForm(d)} className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200">Edit</button>
-                        <button onClick={() => removeDoctor(d._id)} className="rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100">Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -271,7 +258,7 @@ export default function Lab_DoctorRevenue() {
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-2 sm:px-4">
           <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
             <div className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-800">
-              {editingId ? 'Edit Doctor' : 'Add Doctor'}
+              {editingId ? 'Edit Lab Commission' : 'Add Doctor'}
             </div>
             <div className="space-y-3 p-4">
               <div className="grid gap-3 md:grid-cols-2">
@@ -280,7 +267,7 @@ export default function Lab_DoctorRevenue() {
                   <input value={formName} onChange={e => setFormName(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm text-slate-700">Commission %</label>
+                  <label className="mb-1 block text-sm text-slate-700">Lab Commission %</label>
                   <input type="number" min={0} max={100} value={formCommission} onChange={e => setFormCommission(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
                 </div>
               </div>

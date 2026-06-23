@@ -39,8 +39,8 @@ export default function Pharmacy_Header({ onToggleSidebar, onToggleTheme, theme,
     }
     fetchNotifications()
     
-    // Poll every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000)
+    // Poll every 30 seconds (only when tab visible)
+    const interval = setInterval(() => { if (!document.hidden) fetchNotifications() }, 30000)
     
     return () => { 
       mounted = false

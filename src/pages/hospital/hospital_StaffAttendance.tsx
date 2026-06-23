@@ -87,7 +87,7 @@ export default function Hospital_StaffAttendance(){
       } catch {}
     }
     check().catch(() => {})
-    t = setInterval(() => { check().catch(() => {}) }, 5000)
+    t = setInterval(() => { if (!document.hidden) check().catch(() => {}) }, 15000)
     return () => { mounted = false; try { clearInterval(t) } catch {} }
   }, [date, shiftId, lastSyncFinishedAt])
 

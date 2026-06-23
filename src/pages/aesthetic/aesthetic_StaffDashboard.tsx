@@ -92,9 +92,10 @@ export default function Aesthetic_StaffDashboard(){
   useEffect(()=>{
     if (!live) return
     const id = setInterval(async ()=>{
+      if (document.hidden) return
       await reloadAttendance()
       setTick(t => t + 1)
-    }, Math.max(3000, refreshMs))
+    }, Math.max(10000, refreshMs))
     return () => clearInterval(id)
   }, [live, refreshMs, fromDate, toDate, selectedShiftId])
 
@@ -192,7 +193,7 @@ export default function Aesthetic_StaffDashboard(){
           </button>
           <label className="inline-flex items-center gap-1">
             <span className="text-slate-600">Every</span>
-            <select value={refreshMs} onChange={e=> setRefreshMs(Number(e.target.value))} className="select !py-1 !px-2">
+            <select value={refreshMs} onChange={e=> setRefreshMs(Number(e.target.value))} className="select py-1! px-2!">
               <option value={5000}>5s</option>
               <option value={10000}>10s</option>
               <option value={15000}>15s</option>

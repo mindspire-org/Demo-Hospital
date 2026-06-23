@@ -87,8 +87,11 @@ export default function Hospital_NurseDashboard() {
     // Update clock every minute
     const timeInterval = setInterval(() => setCurrentTime(new Date()), 60000)
     
-    // Refresh data every 30 seconds
-    const dataInterval = setInterval(loadDashboardData, 30000)
+    // Refresh data every 60 seconds (only when tab visible)
+    const dataInterval = setInterval(() => {
+      if (document.hidden) return
+      loadDashboardData()
+    }, 60000)
     
     return () => {
       clearInterval(timeInterval)

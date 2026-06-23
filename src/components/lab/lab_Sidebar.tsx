@@ -97,7 +97,7 @@ const testSection: Section = {
   ],
 }
 
-const financeSection: Section = {
+const financeSectionBase: Section = {
   label: 'Finance',
   icon: Banknote,
   items: [
@@ -105,7 +105,6 @@ const financeSection: Section = {
     { to: '/lab/collection-centers', label: 'Collection Centers', icon: Building },
     { to: '/lab/center-revenue', label: 'Center Revenue', icon: TrendingUp },
     { to: '/lab/center-payments', label: 'Center Payments', icon: CreditCard },
-    { to: '/lab/doctor-revenue', label: 'Doctor Revenue', icon: Stethoscope },
     { to: '/lab/center-rate-list', label: 'Center Rate List', icon: Receipt },
     { to: '/lab/expenses', label: 'Expenses', icon: Banknote },
     { to: '/lab/reports-summary', label: 'Reports', icon: PieChart },
@@ -153,10 +152,10 @@ const adminSection: Section = {
 
 const dashboardItem: NavItem = { to: '/lab', label: 'Dashboard', icon: LayoutDashboard, end: true }
 
-const allSections: Section[] = [
+const baseSections: Section[] = [
   tokenSection,
   testSection,
-  financeSection,
+  financeSectionBase,
   inventorySection,
   bloodBankSection,
   adminSection,
@@ -165,7 +164,7 @@ const allSections: Section[] = [
 // Flat array of all nav items for permissions management
 export const labSidebarNav: NavItem[] = [
   dashboardItem,
-  ...allSections.flatMap(s => s.items),
+  ...baseSections.flatMap(s => s.items),
 ]
 
 export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean }) {
@@ -174,6 +173,7 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
   const [role, setRole] = useState<string>('admin')
   const [permMap, setPermMap] = useState<Map<string, any>>(new Map())
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  const [doctorReferralEnabled, setDoctorReferralEnabled] = useState(false)
   const width = collapsed ? 'md:w-[68px]' : 'md:w-[260px]'
 
   useEffect(() => {
@@ -190,13 +190,24 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
     let mounted = true
       ; (async () => {
         try {
-          const res: any = await labApi.listSidebarPermissions(role)
-          const doc = Array.isArray(res) ? res[0] : res
+          const [permRes, settingsRes] = await Promise.all([
+            labApi.listSidebarPermissions(role),
+            labApi.getSettings()
+          ])
+          const doc = Array.isArray(permRes) ? permRes[0] : permRes
           const map = new Map<string, any>()
           const perms = (doc?.permissions || []) as Array<{ path: string; visible?: boolean; order?: number }>
           for (const p of perms) map.set(p.path, p)
-          if (mounted) setPermMap(map)
-        } catch { if (mounted) setPermMap(new Map()) }
+          if (mounted) {
+            setPermMap(map)
+            setDoctorReferralEnabled(!!settingsRes?.doctorReferralEnabled)
+          }
+        } catch {
+          if (mounted) {
+            setPermMap(new Map())
+            setDoctorReferralEnabled(false)
+          }
+        }
       })()
     return () => { mounted = false }
   }, [role])
@@ -205,6 +216,22 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
     // All modules visible — permissions disabled
     return true
   }
+
+  const financeSection = {
+    ...financeSectionBase,
+    items: doctorReferralEnabled
+      ? [...financeSectionBase.items, { to: '/lab/doctor-revenue', label: 'Doctor Revenue', icon: Stethoscope }]
+      : financeSectionBase.items,
+  }
+
+  const allSections: Section[] = [
+    tokenSection,
+    testSection,
+    financeSection,
+    inventorySection,
+    bloodBankSection,
+    adminSection,
+  ]
 
   const byOrder = (a: NavItem, b: NavItem) => {
     const oa = permMap.get(a.to)?.order ?? Number.MAX_SAFE_INTEGER
@@ -224,7 +251,7 @@ export default function Lab_Sidebar({ collapsed = false }: { collapsed?: boolean
 
   // Auto-expand section containing current route
   useEffect(() => {
-    for (const s of allSections) {
+    for (const s of allSections as Section[]) {
       if (s.items.some(i => location.pathname.startsWith(i.to))) {
         setCollapsedSections(prev => {
           if (prev.has(s.label)) {

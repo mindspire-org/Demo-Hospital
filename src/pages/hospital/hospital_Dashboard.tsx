@@ -39,7 +39,7 @@ export default function Hospital_Dashboard() {
   const [corporateArItems, setCorporateArItems] = useState<Array<{ companyId: string; companyName: string; balance: number }>>([])
   const [corporateArAmt, setCorporateArAmt] = useState<number>(0)
   const [showArModal, setShowArModal] = useState(false)
-  const REFRESH_MS = 15000
+  const REFRESH_MS = 30000
 
   // Use refs to avoid stale closures in polling
   const fromDateRef = useRef<string>(fromDate)
@@ -144,6 +144,7 @@ export default function Hospital_Dashboard() {
         } catch {}
       }
 
+      // Batch fetch IPD payments
       const ipdPaysArrays = await Promise.all(ipdAdms.slice(0, 200).map(async (a:any)=>{
         const id = String(a._id||a.id||a.encounterId||'')
         if (!id) return [] as any[]
@@ -340,11 +341,12 @@ export default function Hospital_Dashboard() {
     return [...ipdPayments].sort((a,b)=> getDate(b) - getDate(a)).slice(0, 10)
   }, [ipdPayments])
 
-  // Auto-refresh for real-time chart and widgets
+  // Auto-refresh for real-time chart and widgets — only when tab is visible
   useEffect(()=>{
     const id = setInterval(async ()=>{
+      if (document.hidden) return
       await load()
-    }, Math.max(3000, REFRESH_MS))
+    }, Math.max(10000, REFRESH_MS))
     return () => clearInterval(id)
   }, [fromDate, toDate])
 
